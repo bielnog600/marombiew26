@@ -113,6 +113,18 @@ import type { ParsedMeal } from '@/lib/dietResultParser';
 import { Percent } from 'lucide-react';
 import { isStructuredCanonicalPlan } from '@/lib/dietStructuredGuards';
 import { publishDietPlan } from '@/lib/publishDietPlan';
+import {
+  ACTIVITY_LEVELS, STRATEGIES, MEAL_COUNTS, DIET_STYLES, PHASES, TRAINING_TIMES, TRAINING_DAYS_OPTIONS,
+  RESTRICTION_OPTIONS, PREFERENCE_OPTIONS, PROTOCOL_ADJUSTMENTS as BASE_PROTOCOL_ADJUSTMENTS,
+  parsePositiveNumber, calculateAge, parseWeekdayWorkouts,
+  computeEnergySelection, computeAutomaticBaseKcal, parseManualBaseKcal, resolveBaseKcal, computeBaseKcalIssues,
+  computeMacroBody, applyMacroPreset, computeCanonicalTargets, computeWeeklySchedule, suggestCarbAssignments,
+  dietRestrictionsText, dietPreferencesText, buildDietGenerationPrompts, buildDietTrainingContext,
+  loadDietFoodRecords, buildDietFoodHints, buildDietAgentBody, finalizeDietAgentPlan, processDietDailyAdjustments,
+  buildDietProtocols,
+  type StudentCtx, type BaseKcalMode, type BaseKcalState, type DietaWizardState,
+} from '@/lib/officeWizard/dietaWizard';
+import { loadDietaStudentData, loadActiveTrainingMarkdown } from '@/lib/officeWizard/dietaStudentData';
 
 /**
  * FASE 6 — publicação structured SEMPRE pela Edge Function (atômica,
@@ -128,136 +140,12 @@ const publishStructuredPlanViaEdge = async (planId: string): Promise<boolean> =>
   return true;
 };
 
-type StudentCtx = Record<string, any>;
+export { ACTIVITY_LEVELS };
 
-type BaseKcalMode = BaseKcalSource;
-
-type BaseKcalState = {
-  source: BaseKcalSource;
-  base_daily_kcal: number | null;
-  calculation: BaseKcalCalculationSnapshot;
-  missing: string[];
+const PROTOCOL_ADJUSTMENT_ICONS: Record<string, typeof SlidersHorizontal> = {
+  plato: Target, refeed: Zap, diet_break: Clock,
 };
-
-const BASE_SOURCE_LABELS: Record<BaseKcalSource, string> = {
-  automatic: 'Cálculo automático',
-  manual: 'Manual',
-};
-
-const emptyCalculationSnapshot = (): BaseKcalCalculationSnapshot => ({
-  bmr: null,
-  activity_factor: null,
-  tdee: null,
-  strategy_percent: null,
-  formula: null,
-});
-
-const parsePositiveNumber = (value: unknown): number | null => {
-  if (value === null || value === undefined || value === '') return null;
-  const n = typeof value === 'number' ? value : Number(String(value).replace(',', '.'));
-  return Number.isFinite(n) && n > 0 ? n : null;
-};
-
-const calculateAge = (birthDate: unknown): number | null => {
-  if (!birthDate) return null;
-  const time = new Date(String(birthDate)).getTime();
-  if (!Number.isFinite(time)) return null;
-  const age = Math.floor((Date.now() - time) / (365.25 * 24 * 60 * 60 * 1000));
-  return age > 0 ? age : null;
-};
-
-const normalizeSex = (value: unknown): 'masculino' | 'feminino' | null => {
-  const normalized = String(value ?? '').trim().toLowerCase();
-  if (['masculino', 'm', 'male', 'homem'].includes(normalized)) return 'masculino';
-  if (['feminino', 'f', 'female', 'mulher'].includes(normalized)) return 'feminino';
-  return null;
-};
-
-// Fatores de atividade diária (NEAT + rotina), alinhados à tabela clássica.
-// value === factor em string; nunca é sobrescrito por frequência de treino.
-export const ACTIVITY_LEVELS = [
-  { value: '1.2',   factor: 1.20,  label: 'Sedentário', desc: 'Rotina parada, quase sem deslocamento' },
-  { value: '1.3',   factor: 1.30,  label: 'Super Leve', desc: 'Trabalho sentado, pouca caminhada e rotina pouco ativa' },
-  { value: '1.375', factor: 1.375, label: 'Leve',       desc: 'Alguma caminhada ou rotina diária levemente ativa' },
-  { value: '1.55',  factor: 1.55,  label: 'Moderado',   desc: 'Rotina ativa ou trabalho com movimentação frequente' },
-  { value: '1.725', factor: 1.725, label: 'Alto',       desc: 'Trabalho físico ou rotina diária muito ativa' },
-  { value: '1.9',   factor: 1.90,  label: 'Extremo',    desc: 'Atividade física profissional ou trabalho físico muito intenso' },
-];
-
-const STRATEGIES = [
-  { value: 'deficit_leve', label: 'Déficit Leve (-10%)', desc: 'Emagrecimento gradual, preserva massa', pct: -10 },
-  { value: 'deficit_moderado', label: 'Déficit Moderado (-20%)', desc: 'Emagrecimento acelerado', pct: -20 },
-  { value: 'deficit_agressivo', label: 'Déficit Agressivo (-30%)', desc: 'Perda rápida, mais restritivo', pct: -30 },
-  { value: 'manutencao', label: 'Manutenção (0%)', desc: 'Manter peso e composição', pct: 0 },
-  { value: 'superavit_leve', label: 'Superávit Leve (+10%)', desc: 'Lean bulk — ganho limpo', pct: 10 },
-  { value: 'superavit_moderado', label: 'Superávit Moderado (+20%)', desc: 'Bulk agressivo', pct: 20 },
-];
-
-const MEAL_COUNTS = [
-  { value: '4', label: '4 refeições' },
-  { value: '5', label: '5 refeições' },
-  { value: '6', label: '6 refeições' },
-  { value: '7', label: '7 refeições' },
-];
-
-const DIET_STYLES = [
-  { value: 'flexivel', label: 'Flexível (IIFYM)', desc: 'Foco nos macros, liberdade de escolha dos alimentos' },
-  { value: 'low_carb', label: 'Low Carb', desc: 'Redução significativa de carboidratos' },
-  { value: 'cetogenica', label: 'Cetogênica', desc: 'Ultra low carb, alto em gorduras' },
-  { value: 'mediterranea', label: 'Mediterrânea', desc: 'Baseada em azeite, peixes, grãos integrais' },
-  { value: 'paleolitica', label: 'Paleolítica', desc: 'Alimentos naturais, sem processados' },
-  { value: 'vegetariana', label: 'Vegetariana', desc: 'Sem carnes, permite ovos/laticínios' },
-  { value: 'vegana', label: 'Vegana', desc: 'Sem alimentos de origem animal' },
-  { value: 'convencional', label: 'Convencional', desc: 'Dieta tradicional balanceada' },
-];
-
-const PHASES = [
-  { value: 'bulking', label: 'Bulking', desc: 'Fase de ganho de massa' },
-  { value: 'cutting', label: 'Cutting', desc: 'Fase de definição' },
-  { value: 'manutencao', label: 'Manutenção', desc: 'Manter composição corporal' },
-  { value: 'recomposicao', label: 'Recomposição', desc: 'Perder gordura e ganhar massa simultaneamente' },
-  { value: 'pre_contest', label: 'Pré-Contest', desc: 'Preparação para competição' },
-];
-
-const TRAINING_TIMES = [
-  { value: 'manha_jejum', label: 'Manhã (jejum)' },
-  { value: 'manha', label: 'Manhã' },
-  { value: 'tarde', label: 'Tarde' },
-  { value: 'noite', label: 'Noite' },
-  { value: 'madrugada', label: 'Madrugada' },
-];
-
-const TRAINING_DAYS_OPTIONS = [
-  { value: '3', label: '3x/semana' },
-  { value: '4', label: '4x/semana' },
-  { value: '5', label: '5x/semana' },
-  { value: '6', label: '6x/semana' },
-  { value: '7', label: 'Todos os dias' },
-];
-
-const RESTRICTION_OPTIONS = [
-  'Sem lactose', 'Sem glúten', 'Sem frutos do mar', 'Sem carne vermelha',
-  'Sem porco', 'Vegetariano', 'Vegano', 'Sem ovo', 'Sem soja',
-  'Diabético', 'Hipertenso', 'Intolerância à frutose', 'Alergia a amendoim',
-];
-
-const PREFERENCE_OPTIONS = [
-  'Frango', 'Carne vermelha', 'Peixe', 'Ovos', 'Arroz integral',
-  'Batata doce', 'Aveia', 'Whey no shake', 'Frutas', 'Pasta de amendoim',
-  'Iogurte', 'Queijo cottage', 'Tapioca', 'Macarrão integral', 'Abacate',
-];
-
-const PROTOCOL_ADJUSTMENTS = [
-  { id: 'calorie_adjust', label: 'Ajuste de Calorias', desc: 'Aumento ou redução calórica semanal', icon: SlidersHorizontal },
-  { id: 'carb_adjust', label: 'Ajuste de Carboidrato', desc: 'Manipulação de carbs por dia da semana', icon: SlidersHorizontal },
-  { id: 'sodium_adjust', label: 'Ajuste de Sódio', desc: 'Protocolo de manipulação de sódio', icon: SlidersHorizontal },
-  { id: 'water_adjust', label: 'Ajuste de Água', desc: 'Protocolo de ingestão hídrica', icon: SlidersHorizontal },
-  { id: 'meal_change', label: 'Mudança de Refeições', desc: 'Alterar número/distribuição de refeições', icon: SlidersHorizontal },
-  { id: 'plato', label: 'Estratégia para Platô', desc: 'Quebrar estagnação metabólica', icon: Target },
-  { id: 'refeed', label: 'Refeed', desc: 'Dias de recarga de carboidrato', icon: Zap },
-  { id: 'diet_break', label: 'Diet Break', desc: 'Pausa programada na dieta', icon: Clock },
-  { id: 'carb_cycling', label: 'Carb Cycling', desc: 'Ciclagem de carboidrato (high/medium/low)', icon: SlidersHorizontal },
-];
+const PROTOCOL_ADJUSTMENTS = BASE_PROTOCOL_ADJUSTMENTS.map((a) => ({ ...a, icon: PROTOCOL_ADJUSTMENT_ICONS[a.id] ?? SlidersHorizontal }));
 
 // Grouping of protocol adjustments by the new wizard step that owns them.
 // IDs are unchanged — only the visual placement changes, so the prompt, the
@@ -268,128 +156,6 @@ const FINE_TUNE_ADJUSTMENT_IDS = ['calorie_adjust', 'carb_adjust', 'sodium_adjus
 const STRATEGY_ADJUSTMENTS = PROTOCOL_ADJUSTMENTS.filter(a => (STRATEGY_ADJUSTMENT_IDS as readonly string[]).includes(a.id));
 const STRUCTURE_ADJUSTMENTS = PROTOCOL_ADJUSTMENTS.filter(a => (STRUCTURE_ADJUSTMENT_IDS as readonly string[]).includes(a.id));
 const FINE_TUNE_ADJUSTMENTS = PROTOCOL_ADJUSTMENTS.filter(a => (FINE_TUNE_ADJUSTMENT_IDS as readonly string[]).includes(a.id));
-
-const hasHormoneUse = (value: unknown): boolean => {
-  if (typeof value === 'boolean') return value;
-  if (!value) return false;
-  const normalized = String(value).trim().toLowerCase();
-  return !['não', 'nao', 'natural', 'false', '0', 'n'].includes(normalized);
-};
-
-const buildInitialMacroPreset = ({
-  calories,
-  weight,
-  strategyValue,
-  phaseValue,
-  hormoneUse,
-  proteinPerKgOverride,
-  fatPerKgOverride,
-}: {
-  calories: number;
-  weight: number;
-  strategyValue: string;
-  phaseValue: string;
-  hormoneUse: boolean;
-  proteinPerKgOverride?: number | null;
-  fatPerKgOverride?: number | null;
-}) => {
-  const isDeficit = strategyValue.includes('deficit') || phaseValue === 'cutting' || phaseValue === 'pre_contest';
-  const isMaintenance = (phaseValue === 'manutencao' || strategyValue === 'manutencao') && !isDeficit;
-
-  let proteinPerKg = isDeficit ? 2.2 : isMaintenance ? 1.8 : 2.0;
-  const proteinMax = isDeficit ? 2.6 : isMaintenance ? 2.2 : 2.4;
-  const fatPerKg = isDeficit ? 0.8 : 0.9;
-
-  // Hormônios/medicamentos são contexto clínico e NÃO alteram macros (Fase 2).
-  void hormoneUse;
-  proteinPerKg = Math.min(proteinPerKg, proteinMax);
-
-  // g/kg overrides (Phase 2): apply when caller provided them and they are sensible.
-  const finalProteinPerKg =
-    typeof proteinPerKgOverride === 'number' && proteinPerKgOverride > 0
-      ? Math.min(Math.max(proteinPerKgOverride, 0.8), 3.5)
-      : proteinPerKg;
-  const finalFatPerKg =
-    typeof fatPerKgOverride === 'number' && fatPerKgOverride > 0
-      ? Math.min(Math.max(fatPerKgOverride, 0.3), 2.0)
-      : fatPerKg;
-
-  const proteinGrams = Math.round(finalProteinPerKg * weight);
-  const fatGrams = Math.round(finalFatPerKg * weight);
-  const carbGrams = Math.max(Math.round((calories - proteinGrams * 4 - fatGrams * 9) / 4), 0);
-
-  return {
-    proteinPerKg: finalProteinPerKg,
-    proteinGrams,
-    fatPerKg: finalFatPerKg,
-    fatGrams,
-    carbGrams,
-  };
-};
-
-// ─── Weekday parsing helpers for the Weekly Energy Schedule ──────
-// Maps free-form training-day headers ("Segunda", "Dia 1 - Peito + Costas",
-// "Terça — Peito/Tríceps") into a weekday key + label + muscle list.
-const WEEKDAY_KEY_PATTERNS: Array<[EnergyWeekday, RegExp]> = [
-  ['seg', /\bseg(?:unda)?\b/i],
-  ['ter', /\bter(?:ça|ca)?\b/i],
-  ['qua', /\bqua(?:rta)?\b/i],
-  ['qui', /\bqui(?:nta)?\b/i],
-  ['sex', /\bsex(?:ta)?\b/i],
-  ['sab', /\bs[áa]b(?:ado)?\b/i],
-  ['dom', /\bdom(?:ingo)?\b/i],
-];
-
-const MUSCLE_KEYWORDS: Array<[string, RegExp]> = [
-  ['peito', /\bpeito|peitoral|supino|crossover|crucifix/i],
-  ['costas', /\bcostas|dorsal|puxad|remada|pull|barra fixa/i],
-  ['ombros', /\bombro|deltoid|elevaç(ão|ao)|desenvolvim/i],
-  ['bíceps', /\bb[íi]ceps|rosca/i],
-  ['tríceps', /\btr[íi]ceps|test(a|ão)|fr(a|â)nc[eê]s|corda/i],
-  ['pernas', /\bperna|quadr[íi]ceps|leg press|agachamento|passada|extensora|hack/i],
-  ['posterior', /\bposterior|isquio|stiff|mesa flexora|flex(a|ão) de perna/i],
-  ['glúteos', /\bgl[úu]teo|hip thrust/i],
-  ['panturrilha', /\bpanturrilh|gastrocn[eê]mio|s[óo]leo/i],
-  ['abdômen', /\babdom(en|inal)|prancha|core/i],
-  ['cardio', /\bcardio|corrida|esteira|bike|elipt/i],
-];
-
-function parseWeekdayWorkouts(md: string): Partial<Record<EnergyWeekday, DayWorkoutRef>> {
-  try {
-    const sections = parseTrainingSections(md);
-    const result: Partial<Record<EnergyWeekday, DayWorkoutRef>> = {};
-    for (const section of sections) {
-      if (section.type !== 'training' || !section.days) continue;
-      for (const trainingDay of section.days) {
-        const rawTitle = (trainingDay.day || '').trim();
-        if (!rawTitle) continue;
-        const match = WEEKDAY_KEY_PATTERNS.find(([, re]) => re.test(rawTitle));
-        if (!match) continue;
-        const [weekday, wdRe] = match;
-        const afterSeparator = rawTitle.replace(wdRe, '').replace(/^[\s–—:\-]+/, '').trim();
-        const label = afterSeparator || rawTitle;
-        const exList = Array.isArray(trainingDay.exercises) ? trainingDay.exercises : [];
-        const isRest = /\bdescanso|off\b/i.test(rawTitle) || exList.length === 0;
-        const musclesSet = new Set<string>();
-        const haystack = [rawTitle, ...exList.map((e) => e.exercise || '')].join(' | ');
-        for (const [muscle, re] of MUSCLE_KEYWORDS) {
-          if (re.test(haystack)) musclesSet.add(muscle);
-        }
-        if (!result[weekday]) {
-          result[weekday] = {
-            label: isRest ? 'Descanso' : label,
-            type: isRest ? 'rest' : null,
-            muscles: Array.from(musclesSet),
-          };
-        }
-      }
-    }
-    return result;
-  } catch (e) {
-    console.warn('parseWeekdayWorkouts failed', e);
-    return {};
-  }
-}
 
 // ─── Exibição legível de erros do diet-agent (422 review_required etc.) ───
 // Apenas formatação/tradução: nenhuma lógica de geração ou validação muda aqui.
@@ -617,145 +383,48 @@ const DietaIA = () => {
   const [scheduleWarnings, setScheduleWarnings] = useState<string[]>([]);
 
   // ── Fase 2: seleção determinística da fórmula energética ────────────
-  const energySelection = useMemo<EnergyFormulaResult | null>(() => {
-    const weight = parsePositiveNumber(studentCtx?.peso);
-    const height = parsePositiveNumber(studentCtx?.altura);
-    const age = calculateAge(studentCtx?.data_nascimento);
-    const sex = normalizeSex(studentCtx?.sexo);
-    if (!weight || !height || !age) return null;
-    return selectEnergyFormula({
-      sex: sex === 'masculino' ? 'male' : sex === 'feminino' ? 'female' : null,
-      weightKg: weight,
-      heightCm: height,
-      ageYears: age,
-      bodyFatPct: parsePositiveNumber(studentCtx?.percentual_gordura),
-      leanMass: {
-        kg: parsePositiveNumber(studentCtx?.massa_magra),
-        measuredAt: studentCtx?.massa_magra_data ?? null,
-        source: studentCtx?.massa_magra_origem ?? 'Composição corporal mais recente',
-      },
-      manualFormula,
-    });
-  }, [studentCtx?.peso, studentCtx?.altura, studentCtx?.data_nascimento, studentCtx?.sexo, studentCtx?.percentual_gordura, studentCtx?.massa_magra, studentCtx?.massa_magra_data, studentCtx?.massa_magra_origem, manualFormula]);
+  const energySelection = useMemo<EnergyFormulaResult | null>(
+    () => computeEnergySelection(studentCtx, manualFormula),
+    [studentCtx?.peso, studentCtx?.altura, studentCtx?.data_nascimento, studentCtx?.sexo, studentCtx?.percentual_gordura, studentCtx?.massa_magra, studentCtx?.massa_magra_data, studentCtx?.massa_magra_origem, manualFormula],
+  );
 
-  const automaticBaseKcal = useMemo<BaseKcalState>(() => {
-    const missing: string[] = [];
-    const weight = parsePositiveNumber(studentCtx?.peso);
-    const height = parsePositiveNumber(studentCtx?.altura);
-    const age = calculateAge(studentCtx?.data_nascimento);
-    const sex = normalizeSex(studentCtx?.sexo);
-    const bodyFat = parsePositiveNumber(studentCtx?.percentual_gordura);
-    const leanMass = parsePositiveNumber(studentCtx?.massa_magra);
-    const activityFactor = parsePositiveNumber(activityLevel);
-    const selectedStrategy = STRATEGIES.find((s) => s.value === strategy);
-    const selectedPhase = PHASES.find((p) => p.value === phase);
+  const automaticBaseKcal = useMemo<BaseKcalState>(
+    () => computeAutomaticBaseKcal(studentCtx, activityLevel, strategy, phase, energySelection),
+    [studentCtx?.peso, studentCtx?.altura, studentCtx?.data_nascimento, studentCtx?.sexo, studentCtx?.percentual_gordura, studentCtx?.massa_magra, activityLevel, phase, strategy, energySelection],
+  );
 
-    if (!weight) missing.push('peso');
-    if (!height) missing.push('altura');
-    if (!age) missing.push('idade');
-    if (!sex) missing.push('sexo');
-    if (!activityFactor) missing.push('nível de atividade');
-    if (!selectedPhase) missing.push('fase');
-    if (!selectedStrategy) missing.push('estratégia');
+  const manualBaseKcal = useMemo<number | null>(() => parseManualBaseKcal(manualBaseKcalInput), [manualBaseKcalInput]);
 
-    if (missing.length > 0 || !weight || !height || !age || !sex || !activityFactor || !selectedPhase || !selectedStrategy) {
-      return {
-        source: 'automatic',
-        base_daily_kcal: null,
-        calculation: emptyCalculationSnapshot(),
-        missing,
-      };
-    }
+  const baseKcal = useMemo<BaseKcalState>(
+    () => resolveBaseKcal(baseKcalMode, manualBaseKcal, automaticBaseKcal),
+    [automaticBaseKcal, baseKcalMode, manualBaseKcal],
+  );
 
-    // Fonte única: energyFormula.selectEnergyFormula (sem duplicar contas aqui).
-    void bodyFat;
-    void leanMass;
-    if (!energySelection || energySelection.insufficientData) {
-      return {
-        source: 'automatic',
-        base_daily_kcal: null,
-        calculation: emptyCalculationSnapshot(),
-        missing: energySelection?.insufficientData
-          ? ['sexo biológico ou massa magra válida']
-          : ['dados corporais'],
-      };
-    }
-    const formula = ENERGY_FORMULA_LABEL[energySelection.formula];
-    const roundedBmr = Math.round(energySelection.bmr);
-    const tdee = Math.round(roundedBmr * activityFactor);
-    const strategyPercent = selectedStrategy.pct;
-    const base = Math.round(tdee * (1 + strategyPercent / 100));
-
-    return {
-      source: 'automatic',
-      base_daily_kcal: base,
-      calculation: {
-        bmr: roundedBmr,
-        activity_factor: activityFactor,
-        tdee,
-        strategy_percent: strategyPercent,
-        formula,
-      },
-      missing: [],
-    };
-  }, [studentCtx?.peso, studentCtx?.altura, studentCtx?.data_nascimento, studentCtx?.sexo, studentCtx?.percentual_gordura, studentCtx?.massa_magra, activityLevel, phase, strategy, energySelection]);
-
-  const manualBaseKcal = useMemo<number | null>(() => {
-    const parsed = parsePositiveNumber(manualBaseKcalInput);
-    return parsed == null ? null : Math.round(parsed);
-  }, [manualBaseKcalInput]);
-
-  const baseKcal = useMemo<BaseKcalState>(() => {
-    if (baseKcalMode === 'manual') {
-      return {
-        source: 'manual',
-        base_daily_kcal: manualBaseKcal,
-        calculation: emptyCalculationSnapshot(),
-        missing: manualBaseKcal == null ? ['meta calórica base manual'] : [],
-      };
-    }
-    return automaticBaseKcal;
-  }, [automaticBaseKcal, baseKcalMode, manualBaseKcal]);
-
-  const baseKcalIssues = useMemo<string[]>(() => {
-    const issues: string[] = [];
-    if (baseKcal.source !== 'automatic' && baseKcal.source !== 'manual') {
-      issues.push('Origem da meta calórica base inválida.');
-    }
-    if (baseKcal.base_daily_kcal == null) {
-      issues.push('Meta calórica base ausente.');
-    } else if (!Number.isFinite(baseKcal.base_daily_kcal) || baseKcal.base_daily_kcal <= 0) {
-      issues.push('Meta calórica base inválida.');
-    } else if (baseKcal.base_daily_kcal < MIN_DAILY_KCAL) {
-      issues.push(`Meta calórica base abaixo do mínimo permitido (${MIN_DAILY_KCAL} kcal).`);
-    }
-    if (baseKcalMode === 'automatic' && automaticBaseKcal.missing.length > 0) {
-      issues.push(`Dados ausentes para cálculo automático: ${automaticBaseKcal.missing.join(', ')}.`);
-    }
-    return issues;
-  }, [automaticBaseKcal.missing, baseKcal, baseKcalMode]);
+  const baseKcalIssues = useMemo<string[]>(
+    () => computeBaseKcalIssues(baseKcal, baseKcalMode, automaticBaseKcal),
+    [automaticBaseKcal.missing, baseKcal, baseKcalMode],
+  );
 
   // ── Fase 2: estado canônico dos macros ──────────────────────────────
-  const macroBody = useMemo(() => ({
-    weightKg: parsePositiveNumber(studentCtx?.peso) ?? 0,
-    leanMassKg: parsePositiveNumber(studentCtx?.massa_magra),
-  }), [studentCtx?.peso, studentCtx?.massa_magra]);
+  const macroBody = useMemo(() => computeMacroBody(studentCtx), [studentCtx?.peso, studentCtx?.massa_magra]);
+
+  /** Respostas do wizard no formato compartilhado com o escritório (office-gerar). */
+  const wizardState: DietaWizardState = {
+    dailyRoutine, trainingTime, trainingDays, dietStyle, phase, usesHormones, hormoneDetails,
+    activityLevel, strategy, mealCount, selectedRestrictions, customRestriction, selectedPreferences,
+    customPreference, selectedAdjustments, enableFitoterapia, enableSuplementos, enableEmagrecimentoRapido,
+    enableJejumIntermitente, substitutions, modelDiet, variationIntensity, baseKcalMode, manualBaseKcalInput,
+    manualFormula, proteinPerKgOverride: null, fatPerKgOverride: null, scheduleAdjustments,
+  };
 
   // Preset inicial coerente com fase/estratégia — nunca sobrescreve edição manual.
   useEffect(() => {
     if (macroConfigTouched || !macroBody.weightKg) return;
-    const preset = buildInitialMacroPreset({
-      calories: baseKcal.base_daily_kcal ?? 2000,
-      weight: macroBody.weightKg,
-      strategyValue: strategy,
-      phaseValue: phase,
-      hormoneUse: false,
-    });
-    setMacroConfig((prev) => ({
-      ...prev,
-      protein: setMacroPerKg({ ...prev.protein, locked: true }, preset.proteinPerKg, macroBody),
-      fat: setMacroPerKg({ ...prev.fat, locked: true }, preset.fatPerKg, macroBody),
-      carbs: { ...prev.carbs, perKg: null, grams: null, locked: false },
+    setMacroConfig((prev) => applyMacroPreset(prev, {
+      baseKcal: baseKcal.base_daily_kcal,
+      body: macroBody,
+      strategy,
+      phase,
     }));
   }, [macroConfigTouched, macroBody, strategy, phase, baseKcal.base_daily_kcal]);
 
@@ -767,12 +436,10 @@ const DietaIA = () => {
   }), [baseKcal.base_daily_kcal, macroConfig, macroBody, closingMacro]);
 
   /** Única autoridade dos alvos usados na geração da dieta. */
-  const canonicalTargets = useMemo(() => ({
-    kcal: baseKcal.base_daily_kcal ?? 0,
-    p: Math.round(macroResolution.grams?.protein ?? 0),
-    c: Math.round(macroResolution.grams?.carbs ?? 0),
-    g: Math.round(macroResolution.grams?.fat ?? 0),
-  }), [baseKcal.base_daily_kcal, macroResolution]);
+  const canonicalTargets = useMemo(
+    () => computeCanonicalTargets(baseKcal, macroResolution),
+    [baseKcal.base_daily_kcal, macroResolution],
+  );
 
   // ── Fase 3: metas por tipo de dia e por dia da semana ──────────────
   const carbTypeTargets = useMemo(() => buildCarbDayTypeTargets({
@@ -838,19 +505,7 @@ const DietaIA = () => {
 
   // Sugestão inicial pelo treino — nunca sobrescreve escolha manual do treinador.
   useEffect(() => {
-    setCarbCycling((prev) => {
-      let changed = false;
-      const assignments = { ...prev.assignments };
-      for (const wd of WEEKDAY_KEYS) {
-        if (prev.manual[wd]) continue;
-        const suggestion = suggestCarbDayTypeForWorkout(workoutByWeekday[wd as EnergyWeekday] ?? null);
-        if (assignments[wd] !== suggestion) {
-          assignments[wd] = suggestion;
-          changed = true;
-        }
-      }
-      return changed ? { ...prev, assignments } : prev;
-    });
+    setCarbCycling((prev) => suggestCarbAssignments(prev, workoutByWeekday));
   }, [workoutByWeekday]);
 
   const handleMacroConfigChange = useCallback((next: MacroConfig) => {
@@ -858,21 +513,10 @@ const DietaIA = () => {
     setMacroConfig(next);
   }, []);
 
-  const weeklySchedule = useMemo<WeeklyEnergySchedule | null>(() => {
-    if (baseKcal.base_daily_kcal == null || baseKcalIssues.length > 0) return null;
-    const draft = buildDefaultSchedule({
-      baseDailyKcal: baseKcal.base_daily_kcal,
-      workoutByWeekday,
-      baseSource: baseKcal.source,
-      calculationSnapshot: baseKcal.calculation,
-    });
-    for (const wd of ENERGY_WEEKDAYS) {
-      const adj = scheduleAdjustments[wd];
-      draft.days[wd].adjustment_kcal = adj.adjustment_kcal;
-      draft.days[wd].fixed_kcal = adj.fixed_kcal;
-    }
-    return draft;
-  }, [baseKcal, baseKcalIssues.length, workoutByWeekday, scheduleAdjustments]);
+  const weeklySchedule = useMemo<WeeklyEnergySchedule | null>(
+    () => computeWeeklySchedule(baseKcal, baseKcalIssues.length, workoutByWeekday, scheduleAdjustments),
+    [baseKcal, baseKcalIssues.length, workoutByWeekday, scheduleAdjustments],
+  );
 
   const handleScheduleChange = (next: WeeklyEnergySchedule) => {
     const nextAdj: typeof scheduleAdjustments = {
@@ -1076,483 +720,21 @@ const DietaIA = () => {
 
   const loadStudentData = async () => {
     setLoading(true);
-    const [profileRes, spRes, assessRes, questRes] = await Promise.all([
-      supabase.from('profiles').select('*').eq('user_id', studentId!).maybeSingle(),
-      supabase.from('students_profile').select('*').eq('user_id', studentId!).maybeSingle(),
-      supabase.from('assessments').select('id, created_at').eq('student_id', studentId!).order('created_at', { ascending: false }).limit(1),
-      supabase.from('diet_questionnaires').select('*').eq('student_id', studentId!).eq('status', 'completed').order('created_at', { ascending: false }).limit(1),
-    ]);
-
-    const profile = profileRes.data;
-    const sp = spRes.data;
-    const latestAssessmentId = assessRes.data?.[0]?.id;
-    const latestAssessmentDate = assessRes.data?.[0]?.created_at ?? null;
-    const latestQuestionnaire = questRes.data?.[0] || null;
-
-    let anthro: any = null, comp: any = null, vitals: any = null, anamnese: any = null;
-    let photos: any[] = [];
-    let skinfolds: any = null, perfTests: any = null, posture: any = null;
-
-    // Also fetch posture scans and HR zones (not assessment-dependent)
-    const [postureScansRes, hrZonesRes] = await Promise.all([
-      supabase.from('posture_scans').select('*').eq('student_id', studentId!).order('created_at', { ascending: false }).limit(1),
-      supabase.from('hr_zones').select('*').eq('student_id', studentId!).order('created_at', { ascending: false }).limit(1),
-    ]);
-    const latestPostureScan = postureScansRes.data?.[0] || null;
-    const latestHrZones = hrZonesRes.data?.[0] || null;
-
-    if (latestAssessmentId) {
-      const [anthroRes, compRes, vitalsRes, anRes, photosRes, skinRes, perfRes, postureRes] = await Promise.all([
-        supabase.from('anthropometrics').select('*').eq('assessment_id', latestAssessmentId).maybeSingle(),
-        supabase.from('composition').select('*').eq('assessment_id', latestAssessmentId).maybeSingle(),
-        supabase.from('vitals').select('*').eq('assessment_id', latestAssessmentId).maybeSingle(),
-        supabase.from('anamnese').select('*').eq('assessment_id', latestAssessmentId).maybeSingle(),
-        supabase.from('assessment_photos').select('*').eq('assessment_id', latestAssessmentId),
-        supabase.from('skinfolds').select('*').eq('assessment_id', latestAssessmentId).maybeSingle(),
-        supabase.from('performance_tests').select('*').eq('assessment_id', latestAssessmentId).maybeSingle(),
-        supabase.from('posture').select('*').eq('assessment_id', latestAssessmentId).maybeSingle(),
-      ]);
-      anthro = anthroRes.data;
-      comp = compRes.data;
-      vitals = vitalsRes.data;
-      anamnese = anRes.data;
-      photos = photosRes.data ?? [];
-      skinfolds = skinRes.data;
-      perfTests = perfRes.data;
-      posture = postureRes.data;
-    }
-
-    // Peso mais recente: prioriza weight_logs se for mais novo que a última avaliação
-    try {
-      const { data: latestWeightLog } = await supabase
-        .from('weight_logs')
-        .select('peso, data')
-        .eq('student_id', studentId!)
-        .order('data', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      if (latestWeightLog?.peso != null) {
-        const logDate = latestWeightLog.data;
-        const assessDate = anthro && latestAssessmentId
-          ? (await supabase.from('assessments').select('created_at').eq('id', latestAssessmentId).maybeSingle()).data?.created_at?.slice(0, 10)
-          : null;
-        if (!anthro || !assessDate || logDate >= assessDate) {
-          anthro = { ...(anthro || {}), peso: Number(latestWeightLog.peso) };
-        }
-      }
-    } catch { /* ignore */ }
-
-    // ── HISTÓRICO LONGITUDINAL: última dieta, tendência, aderência, reajuste ──
-    const since14 = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
-    const [lastDietRes, trendAssessRes, trackingRes, lastReadjustRes] = await Promise.all([
-      supabase
-        .from('ai_plans')
-        .select('id, titulo, fase, conteudo, created_at, protocols')
-        .eq('student_id', studentId!)
-        .eq('tipo', 'dieta')
-        .eq('is_draft', false)
-        .order('created_at', { ascending: false })
-        .limit(1),
-      supabase
-        .from('assessments')
-        .select('id, created_at')
-        .eq('student_id', studentId!)
-        .order('created_at', { ascending: false })
-        .limit(4),
-      supabase
-        .from('daily_tracking')
-        .select('date, meals_completed, water_glasses, workout_completed')
-        .eq('student_id', studentId!)
-        .gte('date', since14)
-        .order('date', { ascending: false }),
-      supabase
-        .from('diet_readjustments')
-        .select('*')
-        .eq('student_id', studentId!)
-        .order('created_at', { ascending: false })
-        .limit(1),
-    ]);
-
-    // Última dieta — extrai resumo
-    const lastDiet = lastDietRes.data?.[0] || null;
+    // Leitura compartilhada com o escritório (office-gerar): mesmo contexto e pré-preenchimento.
+    const { ctx, studentName: name, lastDiet, prefill } = await loadDietaStudentData(supabase, studentId!);
     setLastDietPlan(lastDiet);
-    let ultima_dieta: any = null;
-    if (lastDiet) {
-      const c = lastDiet.conteudo || '';
-      const grab = (re: RegExp) => {
-        const m = c.match(re);
-        return m ? Number(m[1].replace(/[^\d.]/g, '')) || null : null;
-      };
-      const totalKcal =
-        grab(/total\s+di[áa]rio[^\n]*?(\d{3,5})\s*kcal/i) ||
-        grab(/calorias?\s*(?:totais|alvo|consumo)?[:\s]+(\d{3,5})/i);
-      const totalP = grab(/prote[íi]na[^\n]*?(\d{2,4})\s*g/i);
-      const totalC = grab(/carboidrato[^\n]*?(\d{2,4})\s*g/i);
-      const totalG = grab(/gordura[^\n]*?(\d{2,4})\s*g/i);
-      const mealMatches = c.match(/(?:caf[eé]\s+da\s+manh[ãa]|almo[çc]o|jantar|lanche|ceia|p[óo]s[\s-]?treino|pr[eé][\s-]?treino)/gi) || [];
-      const numRef = new Set(mealMatches.map(m => m.toLowerCase())).size;
-      const dias = Math.floor((Date.now() - new Date(lastDiet.created_at).getTime()) / 86400000);
-      ultima_dieta = {
-        titulo: lastDiet.titulo,
-        fase: lastDiet.fase,
-        criada_em: lastDiet.created_at,
-        dias_desde: dias,
-        kcal_total: totalKcal,
-        proteina_g: totalP,
-        carbs_g: totalC,
-        gordura_g: totalG,
-        num_refeicoes: numRef || null,
-        excerto: c.slice(0, 1800),
-      };
-    }
-
-    // Tendência de peso/composição (últimas 3-4 avaliações)
-    let tendencia_peso: any = null;
-    const trendIds = (trendAssessRes.data || []).map(a => a.id);
-    if (trendIds.length >= 1) {
-      const [anthArr, compArr] = await Promise.all([
-        supabase.from('anthropometrics').select('assessment_id, peso, cintura').in('assessment_id', trendIds),
-        supabase.from('composition').select('assessment_id, percentual_gordura, massa_magra').in('assessment_id', trendIds),
-      ]);
-      const byAssId: Record<string, any> = {};
-      (trendAssessRes.data || []).forEach(a => { byAssId[a.id] = { data: a.created_at }; });
-      (anthArr.data || []).forEach(r => { Object.assign(byAssId[r.assessment_id] || {}, { peso: r.peso, cintura: r.cintura }); });
-      (compArr.data || []).forEach(r => { Object.assign(byAssId[r.assessment_id] || {}, { percentual_gordura: r.percentual_gordura, massa_magra: r.massa_magra }); });
-      const historico = trendIds.map(id => byAssId[id]).filter(x => x && x.peso != null);
-      let direcao = 'estavel';
-      let variacao_kg = 0;
-      let intervalo_dias = 0;
-      let velocidade_kg_semana = 0;
-      let relevancia: 'irrelevante' | 'leve' | 'moderada' | 'alta' = 'irrelevante';
-      if (historico.length >= 2) {
-        variacao_kg = Number(historico[0].peso) - Number(historico[historico.length - 1].peso);
-        const dRecent = new Date(historico[0].data).getTime();
-        const dOldest = new Date(historico[historico.length - 1].data).getTime();
-        intervalo_dias = Math.max(1, Math.round((dRecent - dOldest) / 86400000));
-        velocidade_kg_semana = Number(((variacao_kg / intervalo_dias) * 7).toFixed(2));
-        const pesoBase = Number(historico[historico.length - 1].peso) || 70;
-        const pctVar = Math.abs(variacao_kg) / pesoBase;
-        if (pctVar < 0.005) relevancia = 'irrelevante';
-        else if (pctVar < 0.015) relevancia = 'leve';
-        else if (pctVar < 0.04) relevancia = 'moderada';
-        else relevancia = 'alta';
-        if (variacao_kg > 0.5) direcao = 'subindo';
-        else if (variacao_kg < -0.5) direcao = 'descendo';
-      }
-      tendencia_peso = {
-        peso_atual: historico[0]?.peso ?? anthro?.peso ?? null,
-        variacao_kg: Number(variacao_kg.toFixed(2)),
-        direcao,
-        intervalo_dias,
-        velocidade_kg_semana,
-        relevancia,
-        historico,
-      };
-    }
-
-    // Aderência 14 dias
-    let aderencia_recente: any = null;
-    const tracking = trackingRes.data || [];
-    if (tracking.length > 0) {
-      const totalRef = tracking.reduce((s, d: any) => s + (Array.isArray(d.meals_completed) ? d.meals_completed.length : 0), 0);
-      const expectedPerDay = lastDiet ? (ultima_dieta?.num_refeicoes || 5) : 5;
-      const expectedTotal = 14 * expectedPerDay;
-      const aguaMedia = tracking.reduce((s, d: any) => s + (d.water_glasses || 0), 0) / tracking.length;
-      // Consistência por índice de refeição (qual refeição é mais marcada/falhada)
-      const consistencia_por_refeicao: Record<number, number> = {};
-      for (let i = 0; i < expectedPerDay; i++) consistencia_por_refeicao[i] = 0;
-      for (const d of tracking as any[]) {
-        const arr = Array.isArray(d.meals_completed) ? d.meals_completed : [];
-        for (const idx of arr) {
-          const n = Number(idx);
-          if (Number.isInteger(n) && n >= 0 && n < expectedPerDay) {
-            consistencia_por_refeicao[n] = (consistencia_por_refeicao[n] || 0) + 1;
-          }
-        }
-      }
-      const refeicoes_mais_falhadas = Object.entries(consistencia_por_refeicao)
-        .map(([idx, c]) => ({ indice: Number(idx), marcadas: c, falhadas: tracking.length - c }))
-        .sort((a, b) => b.falhadas - a.falhadas)
-        .slice(0, 3);
-      aderencia_recente = {
-        dias_com_registro: tracking.length,
-        dias_total: 14,
-        dias_com_registro_pct: Math.round((tracking.length / 14) * 100),
-        refeicoes_marcadas: totalRef,
-        refeicoes_esperadas: expectedTotal,
-        percentual_aderencia: Math.round((totalRef / expectedTotal) * 100),
-        agua_media_copos_dia: Number(aguaMedia.toFixed(1)),
-        consistencia_por_refeicao,
-        refeicoes_mais_falhadas,
-      };
-    }
-
-    // Último reajuste
-    let ultimo_reajuste: any = null;
-    const lr = lastReadjustRes.data?.[0];
-    if (lr) {
-      const sintomas: string[] = [];
-      if (lr.fome_excessiva) sintomas.push('fome excessiva');
-      if (lr.insonia) sintomas.push('insônia');
-      if (!lr.energia_ok) sintomas.push('energia baixa');
-      if (!lr.humor_ok) sintomas.push('humor instável');
-      if (!lr.intestino_ok) sintomas.push('desconforto intestinal');
-      if (lr.perdeu_peso) sintomas.push('perdeu peso');
-      if (lr.ganhou_massa) sintomas.push('ganhou massa');
-      ultimo_reajuste = {
-        data: lr.created_at,
-        peso_atual: lr.peso_atual,
-        sintomas,
-        rendimento_treino: lr.rendimento_treino,
-        satisfacao: lr.satisfacao,
-        observacoes: lr.observacoes,
-      };
-    }
-
-    // Score de confiança explicável (com fatores positivos e negativos)
-    type Factor = { key: string; label: string; weight: number; status: 'positive' | 'negative' | 'neutral' };
-    const factors: Factor[] = [];
-    let score = 0;
-    if (ultima_dieta) { factors.push({ key: 'last_diet', label: 'Dieta anterior encontrada', weight: 25, status: 'positive' }); score += 25; }
-    else factors.push({ key: 'last_diet', label: 'Sem dieta anterior — geração inicial', weight: 0, status: 'neutral' });
-    if (tendencia_peso && tendencia_peso.historico?.length >= 2) {
-      factors.push({ key: 'weight_trend', label: `Tendência de peso disponível (${tendencia_peso.historico.length} avaliações em ${tendencia_peso.intervalo_dias}d)`, weight: 25, status: 'positive' });
-      score += 25;
-    } else {
-      factors.push({ key: 'weight_trend', label: 'Tendência de peso indisponível (avaliações insuficientes)', weight: 0, status: 'negative' });
-    }
-    if (aderencia_recente && aderencia_recente.dias_com_registro >= 7) {
-      factors.push({ key: 'adherence', label: `Aderência recente suficiente (${aderencia_recente.dias_com_registro}/14 dias)`, weight: 25, status: 'positive' });
-      score += 25;
-    } else if (aderencia_recente && aderencia_recente.dias_com_registro >= 3) {
-      factors.push({ key: 'adherence', label: `Aderência parcial (${aderencia_recente.dias_com_registro}/14 dias)`, weight: 10, status: 'neutral' });
-      score += 10;
-    } else {
-      factors.push({ key: 'adherence', label: 'Sem aderência registrada nos últimos 14 dias', weight: 0, status: 'negative' });
-    }
-    if (ultimo_reajuste) { factors.push({ key: 'readjustment', label: 'Último reajuste/feedback encontrado', weight: 15, status: 'positive' }); score += 15; }
-    else factors.push({ key: 'readjustment', label: 'Sem reajuste anterior registrado', weight: 0, status: 'neutral' });
-    if (latestQuestionnaire) { factors.push({ key: 'questionnaire', label: 'Questionário de dieta recente', weight: 10, status: 'positive' }); score += 10; }
-    else factors.push({ key: 'questionnaire', label: 'Sem questionário recente respondido', weight: 0, status: 'negative' });
-
-    // Heurística de decisão recomendada (a IA pode override, mas isso vira input forte)
-    let decisao_recomendada: 'manter' | 'ajustar' | 'nova' | 'pedir_dados' = 'nova';
-    const motivos_decisao: string[] = [];
-    if (!ultima_dieta) {
-      decisao_recomendada = 'nova';
-      motivos_decisao.push('Nenhuma dieta anterior — gerar do zero.');
-    } else {
-      const adesaoBaixa = aderencia_recente && aderencia_recente.percentual_aderencia < 60;
-      const sintomasNeg = !!(ultimo_reajuste?.sintomas?.some((s: string) => /fome|insônia|insonia|energia baixa|humor/i.test(s)));
-      const tendenciaContraria = tendencia_peso?.relevancia === 'alta' || tendencia_peso?.relevancia === 'moderada';
-      const reajusteRecente = ultimo_reajuste && (Date.now() - new Date(ultimo_reajuste.data).getTime()) / 86400000 < 21;
-
-      if (adesaoBaixa) { motivos_decisao.push('Aderência <60% — simplificar.'); decisao_recomendada = 'ajustar'; }
-      if (sintomasNeg) { motivos_decisao.push('Sintomas negativos no último reajuste — revisar.'); decisao_recomendada = 'ajustar'; }
-      if (tendenciaContraria) { motivos_decisao.push(`Tendência ${tendencia_peso.direcao} relevante (${tendencia_peso.velocidade_kg_semana}kg/sem) — calibrar.`); decisao_recomendada = 'ajustar'; }
-      if (!adesaoBaixa && !sintomasNeg && !tendenciaContraria) {
-        decisao_recomendada = 'manter';
-        motivos_decisao.push('Sem variação relevante — preservar estrutura anterior.');
-      }
-      if (reajusteRecente && ultimo_reajuste?.satisfacao && /ruim|insatisf/i.test(String(ultimo_reajuste.satisfacao))) {
-        decisao_recomendada = 'nova';
-        motivos_decisao.push('Aluno insatisfeito no último reajuste — repensar plano.');
-      }
-    }
-
-    const confianca = { score: Math.min(score, 100), factors, motivos: factors.filter(f => f.status === 'positive').map(f => f.label) };
-
-    const ctx: StudentCtx = {
-      nome: profile?.nome, sexo: sp?.sexo, data_nascimento: sp?.data_nascimento,
-      raca: sp?.raca,
-      altura: sp?.altura || anthro?.altura, objetivo: sp?.objetivo,
-      restricoes: sp?.restricoes, lesoes: sp?.lesoes, observacoes: sp?.observacoes,
-      peso: anthro?.peso, imc: anthro?.imc, cintura: anthro?.cintura,
-      quadril: anthro?.quadril, rcq: anthro?.rcq,
-      // All anthropometric measurements
-      antropometria_completa: anthro ? {
-        pescoco: anthro.pescoco, torax: anthro.torax, ombro: anthro.ombro,
-        abdomen: anthro.abdomen, braco_direito: anthro.braco_direito,
-        braco_esquerdo: anthro.braco_esquerdo, antebraco: anthro.antebraco,
-        antebraco_esquerdo: anthro.antebraco_esquerdo,
-        biceps_contraido_direito: anthro.biceps_contraido_direito,
-        biceps_contraido_esquerdo: anthro.biceps_contraido_esquerdo,
-        coxa_direita: anthro.coxa_direita, coxa_esquerda: anthro.coxa_esquerda,
-        panturrilha_direita: anthro.panturrilha_direita, panturrilha_esquerda: anthro.panturrilha_esquerda,
-      } : null,
-      percentual_gordura: comp?.percentual_gordura,
-      massa_magra: comp?.massa_magra, massa_gorda: comp?.massa_gorda,
-      massa_magra_data: comp?.massa_magra != null ? latestAssessmentDate : null,
-      massa_magra_origem: comp?.massa_magra != null ? 'Composição corporal da avaliação física' : null,
-      composicao_obs: comp?.observacoes,
-      // Skinfolds
-      dobras_cutaneas: skinfolds ? {
-        metodo: skinfolds.metodo, triceps: skinfolds.triceps, subescapular: skinfolds.subescapular,
-        suprailiaca: skinfolds.suprailiaca, abdominal: skinfolds.abdominal,
-        peitoral: skinfolds.peitoral, axilar_media: skinfolds.axilar_media, coxa: skinfolds.coxa,
-      } : null,
-      // Vitals
-      sinais_vitais: vitals ? {
-        fc_repouso: vitals.fc_repouso, pressao: vitals.pressao,
-        spo2: vitals.spo2, glicemia: vitals.glicemia, observacoes: vitals.observacoes,
-      } : null,
-      fc_repouso: vitals?.fc_repouso,
-      // Performance tests
-      testes_performance: perfTests ? {
-        pushup: perfTests.pushup, plank: perfTests.plank, cooper_12min: perfTests.cooper_12min,
-        salto_vertical: perfTests.salto_vertical, agachamento_score: perfTests.agachamento_score,
-        mobilidade_ombro: perfTests.mobilidade_ombro, mobilidade_quadril: perfTests.mobilidade_quadril,
-        mobilidade_tornozelo: perfTests.mobilidade_tornozelo, observacoes: perfTests.observacoes,
-      } : null,
-      // Posture (from assessment)
-      postura: posture ? {
-        vista_anterior: posture.vista_anterior, vista_lateral: posture.vista_lateral,
-        vista_posterior: posture.vista_posterior, observacoes: posture.observacoes,
-      } : null,
-      // Posture scan (latest)
-      analise_postural: latestPostureScan ? {
-        angles: latestPostureScan.angles_json, region_scores: latestPostureScan.region_scores_json,
-        attention_points: latestPostureScan.attention_points_json, notes: latestPostureScan.notes,
-      } : null,
-      // HR zones
-      zonas_fc: latestHrZones ? {
-        fc_repouso: latestHrZones.fc_repouso, fcmax: latestHrZones.fcmax_estimada,
-        formula: latestHrZones.fcmax_formula, zonas: latestHrZones.zonas_karvonen,
-      } : null,
-      anamnese: anamnese ? {
-        historico_saude: anamnese.historico_saude, medicacao: anamnese.medicacao,
-        suplementos: anamnese.suplementos, sono: anamnese.sono, stress: anamnese.stress,
-        rotina: anamnese.rotina, treino_atual: anamnese.treino_atual,
-        dores: anamnese.dores, cirurgias: anamnese.cirurgias,
-        tabagismo: anamnese.tabagismo, alcool: anamnese.alcool,
-      } : null,
-      fotos_avaliacao: photos.length > 0 ? photos.map(p => ({ tipo: p.tipo, url: p.url })) : null,
-      // ── HISTÓRICO LONGITUDINAL ──
-      historico_processo: {
-        ultima_dieta,
-        tendencia_peso,
-        aderencia_recente,
-        ultimo_reajuste,
-        confianca_geracao: confianca,
-        decisao_recomendada,
-        motivos_decisao,
-      },
-      questionario_dieta: latestQuestionnaire ? {
-        estilo_dieta: latestQuestionnaire.estilo_dieta,
-        fase_atual: latestQuestionnaire.fase_atual,
-        num_refeicoes: latestQuestionnaire.num_refeicoes,
-        horario_treino: latestQuestionnaire.horario_treino,
-        dias_treino: latestQuestionnaire.dias_treino,
-        usa_hormonios: latestQuestionnaire.usa_hormonios,
-        restricoes_alimentares: latestQuestionnaire.restricoes_alimentares,
-        preferencias_alimentares: latestQuestionnaire.preferencias_alimentares,
-        alimentos_por_refeicao: latestQuestionnaire.alimentos_por_refeicao,
-        como_se_sente: latestQuestionnaire.como_se_sente,
-        fraqueza: latestQuestionnaire.fraqueza,
-        dor_cabeca: latestQuestionnaire.dor_cabeca,
-        reduziu_peso: latestQuestionnaire.reduziu_peso,
-        pele_fina: latestQuestionnaire.pele_fina,
-        fome_excessiva: latestQuestionnaire.fome_excessiva,
-        insonia: latestQuestionnaire.insonia,
-        baixa_energia: latestQuestionnaire.baixa_energia,
-        irritabilidade: latestQuestionnaire.irritabilidade,
-        observacoes: latestQuestionnaire.observacoes,
-        respondido_em: latestQuestionnaire.responded_at,
-      } : null,
-    };
-
     setStudentCtx(ctx);
-    setStudentName(profile?.nome || 'Aluno');
-
-    // Pre-fill from questionnaire (only fields NOT handled by recommendation block)
-    if (latestQuestionnaire) {
-      if (latestQuestionnaire.num_refeicoes) setMealCount(String(latestQuestionnaire.num_refeicoes));
-      if (latestQuestionnaire.horario_treino) {
-        const timeMap: Record<string, string> = { '05:00': 'manha', '06:00': 'manha', '07:00': 'manha', '08:00': 'manha', '09:00': 'manha', '10:00': 'manha', '11:00': 'manha', '12:00': 'tarde', '13:00': 'tarde', '14:00': 'tarde', '15:00': 'tarde', '16:00': 'tarde', '17:00': 'noite', '18:00': 'noite', '19:00': 'noite', '20:00': 'noite', '21:00': 'noite', '22:00': 'madrugada' };
-        if (timeMap[latestQuestionnaire.horario_treino]) setTrainingTime(timeMap[latestQuestionnaire.horario_treino]);
-      }
-      if (latestQuestionnaire.dias_treino) {
-        const days = latestQuestionnaire.dias_treino.replace('x', '');
-        if (['3','4','5','6','7'].includes(days)) setTrainingDays(days);
-      }
-      if (latestQuestionnaire.restricoes_alimentares) setCustomRestriction(latestQuestionnaire.restricoes_alimentares);
-      if (latestQuestionnaire.preferencias_alimentares) setCustomPreference(latestQuestionnaire.preferencias_alimentares);
-      if (latestQuestionnaire.usa_hormonios) {
-        const uh = latestQuestionnaire.usa_hormonios;
-        if (uh === 'Não' || uh === 'não' || uh === 'Natural') setUsesHormones(false);
-        else { setUsesHormones(true); setHormoneDetails(uh); }
-      }
-    }
-
-    // ── Compute AI recommendation based on all student data ──
-    const peso = anthro?.peso ? Number(anthro.peso) : null;
-    const altura = sp?.altura || anthro?.altura ? Number(sp?.altura || anthro?.altura) : null;
-    const bf = comp?.percentual_gordura ? Number(comp.percentual_gordura) : null;
-    const mlg = comp?.massa_magra ? Number(comp.massa_magra) : null;
-    const isMale = sp?.sexo === 'masculino';
-    let birthAge: number | null = null;
-    if (sp?.data_nascimento) {
-      birthAge = Math.floor((Date.now() - new Date(sp.data_nascimento).getTime()) / (365.25 * 24 * 60 * 60 * 1000));
-    }
-
-    if (peso && altura && birthAge) {
-      // Auto-suggest strategy based on body composition + objective + questionnaire symptoms
-      let suggestedStrategy = 'manutencao';
-      let suggestedPhase = 'manutencao';
-      let suggestedDietStyle = 'convencional';
-
-      if (bf !== null) {
-        if ((isMale && bf > 20) || (!isMale && bf > 28)) { suggestedStrategy = 'deficit_moderado'; suggestedPhase = 'cutting'; }
-        else if ((isMale && bf < 12) || (!isMale && bf < 18)) { suggestedStrategy = 'superavit_leve'; suggestedPhase = 'bulking'; }
-      }
-      // Override from objective
-      const obj = (sp?.objetivo || '').toLowerCase();
-      if (obj.includes('emagrec') || obj.includes('perd') || obj.includes('defin')) { suggestedStrategy = 'deficit_leve'; suggestedPhase = 'cutting'; }
-      if (obj.includes('hipertrofia') || obj.includes('massa') || obj.includes('ganho')) { suggestedStrategy = 'superavit_leve'; suggestedPhase = 'bulking'; }
-      if (obj.includes('recomp')) { suggestedStrategy = 'manutencao'; suggestedPhase = 'recomposicao'; }
-      // Override from questionnaire phase
-      if (latestQuestionnaire?.fase_atual) {
-        const fase = latestQuestionnaire.fase_atual.toLowerCase();
-        if (fase.includes('bulk')) { suggestedStrategy = 'superavit_leve'; suggestedPhase = 'bulking'; }
-        if (fase.includes('cut')) { suggestedStrategy = 'deficit_moderado'; suggestedPhase = 'cutting'; }
-        if (fase.includes('recomp')) { suggestedStrategy = 'manutencao'; suggestedPhase = 'recomposicao'; }
-        if (fase.includes('manutenção') || fase.includes('manut')) { suggestedPhase = 'manutencao'; }
-        if (fase.includes('pré-contest') || fase.includes('pre_contest') || fase.includes('contest')) { suggestedPhase = 'pre_contest'; suggestedStrategy = 'deficit_agressivo'; }
-      }
-      // Diet style from questionnaire
-      if (latestQuestionnaire?.estilo_dieta) {
-        const estiloMap: Record<string, string> = { 'Flexível (IIFYM)': 'flexivel', 'Low Carb': 'low_carb', 'Cetogênica': 'cetogenica', 'Mediterrânea': 'mediterranea', 'Paleolítica': 'paleolitica', 'Vegetariana': 'vegetariana', 'Vegana': 'vegana', 'Convencional': 'convencional' };
-        suggestedDietStyle = estiloMap[latestQuestionnaire.estilo_dieta] || suggestedDietStyle;
-      }
-      // If cutting + high BF, suggest low carb
-      if (suggestedPhase === 'cutting' && bf !== null && bf > (isMale ? 25 : 32) && !latestQuestionnaire?.estilo_dieta) {
-        suggestedDietStyle = 'low_carb';
-      }
-      // Check symptoms: if low energy/weakness, ease up deficit
-      if (latestQuestionnaire && (latestQuestionnaire.baixa_energia || latestQuestionnaire.fraqueza)) {
-        if (suggestedStrategy === 'deficit_agressivo') suggestedStrategy = 'deficit_moderado';
-        else if (suggestedStrategy === 'deficit_moderado') suggestedStrategy = 'deficit_leve';
-      }
-
-      if (!strategy) setStrategy(suggestedStrategy);
-      if (!phase) setPhase(suggestedPhase);
-      if (!dietStyle) setDietStyle(suggestedDietStyle);
-
-      // Cálculo energético: fonte única = selectEnergyFormula + fator de atividade
-      // + estratégia + estado canônico de macros (nada é calculado aqui).
-      setStudentCtx({ ...ctx });
-    } else {
-      // Basic fallback - only strategy from BF
-      if (bf !== null && !strategy) {
-        if ((isMale && bf > 20) || (!isMale && bf > 28)) setStrategy('deficit_moderado');
-        else if ((isMale && bf < 12) || (!isMale && bf < 18)) setStrategy('superavit_leve');
-        else setStrategy('manutencao');
-      }
-    }
-
-    // Pre-fill restrictions from profile (only if no questionnaire)
-    if (!latestQuestionnaire && sp?.restricoes) setCustomRestriction(sp.restricoes);
-
+    setStudentName(name);
+    if (prefill.mealCount !== undefined) setMealCount(prefill.mealCount);
+    if (prefill.trainingTime !== undefined) setTrainingTime(prefill.trainingTime);
+    if (prefill.trainingDays !== undefined) setTrainingDays(prefill.trainingDays);
+    if (prefill.customRestriction !== undefined) setCustomRestriction(prefill.customRestriction);
+    if (prefill.customPreference !== undefined) setCustomPreference(prefill.customPreference);
+    if (prefill.usesHormones !== undefined) setUsesHormones(prefill.usesHormones);
+    if (prefill.hormoneDetails !== undefined) setHormoneDetails(prefill.hormoneDetails);
+    if (prefill.strategy !== undefined && !strategy) setStrategy(prefill.strategy);
+    if (prefill.phase !== undefined && !phase) setPhase(prefill.phase);
+    if (prefill.dietStyle !== undefined && !dietStyle) setDietStyle(prefill.dietStyle);
     setLoading(false);
   };
 
@@ -1581,17 +763,9 @@ const DietaIA = () => {
     );
   };
 
-  const getRestrictionsText = () => {
-    const parts = [...selectedRestrictions];
-    if (customRestriction.trim()) parts.push(customRestriction.trim());
-    return parts.join(', ');
-  };
+  const getRestrictionsText = () => dietRestrictionsText({ selectedRestrictions, customRestriction });
 
-  const getPreferencesText = () => {
-    const parts = [...selectedPreferences];
-    if (customPreference.trim()) parts.push(customPreference.trim());
-    return parts.join(', ');
-  };
+  const getPreferencesText = () => dietPreferencesText({ selectedPreferences, customPreference });
 
   const buildContextSummary = () => {
     const lines: string[] = [];
@@ -1862,21 +1036,8 @@ const DietaIA = () => {
     // Latest training markdown → structured context
     let trainingContext: any = undefined;
     try {
-      const { data: trainPlans } = await supabase
-        .from('ai_plans')
-        .select('conteudo')
-        .eq('student_id', studentId!)
-        .eq('tipo', 'treino')
-        .eq('is_draft', false)
-        .order('created_at', { ascending: false })
-        .limit(1);
-      const md = trainPlans?.[0]?.conteudo as string | undefined;
-      if (md) {
-        trainingContext = extractTrainingContext({
-          trainingMarkdown: md,
-          trainingTime: (['manha', 'tarde', 'noite'] as const).find((t) => trainingTime?.includes(t)) || null,
-        });
-      }
+      const md = await loadActiveTrainingMarkdown(supabase, studentId!);
+      trainingContext = buildDietTrainingContext(md, trainingTime);
     } catch (e) {
       console.warn('structured: failed to load training context', e);
     }
@@ -1888,27 +1049,14 @@ const DietaIA = () => {
     let foodAliasBlock = '';
     try {
       const foodsForCheck = await loadFoodMacroRecords();
-      if (modelDiet.trim()) {
-        allowedUnresolvedFoods = buildAllowedUnresolvedFromModelDiet(modelDiet, foodsForCheck);
+      const hints = buildDietFoodHints(modelDiet, getPreferencesText(), foodsForCheck);
+      allowedUnresolvedFoods = hints.allowedUnresolvedFoods;
+      foodAliasBlock = hints.foodAliasBlock;
+      if (hints.matched.length) {
+        toast.info('Alimentos associados ao banco', { description: hints.matched.map((m) => `${m.from} → ${m.to}`).join(' · ') });
       }
-      const freeNames = [
-        ...getPreferencesText().split(/[,;\n]/),
-        ...extractModelDietFoodNames(modelDiet),
-        ...modelDiet.split(/[,;\n]/).filter((x) => x.trim().length <= 40 && !/\d/.test(x)),
-      ].map((x) => x.replace(/^\s*[-*•]\s*/, '').trim()).filter((x) => x.length >= 3);
-      const { matched, unmatched } = matchFoodNamesToCatalog(freeNames, foodsForCheck);
-      if (matched.length) {
-        const matchedKeys = new Set(matched.map((m) => m.from.toLowerCase()));
-        allowedUnresolvedFoods = allowedUnresolvedFoods.filter((a) => !matchedKeys.has(a.name.toLowerCase()));
-        foodAliasBlock = `\n\n=== ALIMENTOS CITADOS → USE ESTES DO CATÁLOGO ===\n${matched
-          .map((m) => `- "${m.from}" = ${m.to}${m.id ? ` [id=${m.id}]` : ''}`)
-          .join('\n')}\nUse SEMPRE o foodId indicado para esses alimentos.`;
-        toast.info('Alimentos associados ao banco', { description: matched.map((m) => `${m.from} → ${m.to}`).join(' · ') });
-      }
-      const modelNames = new Set(extractModelDietFoodNames(modelDiet).map((n) => n.toLowerCase()));
-      const unmatchedModel = unmatched.filter((n) => modelNames.has(n.toLowerCase()));
-      if (unmatchedModel.length) {
-        toast.warning('Alimentos sem cadastro', { description: `Sem correspondência no banco: ${unmatchedModel.join(', ')}. Cadastre-os ou troque por um alimento existente.` });
+      if (hints.unmatchedModel.length) {
+        toast.warning('Alimentos sem cadastro', { description: `Sem correspondência no banco: ${hints.unmatchedModel.join(', ')}. Cadastre-os ou troque por um alimento existente.` });
       }
     } catch (e) {
       console.warn('structured: failed to build allowed unresolved foods', e);
@@ -1920,25 +1068,19 @@ const DietaIA = () => {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
       },
-      body: JSON.stringify({
-        mode: 'structured',
-        // Progresso em tempo real: a função devolve SSE com fases + resultado final.
-        progressStream: true,
-        messages: [{ role: 'user', content: userPrompt + foodAliasBlock }],
-        studentContext: studentCtx,
+      body: JSON.stringify(buildDietAgentBody({
+        userPrompt,
+        foodAliasBlock,
+        studentCtx,
         dietConfig,
         trainingContext,
-        studentId,
+        studentId: studentId!,
         variationIntensity,
         intent,
-        regenerateIntent: intent === 'regenerate',
-        // Dieta modelo colada: o plano deve repetir os alimentos de referência,
-        // então os filtros de variação/repetição não podem bloquear a geração.
-        referenceDietProvided: Boolean(modelDiet.trim()),
-        // Target determinístico do app: única autoridade de meta no servidor.
-        canonicalTargets: { kcal: targets.kcal, p: targets.p, c: targets.c, g: targets.g },
+        modelDiet,
+        targets,
         allowedUnresolvedFoods,
-      }),
+      })),
     });
 
     if (!streamResp.ok || !streamResp.body) {
@@ -2032,25 +1174,13 @@ const DietaIA = () => {
       const adjRaw = data?.dailyAdjustments ?? null;
       if (dietConfig?.weeklyEnergySchedule && weeklySchedule && adjRaw && typeof adjRaw === 'object') {
         // Re-normaliza no cliente para blindar contra respostas alteradas em trânsito.
-        const { adjustments, missing } = normalizeDailyAdjustments(adjRaw, weeklySchedule);
-        const validation = validateDailyAdjustments(adjustments, missing);
+        const { adjustments, missing, validation, warnings } = processDietDailyAdjustments(adjRaw, weeklySchedule);
         console.log('[DietaIA] client_daily_adjustments_received', {
           days: Object.keys(adjustments).length,
           missing_count: missing.length,
           validation_ok: validation.ok,
         });
         setDailyAdjustments(adjustments);
-        const warnings: string[] = [];
-        for (const wd of ENERGY_WEEKDAYS) {
-          const d = adjustments[wd];
-          const tol = evaluateTolerance(d.requested_adjustment_kcal, d.estimated_adjustment_kcal);
-          if (tol.state === 'outside_tolerance') {
-            warnings.push(
-              `${WEEKDAY_LABELS[wd]}: ${TOLERANCE_TEXT.outside_tolerance} — Ajuste calórico estimado (solicitado ${d.requested_adjustment_kcal >= 0 ? '+' : ''}${d.requested_adjustment_kcal} kcal, estimado ${d.estimated_adjustment_kcal >= 0 ? '+' : ''}${d.estimated_adjustment_kcal} kcal, tolerância ±${tol.tolerance_kcal} kcal, diferença ${tol.difference_kcal >= 0 ? '+' : ''}${tol.difference_kcal} kcal).`,
-            );
-          }
-        }
-        for (const err of validation.errors) warnings.push(err);
         setScheduleWarnings(warnings);
       } else {
         setDailyAdjustments(null);
@@ -2072,44 +1202,18 @@ const DietaIA = () => {
       setDietSimilarity(null);
     }
 
-    // Inject targets if model didn't echo them
-    if (raw.targets) {
-      // Autoridade determinística: os targets do app vencem os da IA.
-      raw.targets = { ...raw.targets, ...targets };
-    } else {
-      raw.targets = targets;
+    // Autoridade determinística: os targets do app vencem os da IA (código compartilhado).
+    const finalized = finalizeDietAgentPlan(raw, targets);
+    if (!finalized.plan) {
+      console.warn('structured: schema rejected plan', finalized.issues);
+      return { plan: null, status: resp.status, errorCode: finalized.errorCode ?? 'schema_rejected' };
     }
-
-    let parsed = parseDietPlanStrict(raw);
-    if (!parsed.success) {
-      // try a loose parse — tolerates extra/missing optional fields
-      const loose = parseDietPlanLoose(raw);
-      if (!loose) {
-        console.warn('structured: schema rejected plan', parsed.error?.issues?.slice(0, 5));
-        return { plan: null, status: resp.status, errorCode: 'schema_rejected' };
-      }
-      return { plan: finalizeDietPlan(loose, targets as any) };
-    }
-    return { plan: finalizeDietPlan(parsed.data, targets as any) };
+    return { plan: finalized.plan };
+  };
   };
 
   // Fase 4.2: o fluxo structured valida por foodId — o `id` é obrigatório aqui.
-  const loadFoodMacroRecords = async (): Promise<Array<FoodMacroRecord & { id: string }>> => {
-    const { data, error } = await supabase
-      .from('foods')
-      .select('id, name, calories, protein, carbs, fats, portion_size')
-      .order('name');
-    if (error) throw new Error('Erro ao carregar base alimentar: ' + error.message);
-    return (data || []).map((food) => ({
-      id: String(food.id),
-      name: food.name,
-      calories: Number(food.calories) || 0,
-      protein: Number(food.protein) || 0,
-      carbs: Number(food.carbs) || 0,
-      fats: Number(food.fats) || 0,
-      portion_size: Number(food.portion_size) || 100,
-    }));
-  };
+  const loadFoodMacroRecords = async (): Promise<Array<FoodMacroRecord & { id: string }>> => loadDietFoodRecords(supabase);
 
   const generatePlan = async (opts: { regenerateIntent?: boolean; intent?: DietIntent } = {}) => {
     if (!canGenerate || !studentCtx || generating) return;
@@ -2129,57 +1233,6 @@ const DietaIA = () => {
     setPendingNewFoods([]);
     setScheduleWarnings([]);
 
-    const selectedStrategy = STRATEGIES.find(s => s.value === strategy);
-    const selectedActivity = ACTIVITY_LEVELS.find(a => a.value === activityLevel);
-    const selectedPhase = PHASES.find(p => p.value === phase);
-    const selectedTrainingTime = TRAINING_TIMES.find(t => t.value === trainingTime);
-    const selectedDietStyle = DIET_STYLES.find(d => d.value === dietStyle);
-
-    const adjustmentLabels = selectedAdjustments.map(id => PROTOCOL_ADJUSTMENTS.find(a => a.id === id)?.label).filter(Boolean);
-
-    // Build meal names based on count
-    const getMealNames = (count: number): string[] => {
-      const base = ['Café da Manhã', 'Almoço', 'Lanche da Tarde', 'Jantar'];
-      if (count <= 4) return base.slice(0, count);
-      const extra = ['Pós-Treino', 'Ceia', 'Lanche da Manhã'];
-      return [...base, ...extra.slice(0, count - 4)];
-    };
-
-    const mealNames = getMealNames(Number(mealCount));
-
-    // Build alimentos_por_refeicao info from questionnaire
-    let alimentosPorRefeicaoText = '';
-    if (studentCtx.questionario_dieta?.alimentos_por_refeicao) {
-      const apr = studentCtx.questionario_dieta.alimentos_por_refeicao;
-      if (typeof apr === 'object' && apr !== null) {
-        const entries = Object.entries(apr as Record<string, any>).filter(([, v]) => v && String(v).trim());
-        if (entries.length > 0) {
-          alimentosPorRefeicaoText = `\n=== ALIMENTOS POR REFEIÇÃO (informados pelo aluno na ficha) ===\n${entries.map(([k, v]) => `- ${k}: ${v}`).join('\n')}\nIMPORTANTE: Respeite esses alimentos nas refeições correspondentes.\n`;
-        }
-      }
-    }
-
-    const observationsList = [
-      dailyRoutine && `Observações digitadas no wizard: ${dailyRoutine}`,
-      studentCtx.observacoes && `Observações do perfil do aluno: ${studentCtx.observacoes}`,
-      studentCtx.anamnese?.rotina && `Rotina registrada na anamnese: ${studentCtx.anamnese.rotina}`,
-      studentCtx.questionario_dieta?.observacoes && `Observações do questionário: ${studentCtx.questionario_dieta.observacoes}`,
-      studentCtx.questionario_dieta?.como_se_sente && `Como o aluno se sente: ${studentCtx.questionario_dieta.como_se_sente}`,
-    ].filter(Boolean);
-
-    const criticalInputsText = `
-=== INPUTS OBRIGATÓRIOS DO WIZARD E DA FICHA ===
-Use TODOS os dados abaixo como prioridade máxima. NÃO ignore, NÃO substitua por suposições e NÃO contradiga esses campos.
-- Frequência de treino selecionada: ${trainingDays ? `${trainingDays}x/semana` : studentCtx.questionario_dieta?.dias_treino || 'Não informada'}
-- Fase atual selecionada: ${selectedPhase?.label || studentCtx.questionario_dieta?.fase_atual || 'Não informada'}
-- Nível de atividade física selecionado: ${selectedActivity?.label || 'Não informado'} (FA = ${activityLevel || 'não informado'})
-- Restrições alimentares obrigatórias: ${getRestrictionsText() || studentCtx.questionario_dieta?.restricoes_alimentares || studentCtx.restricoes || 'Nenhuma informada'}
-- Preferências alimentares: ${getPreferencesText() || studentCtx.questionario_dieta?.preferencias_alimentares || 'Não informadas'}
-- Estilo de dieta selecionado: ${selectedDietStyle?.label || studentCtx.questionario_dieta?.estilo_dieta || 'Não informado'}
-${observationsList.length > 0 ? observationsList.map(item => `- ${item}`).join('\n') : '- Observações adicionais: Nenhuma informada'}
-IMPORTANTE: Se houver conflito entre uma inferência sua e os dados acima, os dados acima vencem.
-`;
-
     if (!weeklySchedule || baseKcal.base_daily_kcal == null || baseKcalIssues.length > 0) {
       toast.error('Defina uma meta calórica base válida antes de gerar a dieta.');
       setGenerating(false);
@@ -2187,187 +1240,25 @@ IMPORTANTE: Se houver conflito entre uma inferência sua e os dados acima, os da
       return;
     }
 
-    // Recalculate recommendation using the single base-kcal source selected in the wizard.
-    let recText = '';
-    let currentTargets: DietMacroTargets | null = null;
-    const currentCalories = baseKcal.base_daily_kcal;
-    const currentFA = baseKcal.calculation.activity_factor;
-    const currentStrategyPct = baseKcal.calculation.strategy_percent;
-    const currentGET = baseKcal.calculation.tdee;
-    const currentBmr = baseKcal.calculation.bmr;
-    const currentFormula = baseKcal.calculation.formula;
-    // Fase 2: os macros vêm EXCLUSIVAMENTE da configuração exibida na tela,
-    // preservando a BASE escolhida (peso corporal ou massa magra) em cada g/kg.
-    const prescription = getMacroPrescription(macroConfig, macroResolution, macroBody);
-    const macros = {
-      proteinGrams: canonicalTargets.p,
-      carbGrams: canonicalTargets.c,
-      fatGrams: canonicalTargets.g,
-      proteinPerKg: prescription?.protein.perKg ?? null,
-      fatPerKg: prescription?.fat.perKg ?? null,
-      proteinBasis: prescription?.protein.basisLabel ?? 'peso corporal',
-      fatBasis: prescription?.fat.basisLabel ?? 'peso corporal',
-    };
-    currentTargets = {
-      calories: currentCalories,
-      protein: macros.proteinGrams,
-      carbs: macros.carbGrams,
-      fats: macros.fatGrams,
-    };
-
-    recText = `
-=== RECOMENDAÇÃO CALCULADA (VALORES OBRIGATÓRIOS — NÃO RECALCULE) ===
-- Origem da meta base: ${BASE_SOURCE_LABELS[baseKcal.source]}
-- TMB: ${currentBmr ?? 'não aplicada'} kcal${currentFormula ? ` (calculado por ${currentFormula})` : ''}
-- Fator de Atividade: ${currentFA ?? 'não aplicado'}
-- GET: ${currentGET ?? 'não aplicado'} kcal
-- Estratégia: ${selectedStrategy?.label} (${(currentStrategyPct ?? 0) > 0 ? '+' : ''}${currentStrategyPct ?? 0}%)
-- Calorias alvo EXATAS: ${currentCalories} kcal
-- Proteína EXATA: ${macros.proteinGrams}g${macros.proteinPerKg ? ` (${macros.proteinPerKg} g/kg de ${macros.proteinBasis})` : ''}
-- Carboidrato EXATO: ${macros.carbGrams}g
-- Gordura EXATA: ${macros.fatGrams}g${macros.fatPerKg ? ` (${macros.fatPerKg} g/kg de ${macros.fatBasis})` : ''}
-⚠️ OBRIGATÓRIO: O TOTAL DIÁRIO da tabela DEVE ser EXATAMENTE ${currentCalories} kcal (tolerância ±50 kcal). Proteína total = ${macros.proteinGrams}g, Carboidrato total = ${macros.carbGrams}g, Gordura total = ${macros.fatGrams}g. NÃO use outros valores. NÃO recalcule a TMB. Estes valores já são definitivos.
-⚠️ REGRA DE CORREÇÃO: Se faltar caloria para bater a meta, ajuste CARBOIDRATO. NÃO aumente proteína acima de ${macros.proteinGrams}g para completar calorias.
-⚠️ VALIDAÇÃO FINAL: Antes de responder, some alimento por alimento. A dieta só é aceitável se ficar entre ${currentCalories - 50} e ${currentCalories + 50} kcal, proteína entre ${macros.proteinGrams - 10} e ${macros.proteinGrams + 10}g, carboidrato entre ${macros.carbGrams - 15} e ${macros.carbGrams + 15}g e gordura entre ${macros.fatGrams - 8} e ${macros.fatGrams + 8}g.
-`;
-
-    if (carbCycling.enabled) {
-      const dayLines = WEEKDAY_KEYS.map((wd) => {
-        const d = weeklyCarbTargets[wd];
-        if (!d) return '';
-        return `${WEEKDAY_LABELS[wd as EnergyWeekday].toUpperCase()} — ${d.type.toUpperCase()}\nKcal: ${d.kcal}\nP: ${d.p}g\nC: ${d.c}g\nG: ${d.g}g`;
-      }).filter(Boolean).join('\n\n');
-      recText = `
-=== REFERÊNCIA METABÓLICA (NÃO É A META DE TODOS OS DIAS) ===
-- TMB: ${currentBmr ?? 'não aplicada'} kcal${currentFormula ? ` (calculado por ${currentFormula})` : ''}
-- GET: ${currentGET ?? 'não aplicado'} kcal
-- Meta base diária (apenas referência): ${currentCalories} kcal
-
-=== METAS DIÁRIAS OBRIGATÓRIAS (CARB CYCLING) ===
-${dayLines}
-
-⚠️ Cada dia deve respeitar sua própria meta. Não aplicar a meta base global por cima dessas metas.
-⚠️ NÃO recalcule a TMB nem os macros. Os valores acima são definitivos (tolerância ±50 kcal por dia).
-`;
-    }
-
-    const prompt = `Gere o plano alimentar COMPLETO para fisiculturismo com as seguintes configurações:
-${criticalInputsText}
-${recText}
-
-=== ROTINA DO ALUNO ===
-- Rotina diária: ${dailyRoutine || 'Não informada'}
-- Horário de treino: ${selectedTrainingTime?.label || 'Não informado'}
-- Dias de treino: ${trainingDays ? `${trainingDays}x/semana` : 'Não informado'}
-
-=== ESTILO DE DIETA ===
-- Estilo: ${selectedDietStyle?.label || 'Não definido'} — ${selectedDietStyle?.desc || ''}
-IMPORTANTE: Siga o estilo selecionado sem quebrar os macros obrigatórios. Se Low Carb/Cetogênica conflitar com a meta de carboidrato calculada, a meta calculada vence. Se Vegetariana/Vegana, respeite as restrições proteicas sem aumentar a proteína total.
-
-=== FASE ATUAL ===
-- Fase: ${selectedPhase?.label} — ${selectedPhase?.desc}
-- Uso de hormônios: ${usesHormones === null ? 'Não informado' : usesHormones ? `Sim — ${hormoneDetails || 'detalhes não especificados'}` : 'Não (natural)'}
-
-=== PARÂMETROS NUTRICIONAIS ===
-- Fator de Atividade: ${selectedActivity?.label} (FA = ${activityLevel})
-- Estratégia: ${selectedStrategy?.label} (${(selectedStrategy?.pct ?? 0) > 0 ? '+' : ''}${selectedStrategy?.pct}%)
-- Número de refeições: ${mealCount} por dia
-- NOMES DAS REFEIÇÕES (use EXATAMENTE estes nomes na coluna "Refeição" da tabela): ${mealNames.join(', ')}
-${getRestrictionsText() ? `- Restrições alimentares: ${getRestrictionsText()}` : ''}
-${getPreferencesText() ? `- Preferências alimentares: ${getPreferencesText()}` : ''}
-${alimentosPorRefeicaoText}
-=== AJUSTES DO PROTOCOLO ===
-${adjustmentLabels.length > 0 ? adjustmentLabels.map(a => `- ${a}`).join('\n') : '- Nenhum ajuste selecionado'}
-
-=== EXTRAS ===
-${enableFitoterapia ? '- INCLUIR RECEITAS DE FITOTERAPIA: Sugira chás, infusões e preparações fitoterápicas complementares. Inclua dosagens, horários e benefícios.' : ''}
-${enableSuplementos ? '- INCLUIR SUPLEMENTAÇÃO COMPLETA: Protocolo de suplementos com dosagem, horário e justificativa.' : ''}
-${enableEmagrecimentoRapido ? '- ESTRATÉGIA DE EMAGRECIMENTO RÁPIDO: Estratégias avançadas (jejum intermitente, HIIT, termogênicos).' : ''}
-${enableJejumIntermitente ? '- JEJUM INTERMITENTE: Estruturar o dia alimentar respeitando a janela alimentar. Concentrar refeições na janela e indicar horários explicitamente. Não criar refeições fora da janela.' : ''}
-=== SUBSTITUIÇÕES DE ALIMENTOS ===
-OBRIGATÓRIO: Para CADA alimento na tabela de refeições, a coluna "Substituição" deve conter EXATAMENTE 3 opções de troca, cada uma com nome e quantidade (em gramas), que tenham macros e calorias equivalentes ao alimento principal.
-Formato da coluna Substituição: "1) Alimento X (Xg); 2) Alimento Y (Xg); 3) Alimento Z (Xg)"
-Exemplo: "1) Batata-doce (150g); 2) Inhame (140g); 3) Mandioca (120g)"
-As 3 opções devem ser alimentos DIFERENTES entre si e diferentes do alimento principal, respeitando os macros e calorias equivalentes.
-${substitutions.length > 0 ? `Use PREFERENCIALMENTE os alimentos abaixo como opções de substituição:\n${substitutions.map(s => `- ${s.food}: ${s.portion}`).join('\n')}` : ''}
-${modelDiet.trim() ? `
- === DIETA MODELO (APENAS LISTA DE ALIMENTOS) ===
- IMPORTANTE: A dieta modelo serve APENAS como fonte da LISTA DE ALIMENTOS por refeição. IGNORE completamente as calorias, macros, "Estimativa" e "TOTAL DIÁRIO" da dieta modelo — esses valores NÃO devem ser copiados nem usados como referência. ${carbCycling.enabled ? 'Use as metas específicas de cada dia definidas no bloco METAS DIÁRIAS OBRIGATÓRIAS — não existe meta única para todos os dias.' : `A meta calórica e de macros do aluno é a definida acima (${currentCalories} kcal, P=${macros.proteinGrams}g, C=${macros.carbGrams}g, G=${macros.fatGrams}g) e SEMPRE prevalece.`}
- REGRAS OBRIGATÓRIAS:
- 1) Use EXATAMENTE os mesmos alimentos da dieta modelo, na MESMA ordem, refeição por refeição, preservando o NOME EXATO (ex.: "Arroz basmati cozido") — não renomeie nem simplifique. Se o alimento não estiver na base do sistema, use-o mesmo assim e devolva kcal/P/C/G estimados por você.
- 2) AJUSTE LIVREMENTE AS QUANTIDADES (gramas/ml/unidades) de cada item para bater EXATAMENTE a meta calórica e de macros do aluno — as quantidades da dieta modelo são apenas ponto de partida e devem ser recalculadas do zero conforme a meta do aluno.
- 3) Substituição do alimento SÓ é permitida quando o alimento da dieta modelo estiver listado como restrição/alergia/intolerância do aluno. Nesse caso, substitua por um item de perfil nutricional semelhante e explique o motivo na coluna "Substituição".
- 4) NÃO adicione alimentos que não estejam na dieta modelo, exceto quando absolutamente necessário para fechar um macro — nesse caso, prefira alimentos que já apareçam em outras refeições da própria dieta modelo.
- 5) Para cada alimento, preencha SEMPRE Kcal, P, C, G reais daquela quantidade.
- 6) FORMATO DA DIETA MODELO: markdown com títulos "### N. Nome da refeição — HHhMM" seguidos por bullets "* Nome do alimento: quantidade". Extraia cada bullet como um alimento; use o horário do título na coluna "Horário" (ex.: "13:30"); mapeie o nome da refeição para os nomes oficiais (${mealNames.join(', ')}). Linhas de "Estimativa" e "TOTAL DIÁRIO" devem ser IGNORADAS.
-Dieta modelo:
-${modelDiet.trim()}
-` : ''}
-${studentCtx.questionario_dieta?.preferencias_alimentares ? `
-=== PREFERÊNCIAS ALIMENTARES DO ALUNO ===
-Estes são os alimentos que o aluno GOSTA e PODE comer. Ao usar dieta modelo, substitua qualquer alimento que não esteja nesta lista por um equivalente desta lista:
-${studentCtx.questionario_dieta.preferencias_alimentares}` : ''}
-${studentCtx.questionario_dieta?.restricoes_alimentares ? `
-=== RESTRIÇÕES ALIMENTARES DO ALUNO ===
-O aluno NÃO PODE comer os alimentos/grupos abaixo. Se aparecerem na dieta modelo, SUBSTITUA obrigatoriamente por alternativas permitidas:
-${studentCtx.questionario_dieta.restricoes_alimentares}` : ''}
-${selectedPreferences.length > 0 ? `
-=== ALIMENTOS PREFERIDOS (selecionados pelo nutricionista) ===
-Priorize estes alimentos ao montar o plano ou ao substituir itens da dieta modelo:
-${selectedPreferences.join(', ')}` : ''}
-${selectedRestrictions.length > 0 ? `
-=== RESTRIÇÕES (selecionadas pelo nutricionista) ===
-O aluno possui estas restrições. Nunca inclua alimentos incompatíveis:
-${selectedRestrictions.join(', ')}` : ''}
-Use também a base de alimentos disponível do sistema para escolher substituições adequadas.
-
-=== ESTRUTURA OBRIGATÓRIA DA TABELA ===
-A tabela DEVE ter as colunas: Refeição | Horário | Alimento | Quantidade (g) | Kcal | P | C | G | Substituição
-REGRA CRÍTICA: A coluna "Refeição" deve conter SOMENTE os nomes das refeições: ${mealNames.join(', ')}
-Cada refeição deve ter VÁRIOS alimentos (linhas), onde a primeira linha de cada refeição mostra o nome da refeição e as linhas seguintes ficam com a célula "Refeição" VAZIA (continuação da mesma refeição).
-NÃO coloque nomes de refeições na coluna "Alimento". A coluna "Alimento" é SOMENTE para os alimentos.
-Inclua uma linha de TOTAL por refeição e TOTAL DIÁRIO no final.
-
-GERE TUDO DE UMA VEZ:
-${studentCtx.questionario_dieta ? `
-=== FEEDBACK DO ALUNO (Questionário respondido em ${new Date(studentCtx.questionario_dieta.respondido_em).toLocaleDateString('pt-BR')}) ===
-- Estilo de dieta preferido: ${studentCtx.questionario_dieta.estilo_dieta || 'Não informado'}
-- Fase informada pelo aluno: ${studentCtx.questionario_dieta.fase_atual || 'Não informada'}
-- Alimentos preferidos: ${studentCtx.questionario_dieta.preferencias_alimentares || 'Não informado'}
-- Restrições do aluno: ${studentCtx.questionario_dieta.restricoes_alimentares || 'Nenhuma'}
-- Usa hormônios: ${studentCtx.questionario_dieta.usa_hormonios || 'Não informado'}
-- Como se sente: ${studentCtx.questionario_dieta.como_se_sente || 'Não informou'}
-- Sintomas relatados: ${[
-    studentCtx.questionario_dieta.fraqueza && 'Fraqueza muscular',
-    studentCtx.questionario_dieta.dor_cabeca && 'Dor de cabeça',
-    studentCtx.questionario_dieta.reduziu_peso && 'Reduziu peso',
-    studentCtx.questionario_dieta.pele_fina && 'Pele mais fina',
-    studentCtx.questionario_dieta.fome_excessiva && 'Fome excessiva',
-    studentCtx.questionario_dieta.insonia && 'Insônia',
-    studentCtx.questionario_dieta.baixa_energia && 'Baixa energia',
-    studentCtx.questionario_dieta.irritabilidade && 'Irritabilidade',
-  ].filter(Boolean).join(', ') || 'Nenhum'}
-- Observações do aluno: ${studentCtx.questionario_dieta.observacoes || 'Nenhuma'}
-
-IMPORTANTE: Considere os sintomas e feedback do aluno ao montar a dieta. Se há fraqueza/baixa energia, priorize mais calorias ou distribuição melhor. Se há insônia, evite estimulantes à noite. Se reduziu peso, pode estar em déficit excessivo.
-` : ''}
-1) Utilize a TMB e o GET fornecidos pelo app apenas como referência
-2) NÃO recalcule a TMB/GET nem escolha outra fórmula — a fórmula já foi definida pelo app
-3) Monte o plano exatamente conforme os targets fornecidos${carbCycling.enabled ? ' para CADA dia (bloco METAS DIÁRIAS OBRIGATÓRIAS)' : ''}
-4) Apresente a distribuição de macronutrientes usando os gramas fornecidos
-5) EXATAMENTE 1 cardápio completo em tabela com: Refeição | Horário | Alimento | Quantidade (g) | Kcal | P | C | G | Substituição.
-6) Total de cada refeição e do dia
-7) Timing nutricional (pré-treino, intra-treino, pós-treino) baseado no horário de treino informado
-${selectedAdjustments.includes('carb_cycling') ? '8) Protocolo de Carb Cycling com tabela de dias High/Medium/Low' : ''}
-${selectedAdjustments.includes('refeed') ? '9) Protocolo de Refeed: frequência, calorias e macros no dia de refeed' : ''}
-${selectedAdjustments.includes('diet_break') ? '10) Protocolo de Diet Break: duração, calorias de manutenção' : ''}
-${selectedAdjustments.includes('plato') ? '11) Estratégias para quebrar platô metabólico' : ''}
-${selectedAdjustments.includes('sodium_adjust') ? '12) Protocolo de manipulação de sódio (especialmente para pré-contest)' : ''}
-${selectedAdjustments.includes('water_adjust') ? '13) Protocolo de manipulação hídrica' : ''}
-${enableFitoterapia ? '14) Receitas e protocolos de fitoterapia' : ''}
-${enableSuplementos ? '15) Protocolo de suplementação completo' : ''}
-${enableEmagrecimentoRapido ? '16) Estratégias avançadas de emagrecimento' : ''}
-17) Mensagens prontas para WhatsApp`;
+    // Prompt, configuração e metas: código compartilhado com o escritório (office-gerar).
+    const {
+      prompt,
+      structuredPrompt,
+      dietConfig,
+      targets: structuredTargets,
+      currentTargets,
+    } = buildDietGenerationPrompts({
+      state: wizardState,
+      studentCtx,
+      baseKcal,
+      macroConfig,
+      macroResolution,
+      macroBody,
+      canonicalTargets,
+      carbCycling,
+      weeklyCarbTargets,
+      weeklySchedule,
+    });
 
     try {
       const foodRecords = await loadFoodMacroRecords();
@@ -2384,93 +1275,11 @@ ${enableEmagrecimentoRapido ? '16) Estratégias avançadas de emagrecimento' : '
         dayTargetIssues?: unknown;
       } | null = null;
       if (currentTargets) {
-        // Phase 2: build carb-cycle plan when the protocol is selected.
-        // Fase 3 é a única implementação de carb cycling — o plano legado
-        // (buildCarbCyclePlan) não é mais enviado em paralelo ao diet-agent.
-        const cyclePlan = null;
-        // Fase 4.2: prompt structured por construção positiva (sem sanitizar o legado).
-        const structuredPrompt = buildStructuredDietPrompt({
-          studentContext: criticalInputsText,
-          routine: [
-            `Rotina diária: ${dailyRoutine || 'Não informada'}`,
-            `Horário de treino: ${selectedTrainingTime?.label || 'Não informado'}`,
-          ].join('\n'),
-          training: trainingDays ? `${trainingDays}x/semana` : 'Não informado',
-          phase: `${selectedPhase?.label ?? 'Não informada'} — ${selectedPhase?.desc ?? ''}`,
-          strategy: `${selectedStrategy?.label ?? 'Não informada'} (${(selectedStrategy?.pct ?? 0) > 0 ? '+' : ''}${selectedStrategy?.pct ?? 0}%)`,
-          style: `${selectedDietStyle?.label || 'Não definido'} — ${selectedDietStyle?.desc || ''}`,
-          meals: [
-            `Número de refeições: ${mealCount} por dia`,
-            `Nomes das refeições (use exatamente): ${mealNames.join(', ')}`,
-            alimentosPorRefeicaoText.trim(),
-          ].filter(Boolean).join('\n'),
-          restrictions: [getRestrictionsText(), ...selectedRestrictions].filter(Boolean).join('; '),
-          preferences: [getPreferencesText(), ...selectedPreferences].filter(Boolean).join('; '),
-          targets: carbCycling.enabled ? '' : recText,
-          carbCycling: carbCycling.enabled ? recText : '',
-          modelDiet: modelDiet.trim(),
-          extras: adjustmentLabels.length > 0 ? adjustmentLabels.map((a) => `- ${a}`).join('\n') : '',
-        });
         try {
           const structuredResult = await generateStructuredPlan(
             structuredPrompt,
-            {
-              objective: phase || undefined,
-              strategy: strategy || undefined,
-              style: dietStyle || undefined,
-              ...(cyclePlan ? { carbCyclePlan: cyclePlan } : {}),
-              // Autoridade explícita: carb cycling materializa cada weekday e
-              // por isso NÃO exige dailyAdjustments add/remove.
-              carbCyclingEnabled: carbCycling.enabled,
-              weeklyEnergySchedule: {
-                base_daily_kcal: currentTargets.calories,
-                base_source: weeklySchedule.base_source,
-                calculation_snapshot: weeklySchedule.calculation_snapshot,
-                days: Object.fromEntries(
-                  ENERGY_WEEKDAYS.map((wd) => {
-                    const entry = weeklySchedule.days[wd];
-                    // Rebase adjustments over the definitive currentTargets.calories.
-                    const adj = entry.adjustment_kcal;
-                    const fixed = entry.fixed_kcal;
-                    // Fase 3: quando o carb cycling está ativo, o dia já vem
-                    // materializado com {kcal,p,c,g} — resolveDayTarget é o
-                    // ponto único de consumo e nada é reescalonado depois.
-                    const cycleDay = carbCycling.enabled ? weeklyCarbTargets[wd] : undefined;
-                    const dayTarget = resolveDayTarget({
-                      schedule: weeklySchedule as unknown as Parameters<typeof resolveDayTarget>[0]['schedule'],
-                      dayIndex: ENERGY_WEEKDAYS.indexOf(wd),
-                      planTargetKcal: currentTargets.calories,
-                      planTargetMacros: { p: canonicalTargets.p, c: canonicalTargets.c, g: canonicalTargets.g },
-                      dayTarget: cycleDay ?? null,
-                    });
-                    const target = cycleDay
-                      ? dayTarget.kcal
-                      : fixed != null && fixed > 0
-                        ? Math.round(fixed)
-                        : Math.round(currentTargets.calories + adj);
-                    return [wd, {
-                      base_kcal: currentTargets.calories,
-                      adjustment_kcal: cycleDay ? 0 : adj,
-                      fixed_kcal: cycleDay ? target : fixed,
-                      target_kcal: target,
-                      day_type: cycleDay?.type ?? null,
-                      protein_g: dayTarget.p || null,
-                      carbs_g: dayTarget.c || null,
-                      fat_g: dayTarget.g || null,
-                      workout: entry.workout,
-                    }];
-                  }),
-                ),
-              },
-            },
-            {
-              kcal: currentTargets.calories,
-              p: currentTargets.protein,
-              c: currentTargets.carbs,
-              g: currentTargets.fats,
-              tmb: currentBmr ?? undefined,
-              get: currentGET ?? undefined,
-            },
+            dietConfig,
+            structuredTargets,
             intent,
           );
           structured = structuredResult.plan;
@@ -2692,29 +1501,17 @@ ${generated}`;
     }
     console.log('[DietaIA] savePlan_start', { mode, isDraft, scheduleHasAdjustments });
     setSaving(true);
-    const scheduleJson = scheduleToJson(weeklySchedule) as any;
-    if (dailyAdjustments && scheduleJson && typeof scheduleJson === 'object') {
-      scheduleJson.generated_adjustments = dailyAdjustments;
-    }
-    const protocols = {
-      adjustments: selectedAdjustments,
-      extras: {
-        fitoterapia: enableFitoterapia,
-        suplementos: enableSuplementos,
-        emagrecimento_rapido: enableEmagrecimentoRapido,
-        jejum_intermitente: enableJejumIntermitente,
-      },
-      weekly_energy_schedule: scheduleJson,
-      carb_cycling: JSON.parse(JSON.stringify({
-        enabled: carbCycling.enabled,
-        mode: carbCycling.mode,
-        types: carbCycling.types,
-        assignments: carbCycling.assignments,
-        manual: carbCycling.manual,
-        fixedClosingMacro: carbCycling.fixedClosingMacro,
-      })),
-      weekly_day_targets: carbCycling.enabled ? JSON.parse(JSON.stringify(weeklyCarbTargets)) : null,
-    };
+    const protocols = buildDietProtocols({
+      selectedAdjustments,
+      enableFitoterapia,
+      enableSuplementos,
+      enableEmagrecimentoRapido,
+      enableJejumIntermitente,
+      weeklySchedule,
+      dailyAdjustments,
+      carbCycling,
+      weeklyCarbTargets,
+    });
     if (editPlanId) {
       const validation = validateDietJSON(result);
       let canonicalPlan: any = null;
