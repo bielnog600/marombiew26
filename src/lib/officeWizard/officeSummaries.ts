@@ -71,7 +71,7 @@ export function suggestCardioValues(fields: WizardField[], lastCardio: any | nul
 }
 
 /** Campos sem dado do aluno: usa o valor inicial do wizard quando ele existe. */
-function fillDefaults(fields: WizardField[], out: Record<string, Suggestion>) {
+export function fillDefaults(fields: WizardField[], out: Record<string, Suggestion>) {
   for (const f of fields) {
     if (out[f.id]) continue;
     const p = f.padrao;
