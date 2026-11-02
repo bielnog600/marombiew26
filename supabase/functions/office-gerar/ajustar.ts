@@ -62,7 +62,7 @@ export type AnaliseRes =
   | { ok: false; status: number; body: Record<string, unknown> }
 
 const mapaGrupos = (rows: Array<{ nome?: string; grupo_muscular?: string | null }> | null) => {
-  const grupos = new Map<string, string>()
+  const grupos = new Map<string, string | null>()
   for (const r of rows ?? []) grupos.set(String(r.nome ?? '').trim().toLowerCase(), r.grupo_muscular ?? null)
   return (n: string) => grupos.get(String(n).trim().toLowerCase()) ?? null
 }
