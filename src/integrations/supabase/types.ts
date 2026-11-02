@@ -2264,6 +2264,63 @@ export type Database = {
         }
         Relationships: []
       }
+      office_plan_drafts: {
+        Row: {
+          ai_plan_id: string | null
+          created_at: string
+          discarded_at: string | null
+          error: Json | null
+          id: string
+          instrucoes: string | null
+          published_at: string | null
+          published_plan_id: string | null
+          request_payload: Json | null
+          respostas: Json
+          result_payload: Json | null
+          resumo_legivel: string | null
+          status: string
+          student_id: string
+          tipo: string
+          updated_at: string
+        }
+        Insert: {
+          ai_plan_id?: string | null
+          created_at?: string
+          discarded_at?: string | null
+          error?: Json | null
+          id?: string
+          instrucoes?: string | null
+          published_at?: string | null
+          published_plan_id?: string | null
+          request_payload?: Json | null
+          respostas?: Json
+          result_payload?: Json | null
+          resumo_legivel?: string | null
+          status?: string
+          student_id: string
+          tipo: string
+          updated_at?: string
+        }
+        Update: {
+          ai_plan_id?: string | null
+          created_at?: string
+          discarded_at?: string | null
+          error?: Json | null
+          id?: string
+          instrucoes?: string | null
+          published_at?: string | null
+          published_plan_id?: string | null
+          request_payload?: Json | null
+          respostas?: Json
+          result_payload?: Json | null
+          resumo_legivel?: string | null
+          status?: string
+          student_id?: string
+          tipo?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       payments: {
         Row: {
           admin_id: string
