@@ -980,7 +980,7 @@ export async function loadDietFoodRecords(sb: any): Promise<DietFoodRecord[]> {
  * Alimentos da dieta modelo sem correspondência na base (podem voltar sem
  * foodId) e associação de nomes livres ao catálogo — calculado ANTES da geração.
  */
-export function buildDietFoodHints(modelDiet: string, preferencesText: string, foodsForCheck: DietFoodRecord[]) {
+export function buildDietFoodHints(modelDiet: string, preferencesText: string, foodsForCheck: Array<Omit<DietFoodRecord, "portion_size"> & { portion_size?: number }>) {
   let allowedUnresolvedFoods: { name: string; source: string }[] = [];
   let foodAliasBlock = '';
   if (modelDiet.trim()) {
