@@ -23,6 +23,11 @@ import {
   formatDurationFromSec,
   totalCardioDurationSec,
 } from '@/lib/cardioParser';
+import {
+  CARDIO_INTENSITIES, CARDIO_STYLES, CARDIO_FREQUENCIES, CARDIO_DURATIONS,
+  CARDIO_SPEEDS, CARDIO_INCLINES, CARDIO_TIMES, CARDIO_BIKE_LEVELS, CARDIO_ROUNDS, CARDIO_BIKE_POSITIONS,
+  buildCardioRequestBody, buildCardioPlanInsert, loadCardioWizardData,
+} from '@/lib/officeWizard/cardioWizard';
 
 type StudentCtx = Record<string, any>;
 
@@ -33,23 +38,10 @@ const MODALITIES: { value: CardioModality; label: string; icon: React.ComponentT
   { value: 'escada', label: 'Escada', icon: TrendingUp },
 ];
 
-const INTENSITIES = [
-  { value: 'auto', label: 'Auto' },
-  { value: 'leve', label: 'Leve' },
-  { value: 'moderada', label: 'Moderada' },
-  { value: 'intensa', label: 'Intensa' },
-];
-
-const STYLES = [
-  { value: 'auto', label: 'Automático (IA decide)' },
-  { value: 'continuo', label: 'Contínuo (intensidade constante)' },
-  { value: 'intervalado', label: 'Intervalado (blocos alternados)' },
-  { value: 'hiit', label: 'HIIT (picos curtos e intensos)' },
-  { value: 'zona2', label: 'Zona 2 pura (queima de gordura)' },
-];
-
-const FREQUENCIES = ['1', '2', '3', '4', '5', '6'];
-const DURATIONS = ['auto', '15', '20', '25', '30', '40', '45', '60'];
+const INTENSITIES = CARDIO_INTENSITIES;
+const STYLES = CARDIO_STYLES;
+const FREQUENCIES = CARDIO_FREQUENCIES;
+const DURATIONS = CARDIO_DURATIONS;
 
 const CardioIA = () => {
   const { studentId } = useParams<{ studentId: string }>();
@@ -104,55 +96,10 @@ const CardioIA = () => {
 
   const loadStudentData = async () => {
     setLoading(true);
-    const [profileRes, spRes, assessRes, hrRes] = await Promise.all([
-      supabase.from('profiles').select('*').eq('user_id', studentId!).maybeSingle(),
-      supabase.from('students_profile').select('*').eq('user_id', studentId!).maybeSingle(),
-      supabase.from('assessments').select('id').eq('student_id', studentId!).order('created_at', { ascending: false }).limit(1),
-      supabase.from('hr_zones').select('*').eq('student_id', studentId!).order('created_at', { ascending: false }).limit(1).maybeSingle(),
-    ]);
-
-    const profile = profileRes.data;
-    const sp = spRes.data;
-    const latestAssessmentId = assessRes.data?.[0]?.id;
-
-    let anthro: any = null, comp: any = null, vitals: any = null, anamnese: any = null, performance: any = null;
-    if (latestAssessmentId) {
-      const [a, c, v, an, pf] = await Promise.all([
-        supabase.from('anthropometrics').select('*').eq('assessment_id', latestAssessmentId).maybeSingle(),
-        supabase.from('composition').select('*').eq('assessment_id', latestAssessmentId).maybeSingle(),
-        supabase.from('vitals').select('*').eq('assessment_id', latestAssessmentId).maybeSingle(),
-        supabase.from('anamnese').select('*').eq('assessment_id', latestAssessmentId).maybeSingle(),
-        supabase.from('performance_tests').select('*').eq('assessment_id', latestAssessmentId).maybeSingle(),
-      ]);
-      anthro = a.data; comp = c.data; vitals = v.data; anamnese = an.data; performance = pf.data;
-    }
-
-    setStudentCtx({
-      nome: profile?.nome,
-      sexo: sp?.sexo,
-      data_nascimento: sp?.data_nascimento,
-      altura: sp?.altura || anthro?.altura,
-      objetivo: sp?.objetivo,
-      restricoes: sp?.restricoes,
-      lesoes: sp?.lesoes,
-      observacoes: sp?.observacoes,
-      peso: anthro?.peso,
-      imc: anthro?.imc,
-      percentual_gordura: comp?.percentual_gordura,
-      vitals,
-      anamnese,
-      performance,
-    });
-    setStudentName(profile?.nome || 'Aluno');
-
-    if (hrRes.data) {
-      setHrZones({
-        fcMax: hrRes.data.fcmax_estimada,
-        fcRepouso: hrRes.data.fc_repouso,
-        hrr: hrRes.data.hrr,
-        zones: hrRes.data.zonas_karvonen,
-      });
-    }
+    const data = await loadCardioWizardData(supabase, studentId!);
+    setStudentCtx(data.studentCtx);
+    setStudentName(data.studentName);
+    if (data.hrZones) setHrZones(data.hrZones);
     setLoading(false);
   };
 
@@ -170,17 +117,7 @@ const CardioIA = () => {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
           },
-          body: JSON.stringify({
-            studentContext: studentCtx,
-            modalities, // [] = automático (IA escolhe entre todas)
-            frequencyPerWeek: parseInt(frequency, 10),
-            intensity,
-            style,
-            durationMinutes: duration === 'auto' ? 'auto' : parseInt(duration, 10),
-            notes,
-            hrZones,
-            equipment: buildEquipment(eq),
-          }),
+          body: JSON.stringify(buildCardioRequestBody({ modalities, frequency, intensity, style, duration, notes, eq }, studentCtx, hrZones)),
         }
       );
 
@@ -225,12 +162,7 @@ const CardioIA = () => {
       if (error) toast.error('Erro: ' + error.message);
       else toast.success('Cardio atualizado!');
     } else {
-      const { error } = await supabase.from('ai_plans').insert({
-        student_id: studentId!,
-        tipo: 'cardio',
-        titulo,
-        conteudo,
-      });
+      const { error } = await supabase.from('ai_plans').insert(buildCardioPlanInsert(studentId!, payload));
       if (error) toast.error('Erro: ' + error.message);
       else toast.success('Cardio salvo!');
     }
@@ -565,12 +497,12 @@ const BlockParameters: React.FC<{ block: any; modality: CardioModality }> = ({ b
   );
 };
 
-const SPEEDS = ['3','4','5','5.5','6','6.5','7','7.5','8','8.5','9','10','11','12','13','14','15','16'];
-const INCLINES = ['0','1','2','3','4','5','6','7','8','9','10','12','15'];
-const TIMES = ['10','15','20','30','40','45','60','90','120','180','240','300'];
-const LEVELS = Array.from({ length: 20 }, (_, i) => String(i + 1));
-const ROUNDS = ['4','5','6','8','10','12','15','20'];
-const BIKE_POSITIONS = ['auto', 'alternado', 'sentado', 'em_pe'];
+const SPEEDS = CARDIO_SPEEDS;
+const INCLINES = CARDIO_INCLINES;
+const TIMES = CARDIO_TIMES;
+const LEVELS = CARDIO_BIKE_LEVELS;
+const ROUNDS = CARDIO_ROUNDS;
+const BIKE_POSITIONS = CARDIO_BIKE_POSITIONS;
 const fmtBikePos = (v: string) => ({ auto: 'Auto (IA)', alternado: 'Em pé e sentado', sentado: 'Apenas sentado', em_pe: 'Apenas em pé' }[v] || v);
 const fmtSec = (v: string) => { const n = +v; return n < 60 ? `${n}s` : n % 60 ? `${Math.floor(n/60)}min ${n%60}s` : `${n/60} min`; };
 
@@ -586,14 +518,5 @@ const EqSelect: React.FC<{ label: string; value?: string; onChange: (v: string) 
     </Select>
   </div>
 );
-
-function buildEquipment(eq: Record<string, string>) {
-  const n = (k: string) => (eq[k] && eq[k] !== 'auto' ? Number(eq[k]) : undefined);
-  return {
-    treadmill: { speedEasy: n('tSpeedEasy'), speedHard: n('tSpeedHard'), inclineEasy: n('tInclineEasy'), inclineHard: n('tInclineHard'), workSec: n('tWorkSec'), restSec: n('tRestSec') },
-    bike: { hiit: eq.bHiit === 'sim', position: eq.bPosition && eq.bPosition !== 'auto' ? eq.bPosition : undefined, standSec: n('bStandSec'), seatSec: n('bSeatSec'), hardSec: n('bHardSec'), easySec: n('bEasySec'), hardLevel: n('bHardLevel'), easyLevel: n('bEasyLevel') },
-    rounds: n('rounds'),
-  };
-}
 
 export default CardioIA;
