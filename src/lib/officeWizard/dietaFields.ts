@@ -64,7 +64,7 @@ export function dietaFields(): WizardField[] {
     f({
       id: 'ajuste_kcal_por_dia', stateKey: 'scheduleAdjustments',
       pergunta: 'Ajuste de kcal por dia da semana sobre a meta base (ex.: {"sab": 300}). Ignorado com Carb Cycling.',
-      tipo: 'kcal_por_dia', opcoes: ENERGY_WEEKDAYS.map((wd) => ({ valor: wd, rotulo: WEEKDAY_LABELS[wd] })), obrigatorio: false,
+      tipo: 'kcal_por_dia', opcoes: ENERGY_WEEKDAYS.map((wd) => ({ valor: wd, rotulo: WEEKDAY_LABELS[wd] })), obrigatorio: false, padrao: {},
       toState: (v) => {
         const out = emptyScheduleAdjustments();
         for (const [wd, kcal] of Object.entries(v as Record<string, number>)) out[wd as EnergyWeekday].adjustment_kcal = kcal;
