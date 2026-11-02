@@ -59,6 +59,7 @@ export interface AjusteMessages { system: string; user: string }
 
 export function buildTreinoAjusteMessages(p: {
   plan: WorkoutPlan; categoria: string; pedido: string; catalogBlock: string; metodos: string[]; correcao?: string[];
+  semana?: number | null; aluno?: string | null;
 }): AjusteMessages {
   const revisar = p.categoria === 'revisar';
   const system = [
