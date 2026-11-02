@@ -44,7 +44,8 @@ const draft = (id: string, extra: Row = {}) => ({
 })
 
 const tables = (extra: Row[] = []): Record<string, Row[]> => ({
-  office_plan_drafts: [draft(D1), ...extra],
+  // Extras vêm primeiro: um `draft(D1, ...)` sobrescreve o rascunho padrão.
+  office_plan_drafts: [...extra, draft(D1)],
   ai_plans: [{
     id: V, student_id: S, tipo: 'treino', is_draft: false, titulo: 'Treino vigente',
     conteudo_json: plan('Vigente A', 'Supino inclinado'), created_at: new Date().toISOString(),
