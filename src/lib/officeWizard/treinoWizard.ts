@@ -119,6 +119,7 @@ export const EXECUTION_RULES = [
   { id: 'sem_peso', label: 'Sem peso quando possível' },
   { id: 'tempo_controlado', label: 'Tempo / cadência controlada' },
   { id: 'sem_falha', label: 'Longe da falha (RIR alto)' },
+];
 
 export const MUSCLE_GROUPS = [
   'Peito', 'Costas', 'Ombro', 'Bíceps', 'Tríceps',

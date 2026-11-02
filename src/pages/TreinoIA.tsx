@@ -64,7 +64,6 @@ import {
   buildTreinoGenerationRequest,
   type ExerciseProfileValue, type ExerciseProfileAuditState,
 } from '@/lib/officeWizard/treinoWizard';
-];
 
 const TreinoIA = () => {
   const { studentId } = useParams<{ studentId: string }>();
