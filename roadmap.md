@@ -150,5 +150,7 @@ Fora do escopo desta entrega (Fases 3-6): LOW/MEDIUM/HIGH, novo carb cycling, aj
 ## Escritório de IA — office-gerar
 - [x] Perguntas do wizard (Gerar Treino, Cardio IA) com valor atual e resumo do plano vigente; gerar com 422 para faltando/inválido; status; publicar sem duplicar; descartar. Rascunhos em office_plan_drafts.
 - [x] Admin usa o mesmo código (prompt/pedido de treino, leitura do aluno, cardio, gravação); equivalência testada.
-- [ ] Dieta pelo escritório: migrar a montagem do Agente de Dieta (DietaIA) para o código compartilhado. Hoje responde 501.
-- [ ] Teste real de ponta a ponta: aguardando token cadastrado e autorização para chamadas reais de IA.
+- [x] Dieta pelo escritório: mesmas perguntas do Agente de Dieta, rascunho em ai_plans is_draft=true e publicação pelo publish-diet-plan; equivalência testada.
+- [x] `ajustar` (treino/dieta/cardio, por categoria e pedido livre) e `analisar` (treino, determinístico); resumo em markdown com tabelas e "O que mudou".
+- [x] `ajustar` e `analisar` aceitam `id` de rascunho: o ajustar parte do rascunho e cria um novo; o analisar só lê esse rascunho. Mesmas travas de aluno/status/publicado.
+- [ ] Teste real de ponta a ponta pelo escritório (perguntas → gerar/ajustar/analisar → publicar/descartar) — com o Fabiew; nenhuma chamada real de IA foi feita por mim.
