@@ -50,20 +50,65 @@ export const loadVigente = (sb: Sb, studentId: string, tipo: 'treino' | 'dieta' 
 
 // ─── analisar ───────────────────────────────────────────────────────
 
-export async function analisar(sb: Sb, studentId: string) {
+export interface AnaliseDados {
+  origem: 'vigente' | 'rascunho'
+  plano_id: string | null
+  titulo: string | null
+  texto: string
+  rascunho_id?: string
+}
+export type AnaliseRes =
+  | { ok: true; data: AnaliseDados }
+  | { ok: false; status: number; body: Record<string, unknown> }
+
+const mapaGrupos = (rows: Array<{ nome?: string; grupo_muscular?: string | null }> | null) => {
+  const grupos = new Map<string, string | null>()
+  for (const r of rows ?? []) grupos.set(String(r.nome ?? '').trim().toLowerCase(), r.grupo_muscular ?? null)
+  return (n: string) => grupos.get(String(n).trim().toLowerCase()) ?? null
+}
+
+/**
+ * Analisa o treino VIGENTE, ou o RASCUNHO do escritório quando `draftId` vem
+ * (office_plan_drafts, status pronto). Só leitura: nada é gravado, nenhuma IA.
+ */
+export async function analisar(sb: Sb, studentId: string, draftId?: string | null): Promise<AnaliseRes> {
+  if (draftId) {
+    const [r, ex] = await Promise.all([
+      loadRascunhoBase(sb, 'treino', draftId, studentId),
+      sb.from('exercises').select('nome, grupo_muscular'),
+    ])
+    if (!r.ok) {
+      // Rascunho publicado já é o treino vigente: a análise sem id mostra o mesmo.
+      if (r.body.error === 'ja_publicado') {
+        return { ok: false, status: r.status, body: { ...r.body, detalhe: 'Esse rascunho já foi publicado; analise sem id para ver o treino vigente.' } }
+      }
+      return r
+    }
+    const plan = core.normalizeWorkoutPlan(r.cur.conteudo_json)
+    if (!plan) return { ok: false, status: 409, body: { error: 'rascunho_sem_json', detalhe: 'Esse rascunho não tem treino em JSON estruturado.' } }
+    const baseId = typeof r.cur.id === 'string' ? r.cur.id : null
+    // Rascunho de ajuste: vale o bloco do treino de origem. Rascunho gerado: o
+    // bloco só começa quando for publicado, então é a semana 1.
+    const base = baseId
+      ? (await sb.from('ai_plans').select('id, titulo, block_start_date, fase_inicio_data, created_at').eq('id', baseId).maybeSingle()).data
+      : null
+    const a = core.analisarTreino(plan, {
+      semana: baseId ? core.semanaDoCiclo(base) : 1,
+      grupoBanco: mapaGrupos(ex.data),
+    })
+    return { ok: true, data: { origem: 'rascunho', rascunho_id: draftId, plano_id: baseId, titulo: base?.titulo ?? null, texto: a.texto } }
+  }
   const [{ data: cur }, ex] = await Promise.all([
     loadVigente(sb, studentId, 'treino'),
     sb.from('exercises').select('nome, grupo_muscular'),
   ])
   const plan = cur ? core.normalizeWorkoutPlan(cur.conteudo_json) : null
-  if (!plan) return null
-  const grupos = new Map<string, string>()
-  for (const r of ex.data ?? []) grupos.set(String(r.nome ?? '').trim().toLowerCase(), r.grupo_muscular ?? null)
+  if (!plan) return { ok: false, status: 404, body: { error: 'sem_plano_vigente', detalhe: 'O aluno não tem treino publicado com JSON estruturado.' } }
   const a = core.analisarTreino(plan, {
     semana: core.semanaDoCiclo(cur),
-    grupoBanco: (n: string) => grupos.get(String(n).trim().toLowerCase()) ?? null,
+    grupoBanco: mapaGrupos(ex.data),
   })
-  return { plano_id: cur.id, titulo: cur.titulo, texto: a.texto }
+  return { ok: true, data: { origem: 'vigente', plano_id: cur.id, titulo: cur.titulo, texto: a.texto } }
 }
 
 // ─── treino ─────────────────────────────────────────────────────────
