@@ -275,14 +275,14 @@ var resolveWeekStrategy = (input) => {
 };
 var resolvePeriodization = (input) => {
   const decision = selectPeriodizationModel(input.context, input.selection ?? "automatica");
-  const block = resolveBlockPlan(
+  const block2 = resolveBlockPlan(
     decision.model,
     input.blockNumber ?? 1,
     !!input.context.priorityFocus
   );
   const week = resolveWeekStrategy({
     model: decision.model,
-    blockType: block.blockType,
+    blockType: block2.blockType,
     phase: input.phase,
     daysPerWeek: input.context.daysPerWeek ?? null
   });
@@ -292,7 +292,7 @@ var resolvePeriodization = (input) => {
     reason: decision.reason,
     manual: decision.manual,
     dataSufficiency: decision.dataSufficiency,
-    block,
+    block: block2,
     week,
     resolvedAt: (input.now ?? /* @__PURE__ */ new Date()).toISOString()
   };
@@ -972,7 +972,7 @@ async function loadCardioWizardData(client, studentId) {
 // src/lib/officeWizard/fields.ts
 var opt = (arr) => arr.map((o) => ({ valor: o.value, rotulo: o.label, ...o.desc ? { descricao: o.desc } : {} }));
 var optIds = (arr) => arr.map((o) => ({ valor: o.id, rotulo: o.label, ...o.desc || o.category ? { descricao: o.desc ?? o.category } : {} }));
-var optStr = (arr, fmt = (v) => v) => arr.map((v) => ({ valor: v, rotulo: fmt(v) }));
+var optStr = (arr, fmt2 = (v) => v) => arr.map((v) => ({ valor: v, rotulo: fmt2(v) }));
 function treinoFields() {
   const d = defaultTreinoWizardState();
   const f = (x) => ({ ...x, padrao: d[x.stateKey] });
@@ -1062,6 +1062,35 @@ function coerce(field, raw) {
       if (typeof raw !== "string") return { ok: false, motivo: "esperado texto" };
       if (raw.length > 2e4) return { ok: false, motivo: "texto longo demais" };
       return { ok: true, value: raw };
+    case "numero": {
+      const n = typeof raw === "string" ? Number(raw.replace(",", ".")) : raw;
+      if (typeof n !== "number" || !Number.isFinite(n)) return { ok: false, motivo: "esperado n\xFAmero" };
+      if (field.minimo != null && n < field.minimo) return { ok: false, motivo: `m\xEDnimo ${field.minimo}` };
+      if (field.maximo != null && n > field.maximo) return { ok: false, motivo: `m\xE1ximo ${field.maximo}` };
+      return { ok: true, value: n };
+    }
+    case "kcal_por_dia": {
+      if (!raw || typeof raw !== "object" || Array.isArray(raw)) return { ok: false, motivo: "esperado objeto {seg: kcal, ...}" };
+      const out = {};
+      for (const [k, v] of Object.entries(raw)) {
+        if (!valid.has(k)) return { ok: false, motivo: `dia inv\xE1lido: ${k}` };
+        const n = typeof v === "string" ? Number(v) : v;
+        if (typeof n !== "number" || !Number.isInteger(n) || Math.abs(n) > 2e3) return { ok: false, motivo: `ajuste inv\xE1lido em ${k} (inteiro entre -2000 e 2000)` };
+        out[k] = n;
+      }
+      return { ok: true, value: out };
+    }
+    case "substituicoes": {
+      if (!Array.isArray(raw)) return { ok: false, motivo: "esperado lista [{alimento, porcao}]" };
+      const out = [];
+      for (const it of raw) {
+        const food = typeof it === "string" ? it : it?.alimento;
+        const portion = typeof it === "string" ? "" : it?.porcao;
+        if (typeof food !== "string" || !food.trim()) return { ok: false, motivo: 'cada item precisa de "alimento"' };
+        out.push({ food: food.trim(), portion: typeof portion === "string" && portion.trim() || "a definir" });
+      }
+      return { ok: true, value: out };
+    }
     case "divisao_por_dia": {
       if (!raw || typeof raw !== "object" || Array.isArray(raw)) return { ok: false, motivo: "esperado objeto {indiceDia: [grupos]}" };
       const out = {};
@@ -1076,7 +1105,7 @@ function coerce(field, raw) {
   }
 }
 var isEmpty = (field, v) => v === void 0 || v === null || field.tipo !== "booleano" && typeof v === "string" && v.trim() === "";
-function answersToState(fields, defaults, respostas, instrucoes) {
+function answersToState(fields, defaults, respostas, instrucoes, notesKey = "notes") {
   const faltando = [];
   const invalidos = [];
   const known = new Set(fields.map((f) => f.id));
@@ -1102,20 +1131,25 @@ function answersToState(fields, defaults, respostas, instrucoes) {
     if (!isActive(field, answers)) continue;
     const v = answers[field.id];
     if (v === void 0) continue;
-    if (field.stateKey.startsWith("eq.")) {
+    if (field.stateKey.startsWith("adj.")) {
+      const key = field.stateKey.slice(4);
+      state[key] = Array.from(/* @__PURE__ */ new Set([...state[key] ?? [], ...v]));
+    } else if (field.toState) {
+      state[field.stateKey] = field.toState(v);
+    } else if (field.stateKey.startsWith("eq.")) {
       if (v !== "auto") state.eq[field.stateKey.slice(3)] = v;
     } else {
       state[field.stateKey] = v;
     }
   }
   const extra = (instrucoes ?? "").trim();
-  if (extra) state.notes = state.notes?.trim() ? `${state.notes.trim()}
+  if (extra) state[notesKey] = state[notesKey]?.trim() ? `${state[notesKey].trim()}
 ${extra}` : extra;
   return { ok: true, state };
 }
 var validateTreinoAnswers = (respostas, instrucoes) => answersToState(treinoFields(), defaultTreinoWizardState(), respostas, instrucoes);
 var validateCardioAnswers = (respostas, instrucoes) => answersToState(cardioFields(), defaultCardioWizardState(), respostas, instrucoes);
-var publicField = ({ stateKey: _s, ...rest }) => rest;
+var publicField = ({ stateKey: _s, toState: _t, ...rest }) => rest;
 
 // node_modules/zod/v3/external.js
 var external_exports = {};
@@ -4594,7 +4628,7 @@ var ZodEnum = class _ZodEnum extends ZodType {
     });
   }
   exclude(values, newDef = this._def) {
-    return _ZodEnum.create(this.options.filter((opt2) => !values.includes(opt2)), {
+    return _ZodEnum.create(this.options.filter((opt3) => !values.includes(opt3)), {
       ...this._def,
       ...newDef
     });
@@ -5227,8 +5261,8 @@ var formatMethodParams = (params, resolvePair, slug) => {
       parts.push(APLICAR_LABELS[String(raw)] ?? String(raw));
       continue;
     }
-    const fmt = PARAM_FORMATTERS[key];
-    parts.push(fmt ? fmt(raw) : `${key.replace(/_/g, " ")}: ${raw}`);
+    const fmt2 = PARAM_FORMATTERS[key];
+    parts.push(fmt2 ? fmt2(raw) : `${key.replace(/_/g, " ")}: ${raw}`);
   }
   return parts.join(", ");
 };
@@ -5849,28 +5883,3929 @@ var buildWorkoutPlanInsertPayload = (studentId, json, extras = {}) => {
   };
   return { success: true, payload: insertPayload, markdown, json: validation.data };
 };
+
+// src/lib/weeklyEnergy.ts
+var ENERGY_WEEKDAYS = [
+  "seg",
+  "ter",
+  "qua",
+  "qui",
+  "sex",
+  "sab",
+  "dom"
+];
+var WEEKDAY_LABELS = {
+  seg: "Segunda",
+  ter: "Ter\xE7a",
+  qua: "Quarta",
+  qui: "Quinta",
+  sex: "Sexta",
+  sab: "S\xE1bado",
+  dom: "Domingo"
+};
+function computeDayTarget(entry) {
+  if (entry.fixed_kcal != null && entry.fixed_kcal > 0) {
+    return Math.round(entry.fixed_kcal);
+  }
+  return Math.round(entry.base_kcal + entry.adjustment_kcal);
+}
+function buildDefaultSchedule(params) {
+  const base = Math.round(params.baseDailyKcal);
+  const days = {};
+  for (const wd of ENERGY_WEEKDAYS) {
+    days[wd] = {
+      base_kcal: base,
+      adjustment_kcal: 0,
+      fixed_kcal: null,
+      workout: params.workoutByWeekday[wd] ?? null
+    };
+  }
+  return {
+    version: 1,
+    base_daily_kcal: base,
+    ...params.baseSource ? { base_source: params.baseSource } : {},
+    ...params.calculationSnapshot ? { calculation_snapshot: params.calculationSnapshot } : {},
+    days
+  };
+}
+var MIN_DAILY_KCAL = 900;
+function validateSchedule(s) {
+  const issues = [];
+  if (!Number.isFinite(s.base_daily_kcal) || s.base_daily_kcal <= 0) {
+    issues.push("Meta cal\xF3rica base inv\xE1lida.");
+  } else if (s.base_daily_kcal < MIN_DAILY_KCAL) {
+    issues.push(`Meta cal\xF3rica base muito baixa (${s.base_daily_kcal} kcal, m\xEDnimo ${MIN_DAILY_KCAL}).`);
+  }
+  if (s.base_source != null && s.base_source !== "automatic" && s.base_source !== "manual") {
+    issues.push("Origem da meta cal\xF3rica base inv\xE1lida.");
+  }
+  for (const wd of ENERGY_WEEKDAYS) {
+    const target = computeDayTarget(s.days[wd]);
+    if (!Number.isFinite(target) || target <= 0) {
+      issues.push(`${WEEKDAY_LABELS[wd]}: meta inv\xE1lida.`);
+    } else if (target < MIN_DAILY_KCAL) {
+      issues.push(
+        `${WEEKDAY_LABELS[wd]}: meta muito baixa (${target} kcal, m\xEDnimo ${MIN_DAILY_KCAL}).`
+      );
+    }
+  }
+  return issues;
+}
+function scheduleToJson(s) {
+  return JSON.parse(JSON.stringify(s));
+}
+
+// src/lib/trainingResultParser.ts
+var splitMarkdownRow = (line) => {
+  const trimmed = line.trim();
+  if (!trimmed.startsWith("|")) return [];
+  return trimmed.split("|").slice(1, -1).map((cell3) => cell3.trim());
+};
+var cleanCell = (value) => value.replace(/\*\*/g, "").trim();
+var normalizeText = (value) => value.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+var cleanTitle = (value) => cleanCell(value).replace(/^#+\s*/, "").replace(/^[-*]\s*/, "").replace(/:$/, "").trim();
+var extractDayFromTitle = (title) => {
+  const cleaned = cleanTitle(title);
+  const normalized = normalizeText(cleaned);
+  const match = normalized.match(/\b(segunda(?:-feira)?|terca(?:-feira)?|quarta(?:-feira)?|quinta(?:-feira)?|sexta(?:-feira)?|sabado|domingo|treino\s+[a-z])\b/i);
+  return match ? cleaned : "";
+};
+var normalizePause = (value) => {
+  if (!value) return "";
+  const trimmed = value.trim();
+  if (!trimmed || trimmed === "-" || trimmed === "\u2014") return trimmed;
+  const match = trimmed.match(/^(\d+)\s*(?:["''”″`]|seg(?:undos?)?|s)?\s*$/i);
+  if (match) return `${match[1]}s`;
+  return trimmed;
+};
+var isTrainingTable = (firstLine) => {
+  const lower = firstLine.toLowerCase();
+  return (lower.includes("treino") || lower.includes("exerc") || lower.includes("s\xE9rie") || lower.includes("serie")) && (lower.includes("repeti") || lower.includes("rir") || lower.includes("pausa") || lower.includes("exerc"));
+};
+var parseTrainingTable = (tableLines, fallbackTitle = "") => {
+  const rows = [];
+  const headerCells = splitMarkdownRow(tableLines.find((line) => line.trim().startsWith("|") && !line.includes("---")) || "");
+  const header = headerCells.map(normalizeText);
+  const findHeader = (predicate) => header.findIndex(predicate);
+  const dayIndex = findHeader((cell3) => cell3.includes("treino") && cell3.includes("dia") || (cell3 === "dia" || cell3.includes("dia do treino")));
+  const exerciseIndex = findHeader((cell3) => cell3.includes("exerc"));
+  const seriesIndex = findHeader((cell3) => cell3.includes("serie") && !cell3.includes("2"));
+  const series2Index = findHeader((cell3) => cell3.includes("serie") && cell3.includes("2"));
+  const repsIndex = findHeader((cell3) => cell3.includes("repet"));
+  const rirIndex = findHeader((cell3) => cell3.includes("rir"));
+  const pauseIndex = findHeader((cell3) => cell3.includes("pausa") || cell3.includes("descanso"));
+  const descIndex = findHeader((cell3) => cell3.includes("descr") || cell3.includes("instr"));
+  const variationIndex = findHeader((cell3) => cell3.includes("vari"));
+  const fallbackDay = extractDayFromTitle(fallbackTitle);
+  const hasMappedHeader = exerciseIndex >= 0;
+  for (const line of tableLines) {
+    if (!line.trim().startsWith("|")) continue;
+    if (line.includes("---")) continue;
+    const cells = splitMarkdownRow(line);
+    if (cells.length < 4) continue;
+    const first = normalizeText(cells[0] || "");
+    if (first.includes("treino do dia") || first.includes("exerc\xEDcio") || first.includes("exercicio")) {
+      continue;
+    }
+    rows.push(cells);
+  }
+  if (rows.length === 0) return [];
+  const days = [];
+  let currentDay = null;
+  let lastDayName = "";
+  for (const cells of rows) {
+    const hasDayColumn = dayIndex >= 0;
+    const get = (idx, positionalFallback, optional = false) => {
+      if (idx >= 0) return cleanCell(cells[idx] || "");
+      if (hasMappedHeader && optional) return "";
+      return cleanCell(cells[positionalFallback] || "");
+    };
+    const dayCell = hasDayColumn ? get(dayIndex, 0) : fallbackDay;
+    const exerciseCell = hasMappedHeader ? get(exerciseIndex, hasDayColumn ? 1 : 0) : get(hasDayColumn ? 1 : 0, hasDayColumn ? 1 : 0);
+    const seriesCell = hasMappedHeader ? get(seriesIndex, hasDayColumn ? 2 : 1) : get(hasDayColumn ? 2 : 1, hasDayColumn ? 2 : 1);
+    const series2Cell = hasMappedHeader ? get(series2Index, hasDayColumn ? 3 : 2, true) : get(hasDayColumn ? 3 : 2, hasDayColumn ? 3 : 2);
+    const repsCell = hasMappedHeader ? get(repsIndex, hasDayColumn ? 4 : 3) : get(hasDayColumn ? 4 : 3, hasDayColumn ? 4 : 3);
+    const rirCell = hasMappedHeader ? get(rirIndex, hasDayColumn ? 5 : 4, true) : get(hasDayColumn ? 5 : 4, hasDayColumn ? 5 : 4);
+    const pauseCell = normalizePause(hasMappedHeader ? get(pauseIndex, hasDayColumn ? 6 : 5, true) : get(hasDayColumn ? 6 : 5, hasDayColumn ? 6 : 5));
+    const descCell = hasMappedHeader ? get(descIndex, hasDayColumn ? 7 : 6, true) : get(hasDayColumn ? 7 : 6, hasDayColumn ? 7 : 6);
+    const variationCell = hasMappedHeader ? get(variationIndex, hasDayColumn ? 8 : 7, true) : get(hasDayColumn ? 8 : 7, hasDayColumn ? 8 : 7);
+    if (dayCell && dayCell !== "-" && dayCell.toLowerCase() !== lastDayName.toLowerCase()) {
+      if (currentDay && currentDay.exercises.length > 0) {
+        days.push(currentDay);
+      }
+      currentDay = { day: dayCell, exercises: [] };
+      lastDayName = dayCell;
+    }
+    if (!currentDay) {
+      currentDay = { day: dayCell || lastDayName || "Treino", exercises: [] };
+      if (dayCell) lastDayName = dayCell;
+    }
+    const normalizedExercise = normalizeText(exerciseCell);
+    if (exerciseCell && exerciseCell !== "-" && exerciseCell !== "\u2014" && normalizedExercise !== "exercicio") {
+      const parsed = {
+        exercise: exerciseCell,
+        series: seriesCell,
+        series2: series2Cell,
+        reps: repsCell,
+        rir: rirCell,
+        pause: pauseCell,
+        description: descCell,
+        variation: variationCell,
+        targetLoadKg: null,
+        targetLoadNote: null
+      };
+      const perSetMatch = repsCell.includes("/") && !repsCell.includes("+") ? repsCell.split("/").map((p) => p.trim()).filter((p) => p.length > 0) : null;
+      if (perSetMatch && perSetMatch.length >= 2) {
+        const seriesN = parseInt(seriesCell.replace(/\D/g, ""), 10) || perSetMatch.length;
+        if (seriesN === perSetMatch.length) {
+          parsed.setScheme = {
+            mode: "per_set",
+            sets: perSetMatch.map((r, i) => ({
+              set_number: i + 1,
+              set_type: "work",
+              target_reps: r
+            }))
+          };
+        }
+      }
+      currentDay.exercises.push(parsed);
+    }
+  }
+  if (currentDay && currentDay.exercises.length > 0) {
+    days.push(currentDay);
+  }
+  const merged = [];
+  const seen = /* @__PURE__ */ new Map();
+  for (const day of days) {
+    const key = day.day.toUpperCase();
+    if (seen.has(key)) {
+      merged[seen.get(key)] = day;
+    } else {
+      seen.set(key, merged.length);
+      merged.push(day);
+    }
+  }
+  return merged;
+};
+var parseTrainingSections = (markdown) => {
+  const sections = [];
+  const lines = markdown.split("\n");
+  let i = 0;
+  while (i < lines.length) {
+    const line = lines[i].trim();
+    if (line.toLowerCase().includes("whatsapp") || line.startsWith("#") && line.toLowerCase().includes("mensagen")) {
+      let msgContent = "";
+      i++;
+      while (i < lines.length) {
+        const l = lines[i].trim();
+        if (l.startsWith("#") && !l.toLowerCase().includes("whatsapp") && !l.toLowerCase().includes("mensag") && !l.toLowerCase().includes("parte")) break;
+        msgContent += lines[i] + "\n";
+        i++;
+      }
+      const msgBlocks = msgContent.split(/(?=(?:^|\n)(?:\*\*Parte|\*\*Mensagem|---|\*\*\d))/gi).filter((b) => b.trim());
+      for (const block2 of msgBlocks) {
+        if (block2.trim()) sections.push({ type: "message", content: block2.trim() });
+      }
+      continue;
+    }
+    if ((line.startsWith("#") || line.startsWith("**")) && (line.toLowerCase().includes("dica") || line.toLowerCase().includes("observ") || line.toLowerCase().includes("nota"))) {
+      let tipContent = line + "\n";
+      i++;
+      while (i < lines.length) {
+        const l = lines[i].trim();
+        if (l.startsWith("#") && !l.toLowerCase().includes("dica")) break;
+        if (l.startsWith("|")) break;
+        tipContent += lines[i] + "\n";
+        i++;
+      }
+      if (tipContent.trim()) sections.push({ type: "tip", content: tipContent.trim() });
+      continue;
+    }
+    if (line.startsWith("|")) {
+      const tableLines = [];
+      let title = "";
+      if (sections.length > 0 && sections[sections.length - 1].type === "text") {
+        const lastText = sections[sections.length - 1].content.trim();
+        if (lastText.startsWith("#") || lastText.startsWith("**")) {
+          title = lastText.replace(/^#+\s*/, "").replace(/\*\*/g, "");
+          sections.pop();
+        }
+      }
+      while (i < lines.length && (lines[i].trim().startsWith("|") || lines[i].trim() === "")) {
+        if (lines[i].trim()) tableLines.push(lines[i]);
+        i++;
+      }
+      const firstLine = tableLines[0]?.toLowerCase() || "";
+      if (isTrainingTable(firstLine)) {
+        const days = parseTrainingTable(tableLines, title);
+        if (days.length > 0) {
+          sections.push({ type: "training", title, content: tableLines.join("\n"), days });
+        } else {
+          sections.push({ type: "table", title, content: tableLines.join("\n") });
+        }
+      } else {
+        sections.push({ type: "summary", title, content: tableLines.join("\n") });
+      }
+      continue;
+    }
+    if (line) sections.push({ type: "text", content: lines[i] });
+    i++;
+  }
+  return sections;
+};
+
+// src/lib/trainingContextExtractor.ts
+var WEEKDAY_MAP = {
+  seg: "seg",
+  segunda: "seg",
+  "segunda-feira": "seg",
+  ter: "ter",
+  terca: "ter",
+  "ter\xE7a": "ter",
+  "ter\xE7a-feira": "ter",
+  qua: "qua",
+  quarta: "qua",
+  "quarta-feira": "qua",
+  qui: "qui",
+  quinta: "qui",
+  "quinta-feira": "qui",
+  sex: "sex",
+  sexta: "sex",
+  "sexta-feira": "sex",
+  sab: "sab",
+  sabado: "sab",
+  "s\xE1bado": "sab",
+  dom: "dom",
+  domingo: "dom"
+};
+var normalize = (s) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+var detectWeekday = (label) => {
+  const n = normalize(label);
+  for (const key of Object.keys(WEEKDAY_MAP)) {
+    if (n.includes(normalize(key))) return WEEKDAY_MAP[key];
+  }
+  return void 0;
+};
+var classifyDayType = (day) => {
+  const label = normalize(day.day);
+  if (/(off|descanso|rest|folga|livre)/.test(label)) return "rest";
+  if (/(cardio|esteira|bike|caminhada)/.test(label)) return "cardio";
+  if (/(tabata|hiit|emom|amrap)/.test(label)) return "tabata";
+  if (/(corrida|running|trote)/.test(label)) return "corrida";
+  const exercisesText = day.exercises.map((e) => normalize(e.exercise)).join(" ");
+  const lowerKeywords = /(agacha|leg ?press|stiff|levantam|terra|cadeira|panturri|gluteo|gl[uú]teo|hack|afundo)/;
+  const upperKeywords = /(supino|remada|desenv|rosca|tr[ií]ceps|b[ií]ceps|crucifix|elevac|puxada|encolhimento|press)/;
+  const hasLower = lowerKeywords.test(label) || lowerKeywords.test(exercisesText);
+  const hasUpper = upperKeywords.test(label) || upperKeywords.test(exercisesText);
+  if (hasLower && !hasUpper) return "lower";
+  if (hasUpper && !hasLower) return "upper";
+  if (hasUpper && hasLower) return "full";
+  if (/(push|empurr)/.test(label)) return "push";
+  if (/(pull|puxar)/.test(label)) return "pull";
+  if (/(legs|perna)/.test(label)) return "legs";
+  return "mixed";
+};
+var estimateIntensity = (day) => {
+  const exCount = day.exercises.length;
+  if (exCount === 0) return "low";
+  if (exCount <= 4) return "low";
+  if (exCount <= 8) return "medium";
+  return "high";
+};
+var inferSplit = (days) => {
+  const types = days.map(classifyDayType);
+  const u = types.filter((t) => t === "upper").length;
+  const l = types.filter((t) => t === "lower").length;
+  const f = types.filter((t) => t === "full").length;
+  const ppl = types.filter((t) => t === "push" || t === "pull" || t === "legs").length;
+  if (ppl >= 3) return "PPL";
+  if (u >= 1 && l >= 1) return "Upper/Lower";
+  if (f >= 2) return "Full Body";
+  if (days.length === 3) return "ABC";
+  if (days.length === 4) return "ABCD";
+  if (days.length === 5) return "ABCDE";
+  return "Custom";
+};
+var extractTrainingContext = (input) => {
+  if (!input.trainingMarkdown) return void 0;
+  const sections = parseTrainingSections(input.trainingMarkdown);
+  const days = sections.flatMap((s) => s.days ?? []);
+  if (days.length === 0) return void 0;
+  const daysOfWeek = {};
+  for (const day of days) {
+    const wd = detectWeekday(day.day);
+    const load = {
+      type: classifyDayType(day),
+      intensity: estimateIntensity(day),
+      timeOfDay: input.trainingTime || void 0
+    };
+    if (wd) daysOfWeek[wd] = load;
+  }
+  const splitType = inferSplit(days);
+  const weeklySessions = days.filter((d) => classifyDayType(d) !== "rest").length;
+  const summary = `${splitType} \xB7 ${weeklySessions}x/sem` + (input.trainingTime ? ` \xB7 ${input.trainingTime}` : "");
+  return {
+    splitType,
+    weeklySessions,
+    defaultTime: input.trainingTime || void 0,
+    daysOfWeek: Object.keys(daysOfWeek).length > 0 ? daysOfWeek : void 0,
+    summary
+  };
+};
+
+// src/lib/energyFormula.ts
+var LEAN_MASS_FRESH_DAYS = 120;
+var finite = (v) => {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+};
+var isLeanMassUsable = (leanKg, weightKg) => {
+  const lean = finite(leanKg);
+  const weight = finite(weightKg);
+  if (lean === null || weight === null) return false;
+  if (lean <= 0 || weight <= 0) return false;
+  if (lean >= weight) return false;
+  return lean / weight >= 0.3;
+};
+var mifflinStJeor = (sex, weightKg, heightCm, ageYears) => sex === "female" ? 10 * weightKg + 6.25 * heightCm - 5 * ageYears - 161 : 10 * weightKg + 6.25 * heightCm - 5 * ageYears + 5;
+var harrisBenedict = (sex, weightKg, heightCm, ageYears) => sex === "female" ? 447.593 + 9.247 * weightKg + 3.098 * heightCm - 4.33 * ageYears : 88.362 + 13.397 * weightKg + 4.799 * heightCm - 5.677 * ageYears;
+var cunningham = (leanMassKg) => 500 + 22 * leanMassKg;
+var katchMcArdle = (leanMassKg) => 370 + 21.6 * leanMassKg;
+var daysBetween = (a, b) => Math.abs(a.getTime() - b.getTime()) / (1e3 * 60 * 60 * 24);
+var selectEnergyFormula = (input) => {
+  const { sex, weightKg, heightCm, ageYears } = input;
+  const now = input.now ?? /* @__PURE__ */ new Date();
+  const warnings = [];
+  if (sex === null) {
+    warnings.push(
+      "Sexo biol\xF3gico n\xE3o informado \u2014 Mifflin e Harris-Benedict dependem do sexo e n\xE3o podem ser aplicadas."
+    );
+  }
+  const leanKg = finite(input.leanMass?.kg ?? null);
+  const leanUsable = isLeanMassUsable(leanKg, weightKg);
+  if (leanKg !== null && !leanUsable) {
+    warnings.push("Massa magra registrada \xE9 implaus\xEDvel para o peso atual \u2014 n\xE3o usada no c\xE1lculo.");
+  }
+  let staleLeanMass = false;
+  if (leanUsable && input.leanMass?.measuredAt) {
+    const measured = new Date(input.leanMass.measuredAt);
+    if (!Number.isNaN(measured.getTime()) && daysBetween(now, measured) > LEAN_MASS_FRESH_DAYS) {
+      staleLeanMass = true;
+      warnings.push(
+        `Composi\xE7\xE3o corporal de ${measured.toLocaleDateString("pt-BR")}${input.leanMass.source ? ` (${input.leanMass.source})` : ""} \u2014 confira se ainda representa o aluno.`
+      );
+    }
+  }
+  if (leanUsable && !input.leanMass?.measuredAt) {
+    warnings.push("Massa magra sem data de avalia\xE7\xE3o registrada.");
+  }
+  const alternatives = {};
+  if (sex !== null) {
+    alternatives.mifflin = Math.round(mifflinStJeor(sex, weightKg, heightCm, ageYears));
+    alternatives.harris_benedict = Math.round(harrisBenedict(sex, weightKg, heightCm, ageYears));
+  }
+  if (leanUsable && leanKg !== null) {
+    alternatives.cunningham = Math.round(cunningham(leanKg));
+    alternatives.katch_mcardle = Math.round(katchMcArdle(leanKg));
+  }
+  const bmrFor = (formula) => {
+    const value = alternatives[formula];
+    return value != null ? value : null;
+  };
+  if (input.manualFormula) {
+    const manualBmr = bmrFor(input.manualFormula);
+    if (manualBmr != null) {
+      return {
+        formula: input.manualFormula,
+        bmr: manualBmr,
+        reason: "F\xF3rmula escolhida manualmente pelo treinador.",
+        alternatives,
+        warnings,
+        insufficientData: false,
+        leanMassUsable: leanUsable,
+        manual: true
+      };
+    }
+    warnings.push("F\xF3rmula escolhida manualmente n\xE3o \xE9 aplic\xE1vel com os dados atuais.");
+  }
+  if (leanUsable && staleLeanMass && alternatives.mifflin != null) {
+    return {
+      formula: "mifflin",
+      bmr: alternatives.mifflin,
+      reason: "Composi\xE7\xE3o corporal antiga \u2014 usando Mifflin-St Jeor automaticamente. Cunningham segue dispon\xEDvel para escolha manual.",
+      alternatives,
+      warnings,
+      insufficientData: false,
+      leanMassUsable: true,
+      manual: false
+    };
+  }
+  if (leanUsable && alternatives.cunningham != null) {
+    return {
+      formula: "cunningham",
+      bmr: alternatives.cunningham,
+      reason: staleLeanMass ? "Massa magra dispon\xEDvel na composi\xE7\xE3o corporal mais recente (avalia\xE7\xE3o antiga \u2014 confira a data)." : "Massa magra dispon\xEDvel na avalia\xE7\xE3o mais recente.",
+      alternatives,
+      warnings,
+      insufficientData: false,
+      leanMassUsable: true,
+      manual: false
+    };
+  }
+  if (alternatives.mifflin == null) {
+    return {
+      formula: "mifflin",
+      bmr: 0,
+      reason: "Dados insuficientes: sem sexo biol\xF3gico e sem massa magra utiliz\xE1vel n\xE3o existe f\xF3rmula aplic\xE1vel.",
+      alternatives,
+      warnings,
+      insufficientData: true,
+      leanMassUsable: false,
+      manual: false
+    };
+  }
+  return {
+    formula: "mifflin",
+    bmr: alternatives.mifflin,
+    reason: "Sem massa magra utiliz\xE1vel \u2014 usando Mifflin-St Jeor com peso, altura e idade.",
+    alternatives,
+    warnings,
+    insufficientData: false,
+    leanMassUsable: false,
+    manual: false
+  };
+};
+var ENERGY_FORMULA_LABEL = {
+  cunningham: "Cunningham (massa magra)",
+  katch_mcardle: "Katch-McArdle (massa magra)",
+  mifflin: "Mifflin-St Jeor",
+  harris_benedict: "Harris-Benedict"
+};
+
+// src/lib/macroConfig.ts
+var MACRO_KCAL_PER_G = {
+  protein: 4,
+  carbs: 4,
+  fat: 9
+};
+var MACRO_LABEL = {
+  protein: "Prote\xEDna",
+  carbs: "Carboidrato",
+  fat: "Gordura"
+};
+var finite2 = (v) => {
+  if (v === null || v === void 0 || v === "") return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+};
+var round1 = (n) => Math.round(n * 10) / 10;
+var round2 = (n) => Math.round(n * 100) / 100;
+var basisWeight = (basis, body) => {
+  if (basis === "lean_mass") {
+    const lean = finite2(body.leanMassKg ?? null);
+    return lean && lean > 0 ? lean : null;
+  }
+  const weight = finite2(body.weightKg);
+  return weight && weight > 0 ? weight : null;
+};
+var gramsFromPerKg = (perKg, basis, body) => {
+  const reference = basisWeight(basis, body);
+  const value = finite2(perKg);
+  if (reference === null || value === null) return null;
+  return round1(value * reference);
+};
+var perKgFromGrams = (grams, basis, body) => {
+  const reference = basisWeight(basis, body);
+  const value = finite2(grams);
+  if (reference === null || value === null) return null;
+  return round2(value / reference);
+};
+var setMacroPerKg = (setting, perKg, body) => (
+  // Limpar o campo limpa os DOIS lados: nunca manter valor antigo escondido.
+  perKg === null ? { ...setting, perKg: null, grams: null } : { ...setting, perKg, grams: gramsFromPerKg(perKg, setting.basis, body) }
+);
+var kcalOf = (grams) => grams.protein * MACRO_KCAL_PER_G.protein + grams.carbs * MACRO_KCAL_PER_G.carbs + grams.fat * MACRO_KCAL_PER_G.fat;
+var MACRO_KEYS = ["protein", "carbs", "fat"];
+var resolveMacroConfig = ({
+  kcalTarget,
+  config,
+  body,
+  closingMacro,
+  toleranceKcal = 50
+}) => {
+  const base = {
+    status: "ok",
+    grams: null,
+    closingMacro: null,
+    kcalTarget,
+    kcalDelta: 0,
+    message: null,
+    closingOptions: []
+  };
+  const declared = {};
+  for (const key of MACRO_KEYS) {
+    const setting = config[key];
+    const grams2 = finite2(setting.grams) ?? (setting.perKg != null ? gramsFromPerKg(setting.perKg, setting.basis, body) : null);
+    if (grams2 != null) declared[key] = grams2;
+  }
+  const locked = MACRO_KEYS.filter((k) => config[k].locked);
+  const free = MACRO_KEYS.filter((k) => !config[k].locked);
+  const lockedMissing = locked.filter((k) => declared[k] == null);
+  if (lockedMissing.length > 0) {
+    return {
+      ...base,
+      status: "incomplete",
+      message: `Defina o valor de ${lockedMissing.map((k) => MACRO_LABEL[k]).join(" e ")} antes de travar.`
+    };
+  }
+  if (!Number.isFinite(kcalTarget) || kcalTarget <= 0) {
+    return { ...base, status: "incomplete", message: "Meta cal\xF3rica inv\xE1lida." };
+  }
+  if (locked.length === 3) {
+    const grams2 = {
+      protein: declared.protein,
+      carbs: declared.carbs,
+      fat: declared.fat
+    };
+    const delta = kcalOf(grams2) - kcalTarget;
+    if (Math.abs(delta) > toleranceKcal) {
+      return {
+        ...base,
+        status: "infeasible",
+        grams: grams2,
+        kcalDelta: Math.round(delta),
+        message: `Essa combina\xE7\xE3o de macros ${delta > 0 ? "ultrapassa" : "fica abaixo d"}a meta cal\xF3rica em ${Math.abs(
+          Math.round(delta)
+        )} kcal.`
+      };
+    }
+    return { ...base, grams: grams2, kcalDelta: Math.round(delta) };
+  }
+  let closing = null;
+  if (free.length === 1) {
+    closing = free[0];
+  } else {
+    if (!closingMacro || !free.includes(closingMacro)) {
+      return {
+        ...base,
+        status: "needs_closing_macro",
+        closingOptions: free,
+        message: "Existe mais de um macro livre. Escolha qual deles fecha as calorias \u2014 o app n\xE3o divide a diferen\xE7a sozinho."
+      };
+    }
+    closing = closingMacro;
+    const others = free.filter((k) => k !== closing);
+    const missing = others.filter((k) => declared[k] == null);
+    if (missing.length > 0) {
+      return {
+        ...base,
+        status: "incomplete",
+        closingOptions: free,
+        message: `Defina ${missing.map((k) => MACRO_LABEL[k]).join(" e ")} ou trave esse macro.`
+      };
+    }
+  }
+  const fixedKcal = MACRO_KEYS.filter((k) => k !== closing).reduce(
+    (acc, k) => acc + declared[k] * MACRO_KCAL_PER_G[k],
+    0
+  );
+  const remaining = kcalTarget - fixedKcal;
+  const closingGrams = remaining / MACRO_KCAL_PER_G[closing];
+  if (closingGrams < 0) {
+    return {
+      ...base,
+      status: "infeasible",
+      closingMacro: closing,
+      kcalDelta: Math.round(-remaining),
+      message: `Essa combina\xE7\xE3o de macros ultrapassa a meta cal\xF3rica em ${Math.abs(
+        Math.round(remaining)
+      )} kcal.`
+    };
+  }
+  const grams = {
+    protein: closing === "protein" ? round1(closingGrams) : declared.protein,
+    carbs: closing === "carbs" ? round1(closingGrams) : declared.carbs,
+    fat: closing === "fat" ? round1(closingGrams) : declared.fat
+  };
+  return {
+    ...base,
+    grams,
+    closingMacro: closing,
+    kcalDelta: Math.round(kcalOf(grams) - kcalTarget)
+  };
+};
+var closingMacroWarning = (resolution, body) => {
+  if (resolution.status !== "ok" || !resolution.grams || !resolution.closingMacro) return null;
+  const key = resolution.closingMacro;
+  const grams = resolution.grams[key];
+  const perKg = perKgFromGrams(grams, "body_weight", body);
+  if (perKg === null) return null;
+  const limits = {
+    protein: [1.2, 3.5],
+    carbs: [0.5, 8],
+    fat: [0.4, 1.6]
+  };
+  const [min, max] = limits[key];
+  if (perKg < min || perKg > max) {
+    return `Para manter ${resolution.kcalTarget} kcal com essa configura\xE7\xE3o, ${MACRO_LABEL[key].toLowerCase()} precisaria ficar em ${Math.round(grams)} g (${perKg} g/kg). Revise a configura\xE7\xE3o.`;
+  }
+  return null;
+};
+var defaultMacroConfig = () => ({
+  protein: { perKg: 2.2, grams: null, basis: "body_weight", locked: true },
+  fat: { perKg: 0.8, grams: null, basis: "body_weight", locked: true },
+  carbs: { perKg: null, grams: null, basis: "body_weight", locked: false }
+});
+var MACRO_BASIS_LABEL = {
+  body_weight: "peso corporal",
+  lean_mass: "massa magra"
+};
+var getMacroPrescription = (config, resolution, body) => {
+  if (!resolution.grams) return null;
+  const out = {};
+  for (const key of MACRO_KEYS) {
+    const basis = config[key].basis;
+    const grams = resolution.grams[key];
+    out[key] = {
+      grams,
+      perKg: perKgFromGrams(grams, basis, body),
+      basis,
+      basisLabel: MACRO_BASIS_LABEL[basis]
+    };
+  }
+  return out;
+};
+
+// src/lib/dietDayTargets.ts
+var WEEKDAY_KEYS = ["seg", "ter", "qua", "qui", "sex", "sab", "dom"];
+var positive = (v) => {
+  const n = Number(v);
+  return Number.isFinite(n) && n > 0 ? Math.round(n) : null;
+};
+var scheduleDayTarget = (schedule, dayIndex, planTargetKcal) => {
+  const key = WEEKDAY_KEYS[dayIndex];
+  if (!schedule?.days || !key) return null;
+  const day = schedule.days[key];
+  if (!day) return null;
+  const fixed = positive(day.fixed_kcal);
+  if (fixed) return fixed;
+  const target = positive(day.target_kcal);
+  if (target) return target;
+  const base = positive(schedule.base_daily_kcal) ?? positive(planTargetKcal);
+  if (base) return Math.round(base + (Number(day.adjustment_kcal) || 0));
+  return null;
+};
+var macro = (v) => {
+  const n = Number(v);
+  return Number.isFinite(n) && n > 0 ? n : 0;
+};
+var defined = (v) => v != null && Number.isFinite(v);
+var resolveDayTarget = ({
+  schedule,
+  dayIndex,
+  planTargetKcal,
+  currentTotalKcal,
+  planTargetMacros,
+  dayTarget
+}) => {
+  const explicitKcal = positive(dayTarget?.kcal);
+  if (explicitKcal) {
+    return {
+      kcal: explicitKcal,
+      // Zero é valor válido: só cai no target geral quando é null/undefined.
+      p: defined(dayTarget?.p) ? macro(dayTarget?.p) : macro(planTargetMacros?.p),
+      c: defined(dayTarget?.c) ? macro(dayTarget?.c) : macro(planTargetMacros?.c),
+      g: defined(dayTarget?.g) ? macro(dayTarget?.g) : macro(planTargetMacros?.g)
+    };
+  }
+  const fromSchedule = scheduleDayTarget(schedule, dayIndex, planTargetKcal);
+  const kcal = fromSchedule ?? positive(planTargetKcal) ?? positive(currentTotalKcal) ?? 0;
+  const p = macro(planTargetMacros?.p);
+  let c = macro(planTargetMacros?.c);
+  const g = macro(planTargetMacros?.g);
+  const base = positive(planTargetKcal);
+  if (fromSchedule && base && fromSchedule !== base && (p || c || g)) {
+    c = Math.max(0, Math.round(c + (fromSchedule - base) / 4));
+  }
+  return { kcal, p, c, g };
+};
+
+// src/lib/carbCycling.ts
+var CARB_DAY_LIMITS = { fatPerKgMax: 1.5, proteinPerKgMax: 3, kcalDeviationPct: 0.2 };
+var carbDayTargetSanityIssues = (t, weightKg, baseKcal) => {
+  const issues = [];
+  if (t.c < 0) issues.push("Carboidrato negativo");
+  if (weightKg && weightKg > 0) {
+    const gkg = t.g / weightKg;
+    const pkg = t.p / weightKg;
+    if (gkg > CARB_DAY_LIMITS.fatPerKgMax) issues.push(`Gordura ${t.g} g (${gkg.toFixed(1)} g/kg) acima de ${CARB_DAY_LIMITS.fatPerKgMax} g/kg`);
+    if (pkg > CARB_DAY_LIMITS.proteinPerKgMax) issues.push(`Prote\xEDna ${t.p} g (${pkg.toFixed(1)} g/kg) acima de ${CARB_DAY_LIMITS.proteinPerKgMax} g/kg`);
+  }
+  if (baseKcal && baseKcal > 0 && Math.abs(t.kcal - baseKcal) / baseKcal > CARB_DAY_LIMITS.kcalDeviationPct) {
+    issues.push(`${t.kcal} kcal muito longe da meta base (${Math.round(baseKcal)} kcal)`);
+  }
+  return issues;
+};
+var CARB_DAY_TYPES = ["low", "medium", "high"];
+var CARB_DAY_TYPE_LABEL = {
+  low: "LOW",
+  medium: "MEDIUM",
+  high: "HIGH"
+};
+var defaultCarbCyclingConfig = () => ({
+  enabled: false,
+  mode: "variable_calories",
+  types: {
+    low: { carbsPerKg: 1.5, carbGrams: null, carbBasis: "body_weight", targetKcal: null },
+    medium: { carbsPerKg: 2.5, carbGrams: null, carbBasis: "body_weight", targetKcal: null },
+    high: { carbsPerKg: 3.5, carbGrams: null, carbBasis: "body_weight", targetKcal: null }
+  },
+  assignments: {
+    seg: "medium",
+    ter: "medium",
+    qua: "medium",
+    qui: "medium",
+    sex: "medium",
+    sab: "low",
+    dom: "low"
+  },
+  manual: { seg: false, ter: false, qua: false, qui: false, sex: false, sab: false, dom: false },
+  fixedClosingMacro: null
+});
+var round12 = (n) => Math.round(n * 10) / 10;
+var carbGramsForType = (type, body) => {
+  if (type.carbGrams != null && Number.isFinite(type.carbGrams)) return round12(type.carbGrams);
+  if (type.carbsPerKg == null) return null;
+  return gramsFromPerKg(type.carbsPerKg, type.carbBasis, body);
+};
+var buildCarbDayTypeTargets = ({
+  mode,
+  carbCycling,
+  macroConfig,
+  body,
+  baseKcal,
+  closingMacro,
+  baseResolvedMacros
+}) => {
+  const out = {};
+  for (const type of CARB_DAY_TYPES) {
+    const cfg = carbCycling.types[type];
+    const carbs = carbGramsForType(cfg, body);
+    const base = {
+      type,
+      status: "ok",
+      target: null,
+      carbsPerKg: cfg.carbsPerKg,
+      carbBasis: cfg.carbBasis,
+      message: null,
+      warning: null
+    };
+    if (carbs == null) {
+      out[type] = { ...base, status: "incomplete", message: "Defina o carboidrato deste tipo de dia." };
+      continue;
+    }
+    if (mode === "variable_calories") {
+      const declared = (m) => m.grams ?? (m.perKg != null ? gramsFromPerKg(m.perKg, m.basis, body) : null);
+      const protein = declared(macroConfig.protein) ?? baseResolvedMacros?.p ?? null;
+      const fat = declared(macroConfig.fat) ?? baseResolvedMacros?.g ?? null;
+      if (protein == null || fat == null) {
+        out[type] = {
+          ...base,
+          status: "incomplete",
+          message: "Defina prote\xEDna e gordura na configura\xE7\xE3o de macros."
+        };
+        continue;
+      }
+      const kcal = protein * MACRO_KCAL_PER_G.protein + carbs * MACRO_KCAL_PER_G.carbs + fat * MACRO_KCAL_PER_G.fat;
+      const target = {
+        kcal: Math.round(kcal),
+        p: Math.round(protein),
+        c: Math.round(carbs),
+        g: Math.round(fat)
+      };
+      const issues = carbDayTargetSanityIssues(target, body.weightKg ?? null, baseKcal);
+      out[type] = {
+        ...base,
+        warning: issues.length ? issues.join(" \xB7 ") : null,
+        target
+      };
+      continue;
+    }
+    const fixedClosing = carbCycling.fixedClosingMacro ?? null;
+    if (!fixedClosing) {
+      out[type] = {
+        ...base,
+        status: "needs_closing_macro",
+        message: "Escolha qual macro deve fechar as calorias nos dias do ciclo."
+      };
+      continue;
+    }
+    const kcalTarget = cfg.targetKcal && cfg.targetKcal > 0 ? cfg.targetKcal : baseKcal;
+    const otherMacro = fixedClosing === "protein" ? "fat" : "protein";
+    const otherResolved = otherMacro === "fat" ? baseResolvedMacros?.g ?? null : baseResolvedMacros?.p ?? null;
+    const config = {
+      ...macroConfig,
+      carbs: {
+        ...macroConfig.carbs,
+        perKg: cfg.carbsPerKg,
+        grams: carbs,
+        basis: cfg.carbBasis,
+        locked: true
+      },
+      [fixedClosing]: { ...macroConfig[fixedClosing], locked: false },
+      [otherMacro]: {
+        ...macroConfig[otherMacro],
+        // A resolução canônica da Fase 2 vence o valor cru do macroConfig.
+        grams: otherResolved ?? macroConfig[otherMacro].grams,
+        locked: true
+      }
+    };
+    const resolution = resolveMacroConfig({ kcalTarget, config, body, closingMacro: fixedClosing });
+    out[type] = {
+      ...base,
+      status: resolution.status,
+      message: resolution.message,
+      warning: closingMacroWarning(resolution, body),
+      target: resolution.status === "ok" && resolution.grams ? {
+        kcal: Math.round(kcalTarget),
+        p: Math.round(resolution.grams.protein),
+        c: Math.round(resolution.grams.carbs),
+        g: Math.round(resolution.grams.fat)
+      } : null
+    };
+  }
+  return out;
+};
+var buildWeeklyCarbTargets = (carbCycling, typeTargets) => {
+  const out = {};
+  for (const wd of WEEKDAY_KEYS) {
+    const type = carbCycling.assignments[wd];
+    const target = typeTargets[type]?.target;
+    if (target) out[wd] = { ...target, type };
+  }
+  return out;
+};
+var suggestCarbDayTypeForWorkout = (workout) => {
+  const text = [workout?.label, workout?.type, ...workout?.muscles ?? []].filter(Boolean).join(" ").toLowerCase();
+  if (!text.trim()) return "medium";
+  if (/descanso|rest|folga|off/.test(text)) return "low";
+  if (/perna|lower|quadr|gl[uú]teo|posterior|full ?body|corpo inteiro/.test(text)) return "high";
+  if (/cardio|caminhada|aer[oó]bic/.test(text)) return "low";
+  return "medium";
+};
+var isCarbCyclingValid = (config, typeTargets, weekly) => {
+  if (!config.enabled) return { valid: true, reason: null };
+  for (const wd of WEEKDAY_KEYS) {
+    const type = config.assignments[wd];
+    const result = typeTargets[type];
+    if (!weekly[wd] || !result || result.status !== "ok" || !result.target) {
+      return {
+        valid: false,
+        reason: result?.message ?? `Carb cycling incompleto: o dia ${wd.toUpperCase()} (${CARB_DAY_TYPE_LABEL[type]}) n\xE3o tem meta v\xE1lida.`
+      };
+    }
+  }
+  return { valid: true, reason: null };
+};
+
+// src/lib/structuredDietPrompt.ts
+var STRUCTURED_CONTRACT_BLOCK = `
+=== CONTRATO DE SA\xCDDA (OBRIGAT\xD3RIO) ===
+- Escolha os alimentos SOMENTE entre os IDs do FOOD CATALOG desta requisi\xE7\xE3o.
+- Cada item deve conter apenas "foodId" (UUID do cat\xE1logo) e "qtyGrams" (> 0).
+- NUNCA informe calorias, prote\xEDna, carboidrato ou gordura de nenhum item.
+- NUNCA informe totais de refei\xE7\xE3o nem totais do dia: o sistema calcula tudo pela base.
+- Respeite a estrutura de refei\xE7\xF5es, hor\xE1rios, restri\xE7\xF5es e prefer\xEAncias informadas.
+- "foodId": null \xE9 permitido SOMENTE para os alimentos previamente autorizados;
+  nesse caso use o nome exato da dieta modelo \u2014 o sistema marcar\xE1 o item como
+  N\xC3O VALIDADO para resolu\xE7\xE3o manual.
+- N\xE3o crie substitui\xE7\xF5es textuais fora da base nesta etapa.
+`;
+var MODEL_DIET_RULES_BLOCK = `
+=== DIETA MODELO (REGRAS OBRIGAT\xD3RIAS) ===
+1) Preserve EXATAMENTE os mesmos alimentos da dieta modelo, na MESMA ordem, refei\xE7\xE3o por refei\xE7\xE3o.
+2) Ajuste apenas as QUANTIDADES (qtyGrams) para atingir as metas determin\xEDsticas.
+3) Troque um alimento SOMENTE quando houver restri\xE7\xE3o, alergia ou incompatibilidade expl\xEDcita.
+4) Alimento previamente identificado como sem cadastro: "foodId": null com o nome exato da dieta modelo (ficar\xE1 como N\xC3O VALIDADO para resolu\xE7\xE3o manual).
+5) Ignore quaisquer calorias, macros, "Estimativa" ou "TOTAL DI\xC1RIO" escritos na dieta modelo.
+`;
+var block = (title, body) => {
+  const content = String(body ?? "").trim();
+  if (!content) return "";
+  return `=== ${title} ===
+${content}
+`;
+};
+var buildStructuredDietPrompt = (input) => {
+  const parts = [
+    "Monte o plano alimentar escolhendo alimentos do FOOD CATALOG desta requisi\xE7\xE3o.",
+    block("CONTEXTO DO ALUNO", input.studentContext),
+    block("ROTINA DO ALUNO", input.routine),
+    block("TREINO", input.training),
+    block("FASE ATUAL", input.phase),
+    block("ESTRAT\xC9GIA", input.strategy),
+    block("ESTILO DE DIETA", input.style),
+    block("REFEI\xC7\xD5ES (NOME E HOR\xC1RIO)", input.meals),
+    block("RESTRI\xC7\xD5ES OBRIGAT\xD3RIAS", input.restrictions),
+    block("PREFER\xCANCIAS", input.preferences),
+    block("METAS DETERMIN\xCDSTICAS (DEFINITIVAS \u2014 N\xC3O RECALCULE)", input.targets),
+    block("CARB CYCLING \u2014 METAS POR DIA", input.carbCycling),
+    block("EXTRAS", input.extras)
+  ].filter(Boolean);
+  if (String(input.modelDiet ?? "").trim()) {
+    parts.push(MODEL_DIET_RULES_BLOCK.trim() + "\n");
+    parts.push(block("DIETA MODELO", input.modelDiet));
+  }
+  const allowed = (input.allowedUnresolved ?? []).filter((n) => String(n ?? "").trim());
+  if (allowed.length > 0) {
+    parts.push(
+      block(
+        "ALIMENTOS AUTORIZADOS SEM CADASTRO (foodId: null)",
+        allowed.map((n) => `- ${n}`).join("\n")
+      )
+    );
+  }
+  parts.push(STRUCTURED_CONTRACT_BLOCK.trim());
+  return parts.join("\n").replace(/\n{3,}/g, "\n\n").trim();
+};
+
+// supabase/functions/_shared/nutritionCore.ts
+var ZERO_MACROS = { kcal: 0, p: 0, c: 0, g: 0 };
+var normalizeFoodName = (value) => (value ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, " ").trim().toLowerCase();
+var buildFoodIndex = (foods) => {
+  const byId = /* @__PURE__ */ new Map();
+  const byName = /* @__PURE__ */ new Map();
+  for (const food of foods ?? []) {
+    if (food?.id) byId.set(food.id, food);
+    const key = normalizeFoodName(food?.name ?? "");
+    if (!key) continue;
+    const list = byName.get(key);
+    if (list) list.push(food);
+    else byName.set(key, [food]);
+  }
+  return { byId, byName };
+};
+var resolveFoodForItem = (item, index, mode = "draft", policy = "legacy") => {
+  if (mode === "published" && item.nutritionSnapshot) {
+    return {
+      status: "snapshot",
+      food: item.foodId ? index.byId.get(item.foodId) ?? null : null,
+      snapshot: item.nutritionSnapshot,
+      ambiguous: false
+    };
+  }
+  if (item.foodId) {
+    const byId = index.byId.get(item.foodId);
+    if (byId) {
+      return { status: "resolved_by_id", food: byId, snapshot: null, ambiguous: false };
+    }
+  }
+  if (policy === "strict_id") {
+    return { status: "unresolved", food: null, snapshot: item.nutritionSnapshot ?? null, ambiguous: false };
+  }
+  const matches = index.byName.get(normalizeFoodName(item.name)) ?? [];
+  if (matches.length === 1) {
+    return { status: "resolved_by_name", food: matches[0], snapshot: null, ambiguous: false };
+  }
+  return {
+    status: "unresolved",
+    food: null,
+    snapshot: item.nutritionSnapshot ?? null,
+    ambiguous: matches.length > 1
+  };
+};
+var portionOf = (value) => {
+  const n = Number(value);
+  return Number.isFinite(n) && n > 0 ? n : 100;
+};
+var numberOr0 = (value) => {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : 0;
+};
+var kcalFromMacros = (m) => m.p * 4 + m.c * 4 + m.g * 9;
+var isMacroSetSuspicious = (m) => {
+  const calc = kcalFromMacros(m);
+  if (m.kcal <= 0) return calc > 0;
+  const ratio = calc / m.kcal;
+  return ratio < 0.78 || ratio > 1.22;
+};
+var computeItemMacros = (item, index, mode = "draft", policy = "legacy") => {
+  const resolved = resolveFoodForItem(item, index, mode, policy);
+  const qtyGrams = Math.max(0, numberOr0(item.qtyGrams));
+  if (resolved.status === "snapshot" && resolved.snapshot) {
+    const scale = qtyGrams / portionOf(resolved.snapshot.portionSize);
+    const macros = {
+      kcal: resolved.snapshot.kcal * scale,
+      p: resolved.snapshot.p * scale,
+      c: resolved.snapshot.c * scale,
+      g: resolved.snapshot.g * scale
+    };
+    return {
+      status: resolved.status,
+      food: resolved.food,
+      ambiguous: false,
+      validated: true,
+      qtyGrams,
+      macros,
+      suspicious: isMacroSetSuspicious(macros)
+    };
+  }
+  if (resolved.food) {
+    const scale = qtyGrams / portionOf(resolved.food.portion_size);
+    const macros = {
+      kcal: numberOr0(resolved.food.calories) * scale,
+      p: numberOr0(resolved.food.protein) * scale,
+      c: numberOr0(resolved.food.carbs) * scale,
+      g: numberOr0(resolved.food.fats) * scale
+    };
+    return {
+      status: resolved.status,
+      food: resolved.food,
+      ambiguous: false,
+      validated: true,
+      qtyGrams,
+      macros,
+      suspicious: isMacroSetSuspicious(macros)
+    };
+  }
+  const fallback = {
+    kcal: numberOr0(item.macros?.kcal),
+    p: numberOr0(item.macros?.p),
+    c: numberOr0(item.macros?.c),
+    g: numberOr0(item.macros?.g)
+  };
+  return {
+    status: "unresolved",
+    food: null,
+    ambiguous: resolved.ambiguous,
+    validated: false,
+    qtyGrams,
+    macros: fallback,
+    suspicious: isMacroSetSuspicious(fallback)
+  };
+};
+var addMacros = (a, b) => ({
+  kcal: a.kcal + b.kcal,
+  p: a.p + b.p,
+  c: a.c + b.c,
+  g: a.g + b.g
+});
+var computeMealTotals = (items, index, mode = "draft", policy = "legacy") => {
+  const computed = (items ?? []).map((it) => computeItemMacros(it, index, mode, policy));
+  const totals = computed.reduce((acc, it) => addMacros(acc, it.macros), ZERO_MACROS);
+  return {
+    items: computed,
+    totals,
+    // O nome acompanha o próprio item computado (índices alinhados com `items`).
+    unresolvedNames: computed.map((c, i) => c.status === "unresolved" ? (items ?? [])[i]?.name : null).filter((n) => Boolean(n))
+  };
+};
+var computeDayTotals = (meals, index, mode = "draft", policy = "legacy") => {
+  const computedMeals = (meals ?? []).map((m) => computeMealTotals(m.items ?? [], index, mode, policy));
+  const totals = computedMeals.reduce((acc, m) => addMacros(acc, m.totals), ZERO_MACROS);
+  const unresolvedNames = Array.from(
+    new Set(computedMeals.flatMap((m) => m.unresolvedNames))
+  );
+  return { meals: computedMeals, totals, unresolvedNames };
+};
+
+// src/lib/modelDietFoods.ts
+var QTY_PREFIX = /^\s*(?:[-*•>]|\d+[\).])\s*/;
+var QTY_TOKEN = /\b\d+(?:[.,]\d+)?\s*(?:g|kg|ml|l|un|und|unid|unidade|unidades|colher(?:es)?|fatia[s]?|xícara[s]?|scoop[s]?|ovo[s]?)\b/gi;
+var MEAL_HEADER = /^(refei[çc][ãa]o|caf[ée]|almo[çc]o|jantar|lanche|ceia|pr[ée]|p[óo]s|total|macros?|obs)/i;
+var BULLET_LINE = /^\s*(?:[-*•]|\d+[\).])\s+/;
+var TABLE_ROW = /^\s*\|.*\|\s*$/;
+var NAME_QTY_LINE = /^[^:|]{3,60}:\s*\S+/;
+var NARRATIVE = /^(observa|nota|aten[çc]|dica|coment|importante|resumo|estimativa)/i;
+var DASH_QTY_LINE = /^[^|]{3,80}\s[—–-]\s*\d+(?:[.,]\d+)?\s*\S/;
+var SUBSTITUTION_LINE = /^\s*(?:→|->|=>)/;
+var REPORT_LABEL = /^(macros?|meta|gerado|diferen[çc]a|status|observa[çc][õo]es|substitui[çc][õo]es)\b/i;
+var TABLE_SEPARATOR = /^\s*\|[\s:|-]+\|\s*$/;
+var TABLE_HEADER_CELL = /^(alimento|quantidade|qtd|medida|porç[ãa]o|kcal|calorias|prote[íi]na|carbo\w*|gordura|macros?|refei[çc][ãa]o|hor[áa]rio|substitui\w*)$/i;
+var isTableHeaderRow = (line) => {
+  const cells = line.replace(/^\s*\|/, "").replace(/\|\s*$/, "").split("|").map((c) => c.trim()).filter(Boolean);
+  if (cells.length === 0) return true;
+  return cells.every((c) => TABLE_HEADER_CELL.test(c));
+};
+var hasPlausibleQuantity = (line) => {
+  QTY_TOKEN.lastIndex = 0;
+  if (QTY_TOKEN.test(line)) return true;
+  return /[:\-—–]\s*\d/.test(line) || /\b\d+(?:[.,]\d+)?\s*\S/.test(line);
+};
+var looksLikeFoodLine = (line) => {
+  const trimmed = line.trim();
+  if (!trimmed) return false;
+  if (NARRATIVE.test(trimmed)) return false;
+  if (SUBSTITUTION_LINE.test(trimmed)) return false;
+  if (REPORT_LABEL.test(trimmed)) return false;
+  if (trimmed.startsWith("#")) return false;
+  if (TABLE_ROW.test(trimmed)) {
+    if (TABLE_SEPARATOR.test(trimmed)) return false;
+    if (isTableHeaderRow(trimmed)) return false;
+    return /\d/.test(trimmed) && /[A-Za-zÀ-ÿ]{3,}/.test(trimmed);
+  }
+  if (BULLET_LINE.test(trimmed)) {
+    const body = trimmed.replace(BULLET_LINE, "").trim();
+    if (!body || NARRATIVE.test(body)) return false;
+    if (!/[A-Za-zÀ-ÿ]{3,}/.test(body)) return false;
+    return hasPlausibleQuantity(body);
+  }
+  if (DASH_QTY_LINE.test(trimmed) && /[A-Za-zÀ-ÿ]{3,}/.test(trimmed)) return true;
+  return NAME_QTY_LINE.test(trimmed) && /\d/.test(trimmed);
+};
+function extractModelDietFoodNames(text) {
+  const out = [];
+  const seen = /* @__PURE__ */ new Set();
+  for (const rawLine of String(text ?? "").split("\n")) {
+    if (!looksLikeFoodLine(rawLine)) continue;
+    let line = rawLine.replace(/^\s*\|/, "").replace(QTY_PREFIX, "").trim();
+    if (!line || MEAL_HEADER.test(line)) continue;
+    line = line.split(/[—–|:]/)[0];
+    line = line.replace(QTY_TOKEN, " ");
+    line = line.replace(/\b\d+(?:[.,]\d+)?\b/g, " ");
+    line = line.replace(/\(.*?\)/g, " ");
+    line = line.replace(/^\s*(?:de|da|do)\s+/i, "");
+    const name = line.replace(/\s{2,}/g, " ").replace(/[.,;]+$/, "").replace(/[\s\-—–]+$/, "").trim();
+    if (name.length < 3) continue;
+    const key = normalizeFoodName(name);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    out.push(name);
+  }
+  return out;
+}
+function buildAllowedUnresolvedFromModelDiet(modelDietText, foods) {
+  const byName = /* @__PURE__ */ new Map();
+  for (const f of foods ?? []) {
+    const key = normalizeFoodName(f?.name ?? "");
+    if (!key) continue;
+    byName.set(key, (byName.get(key) ?? 0) + 1);
+  }
+  return extractModelDietFoodNames(modelDietText).filter((name) => (byName.get(normalizeFoodName(name)) ?? 0) !== 1).map((name) => ({ name, source: "model_diet" }));
+}
+var ALIAS_STOPWORDS = /* @__PURE__ */ new Set(["de", "da", "do", "das", "dos", "no", "na", "em", "com", "sem", "shake", "e", "ou", "tipo", "protein", "proteina"]);
+function matchFoodNamesToCatalog(names, foods) {
+  const matched = [];
+  const unmatched = [];
+  const seen = /* @__PURE__ */ new Set();
+  const catalog = (foods ?? []).map((f) => ({ f, key: normalizeFoodName(f.name) })).filter((x) => x.key);
+  for (const raw of names) {
+    const name = String(raw ?? "").trim();
+    const key = normalizeFoodName(name);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    const exact = catalog.filter((x) => x.key === key);
+    if (exact.length === 1) continue;
+    const tokens = key.split(" ").filter((t) => t.length >= 3 && !ALIAS_STOPWORDS.has(t));
+    const all = key.split(" ").filter((t) => t.length >= 3);
+    const useTokens = tokens.length ? tokens : all;
+    if (!useTokens.length) continue;
+    let best = null;
+    for (const x of catalog) {
+      const words = x.key.split(" ");
+      const score = useTokens.filter((t) => words.some((w) => w.startsWith(t))).length;
+      if (score === 0 || !words.some((w) => w.startsWith(useTokens[0]))) continue;
+      if (!best || score > best.score || score === best.score && x.key.length < best.len) {
+        best = { f: x.f, score, len: x.key.length };
+      }
+    }
+    if (best) matched.push({ from: name, to: best.f.name, id: best.f.id });
+    else unmatched.push(name);
+  }
+  return { matched, unmatched };
+}
+
+// src/lib/dietSchema.ts
+var DIET_PLAN_SCHEMA_VERSION = "1.0";
+var DietObjective = external_exports.enum([
+  "cutting",
+  "bulking",
+  "recomp",
+  "manutencao",
+  "performance",
+  "precontest"
+]);
+var DietStrategy = external_exports.enum([
+  "linear",
+  "carb_cycle",
+  "refeed",
+  "diet_break",
+  "low_carb",
+  "if",
+  "custom"
+]);
+var DietStyle = external_exports.enum([
+  "tradicional",
+  "mediterranea",
+  "low_carb",
+  "vegana",
+  "vegetariana",
+  "flexivel",
+  "cetogenica",
+  "paleo",
+  "outra"
+]);
+var DayLoadType = external_exports.enum([
+  "rest",
+  "upper",
+  "lower",
+  "full",
+  "push",
+  "pull",
+  "legs",
+  "cardio",
+  "tabata",
+  "corrida",
+  "mixed"
+]);
+var DayIntensity = external_exports.enum(["low", "medium", "high"]);
+var DayPeriod = external_exports.enum(["manha", "tarde", "noite"]);
+var Weekday = external_exports.enum([
+  "seg",
+  "ter",
+  "qua",
+  "qui",
+  "sex",
+  "sab",
+  "dom"
+]);
+var DayLoad = external_exports.object({
+  type: DayLoadType,
+  intensity: DayIntensity.optional(),
+  timeOfDay: DayPeriod.optional(),
+  notes: external_exports.string().optional()
+});
+var TrainingContext = external_exports.object({
+  splitType: external_exports.string().optional(),
+  // ex: "Upper/Lower", "PPL", "ABC", "Full"
+  weeklySessions: external_exports.number().int().min(0).max(14).optional(),
+  defaultTime: DayPeriod.optional(),
+  daysOfWeek: external_exports.record(Weekday, DayLoad).optional(),
+  summary: external_exports.string().optional()
+  // free-text resumo legível
+});
+var Macros = external_exports.object({
+  kcal: external_exports.number().min(0),
+  p: external_exports.number().min(0),
+  c: external_exports.number().min(0),
+  g: external_exports.number().min(0)
+});
+var DietTargets = external_exports.object({
+  tmb: external_exports.number().optional(),
+  get: external_exports.number().optional(),
+  adjustmentPct: external_exports.number().optional(),
+  // déficit (-) ou superávit (+) em %
+  kcal: external_exports.number().min(0),
+  p: external_exports.number().min(0),
+  c: external_exports.number().min(0),
+  g: external_exports.number().min(0),
+  // percentuais derivados (opcionais, para UI)
+  pPct: external_exports.number().optional(),
+  cPct: external_exports.number().optional(),
+  gPct: external_exports.number().optional()
+});
+var NutritionSnapshot = external_exports.object({
+  version: external_exports.string(),
+  portionSize: external_exports.number().min(0),
+  kcal: external_exports.number().min(0),
+  p: external_exports.number().min(0),
+  c: external_exports.number().min(0),
+  g: external_exports.number().min(0),
+  brand: external_exports.string().nullable().optional(),
+  source: external_exports.string().nullable().optional()
+});
+var ResolutionStatus = external_exports.enum([
+  "resolved_by_id",
+  "resolved_by_name",
+  "unresolved",
+  "snapshot"
+]);
+var MealItem = external_exports.object({
+  foodId: external_exports.string().uuid().nullable().optional(),
+  name: external_exports.string().min(1),
+  qtyGrams: external_exports.number().min(0).optional(),
+  portionLabel: external_exports.string().optional(),
+  // ex: "1 colher de sopa", "1 unidade média"
+  substitution: external_exports.string().optional(),
+  /** Como o item foi ligado à base alimentar (preenchido pelo nutritionEngine). */
+  resolutionStatus: ResolutionStatus.optional(),
+  /** Valores congelados na publicação — não recalculados em silêncio. */
+  nutritionSnapshot: NutritionSnapshot.optional(),
+  /** Quantidade ajustada manualmente pelo treinador. */
+  manualLocked: external_exports.boolean().optional(),
+  macros: Macros
+});
+var Meal = external_exports.object({
+  id: external_exports.string(),
+  name: external_exports.string(),
+  time: external_exports.string().optional(),
+  // "07:00"
+  order: external_exports.number().int().min(0),
+  items: external_exports.array(MealItem),
+  totals: Macros,
+  notes: external_exports.string().optional()
+});
+var DietDay = external_exports.object({
+  label: external_exports.string(),
+  // "Padrão" | "Segunda" | "Treino" | "Off"
+  weekday: Weekday.optional(),
+  carbBias: external_exports.enum(["low", "normal", "high"]).optional(),
+  trainingDay: external_exports.boolean().optional(),
+  meals: external_exports.array(Meal),
+  totals: Macros
+});
+var ValidationIssue = external_exports.object({
+  code: external_exports.string(),
+  message: external_exports.string(),
+  severity: external_exports.enum(["info", "warning", "error"]),
+  path: external_exports.string().optional()
+});
+var ValidationReport = external_exports.object({
+  status: external_exports.enum(["ok", "warning", "invalid"]),
+  kcalDelta: external_exports.number(),
+  macroDeltas: external_exports.object({
+    p: external_exports.number(),
+    c: external_exports.number(),
+    g: external_exports.number()
+  }),
+  issues: external_exports.array(ValidationIssue),
+  recomputedAt: external_exports.string()
+  // ISO timestamp
+});
+var DietPlanMeta = external_exports.object({
+  version: external_exports.string().default(DIET_PLAN_SCHEMA_VERSION),
+  generatedAt: external_exports.string().optional(),
+  model: external_exports.string().optional(),
+  objective: DietObjective.optional(),
+  strategy: DietStrategy.optional(),
+  style: DietStyle.optional(),
+  phase: external_exports.string().optional(),
+  mealCount: external_exports.number().int().min(1).max(10).optional(),
+  restrictions: external_exports.array(external_exports.string()).optional(),
+  preferences: external_exports.array(external_exports.string()).optional(),
+  trainingAware: external_exports.boolean().optional(),
+  decision: external_exports.enum(["manter", "ajustar", "nova", "pedir_dados"]).optional(),
+  confidence: external_exports.number().min(0).max(100).optional(),
+  rationale: external_exports.string().optional(),
+  /** Versão do motor de nutrição que calculou este plano. */
+  nutritionEngineVersion: external_exports.string().optional(),
+  /** Versão do formato dos snapshots gravados nos itens. */
+  nutritionSnapshotVersion: external_exports.string().optional(),
+  /** Versão do contrato {foodId, qtyGrams} usado pela IA. */
+  foodContractVersion: external_exports.string().optional(),
+  /** FASE 6 — preenchidos SOMENTE pelo RPC de publicação (nunca pela IA). */
+  publishedAt: external_exports.string().optional(),
+  publishedBy: external_exports.string().optional(),
+  publicationRevision: external_exports.number().optional()
+});
+var DietPlan = external_exports.object({
+  meta: DietPlanMeta,
+  targets: DietTargets,
+  trainingContext: TrainingContext.optional(),
+  days: external_exports.array(DietDay).min(1),
+  tips: external_exports.array(external_exports.string()).optional(),
+  notes: external_exports.array(external_exports.string()).optional(),
+  whatsappMessages: external_exports.array(external_exports.string()).optional(),
+  validation: ValidationReport.optional()
+});
+var parseDietPlanStrict = (raw) => DietPlan.safeParse(raw);
+var parseDietPlanLoose = (raw) => {
+  if (!raw || typeof raw !== "object") return null;
+  const parsed = DietPlan.safeParse(raw);
+  if (parsed.success) return parsed.data;
+  return null;
+};
+
+// src/lib/dietValidation.ts
+var ZERO = { kcal: 0, p: 0, c: 0, g: 0 };
+var round = (n, decimals = 1) => {
+  if (!Number.isFinite(n)) return 0;
+  const factor = Math.pow(10, decimals);
+  return Math.round(n * factor) / factor;
+};
+var sumMacros = (a, b) => ({
+  kcal: a.kcal + b.kcal,
+  p: a.p + b.p,
+  c: a.c + b.c,
+  g: a.g + b.g
+});
+var roundMacros = (m) => ({
+  kcal: round(m.kcal, 0),
+  p: round(m.p, 1),
+  c: round(m.c, 1),
+  g: round(m.g, 1)
+});
+var itemMacrosLookConsistent = (item) => {
+  const calc = item.macros.p * 4 + item.macros.c * 4 + item.macros.g * 9;
+  if (item.macros.kcal <= 0 && calc <= 0) return true;
+  if (item.macros.kcal <= 0) return false;
+  const ratio = calc / item.macros.kcal;
+  return ratio > 0.78 && ratio < 1.22;
+};
+var recomputePlanTotals = (plan) => {
+  const days = plan.days.map((day) => {
+    const meals = day.meals.map((meal) => {
+      const totals = roundMacros(meal.items.reduce((acc, it) => sumMacros(acc, it.macros), ZERO));
+      return { ...meal, totals };
+    });
+    const dayTotals = roundMacros(meals.reduce((acc, m) => sumMacros(acc, m.totals), ZERO));
+    return { ...day, meals, totals: dayTotals };
+  });
+  return { ...plan, days };
+};
+var KCAL_WARN_PCT = 0.05;
+var KCAL_ERR_PCT = 0.12;
+var MACRO_WARN_G = 10;
+var MACRO_WARN_PCT = 0.15;
+var MACRO_ERR_PCT = 0.3;
+var classifyDelta = (delta, targetValue, warnAbs) => {
+  const pct = targetValue > 0 ? Math.abs(delta) / targetValue : 0;
+  if (pct >= MACRO_ERR_PCT) return "error";
+  if (Math.abs(delta) >= warnAbs || pct >= MACRO_WARN_PCT) return "warning";
+  return null;
+};
+var validateDietPlan = (inputPlan, targets) => {
+  const plan = recomputePlanTotals(inputPlan);
+  const t = targets ?? plan.targets;
+  const issues = [];
+  const referenceDays = plan.meta.strategy === "carb_cycle" ? plan.days.filter((d) => d.trainingDay || d.carbBias === "high") : [plan.days[0]];
+  const baseline = referenceDays.length > 0 ? referenceDays : plan.days;
+  const avg = baseline.reduce((acc, d) => sumMacros(acc, d.totals), ZERO);
+  const avgKcal = avg.kcal / baseline.length;
+  const avgP = avg.p / baseline.length;
+  const avgC = avg.c / baseline.length;
+  const avgG = avg.g / baseline.length;
+  const kcalDelta = round(avgKcal - t.kcal, 0);
+  const macroDeltas = {
+    p: round(avgP - t.p, 1),
+    c: round(avgC - t.c, 1),
+    g: round(avgG - t.g, 1)
+  };
+  if (t.kcal > 0) {
+    const pct = Math.abs(kcalDelta) / t.kcal;
+    if (pct >= KCAL_ERR_PCT) {
+      issues.push({
+        code: "kcal_off",
+        severity: "error",
+        message: `Calorias fora da meta: ${kcalDelta > 0 ? "+" : ""}${kcalDelta} kcal (${Math.round(pct * 100)}%)`
+      });
+    } else if (pct >= KCAL_WARN_PCT) {
+      issues.push({
+        code: "kcal_off",
+        severity: "warning",
+        message: `Calorias acima da toler\xE2ncia: ${kcalDelta > 0 ? "+" : ""}${kcalDelta} kcal (${Math.round(pct * 100)}%)`
+      });
+    }
+  }
+  const macroChecks = [
+    ["p", t.p, "Prote\xEDna"],
+    ["c", t.c, "Carboidrato"],
+    ["g", t.g, "Gordura"]
+  ];
+  for (const [key, targetValue, label] of macroChecks) {
+    const delta = macroDeltas[key];
+    const sev = classifyDelta(delta, targetValue, MACRO_WARN_G);
+    if (sev) {
+      issues.push({
+        code: `macro_${key}_off`,
+        severity: sev,
+        message: `${label} fora da meta: ${delta > 0 ? "+" : ""}${delta} g (meta ${Math.round(targetValue)} g)`
+      });
+    }
+  }
+  for (const day of plan.days) {
+    for (const meal of day.meals) {
+      for (const item of meal.items) {
+        if (!itemMacrosLookConsistent(item)) {
+          issues.push({
+            code: "item_macros_inconsistent",
+            severity: "warning",
+            message: `Macros incoerentes em "${item.name}" (${day.label} \xB7 ${meal.name})`,
+            path: `${day.label}/${meal.name}/${item.name}`
+          });
+        }
+      }
+    }
+  }
+  if (plan.meta.strategy === "carb_cycle" && plan.days.length > 1) {
+    const carbs = plan.days.map((d) => d.totals.c);
+    const min = Math.min(...carbs);
+    const max = Math.max(...carbs);
+    if (max <= 0 || (max - min) / max < 0.15) {
+      issues.push({
+        code: "carb_cycle_flat",
+        severity: "warning",
+        message: "Ciclagem de carboidratos pouco evidente entre os dias (<15% de varia\xE7\xE3o)."
+      });
+    }
+  }
+  const status = issues.some((i) => i.severity === "error") ? "invalid" : issues.some((i) => i.severity === "warning") ? "warning" : "ok";
+  return {
+    status,
+    kcalDelta,
+    macroDeltas,
+    issues,
+    recomputedAt: (/* @__PURE__ */ new Date()).toISOString()
+  };
+};
+var finalizeDietPlan = (plan, targets) => {
+  const recomputed = recomputePlanTotals(plan);
+  const validation = validateDietPlan(recomputed, targets);
+  return { ...recomputed, validation };
+};
+
+// src/lib/dailyAdjustments.ts
+function buildRequestedFromSchedule(schedule) {
+  const base = Math.round(schedule.base_daily_kcal);
+  const out = {};
+  for (const wd of ENERGY_WEEKDAYS) {
+    const target = computeDayTarget(schedule.days[wd]);
+    out[wd] = {
+      target_kcal: target,
+      requested_adjustment_kcal: target - base
+    };
+  }
+  return out;
+}
+function sanitizeInstruction(raw) {
+  if (!raw || typeof raw !== "object") return null;
+  const action = raw.action === "remove" ? "remove" : raw.action === "add" ? "add" : null;
+  if (!action) return null;
+  const food_name = typeof raw.food_name === "string" ? raw.food_name.trim() : "";
+  if (!food_name) return null;
+  const quantity = Number(raw.quantity);
+  const estimated_kcal = Number(raw.estimated_kcal);
+  const unit = typeof raw.unit === "string" ? raw.unit.trim() : "g";
+  const food_id = typeof raw.food_id === "string" ? raw.food_id.trim() : "";
+  return {
+    action,
+    food_id,
+    food_name,
+    quantity: Number.isFinite(quantity) ? Math.round(quantity) : 0,
+    unit: unit || "g",
+    estimated_kcal: Number.isFinite(estimated_kcal) ? Math.round(estimated_kcal) : 0
+  };
+}
+function normalizeDailyAdjustments(modelAdjustments, schedule) {
+  const requested = buildRequestedFromSchedule(schedule);
+  const raw = modelAdjustments && typeof modelAdjustments === "object" ? modelAdjustments : {};
+  const out = {};
+  const missing = [];
+  for (const wd of ENERGY_WEEKDAYS) {
+    const req = requested[wd];
+    const modelDay = raw[wd];
+    if (!modelDay || typeof modelDay !== "object") {
+      if (req.requested_adjustment_kcal !== 0) {
+        missing.push(wd);
+        out[wd] = {
+          target_kcal: req.target_kcal,
+          requested_adjustment_kcal: req.requested_adjustment_kcal,
+          estimated_adjustment_kcal: 0,
+          model_estimated_adjustment_kcal: 0,
+          status: "adjusted",
+          instructions: [],
+          summary: ""
+        };
+      } else {
+        out[wd] = {
+          target_kcal: req.target_kcal,
+          requested_adjustment_kcal: 0,
+          estimated_adjustment_kcal: 0,
+          model_estimated_adjustment_kcal: 0,
+          status: "base",
+          instructions: [],
+          summary: "Manter plano base",
+          validation_status: "base_day"
+        };
+      }
+      continue;
+    }
+    const estRaw = Number(modelDay.estimated_adjustment_kcal);
+    const isBaseDay = req.requested_adjustment_kcal === 0;
+    const rawInstructions = Array.isArray(modelDay.instructions) ? modelDay.instructions : [];
+    const instructions = isBaseDay ? [] : rawInstructions.map(sanitizeInstruction).filter((x) => x !== null);
+    const serverEstimated = isBaseDay ? 0 : instructions.reduce((acc, inst) => {
+      const kcal = Math.abs(inst.estimated_kcal);
+      return acc + (inst.action === "add" ? kcal : -kcal);
+    }, 0);
+    out[wd] = {
+      target_kcal: req.target_kcal,
+      requested_adjustment_kcal: req.requested_adjustment_kcal,
+      estimated_adjustment_kcal: serverEstimated,
+      model_estimated_adjustment_kcal: Number.isFinite(estRaw) ? Math.round(estRaw) : 0,
+      status: isBaseDay ? "base" : "adjusted",
+      instructions,
+      summary: typeof modelDay.summary === "string" ? modelDay.summary.slice(0, 500) : ""
+    };
+  }
+  return { adjustments: out, missing };
+}
+function validateDailyAdjustments(adj, missing = []) {
+  const errors = [];
+  if (!adj) {
+    return { ok: false, errors: ["dailyAdjustments ausente."] };
+  }
+  for (const wd of missing) {
+    errors.push(`${WEEKDAY_LABELS[wd]}: dia ausente na resposta do modelo.`);
+  }
+  for (const wd of ENERGY_WEEKDAYS) {
+    const d = adj[wd];
+    if (!d) {
+      errors.push(`${WEEKDAY_LABELS[wd]}: dia ausente.`);
+      continue;
+    }
+    const req = d.requested_adjustment_kcal;
+    if (req === 0) {
+      if (d.status !== "base") {
+        errors.push(`${WEEKDAY_LABELS[wd]}: status inv\xE1lido para dia base (${d.status}).`);
+      }
+      if (d.instructions.length > 0) {
+        errors.push(`${WEEKDAY_LABELS[wd]}: dia base n\xE3o pode ter instru\xE7\xF5es.`);
+      }
+      if (d.estimated_adjustment_kcal !== 0) {
+        errors.push(`${WEEKDAY_LABELS[wd]}: dia base deve ter estimated_adjustment_kcal = 0.`);
+      }
+    } else {
+      if (d.status !== "adjusted") {
+        errors.push(`${WEEKDAY_LABELS[wd]}: status inv\xE1lido para dia ajustado (${d.status}).`);
+      }
+      if (d.instructions.length === 0) {
+        errors.push(`${WEEKDAY_LABELS[wd]}: dia ajustado precisa de pelo menos uma instru\xE7\xE3o.`);
+      } else {
+        const expectedAction = req > 0 ? "add" : "remove";
+        for (const inst of d.instructions) {
+          if (!inst.food_id) {
+            errors.push(`${WEEKDAY_LABELS[wd]}: instru\xE7\xE3o sem food_id ("${inst.food_name}").`);
+            break;
+          }
+          if (inst.action !== expectedAction) {
+            errors.push(
+              `${WEEKDAY_LABELS[wd]}: instru\xE7\xE3o com action="${inst.action}" incompat\xEDvel com ajuste ${req > 0 ? "positivo" : "negativo"}.`
+            );
+            break;
+          }
+        }
+      }
+    }
+  }
+  return { ok: errors.length === 0, errors };
+}
+var TOLERANCE_TEXT = {
+  within_tolerance: "Dentro da toler\xE2ncia",
+  outside_tolerance: "Fora da toler\xE2ncia \u2014 regere ou edite manualmente",
+  base_day: "Manter plano base",
+  missing_data: "Dados de ajuste ausentes"
+};
+var TOLERANCE_KCAL = 75;
+function evaluateTolerance(requested_adjustment_kcal, estimated_adjustment_kcal) {
+  if (estimated_adjustment_kcal == null || !Number.isFinite(estimated_adjustment_kcal)) {
+    return { state: "missing_data", tolerance_kcal: 0, difference_kcal: 0 };
+  }
+  if (requested_adjustment_kcal === 0) {
+    return { state: "base_day", tolerance_kcal: 0, difference_kcal: estimated_adjustment_kcal };
+  }
+  const tolerance = TOLERANCE_KCAL;
+  const diff = estimated_adjustment_kcal - requested_adjustment_kcal;
+  return {
+    state: Math.abs(diff) <= tolerance ? "within_tolerance" : "outside_tolerance",
+    tolerance_kcal: tolerance,
+    difference_kcal: diff
+  };
+}
+
+// src/lib/officeWizard/dietaWizard.ts
+var BASE_SOURCE_LABELS = {
+  automatic: "C\xE1lculo autom\xE1tico",
+  manual: "Manual"
+};
+var emptyCalculationSnapshot = () => ({
+  bmr: null,
+  activity_factor: null,
+  tdee: null,
+  strategy_percent: null,
+  formula: null
+});
+var parsePositiveNumber = (value) => {
+  if (value === null || value === void 0 || value === "") return null;
+  const n = typeof value === "number" ? value : Number(String(value).replace(",", "."));
+  return Number.isFinite(n) && n > 0 ? n : null;
+};
+var calculateAge = (birthDate) => {
+  if (!birthDate) return null;
+  const time = new Date(String(birthDate)).getTime();
+  if (!Number.isFinite(time)) return null;
+  const age = Math.floor((Date.now() - time) / (365.25 * 24 * 60 * 60 * 1e3));
+  return age > 0 ? age : null;
+};
+var normalizeSex = (value) => {
+  const normalized = String(value ?? "").trim().toLowerCase();
+  if (["masculino", "m", "male", "homem"].includes(normalized)) return "masculino";
+  if (["feminino", "f", "female", "mulher"].includes(normalized)) return "feminino";
+  return null;
+};
+var ACTIVITY_LEVELS = [
+  { value: "1.2", factor: 1.2, label: "Sedent\xE1rio", desc: "Rotina parada, quase sem deslocamento" },
+  { value: "1.3", factor: 1.3, label: "Super Leve", desc: "Trabalho sentado, pouca caminhada e rotina pouco ativa" },
+  { value: "1.375", factor: 1.375, label: "Leve", desc: "Alguma caminhada ou rotina di\xE1ria levemente ativa" },
+  { value: "1.55", factor: 1.55, label: "Moderado", desc: "Rotina ativa ou trabalho com movimenta\xE7\xE3o frequente" },
+  { value: "1.725", factor: 1.725, label: "Alto", desc: "Trabalho f\xEDsico ou rotina di\xE1ria muito ativa" },
+  { value: "1.9", factor: 1.9, label: "Extremo", desc: "Atividade f\xEDsica profissional ou trabalho f\xEDsico muito intenso" }
+];
+var STRATEGIES = [
+  { value: "deficit_leve", label: "D\xE9ficit Leve (-10%)", desc: "Emagrecimento gradual, preserva massa", pct: -10 },
+  { value: "deficit_moderado", label: "D\xE9ficit Moderado (-20%)", desc: "Emagrecimento acelerado", pct: -20 },
+  { value: "deficit_agressivo", label: "D\xE9ficit Agressivo (-30%)", desc: "Perda r\xE1pida, mais restritivo", pct: -30 },
+  { value: "manutencao", label: "Manuten\xE7\xE3o (0%)", desc: "Manter peso e composi\xE7\xE3o", pct: 0 },
+  { value: "superavit_leve", label: "Super\xE1vit Leve (+10%)", desc: "Lean bulk \u2014 ganho limpo", pct: 10 },
+  { value: "superavit_moderado", label: "Super\xE1vit Moderado (+20%)", desc: "Bulk agressivo", pct: 20 }
+];
+var MEAL_COUNTS = [
+  { value: "4", label: "4 refei\xE7\xF5es" },
+  { value: "5", label: "5 refei\xE7\xF5es" },
+  { value: "6", label: "6 refei\xE7\xF5es" },
+  { value: "7", label: "7 refei\xE7\xF5es" }
+];
+var DIET_STYLES = [
+  { value: "flexivel", label: "Flex\xEDvel (IIFYM)", desc: "Foco nos macros, liberdade de escolha dos alimentos" },
+  { value: "low_carb", label: "Low Carb", desc: "Redu\xE7\xE3o significativa de carboidratos" },
+  { value: "cetogenica", label: "Cetog\xEAnica", desc: "Ultra low carb, alto em gorduras" },
+  { value: "mediterranea", label: "Mediterr\xE2nea", desc: "Baseada em azeite, peixes, gr\xE3os integrais" },
+  { value: "paleolitica", label: "Paleol\xEDtica", desc: "Alimentos naturais, sem processados" },
+  { value: "vegetariana", label: "Vegetariana", desc: "Sem carnes, permite ovos/latic\xEDnios" },
+  { value: "vegana", label: "Vegana", desc: "Sem alimentos de origem animal" },
+  { value: "convencional", label: "Convencional", desc: "Dieta tradicional balanceada" }
+];
+var PHASES = [
+  { value: "bulking", label: "Bulking", desc: "Fase de ganho de massa" },
+  { value: "cutting", label: "Cutting", desc: "Fase de defini\xE7\xE3o" },
+  { value: "manutencao", label: "Manuten\xE7\xE3o", desc: "Manter composi\xE7\xE3o corporal" },
+  { value: "recomposicao", label: "Recomposi\xE7\xE3o", desc: "Perder gordura e ganhar massa simultaneamente" },
+  { value: "pre_contest", label: "Pr\xE9-Contest", desc: "Prepara\xE7\xE3o para competi\xE7\xE3o" }
+];
+var TRAINING_TIMES = [
+  { value: "manha_jejum", label: "Manh\xE3 (jejum)" },
+  { value: "manha", label: "Manh\xE3" },
+  { value: "tarde", label: "Tarde" },
+  { value: "noite", label: "Noite" },
+  { value: "madrugada", label: "Madrugada" }
+];
+var TRAINING_DAYS_OPTIONS = [
+  { value: "3", label: "3x/semana" },
+  { value: "4", label: "4x/semana" },
+  { value: "5", label: "5x/semana" },
+  { value: "6", label: "6x/semana" },
+  { value: "7", label: "Todos os dias" }
+];
+var RESTRICTION_OPTIONS = [
+  "Sem lactose",
+  "Sem gl\xFAten",
+  "Sem frutos do mar",
+  "Sem carne vermelha",
+  "Sem porco",
+  "Vegetariano",
+  "Vegano",
+  "Sem ovo",
+  "Sem soja",
+  "Diab\xE9tico",
+  "Hipertenso",
+  "Intoler\xE2ncia \xE0 frutose",
+  "Alergia a amendoim"
+];
+var PREFERENCE_OPTIONS = [
+  "Frango",
+  "Carne vermelha",
+  "Peixe",
+  "Ovos",
+  "Arroz integral",
+  "Batata doce",
+  "Aveia",
+  "Whey no shake",
+  "Frutas",
+  "Pasta de amendoim",
+  "Iogurte",
+  "Queijo cottage",
+  "Tapioca",
+  "Macarr\xE3o integral",
+  "Abacate"
+];
+var PROTOCOL_ADJUSTMENTS = [
+  { id: "calorie_adjust", label: "Ajuste de Calorias", desc: "Aumento ou redu\xE7\xE3o cal\xF3rica semanal" },
+  { id: "carb_adjust", label: "Ajuste de Carboidrato", desc: "Manipula\xE7\xE3o de carbs por dia da semana" },
+  { id: "sodium_adjust", label: "Ajuste de S\xF3dio", desc: "Protocolo de manipula\xE7\xE3o de s\xF3dio" },
+  { id: "water_adjust", label: "Ajuste de \xC1gua", desc: "Protocolo de ingest\xE3o h\xEDdrica" },
+  { id: "meal_change", label: "Mudan\xE7a de Refei\xE7\xF5es", desc: "Alterar n\xFAmero/distribui\xE7\xE3o de refei\xE7\xF5es" },
+  { id: "plato", label: "Estrat\xE9gia para Plat\xF4", desc: "Quebrar estagna\xE7\xE3o metab\xF3lica" },
+  { id: "refeed", label: "Refeed", desc: "Dias de recarga de carboidrato" },
+  { id: "diet_break", label: "Diet Break", desc: "Pausa programada na dieta" },
+  { id: "carb_cycling", label: "Carb Cycling", desc: "Ciclagem de carboidrato (high/medium/low)" }
+];
+var buildInitialMacroPreset = ({
+  calories,
+  weight,
+  strategyValue,
+  phaseValue,
+  hormoneUse,
+  proteinPerKgOverride,
+  fatPerKgOverride
+}) => {
+  const isDeficit = strategyValue.includes("deficit") || phaseValue === "cutting" || phaseValue === "pre_contest";
+  const isMaintenance = (phaseValue === "manutencao" || strategyValue === "manutencao") && !isDeficit;
+  let proteinPerKg = isDeficit ? 2.2 : isMaintenance ? 1.8 : 2;
+  const proteinMax = isDeficit ? 2.6 : isMaintenance ? 2.2 : 2.4;
+  const fatPerKg = isDeficit ? 0.8 : 0.9;
+  void hormoneUse;
+  proteinPerKg = Math.min(proteinPerKg, proteinMax);
+  const finalProteinPerKg = typeof proteinPerKgOverride === "number" && proteinPerKgOverride > 0 ? Math.min(Math.max(proteinPerKgOverride, 0.8), 3.5) : proteinPerKg;
+  const finalFatPerKg = typeof fatPerKgOverride === "number" && fatPerKgOverride > 0 ? Math.min(Math.max(fatPerKgOverride, 0.3), 2) : fatPerKg;
+  const proteinGrams = Math.round(finalProteinPerKg * weight);
+  const fatGrams = Math.round(finalFatPerKg * weight);
+  const carbGrams = Math.max(Math.round((calories - proteinGrams * 4 - fatGrams * 9) / 4), 0);
+  return {
+    proteinPerKg: finalProteinPerKg,
+    proteinGrams,
+    fatPerKg: finalFatPerKg,
+    fatGrams,
+    carbGrams
+  };
+};
+var WEEKDAY_KEY_PATTERNS = [
+  ["seg", /\bseg(?:unda)?\b/i],
+  ["ter", /\bter(?:ça|ca)?\b/i],
+  ["qua", /\bqua(?:rta)?\b/i],
+  ["qui", /\bqui(?:nta)?\b/i],
+  ["sex", /\bsex(?:ta)?\b/i],
+  ["sab", /\bs[áa]b(?:ado)?\b/i],
+  ["dom", /\bdom(?:ingo)?\b/i]
+];
+var MUSCLE_KEYWORDS = [
+  ["peito", /\bpeito|peitoral|supino|crossover|crucifix/i],
+  ["costas", /\bcostas|dorsal|puxad|remada|pull|barra fixa/i],
+  ["ombros", /\bombro|deltoid|elevaç(ão|ao)|desenvolvim/i],
+  ["b\xEDceps", /\bb[íi]ceps|rosca/i],
+  ["tr\xEDceps", /\btr[íi]ceps|test(a|ão)|fr(a|â)nc[eê]s|corda/i],
+  ["pernas", /\bperna|quadr[íi]ceps|leg press|agachamento|passada|extensora|hack/i],
+  ["posterior", /\bposterior|isquio|stiff|mesa flexora|flex(a|ão) de perna/i],
+  ["gl\xFAteos", /\bgl[úu]teo|hip thrust/i],
+  ["panturrilha", /\bpanturrilh|gastrocn[eê]mio|s[óo]leo/i],
+  ["abd\xF4men", /\babdom(en|inal)|prancha|core/i],
+  ["cardio", /\bcardio|corrida|esteira|bike|elipt/i]
+];
+function parseWeekdayWorkouts(md) {
+  try {
+    const sections = parseTrainingSections(md);
+    const result = {};
+    for (const section of sections) {
+      if (section.type !== "training" || !section.days) continue;
+      for (const trainingDay of section.days) {
+        const rawTitle = (trainingDay.day || "").trim();
+        if (!rawTitle) continue;
+        const match = WEEKDAY_KEY_PATTERNS.find(([, re]) => re.test(rawTitle));
+        if (!match) continue;
+        const [weekday, wdRe] = match;
+        const afterSeparator = rawTitle.replace(wdRe, "").replace(/^[\s–—:\-]+/, "").trim();
+        const label = afterSeparator || rawTitle;
+        const exList = Array.isArray(trainingDay.exercises) ? trainingDay.exercises : [];
+        const isRest = /\bdescanso|off\b/i.test(rawTitle) || exList.length === 0;
+        const musclesSet = /* @__PURE__ */ new Set();
+        const haystack = [rawTitle, ...exList.map((e) => e.exercise || "")].join(" | ");
+        for (const [muscle, re] of MUSCLE_KEYWORDS) {
+          if (re.test(haystack)) musclesSet.add(muscle);
+        }
+        if (!result[weekday]) {
+          result[weekday] = {
+            label: isRest ? "Descanso" : label,
+            type: isRest ? "rest" : null,
+            muscles: Array.from(musclesSet)
+          };
+        }
+      }
+    }
+    return result;
+  } catch (e) {
+    console.warn("parseWeekdayWorkouts failed", e);
+    return {};
+  }
+}
+var emptyScheduleAdjustments = () => ({
+  seg: { adjustment_kcal: 0, fixed_kcal: null },
+  ter: { adjustment_kcal: 0, fixed_kcal: null },
+  qua: { adjustment_kcal: 0, fixed_kcal: null },
+  qui: { adjustment_kcal: 0, fixed_kcal: null },
+  sex: { adjustment_kcal: 0, fixed_kcal: null },
+  sab: { adjustment_kcal: 0, fixed_kcal: null },
+  dom: { adjustment_kcal: 0, fixed_kcal: null }
+});
+var defaultDietaWizardState = () => ({
+  dailyRoutine: "",
+  trainingTime: "",
+  trainingDays: "",
+  dietStyle: "",
+  phase: "",
+  usesHormones: null,
+  hormoneDetails: "",
+  activityLevel: "",
+  strategy: "",
+  mealCount: "",
+  selectedRestrictions: [],
+  customRestriction: "",
+  selectedPreferences: [],
+  customPreference: "",
+  selectedAdjustments: [],
+  enableFitoterapia: false,
+  enableSuplementos: false,
+  enableEmagrecimentoRapido: false,
+  enableJejumIntermitente: false,
+  substitutions: [],
+  modelDiet: "",
+  variationIntensity: DEFAULT_INTENSITY,
+  baseKcalMode: "automatic",
+  manualBaseKcalInput: "",
+  manualFormula: null,
+  proteinPerKgOverride: null,
+  fatPerKgOverride: null,
+  scheduleAdjustments: emptyScheduleAdjustments()
+});
+var dietRestrictionsText = (s) => {
+  const parts = [...s.selectedRestrictions];
+  if (s.customRestriction.trim()) parts.push(s.customRestriction.trim());
+  return parts.join(", ");
+};
+var dietPreferencesText = (s) => {
+  const parts = [...s.selectedPreferences];
+  if (s.customPreference.trim()) parts.push(s.customPreference.trim());
+  return parts.join(", ");
+};
+function computeEnergySelection(studentCtx, manualFormula) {
+  const weight = parsePositiveNumber(studentCtx?.peso);
+  const height = parsePositiveNumber(studentCtx?.altura);
+  const age = calculateAge(studentCtx?.data_nascimento);
+  const sex = normalizeSex(studentCtx?.sexo);
+  if (!weight || !height || !age) return null;
+  return selectEnergyFormula({
+    sex: sex === "masculino" ? "male" : sex === "feminino" ? "female" : null,
+    weightKg: weight,
+    heightCm: height,
+    ageYears: age,
+    bodyFatPct: parsePositiveNumber(studentCtx?.percentual_gordura),
+    leanMass: {
+      kg: parsePositiveNumber(studentCtx?.massa_magra),
+      measuredAt: studentCtx?.massa_magra_data ?? null,
+      source: studentCtx?.massa_magra_origem ?? "Composi\xE7\xE3o corporal mais recente"
+    },
+    manualFormula
+  });
+}
+function computeAutomaticBaseKcal(studentCtx, activityLevel, strategy, phase, energySelection) {
+  const missing = [];
+  const weight = parsePositiveNumber(studentCtx?.peso);
+  const height = parsePositiveNumber(studentCtx?.altura);
+  const age = calculateAge(studentCtx?.data_nascimento);
+  const sex = normalizeSex(studentCtx?.sexo);
+  const activityFactor = parsePositiveNumber(activityLevel);
+  const selectedStrategy = STRATEGIES.find((s) => s.value === strategy);
+  const selectedPhase = PHASES.find((p) => p.value === phase);
+  if (!weight) missing.push("peso");
+  if (!height) missing.push("altura");
+  if (!age) missing.push("idade");
+  if (!sex) missing.push("sexo");
+  if (!activityFactor) missing.push("n\xEDvel de atividade");
+  if (!selectedPhase) missing.push("fase");
+  if (!selectedStrategy) missing.push("estrat\xE9gia");
+  if (missing.length > 0 || !weight || !height || !age || !sex || !activityFactor || !selectedPhase || !selectedStrategy) {
+    return { source: "automatic", base_daily_kcal: null, calculation: emptyCalculationSnapshot(), missing };
+  }
+  if (!energySelection || energySelection.insufficientData) {
+    return {
+      source: "automatic",
+      base_daily_kcal: null,
+      calculation: emptyCalculationSnapshot(),
+      missing: energySelection?.insufficientData ? ["sexo biol\xF3gico ou massa magra v\xE1lida"] : ["dados corporais"]
+    };
+  }
+  const formula = ENERGY_FORMULA_LABEL[energySelection.formula];
+  const roundedBmr = Math.round(energySelection.bmr);
+  const tdee = Math.round(roundedBmr * activityFactor);
+  const strategyPercent = selectedStrategy.pct;
+  const base = Math.round(tdee * (1 + strategyPercent / 100));
+  return {
+    source: "automatic",
+    base_daily_kcal: base,
+    calculation: { bmr: roundedBmr, activity_factor: activityFactor, tdee, strategy_percent: strategyPercent, formula },
+    missing: []
+  };
+}
+var parseManualBaseKcal = (manualBaseKcalInput) => {
+  const parsed = parsePositiveNumber(manualBaseKcalInput);
+  return parsed == null ? null : Math.round(parsed);
+};
+function resolveBaseKcal(baseKcalMode, manualBaseKcal, automatic) {
+  if (baseKcalMode === "manual") {
+    return {
+      source: "manual",
+      base_daily_kcal: manualBaseKcal,
+      calculation: emptyCalculationSnapshot(),
+      missing: manualBaseKcal == null ? ["meta cal\xF3rica base manual"] : []
+    };
+  }
+  return automatic;
+}
+function computeBaseKcalIssues(baseKcal, baseKcalMode, automatic) {
+  const issues = [];
+  if (baseKcal.source !== "automatic" && baseKcal.source !== "manual") issues.push("Origem da meta cal\xF3rica base inv\xE1lida.");
+  if (baseKcal.base_daily_kcal == null) {
+    issues.push("Meta cal\xF3rica base ausente.");
+  } else if (!Number.isFinite(baseKcal.base_daily_kcal) || baseKcal.base_daily_kcal <= 0) {
+    issues.push("Meta cal\xF3rica base inv\xE1lida.");
+  } else if (baseKcal.base_daily_kcal < MIN_DAILY_KCAL) {
+    issues.push(`Meta cal\xF3rica base abaixo do m\xEDnimo permitido (${MIN_DAILY_KCAL} kcal).`);
+  }
+  if (baseKcalMode === "automatic" && automatic.missing.length > 0) {
+    issues.push(`Dados ausentes para c\xE1lculo autom\xE1tico: ${automatic.missing.join(", ")}.`);
+  }
+  return issues;
+}
+var computeMacroBody = (studentCtx) => ({
+  weightKg: parsePositiveNumber(studentCtx?.peso) ?? 0,
+  leanMassKg: parsePositiveNumber(studentCtx?.massa_magra)
+});
+function applyMacroPreset(prev, p) {
+  const preset = buildInitialMacroPreset({
+    calories: p.baseKcal ?? 2e3,
+    weight: p.body.weightKg,
+    strategyValue: p.strategy,
+    phaseValue: p.phase,
+    hormoneUse: false,
+    proteinPerKgOverride: p.proteinPerKgOverride,
+    fatPerKgOverride: p.fatPerKgOverride
+  });
+  return {
+    ...prev,
+    protein: setMacroPerKg({ ...prev.protein, locked: true }, preset.proteinPerKg, p.body),
+    fat: setMacroPerKg({ ...prev.fat, locked: true }, preset.fatPerKg, p.body),
+    carbs: { ...prev.carbs, perKg: null, grams: null, locked: false }
+  };
+}
+var computeCanonicalTargets = (baseKcal, macroResolution) => ({
+  kcal: baseKcal.base_daily_kcal ?? 0,
+  p: Math.round(macroResolution.grams?.protein ?? 0),
+  c: Math.round(macroResolution.grams?.carbs ?? 0),
+  g: Math.round(macroResolution.grams?.fat ?? 0)
+});
+function computeWeeklySchedule(baseKcal, baseKcalIssuesCount, workoutByWeekday, scheduleAdjustments) {
+  if (baseKcal.base_daily_kcal == null || baseKcalIssuesCount > 0) return null;
+  const draft = buildDefaultSchedule({
+    baseDailyKcal: baseKcal.base_daily_kcal,
+    workoutByWeekday,
+    baseSource: baseKcal.source,
+    calculationSnapshot: baseKcal.calculation
+  });
+  for (const wd of ENERGY_WEEKDAYS) {
+    const adj = scheduleAdjustments[wd];
+    draft.days[wd].adjustment_kcal = adj.adjustment_kcal;
+    draft.days[wd].fixed_kcal = adj.fixed_kcal;
+  }
+  return draft;
+}
+function suggestCarbAssignments(prev, workoutByWeekday) {
+  let changed = false;
+  const assignments = { ...prev.assignments };
+  for (const wd of WEEKDAY_KEYS) {
+    if (prev.manual[wd]) continue;
+    const suggestion = suggestCarbDayTypeForWorkout(workoutByWeekday[wd] ?? null);
+    if (assignments[wd] !== suggestion) {
+      assignments[wd] = suggestion;
+      changed = true;
+    }
+  }
+  return changed ? { ...prev, assignments } : prev;
+}
+function deriveDietaWizard(state, studentCtx, workoutByWeekday) {
+  const energySelection = computeEnergySelection(studentCtx, state.manualFormula);
+  const automaticBaseKcal = computeAutomaticBaseKcal(studentCtx, state.activityLevel, state.strategy, state.phase, energySelection);
+  const baseKcal = resolveBaseKcal(state.baseKcalMode, parseManualBaseKcal(state.manualBaseKcalInput), automaticBaseKcal);
+  const baseKcalIssues = computeBaseKcalIssues(baseKcal, state.baseKcalMode, automaticBaseKcal);
+  const macroBody = computeMacroBody(studentCtx);
+  const closingMacro = null;
+  const macroConfig = macroBody.weightKg ? applyMacroPreset(defaultMacroConfig(), {
+    baseKcal: baseKcal.base_daily_kcal,
+    body: macroBody,
+    strategy: state.strategy,
+    phase: state.phase,
+    proteinPerKgOverride: state.proteinPerKgOverride,
+    fatPerKgOverride: state.fatPerKgOverride
+  }) : defaultMacroConfig();
+  const macroResolution = resolveMacroConfig({ kcalTarget: baseKcal.base_daily_kcal ?? 0, config: macroConfig, body: macroBody, closingMacro });
+  const canonicalTargets = computeCanonicalTargets(baseKcal, macroResolution);
+  const carbCycling = suggestCarbAssignments(
+    { ...defaultCarbCyclingConfig(), enabled: state.selectedAdjustments.includes("carb_cycling") },
+    workoutByWeekday
+  );
+  const carbTypeTargets = buildCarbDayTypeTargets({
+    mode: carbCycling.mode,
+    carbCycling,
+    macroConfig,
+    body: macroBody,
+    baseKcal: baseKcal.base_daily_kcal ?? 0,
+    closingMacro,
+    baseResolvedMacros: macroResolution.grams ? { p: canonicalTargets.p, c: canonicalTargets.c, g: canonicalTargets.g } : null
+  });
+  const weeklyCarbTargets = carbCycling.enabled ? buildWeeklyCarbTargets(carbCycling, carbTypeTargets) : {};
+  const weeklySchedule = computeWeeklySchedule(baseKcal, baseKcalIssues.length, workoutByWeekday, state.scheduleAdjustments);
+  const carbCyclingValidity = isCarbCyclingValid(carbCycling, carbTypeTargets, weeklyCarbTargets);
+  const scheduleIssues = weeklySchedule ? validateSchedule(weeklySchedule) : ["Cronograma semanal indispon\xEDvel."];
+  const canGenerate = Boolean(
+    state.activityLevel && state.strategy && state.mealCount && state.phase && weeklySchedule && baseKcalIssues.length === 0 && macroResolution.status === "ok" && carbCyclingValidity.valid
+  );
+  return {
+    energySelection,
+    automaticBaseKcal,
+    baseKcal,
+    baseKcalIssues,
+    macroBody,
+    macroConfig,
+    macroResolution,
+    canonicalTargets,
+    carbCycling,
+    carbTypeTargets,
+    weeklyCarbTargets,
+    weeklySchedule,
+    carbCyclingValidity,
+    scheduleIssues,
+    canGenerate
+  };
+}
+function buildDietGenerationPrompts(input) {
+  const { state, studentCtx, baseKcal, macroConfig, macroResolution, macroBody, canonicalTargets, carbCycling, weeklyCarbTargets, weeklySchedule } = input;
+  const {
+    dailyRoutine,
+    trainingTime,
+    trainingDays,
+    dietStyle,
+    phase,
+    usesHormones,
+    hormoneDetails,
+    activityLevel,
+    strategy,
+    mealCount,
+    selectedRestrictions,
+    selectedPreferences,
+    selectedAdjustments,
+    enableFitoterapia,
+    enableSuplementos,
+    enableEmagrecimentoRapido,
+    enableJejumIntermitente,
+    substitutions,
+    modelDiet
+  } = state;
+  const getRestrictionsText = () => dietRestrictionsText(state);
+  const getPreferencesText = () => dietPreferencesText(state);
+  const selectedStrategy = STRATEGIES.find((s) => s.value === strategy);
+  const selectedActivity = ACTIVITY_LEVELS.find((a) => a.value === activityLevel);
+  const selectedPhase = PHASES.find((p) => p.value === phase);
+  const selectedTrainingTime = TRAINING_TIMES.find((t) => t.value === trainingTime);
+  const selectedDietStyle = DIET_STYLES.find((d) => d.value === dietStyle);
+  const adjustmentLabels = selectedAdjustments.map((id) => PROTOCOL_ADJUSTMENTS.find((a) => a.id === id)?.label).filter(Boolean);
+  const getMealNames = (count) => {
+    const base = ["Caf\xE9 da Manh\xE3", "Almo\xE7o", "Lanche da Tarde", "Jantar"];
+    if (count <= 4) return base.slice(0, count);
+    const extra = ["P\xF3s-Treino", "Ceia", "Lanche da Manh\xE3"];
+    return [...base, ...extra.slice(0, count - 4)];
+  };
+  const mealNames = getMealNames(Number(mealCount));
+  let alimentosPorRefeicaoText = "";
+  if (studentCtx.questionario_dieta?.alimentos_por_refeicao) {
+    const apr = studentCtx.questionario_dieta.alimentos_por_refeicao;
+    if (typeof apr === "object" && apr !== null) {
+      const entries = Object.entries(apr).filter(([, v]) => v && String(v).trim());
+      if (entries.length > 0) {
+        alimentosPorRefeicaoText = `
+=== ALIMENTOS POR REFEI\xC7\xC3O (informados pelo aluno na ficha) ===
+${entries.map(([k, v]) => `- ${k}: ${v}`).join("\n")}
+IMPORTANTE: Respeite esses alimentos nas refei\xE7\xF5es correspondentes.
+`;
+      }
+    }
+  }
+  const observationsList = [
+    dailyRoutine && `Observa\xE7\xF5es digitadas no wizard: ${dailyRoutine}`,
+    studentCtx.observacoes && `Observa\xE7\xF5es do perfil do aluno: ${studentCtx.observacoes}`,
+    studentCtx.anamnese?.rotina && `Rotina registrada na anamnese: ${studentCtx.anamnese.rotina}`,
+    studentCtx.questionario_dieta?.observacoes && `Observa\xE7\xF5es do question\xE1rio: ${studentCtx.questionario_dieta.observacoes}`,
+    studentCtx.questionario_dieta?.como_se_sente && `Como o aluno se sente: ${studentCtx.questionario_dieta.como_se_sente}`
+  ].filter(Boolean);
+  const criticalInputsText = `
+=== INPUTS OBRIGAT\xD3RIOS DO WIZARD E DA FICHA ===
+Use TODOS os dados abaixo como prioridade m\xE1xima. N\xC3O ignore, N\xC3O substitua por suposi\xE7\xF5es e N\xC3O contradiga esses campos.
+- Frequ\xEAncia de treino selecionada: ${trainingDays ? `${trainingDays}x/semana` : studentCtx.questionario_dieta?.dias_treino || "N\xE3o informada"}
+- Fase atual selecionada: ${selectedPhase?.label || studentCtx.questionario_dieta?.fase_atual || "N\xE3o informada"}
+- N\xEDvel de atividade f\xEDsica selecionado: ${selectedActivity?.label || "N\xE3o informado"} (FA = ${activityLevel || "n\xE3o informado"})
+- Restri\xE7\xF5es alimentares obrigat\xF3rias: ${getRestrictionsText() || studentCtx.questionario_dieta?.restricoes_alimentares || studentCtx.restricoes || "Nenhuma informada"}
+- Prefer\xEAncias alimentares: ${getPreferencesText() || studentCtx.questionario_dieta?.preferencias_alimentares || "N\xE3o informadas"}
+- Estilo de dieta selecionado: ${selectedDietStyle?.label || studentCtx.questionario_dieta?.estilo_dieta || "N\xE3o informado"}
+${observationsList.length > 0 ? observationsList.map((item) => `- ${item}`).join("\n") : "- Observa\xE7\xF5es adicionais: Nenhuma informada"}
+IMPORTANTE: Se houver conflito entre uma infer\xEAncia sua e os dados acima, os dados acima vencem.
+`;
+  let recText = "";
+  let currentTargets = null;
+  const currentCalories = baseKcal.base_daily_kcal;
+  const currentFA = baseKcal.calculation.activity_factor;
+  const currentStrategyPct = baseKcal.calculation.strategy_percent;
+  const currentGET = baseKcal.calculation.tdee;
+  const currentBmr = baseKcal.calculation.bmr;
+  const currentFormula = baseKcal.calculation.formula;
+  const prescription = getMacroPrescription(macroConfig, macroResolution, macroBody);
+  const macros = {
+    proteinGrams: canonicalTargets.p,
+    carbGrams: canonicalTargets.c,
+    fatGrams: canonicalTargets.g,
+    proteinPerKg: prescription?.protein.perKg ?? null,
+    fatPerKg: prescription?.fat.perKg ?? null,
+    proteinBasis: prescription?.protein.basisLabel ?? "peso corporal",
+    fatBasis: prescription?.fat.basisLabel ?? "peso corporal"
+  };
+  currentTargets = {
+    calories: currentCalories,
+    protein: macros.proteinGrams,
+    carbs: macros.carbGrams,
+    fats: macros.fatGrams
+  };
+  recText = `
+=== RECOMENDA\xC7\xC3O CALCULADA (VALORES OBRIGAT\xD3RIOS \u2014 N\xC3O RECALCULE) ===
+- Origem da meta base: ${BASE_SOURCE_LABELS[baseKcal.source]}
+- TMB: ${currentBmr ?? "n\xE3o aplicada"} kcal${currentFormula ? ` (calculado por ${currentFormula})` : ""}
+- Fator de Atividade: ${currentFA ?? "n\xE3o aplicado"}
+- GET: ${currentGET ?? "n\xE3o aplicado"} kcal
+- Estrat\xE9gia: ${selectedStrategy?.label} (${(currentStrategyPct ?? 0) > 0 ? "+" : ""}${currentStrategyPct ?? 0}%)
+- Calorias alvo EXATAS: ${currentCalories} kcal
+- Prote\xEDna EXATA: ${macros.proteinGrams}g${macros.proteinPerKg ? ` (${macros.proteinPerKg} g/kg de ${macros.proteinBasis})` : ""}
+- Carboidrato EXATO: ${macros.carbGrams}g
+- Gordura EXATA: ${macros.fatGrams}g${macros.fatPerKg ? ` (${macros.fatPerKg} g/kg de ${macros.fatBasis})` : ""}
+\u26A0\uFE0F OBRIGAT\xD3RIO: O TOTAL DI\xC1RIO da tabela DEVE ser EXATAMENTE ${currentCalories} kcal (toler\xE2ncia \xB150 kcal). Prote\xEDna total = ${macros.proteinGrams}g, Carboidrato total = ${macros.carbGrams}g, Gordura total = ${macros.fatGrams}g. N\xC3O use outros valores. N\xC3O recalcule a TMB. Estes valores j\xE1 s\xE3o definitivos.
+\u26A0\uFE0F REGRA DE CORRE\xC7\xC3O: Se faltar caloria para bater a meta, ajuste CARBOIDRATO. N\xC3O aumente prote\xEDna acima de ${macros.proteinGrams}g para completar calorias.
+\u26A0\uFE0F VALIDA\xC7\xC3O FINAL: Antes de responder, some alimento por alimento. A dieta s\xF3 \xE9 aceit\xE1vel se ficar entre ${currentCalories - 50} e ${currentCalories + 50} kcal, prote\xEDna entre ${macros.proteinGrams - 10} e ${macros.proteinGrams + 10}g, carboidrato entre ${macros.carbGrams - 15} e ${macros.carbGrams + 15}g e gordura entre ${macros.fatGrams - 8} e ${macros.fatGrams + 8}g.
+`;
+  if (carbCycling.enabled) {
+    const dayLines = WEEKDAY_KEYS.map((wd) => {
+      const d = weeklyCarbTargets[wd];
+      if (!d) return "";
+      return `${WEEKDAY_LABELS[wd].toUpperCase()} \u2014 ${d.type.toUpperCase()}
+Kcal: ${d.kcal}
+P: ${d.p}g
+C: ${d.c}g
+G: ${d.g}g`;
+    }).filter(Boolean).join("\n\n");
+    recText = `
+=== REFER\xCANCIA METAB\xD3LICA (N\xC3O \xC9 A META DE TODOS OS DIAS) ===
+- TMB: ${currentBmr ?? "n\xE3o aplicada"} kcal${currentFormula ? ` (calculado por ${currentFormula})` : ""}
+- GET: ${currentGET ?? "n\xE3o aplicado"} kcal
+- Meta base di\xE1ria (apenas refer\xEAncia): ${currentCalories} kcal
+
+=== METAS DI\xC1RIAS OBRIGAT\xD3RIAS (CARB CYCLING) ===
+${dayLines}
+
+\u26A0\uFE0F Cada dia deve respeitar sua pr\xF3pria meta. N\xE3o aplicar a meta base global por cima dessas metas.
+\u26A0\uFE0F N\xC3O recalcule a TMB nem os macros. Os valores acima s\xE3o definitivos (toler\xE2ncia \xB150 kcal por dia).
+`;
+  }
+  const prompt = `Gere o plano alimentar COMPLETO para fisiculturismo com as seguintes configura\xE7\xF5es:
+${criticalInputsText}
+${recText}
+
+=== ROTINA DO ALUNO ===
+- Rotina di\xE1ria: ${dailyRoutine || "N\xE3o informada"}
+- Hor\xE1rio de treino: ${selectedTrainingTime?.label || "N\xE3o informado"}
+- Dias de treino: ${trainingDays ? `${trainingDays}x/semana` : "N\xE3o informado"}
+
+=== ESTILO DE DIETA ===
+- Estilo: ${selectedDietStyle?.label || "N\xE3o definido"} \u2014 ${selectedDietStyle?.desc || ""}
+IMPORTANTE: Siga o estilo selecionado sem quebrar os macros obrigat\xF3rios. Se Low Carb/Cetog\xEAnica conflitar com a meta de carboidrato calculada, a meta calculada vence. Se Vegetariana/Vegana, respeite as restri\xE7\xF5es proteicas sem aumentar a prote\xEDna total.
+
+=== FASE ATUAL ===
+- Fase: ${selectedPhase?.label} \u2014 ${selectedPhase?.desc}
+- Uso de horm\xF4nios: ${usesHormones === null ? "N\xE3o informado" : usesHormones ? `Sim \u2014 ${hormoneDetails || "detalhes n\xE3o especificados"}` : "N\xE3o (natural)"}
+
+=== PAR\xC2METROS NUTRICIONAIS ===
+- Fator de Atividade: ${selectedActivity?.label} (FA = ${activityLevel})
+- Estrat\xE9gia: ${selectedStrategy?.label} (${(selectedStrategy?.pct ?? 0) > 0 ? "+" : ""}${selectedStrategy?.pct}%)
+- N\xFAmero de refei\xE7\xF5es: ${mealCount} por dia
+- NOMES DAS REFEI\xC7\xD5ES (use EXATAMENTE estes nomes na coluna "Refei\xE7\xE3o" da tabela): ${mealNames.join(", ")}
+${getRestrictionsText() ? `- Restri\xE7\xF5es alimentares: ${getRestrictionsText()}` : ""}
+${getPreferencesText() ? `- Prefer\xEAncias alimentares: ${getPreferencesText()}` : ""}
+${alimentosPorRefeicaoText}
+=== AJUSTES DO PROTOCOLO ===
+${adjustmentLabels.length > 0 ? adjustmentLabels.map((a) => `- ${a}`).join("\n") : "- Nenhum ajuste selecionado"}
+
+=== EXTRAS ===
+${enableFitoterapia ? "- INCLUIR RECEITAS DE FITOTERAPIA: Sugira ch\xE1s, infus\xF5es e prepara\xE7\xF5es fitoter\xE1picas complementares. Inclua dosagens, hor\xE1rios e benef\xEDcios." : ""}
+${enableSuplementos ? "- INCLUIR SUPLEMENTA\xC7\xC3O COMPLETA: Protocolo de suplementos com dosagem, hor\xE1rio e justificativa." : ""}
+${enableEmagrecimentoRapido ? "- ESTRAT\xC9GIA DE EMAGRECIMENTO R\xC1PIDO: Estrat\xE9gias avan\xE7adas (jejum intermitente, HIIT, termog\xEAnicos)." : ""}
+${enableJejumIntermitente ? "- JEJUM INTERMITENTE: Estruturar o dia alimentar respeitando a janela alimentar. Concentrar refei\xE7\xF5es na janela e indicar hor\xE1rios explicitamente. N\xE3o criar refei\xE7\xF5es fora da janela." : ""}
+=== SUBSTITUI\xC7\xD5ES DE ALIMENTOS ===
+OBRIGAT\xD3RIO: Para CADA alimento na tabela de refei\xE7\xF5es, a coluna "Substitui\xE7\xE3o" deve conter EXATAMENTE 3 op\xE7\xF5es de troca, cada uma com nome e quantidade (em gramas), que tenham macros e calorias equivalentes ao alimento principal.
+Formato da coluna Substitui\xE7\xE3o: "1) Alimento X (Xg); 2) Alimento Y (Xg); 3) Alimento Z (Xg)"
+Exemplo: "1) Batata-doce (150g); 2) Inhame (140g); 3) Mandioca (120g)"
+As 3 op\xE7\xF5es devem ser alimentos DIFERENTES entre si e diferentes do alimento principal, respeitando os macros e calorias equivalentes.
+${substitutions.length > 0 ? `Use PREFERENCIALMENTE os alimentos abaixo como op\xE7\xF5es de substitui\xE7\xE3o:
+${substitutions.map((s) => `- ${s.food}: ${s.portion}`).join("\n")}` : ""}
+${modelDiet.trim() ? `
+ === DIETA MODELO (APENAS LISTA DE ALIMENTOS) ===
+ IMPORTANTE: A dieta modelo serve APENAS como fonte da LISTA DE ALIMENTOS por refei\xE7\xE3o. IGNORE completamente as calorias, macros, "Estimativa" e "TOTAL DI\xC1RIO" da dieta modelo \u2014 esses valores N\xC3O devem ser copiados nem usados como refer\xEAncia. ${carbCycling.enabled ? "Use as metas espec\xEDficas de cada dia definidas no bloco METAS DI\xC1RIAS OBRIGAT\xD3RIAS \u2014 n\xE3o existe meta \xFAnica para todos os dias." : `A meta cal\xF3rica e de macros do aluno \xE9 a definida acima (${currentCalories} kcal, P=${macros.proteinGrams}g, C=${macros.carbGrams}g, G=${macros.fatGrams}g) e SEMPRE prevalece.`}
+ REGRAS OBRIGAT\xD3RIAS:
+ 1) Use EXATAMENTE os mesmos alimentos da dieta modelo, na MESMA ordem, refei\xE7\xE3o por refei\xE7\xE3o, preservando o NOME EXATO (ex.: "Arroz basmati cozido") \u2014 n\xE3o renomeie nem simplifique. Se o alimento n\xE3o estiver na base do sistema, use-o mesmo assim e devolva kcal/P/C/G estimados por voc\xEA.
+ 2) AJUSTE LIVREMENTE AS QUANTIDADES (gramas/ml/unidades) de cada item para bater EXATAMENTE a meta cal\xF3rica e de macros do aluno \u2014 as quantidades da dieta modelo s\xE3o apenas ponto de partida e devem ser recalculadas do zero conforme a meta do aluno.
+ 3) Substitui\xE7\xE3o do alimento S\xD3 \xE9 permitida quando o alimento da dieta modelo estiver listado como restri\xE7\xE3o/alergia/intoler\xE2ncia do aluno. Nesse caso, substitua por um item de perfil nutricional semelhante e explique o motivo na coluna "Substitui\xE7\xE3o".
+ 4) N\xC3O adicione alimentos que n\xE3o estejam na dieta modelo, exceto quando absolutamente necess\xE1rio para fechar um macro \u2014 nesse caso, prefira alimentos que j\xE1 apare\xE7am em outras refei\xE7\xF5es da pr\xF3pria dieta modelo.
+ 5) Para cada alimento, preencha SEMPRE Kcal, P, C, G reais daquela quantidade.
+ 6) FORMATO DA DIETA MODELO: markdown com t\xEDtulos "### N. Nome da refei\xE7\xE3o \u2014 HHhMM" seguidos por bullets "* Nome do alimento: quantidade". Extraia cada bullet como um alimento; use o hor\xE1rio do t\xEDtulo na coluna "Hor\xE1rio" (ex.: "13:30"); mapeie o nome da refei\xE7\xE3o para os nomes oficiais (${mealNames.join(", ")}). Linhas de "Estimativa" e "TOTAL DI\xC1RIO" devem ser IGNORADAS.
+Dieta modelo:
+${modelDiet.trim()}
+` : ""}
+${studentCtx.questionario_dieta?.preferencias_alimentares ? `
+=== PREFER\xCANCIAS ALIMENTARES DO ALUNO ===
+Estes s\xE3o os alimentos que o aluno GOSTA e PODE comer. Ao usar dieta modelo, substitua qualquer alimento que n\xE3o esteja nesta lista por um equivalente desta lista:
+${studentCtx.questionario_dieta.preferencias_alimentares}` : ""}
+${studentCtx.questionario_dieta?.restricoes_alimentares ? `
+=== RESTRI\xC7\xD5ES ALIMENTARES DO ALUNO ===
+O aluno N\xC3O PODE comer os alimentos/grupos abaixo. Se aparecerem na dieta modelo, SUBSTITUA obrigatoriamente por alternativas permitidas:
+${studentCtx.questionario_dieta.restricoes_alimentares}` : ""}
+${selectedPreferences.length > 0 ? `
+=== ALIMENTOS PREFERIDOS (selecionados pelo nutricionista) ===
+Priorize estes alimentos ao montar o plano ou ao substituir itens da dieta modelo:
+${selectedPreferences.join(", ")}` : ""}
+${selectedRestrictions.length > 0 ? `
+=== RESTRI\xC7\xD5ES (selecionadas pelo nutricionista) ===
+O aluno possui estas restri\xE7\xF5es. Nunca inclua alimentos incompat\xEDveis:
+${selectedRestrictions.join(", ")}` : ""}
+Use tamb\xE9m a base de alimentos dispon\xEDvel do sistema para escolher substitui\xE7\xF5es adequadas.
+
+=== ESTRUTURA OBRIGAT\xD3RIA DA TABELA ===
+A tabela DEVE ter as colunas: Refei\xE7\xE3o | Hor\xE1rio | Alimento | Quantidade (g) | Kcal | P | C | G | Substitui\xE7\xE3o
+REGRA CR\xCDTICA: A coluna "Refei\xE7\xE3o" deve conter SOMENTE os nomes das refei\xE7\xF5es: ${mealNames.join(", ")}
+Cada refei\xE7\xE3o deve ter V\xC1RIOS alimentos (linhas), onde a primeira linha de cada refei\xE7\xE3o mostra o nome da refei\xE7\xE3o e as linhas seguintes ficam com a c\xE9lula "Refei\xE7\xE3o" VAZIA (continua\xE7\xE3o da mesma refei\xE7\xE3o).
+N\xC3O coloque nomes de refei\xE7\xF5es na coluna "Alimento". A coluna "Alimento" \xE9 SOMENTE para os alimentos.
+Inclua uma linha de TOTAL por refei\xE7\xE3o e TOTAL DI\xC1RIO no final.
+
+GERE TUDO DE UMA VEZ:
+${studentCtx.questionario_dieta ? `
+=== FEEDBACK DO ALUNO (Question\xE1rio respondido em ${new Date(studentCtx.questionario_dieta.respondido_em).toLocaleDateString("pt-BR")}) ===
+- Estilo de dieta preferido: ${studentCtx.questionario_dieta.estilo_dieta || "N\xE3o informado"}
+- Fase informada pelo aluno: ${studentCtx.questionario_dieta.fase_atual || "N\xE3o informada"}
+- Alimentos preferidos: ${studentCtx.questionario_dieta.preferencias_alimentares || "N\xE3o informado"}
+- Restri\xE7\xF5es do aluno: ${studentCtx.questionario_dieta.restricoes_alimentares || "Nenhuma"}
+- Usa horm\xF4nios: ${studentCtx.questionario_dieta.usa_hormonios || "N\xE3o informado"}
+- Como se sente: ${studentCtx.questionario_dieta.como_se_sente || "N\xE3o informou"}
+- Sintomas relatados: ${[
+    studentCtx.questionario_dieta.fraqueza && "Fraqueza muscular",
+    studentCtx.questionario_dieta.dor_cabeca && "Dor de cabe\xE7a",
+    studentCtx.questionario_dieta.reduziu_peso && "Reduziu peso",
+    studentCtx.questionario_dieta.pele_fina && "Pele mais fina",
+    studentCtx.questionario_dieta.fome_excessiva && "Fome excessiva",
+    studentCtx.questionario_dieta.insonia && "Ins\xF4nia",
+    studentCtx.questionario_dieta.baixa_energia && "Baixa energia",
+    studentCtx.questionario_dieta.irritabilidade && "Irritabilidade"
+  ].filter(Boolean).join(", ") || "Nenhum"}
+- Observa\xE7\xF5es do aluno: ${studentCtx.questionario_dieta.observacoes || "Nenhuma"}
+
+IMPORTANTE: Considere os sintomas e feedback do aluno ao montar a dieta. Se h\xE1 fraqueza/baixa energia, priorize mais calorias ou distribui\xE7\xE3o melhor. Se h\xE1 ins\xF4nia, evite estimulantes \xE0 noite. Se reduziu peso, pode estar em d\xE9ficit excessivo.
+` : ""}
+1) Utilize a TMB e o GET fornecidos pelo app apenas como refer\xEAncia
+2) N\xC3O recalcule a TMB/GET nem escolha outra f\xF3rmula \u2014 a f\xF3rmula j\xE1 foi definida pelo app
+3) Monte o plano exatamente conforme os targets fornecidos${carbCycling.enabled ? " para CADA dia (bloco METAS DI\xC1RIAS OBRIGAT\xD3RIAS)" : ""}
+4) Apresente a distribui\xE7\xE3o de macronutrientes usando os gramas fornecidos
+5) EXATAMENTE 1 card\xE1pio completo em tabela com: Refei\xE7\xE3o | Hor\xE1rio | Alimento | Quantidade (g) | Kcal | P | C | G | Substitui\xE7\xE3o.
+6) Total de cada refei\xE7\xE3o e do dia
+7) Timing nutricional (pr\xE9-treino, intra-treino, p\xF3s-treino) baseado no hor\xE1rio de treino informado
+${selectedAdjustments.includes("carb_cycling") ? "8) Protocolo de Carb Cycling com tabela de dias High/Medium/Low" : ""}
+${selectedAdjustments.includes("refeed") ? "9) Protocolo de Refeed: frequ\xEAncia, calorias e macros no dia de refeed" : ""}
+${selectedAdjustments.includes("diet_break") ? "10) Protocolo de Diet Break: dura\xE7\xE3o, calorias de manuten\xE7\xE3o" : ""}
+${selectedAdjustments.includes("plato") ? "11) Estrat\xE9gias para quebrar plat\xF4 metab\xF3lico" : ""}
+${selectedAdjustments.includes("sodium_adjust") ? "12) Protocolo de manipula\xE7\xE3o de s\xF3dio (especialmente para pr\xE9-contest)" : ""}
+${selectedAdjustments.includes("water_adjust") ? "13) Protocolo de manipula\xE7\xE3o h\xEDdrica" : ""}
+${enableFitoterapia ? "14) Receitas e protocolos de fitoterapia" : ""}
+${enableSuplementos ? "15) Protocolo de suplementa\xE7\xE3o completo" : ""}
+${enableEmagrecimentoRapido ? "16) Estrat\xE9gias avan\xE7adas de emagrecimento" : ""}
+17) Mensagens prontas para WhatsApp`;
+  const cyclePlan = null;
+  const structuredPrompt = buildStructuredDietPrompt({
+    studentContext: criticalInputsText,
+    routine: [
+      `Rotina di\xE1ria: ${dailyRoutine || "N\xE3o informada"}`,
+      `Hor\xE1rio de treino: ${selectedTrainingTime?.label || "N\xE3o informado"}`
+    ].join("\n"),
+    training: trainingDays ? `${trainingDays}x/semana` : "N\xE3o informado",
+    phase: `${selectedPhase?.label ?? "N\xE3o informada"} \u2014 ${selectedPhase?.desc ?? ""}`,
+    strategy: `${selectedStrategy?.label ?? "N\xE3o informada"} (${(selectedStrategy?.pct ?? 0) > 0 ? "+" : ""}${selectedStrategy?.pct ?? 0}%)`,
+    style: `${selectedDietStyle?.label || "N\xE3o definido"} \u2014 ${selectedDietStyle?.desc || ""}`,
+    meals: [
+      `N\xFAmero de refei\xE7\xF5es: ${mealCount} por dia`,
+      `Nomes das refei\xE7\xF5es (use exatamente): ${mealNames.join(", ")}`,
+      alimentosPorRefeicaoText.trim()
+    ].filter(Boolean).join("\n"),
+    restrictions: [getRestrictionsText(), ...selectedRestrictions].filter(Boolean).join("; "),
+    preferences: [getPreferencesText(), ...selectedPreferences].filter(Boolean).join("; "),
+    targets: carbCycling.enabled ? "" : recText,
+    carbCycling: carbCycling.enabled ? recText : "",
+    modelDiet: modelDiet.trim(),
+    extras: adjustmentLabels.length > 0 ? adjustmentLabels.map((a) => `- ${a}`).join("\n") : ""
+  });
+  const dietConfig = {
+    objective: phase || void 0,
+    strategy: strategy || void 0,
+    style: dietStyle || void 0,
+    ...cyclePlan ? { carbCyclePlan: cyclePlan } : {},
+    // Autoridade explícita: carb cycling materializa cada weekday e
+    // por isso NÃO exige dailyAdjustments add/remove.
+    carbCyclingEnabled: carbCycling.enabled,
+    weeklyEnergySchedule: {
+      base_daily_kcal: currentTargets.calories,
+      base_source: weeklySchedule.base_source,
+      calculation_snapshot: weeklySchedule.calculation_snapshot,
+      days: Object.fromEntries(
+        ENERGY_WEEKDAYS.map((wd) => {
+          const entry = weeklySchedule.days[wd];
+          const adj = entry.adjustment_kcal;
+          const fixed = entry.fixed_kcal;
+          const cycleDay = carbCycling.enabled ? weeklyCarbTargets[wd] : void 0;
+          const dayTarget = resolveDayTarget({
+            schedule: weeklySchedule,
+            dayIndex: ENERGY_WEEKDAYS.indexOf(wd),
+            planTargetKcal: currentTargets.calories,
+            planTargetMacros: { p: canonicalTargets.p, c: canonicalTargets.c, g: canonicalTargets.g },
+            dayTarget: cycleDay ?? null
+          });
+          const target = cycleDay ? dayTarget.kcal : fixed != null && fixed > 0 ? Math.round(fixed) : Math.round(currentTargets.calories + adj);
+          return [wd, {
+            base_kcal: currentTargets.calories,
+            adjustment_kcal: cycleDay ? 0 : adj,
+            fixed_kcal: cycleDay ? target : fixed,
+            target_kcal: target,
+            day_type: cycleDay?.type ?? null,
+            protein_g: dayTarget.p || null,
+            carbs_g: dayTarget.c || null,
+            fat_g: dayTarget.g || null,
+            workout: entry.workout
+          }];
+        })
+      )
+    }
+  };
+  const targets = {
+    kcal: currentTargets.calories,
+    p: currentTargets.protein,
+    c: currentTargets.carbs,
+    g: currentTargets.fats,
+    tmb: currentBmr ?? void 0,
+    get: currentGET ?? void 0
+  };
+  return { prompt, structuredPrompt, dietConfig, targets, currentTargets, criticalInputsText, recText };
+}
+function buildDietTrainingContext(trainingMarkdown, trainingTime) {
+  if (!trainingMarkdown) return void 0;
+  return extractTrainingContext({
+    trainingMarkdown,
+    trainingTime: ["manha", "tarde", "noite"].find((t) => trainingTime?.includes(t)) || null
+  });
+}
+async function loadDietFoodRecords(sb) {
+  const { data, error } = await sb.from("foods").select("id, name, calories, protein, carbs, fats, portion_size").order("name");
+  if (error) throw new Error("Erro ao carregar base alimentar: " + error.message);
+  return (data || []).map((food) => ({
+    id: String(food.id),
+    name: food.name,
+    calories: Number(food.calories) || 0,
+    protein: Number(food.protein) || 0,
+    carbs: Number(food.carbs) || 0,
+    fats: Number(food.fats) || 0,
+    portion_size: Number(food.portion_size) || 100
+  }));
+}
+function buildDietFoodHints(modelDiet, preferencesText, foodsForCheck) {
+  let allowedUnresolvedFoods = [];
+  let foodAliasBlock = "";
+  if (modelDiet.trim()) {
+    allowedUnresolvedFoods = buildAllowedUnresolvedFromModelDiet(modelDiet, foodsForCheck);
+  }
+  const freeNames = [
+    ...preferencesText.split(/[,;\n]/),
+    ...extractModelDietFoodNames(modelDiet),
+    ...modelDiet.split(/[,;\n]/).filter((x) => x.trim().length <= 40 && !/\d/.test(x))
+  ].map((x) => x.replace(/^\s*[-*•]\s*/, "").trim()).filter((x) => x.length >= 3);
+  const { matched, unmatched } = matchFoodNamesToCatalog(freeNames, foodsForCheck);
+  if (matched.length) {
+    const matchedKeys = new Set(matched.map((m) => m.from.toLowerCase()));
+    allowedUnresolvedFoods = allowedUnresolvedFoods.filter((a) => !matchedKeys.has(a.name.toLowerCase()));
+    foodAliasBlock = `
+
+=== ALIMENTOS CITADOS \u2192 USE ESTES DO CAT\xC1LOGO ===
+${matched.map((m) => `- "${m.from}" = ${m.to}${m.id ? ` [id=${m.id}]` : ""}`).join("\n")}
+Use SEMPRE o foodId indicado para esses alimentos.`;
+  }
+  const modelNames = new Set(extractModelDietFoodNames(modelDiet).map((n) => n.toLowerCase()));
+  const unmatchedModel = unmatched.filter((n) => modelNames.has(n.toLowerCase()));
+  return { allowedUnresolvedFoods, foodAliasBlock, matched, unmatchedModel };
+}
+function buildDietAgentBody(p) {
+  return {
+    mode: "structured",
+    // Progresso em tempo real: a função devolve SSE com fases + resultado final.
+    progressStream: true,
+    messages: [{ role: "user", content: p.userPrompt + p.foodAliasBlock }],
+    studentContext: p.studentCtx,
+    dietConfig: p.dietConfig,
+    trainingContext: p.trainingContext,
+    studentId: p.studentId,
+    variationIntensity: p.variationIntensity,
+    intent: p.intent,
+    regenerateIntent: p.intent === "regenerate",
+    // Dieta modelo colada: o plano deve repetir os alimentos de referência,
+    // então os filtros de variação/repetição não podem bloquear a geração.
+    referenceDietProvided: Boolean(p.modelDiet.trim()),
+    // Target determinístico do app: única autoridade de meta no servidor.
+    canonicalTargets: { kcal: p.targets.kcal, p: p.targets.p, c: p.targets.c, g: p.targets.g },
+    allowedUnresolvedFoods: p.allowedUnresolvedFoods
+  };
+}
+function parseDietAgentSse(text) {
+  let status = 500;
+  let body = "";
+  for (const block2 of text.replace(/\r\n/g, "\n").split("\n\n")) {
+    for (const line of block2.split("\n")) {
+      if (!line.startsWith("data:")) continue;
+      const raw = line.slice(5).trim();
+      if (!raw) continue;
+      let evt;
+      try {
+        evt = JSON.parse(raw);
+      } catch {
+        continue;
+      }
+      if (evt.type === "result") {
+        status = Number(evt.status) || 500;
+        body = typeof evt.body === "string" ? evt.body : "";
+      }
+    }
+  }
+  return { status, body };
+}
+function finalizeDietAgentPlan(raw, targets) {
+  if (!raw) return { plan: null };
+  if (raw.targets) {
+    raw.targets = { ...raw.targets, ...targets };
+  } else {
+    raw.targets = targets;
+  }
+  const parsed = parseDietPlanStrict(raw);
+  if (!parsed.success) {
+    const loose = parseDietPlanLoose(raw);
+    if (!loose) return { plan: null, errorCode: "schema_rejected", issues: parsed.error?.issues?.slice(0, 5) };
+    return { plan: finalizeDietPlan(loose, targets) };
+  }
+  return { plan: finalizeDietPlan(parsed.data, targets) };
+}
+function processDietDailyAdjustments(adjRaw, weeklySchedule) {
+  const { adjustments, missing } = normalizeDailyAdjustments(adjRaw, weeklySchedule);
+  const validation = validateDailyAdjustments(adjustments, missing);
+  const warnings = [];
+  for (const wd of ENERGY_WEEKDAYS) {
+    const d = adjustments[wd];
+    const tol = evaluateTolerance(d.requested_adjustment_kcal, d.estimated_adjustment_kcal);
+    if (tol.state === "outside_tolerance") {
+      warnings.push(
+        `${WEEKDAY_LABELS[wd]}: ${TOLERANCE_TEXT.outside_tolerance} \u2014 Ajuste cal\xF3rico estimado (solicitado ${d.requested_adjustment_kcal >= 0 ? "+" : ""}${d.requested_adjustment_kcal} kcal, estimado ${d.estimated_adjustment_kcal >= 0 ? "+" : ""}${d.estimated_adjustment_kcal} kcal, toler\xE2ncia \xB1${tol.tolerance_kcal} kcal, diferen\xE7a ${tol.difference_kcal >= 0 ? "+" : ""}${tol.difference_kcal} kcal).`
+      );
+    }
+  }
+  for (const err of validation.errors) warnings.push(err);
+  return { adjustments, missing, validation, warnings };
+}
+function buildDietProtocols(p) {
+  const scheduleJson = scheduleToJson(p.weeklySchedule);
+  if (p.dailyAdjustments && scheduleJson && typeof scheduleJson === "object") {
+    scheduleJson.generated_adjustments = p.dailyAdjustments;
+  }
+  return {
+    adjustments: p.selectedAdjustments,
+    extras: {
+      fitoterapia: p.enableFitoterapia,
+      suplementos: p.enableSuplementos,
+      emagrecimento_rapido: p.enableEmagrecimentoRapido,
+      jejum_intermitente: p.enableJejumIntermitente
+    },
+    weekly_energy_schedule: scheduleJson,
+    carb_cycling: JSON.parse(JSON.stringify({
+      enabled: p.carbCycling.enabled,
+      mode: p.carbCycling.mode,
+      types: p.carbCycling.types,
+      assignments: p.carbCycling.assignments,
+      manual: p.carbCycling.manual,
+      fixedClosingMacro: p.carbCycling.fixedClosingMacro
+    })),
+    weekly_day_targets: p.carbCycling.enabled ? JSON.parse(JSON.stringify(p.weeklyCarbTargets)) : null
+  };
+}
+function buildDietDraftInsert(p) {
+  return {
+    student_id: p.studentId,
+    tipo: "dieta",
+    titulo: `Dieta - ${(p.now ?? /* @__PURE__ */ new Date()).toLocaleDateString("pt-BR")}`,
+    conteudo: p.markdown,
+    protocols: p.protocols,
+    is_draft: true,
+    cycle_status: "em_dia",
+    conteudo_json: p.plan,
+    migration_status: "completed",
+    diet_strategy: p.strategy || null,
+    strategy_source: "manual",
+    generation_intent: p.intent,
+    viability_score: p.viability?.score ?? null,
+    viability_breakdown: p.viability?.breakdown ?? null
+  };
+}
+
+// src/lib/officeWizard/dietaStudentData.ts
+function computeDietaPrefill({ latestQuestionnaire, sp, anthro, comp }) {
+  const out = {};
+  if (latestQuestionnaire) {
+    if (latestQuestionnaire.num_refeicoes) out.mealCount = String(latestQuestionnaire.num_refeicoes);
+    if (latestQuestionnaire.horario_treino) {
+      const timeMap = { "05:00": "manha", "06:00": "manha", "07:00": "manha", "08:00": "manha", "09:00": "manha", "10:00": "manha", "11:00": "manha", "12:00": "tarde", "13:00": "tarde", "14:00": "tarde", "15:00": "tarde", "16:00": "tarde", "17:00": "noite", "18:00": "noite", "19:00": "noite", "20:00": "noite", "21:00": "noite", "22:00": "madrugada" };
+      if (timeMap[latestQuestionnaire.horario_treino]) out.trainingTime = timeMap[latestQuestionnaire.horario_treino];
+    }
+    if (latestQuestionnaire.dias_treino) {
+      const days = latestQuestionnaire.dias_treino.replace("x", "");
+      if (["3", "4", "5", "6", "7"].includes(days)) out.trainingDays = days;
+    }
+    if (latestQuestionnaire.restricoes_alimentares) out.customRestriction = latestQuestionnaire.restricoes_alimentares;
+    if (latestQuestionnaire.preferencias_alimentares) out.customPreference = latestQuestionnaire.preferencias_alimentares;
+    if (latestQuestionnaire.usa_hormonios) {
+      const uh = latestQuestionnaire.usa_hormonios;
+      if (uh === "N\xE3o" || uh === "n\xE3o" || uh === "Natural") out.usesHormones = false;
+      else {
+        out.usesHormones = true;
+        out.hormoneDetails = uh;
+      }
+    }
+  }
+  const peso = anthro?.peso ? Number(anthro.peso) : null;
+  const altura = sp?.altura || anthro?.altura ? Number(sp?.altura || anthro?.altura) : null;
+  const bf = comp?.percentual_gordura ? Number(comp.percentual_gordura) : null;
+  const isMale = sp?.sexo === "masculino";
+  let birthAge = null;
+  if (sp?.data_nascimento) {
+    birthAge = Math.floor((Date.now() - new Date(sp.data_nascimento).getTime()) / (365.25 * 24 * 60 * 60 * 1e3));
+  }
+  if (peso && altura && birthAge) {
+    let suggestedStrategy = "manutencao";
+    let suggestedPhase = "manutencao";
+    let suggestedDietStyle = "convencional";
+    if (bf !== null) {
+      if (isMale && bf > 20 || !isMale && bf > 28) {
+        suggestedStrategy = "deficit_moderado";
+        suggestedPhase = "cutting";
+      } else if (isMale && bf < 12 || !isMale && bf < 18) {
+        suggestedStrategy = "superavit_leve";
+        suggestedPhase = "bulking";
+      }
+    }
+    const obj = (sp?.objetivo || "").toLowerCase();
+    if (obj.includes("emagrec") || obj.includes("perd") || obj.includes("defin")) {
+      suggestedStrategy = "deficit_leve";
+      suggestedPhase = "cutting";
+    }
+    if (obj.includes("hipertrofia") || obj.includes("massa") || obj.includes("ganho")) {
+      suggestedStrategy = "superavit_leve";
+      suggestedPhase = "bulking";
+    }
+    if (obj.includes("recomp")) {
+      suggestedStrategy = "manutencao";
+      suggestedPhase = "recomposicao";
+    }
+    if (latestQuestionnaire?.fase_atual) {
+      const fase = latestQuestionnaire.fase_atual.toLowerCase();
+      if (fase.includes("bulk")) {
+        suggestedStrategy = "superavit_leve";
+        suggestedPhase = "bulking";
+      }
+      if (fase.includes("cut")) {
+        suggestedStrategy = "deficit_moderado";
+        suggestedPhase = "cutting";
+      }
+      if (fase.includes("recomp")) {
+        suggestedStrategy = "manutencao";
+        suggestedPhase = "recomposicao";
+      }
+      if (fase.includes("manuten\xE7\xE3o") || fase.includes("manut")) {
+        suggestedPhase = "manutencao";
+      }
+      if (fase.includes("pr\xE9-contest") || fase.includes("pre_contest") || fase.includes("contest")) {
+        suggestedPhase = "pre_contest";
+        suggestedStrategy = "deficit_agressivo";
+      }
+    }
+    if (latestQuestionnaire?.estilo_dieta) {
+      const estiloMap = { "Flex\xEDvel (IIFYM)": "flexivel", "Low Carb": "low_carb", "Cetog\xEAnica": "cetogenica", "Mediterr\xE2nea": "mediterranea", "Paleol\xEDtica": "paleolitica", "Vegetariana": "vegetariana", "Vegana": "vegana", "Convencional": "convencional" };
+      suggestedDietStyle = estiloMap[latestQuestionnaire.estilo_dieta] || suggestedDietStyle;
+    }
+    if (suggestedPhase === "cutting" && bf !== null && bf > (isMale ? 25 : 32) && !latestQuestionnaire?.estilo_dieta) {
+      suggestedDietStyle = "low_carb";
+    }
+    if (latestQuestionnaire && (latestQuestionnaire.baixa_energia || latestQuestionnaire.fraqueza)) {
+      if (suggestedStrategy === "deficit_agressivo") suggestedStrategy = "deficit_moderado";
+      else if (suggestedStrategy === "deficit_moderado") suggestedStrategy = "deficit_leve";
+    }
+    out.strategy = suggestedStrategy;
+    out.phase = suggestedPhase;
+    out.dietStyle = suggestedDietStyle;
+  } else if (bf !== null) {
+    if (isMale && bf > 20 || !isMale && bf > 28) out.strategy = "deficit_moderado";
+    else if (isMale && bf < 12 || !isMale && bf < 18) out.strategy = "superavit_leve";
+    else out.strategy = "manutencao";
+  }
+  if (!latestQuestionnaire && sp?.restricoes) out.customRestriction = sp.restricoes;
+  return out;
+}
+async function loadDietaStudentData(sb, studentId) {
+  const [profileRes, spRes, assessRes, questRes] = await Promise.all([
+    sb.from("profiles").select("*").eq("user_id", studentId).maybeSingle(),
+    sb.from("students_profile").select("*").eq("user_id", studentId).maybeSingle(),
+    sb.from("assessments").select("id, created_at").eq("student_id", studentId).order("created_at", { ascending: false }).limit(1),
+    sb.from("diet_questionnaires").select("*").eq("student_id", studentId).eq("status", "completed").order("created_at", { ascending: false }).limit(1)
+  ]);
+  const profile = profileRes.data;
+  const sp = spRes.data;
+  const latestAssessmentId = assessRes.data?.[0]?.id;
+  const latestAssessmentDate = assessRes.data?.[0]?.created_at ?? null;
+  const latestQuestionnaire = questRes.data?.[0] || null;
+  let anthro = null, comp = null, vitals = null, anamnese = null;
+  let photos = [];
+  let skinfolds = null, perfTests = null, posture = null;
+  const [postureScansRes, hrZonesRes] = await Promise.all([
+    sb.from("posture_scans").select("*").eq("student_id", studentId).order("created_at", { ascending: false }).limit(1),
+    sb.from("hr_zones").select("*").eq("student_id", studentId).order("created_at", { ascending: false }).limit(1)
+  ]);
+  const latestPostureScan = postureScansRes.data?.[0] || null;
+  const latestHrZones = hrZonesRes.data?.[0] || null;
+  if (latestAssessmentId) {
+    const [anthroRes, compRes, vitalsRes, anRes, photosRes, skinRes, perfRes, postureRes] = await Promise.all([
+      sb.from("anthropometrics").select("*").eq("assessment_id", latestAssessmentId).maybeSingle(),
+      sb.from("composition").select("*").eq("assessment_id", latestAssessmentId).maybeSingle(),
+      sb.from("vitals").select("*").eq("assessment_id", latestAssessmentId).maybeSingle(),
+      sb.from("anamnese").select("*").eq("assessment_id", latestAssessmentId).maybeSingle(),
+      sb.from("assessment_photos").select("*").eq("assessment_id", latestAssessmentId),
+      sb.from("skinfolds").select("*").eq("assessment_id", latestAssessmentId).maybeSingle(),
+      sb.from("performance_tests").select("*").eq("assessment_id", latestAssessmentId).maybeSingle(),
+      sb.from("posture").select("*").eq("assessment_id", latestAssessmentId).maybeSingle()
+    ]);
+    anthro = anthroRes.data;
+    comp = compRes.data;
+    vitals = vitalsRes.data;
+    anamnese = anRes.data;
+    photos = photosRes.data ?? [];
+    skinfolds = skinRes.data;
+    perfTests = perfRes.data;
+    posture = postureRes.data;
+  }
+  try {
+    const { data: latestWeightLog } = await sb.from("weight_logs").select("peso, data").eq("student_id", studentId).order("data", { ascending: false }).limit(1).maybeSingle();
+    if (latestWeightLog?.peso != null) {
+      const logDate = latestWeightLog.data;
+      const assessDate = anthro && latestAssessmentId ? (await sb.from("assessments").select("created_at").eq("id", latestAssessmentId).maybeSingle()).data?.created_at?.slice(0, 10) : null;
+      if (!anthro || !assessDate || logDate >= assessDate) {
+        anthro = { ...anthro || {}, peso: Number(latestWeightLog.peso) };
+      }
+    }
+  } catch {
+  }
+  const since14 = new Date(Date.now() - 14 * 24 * 60 * 60 * 1e3).toISOString().slice(0, 10);
+  const [lastDietRes, trendAssessRes, trackingRes, lastReadjustRes] = await Promise.all([
+    sb.from("ai_plans").select("id, titulo, fase, conteudo, created_at, protocols").eq("student_id", studentId).eq("tipo", "dieta").eq("is_draft", false).order("created_at", { ascending: false }).limit(1),
+    sb.from("assessments").select("id, created_at").eq("student_id", studentId).order("created_at", { ascending: false }).limit(4),
+    sb.from("daily_tracking").select("date, meals_completed, water_glasses, workout_completed").eq("student_id", studentId).gte("date", since14).order("date", { ascending: false }),
+    sb.from("diet_readjustments").select("*").eq("student_id", studentId).order("created_at", { ascending: false }).limit(1)
+  ]);
+  const lastDiet = lastDietRes.data?.[0] || null;
+  let ultima_dieta = null;
+  if (lastDiet) {
+    const c = lastDiet.conteudo || "";
+    const grab = (re) => {
+      const m = c.match(re);
+      return m ? Number(m[1].replace(/[^\d.]/g, "")) || null : null;
+    };
+    const totalKcal = grab(/total\s+di[áa]rio[^\n]*?(\d{3,5})\s*kcal/i) || grab(/calorias?\s*(?:totais|alvo|consumo)?[:\s]+(\d{3,5})/i);
+    const totalP = grab(/prote[íi]na[^\n]*?(\d{2,4})\s*g/i);
+    const totalC = grab(/carboidrato[^\n]*?(\d{2,4})\s*g/i);
+    const totalG = grab(/gordura[^\n]*?(\d{2,4})\s*g/i);
+    const mealMatches = c.match(/(?:caf[eé]\s+da\s+manh[ãa]|almo[çc]o|jantar|lanche|ceia|p[óo]s[\s-]?treino|pr[eé][\s-]?treino)/gi) || [];
+    const numRef = new Set(mealMatches.map((m) => m.toLowerCase())).size;
+    const dias = Math.floor((Date.now() - new Date(lastDiet.created_at).getTime()) / 864e5);
+    ultima_dieta = {
+      titulo: lastDiet.titulo,
+      fase: lastDiet.fase,
+      criada_em: lastDiet.created_at,
+      dias_desde: dias,
+      kcal_total: totalKcal,
+      proteina_g: totalP,
+      carbs_g: totalC,
+      gordura_g: totalG,
+      num_refeicoes: numRef || null,
+      excerto: c.slice(0, 1800)
+    };
+  }
+  let tendencia_peso = null;
+  const trendIds = (trendAssessRes.data || []).map((a) => a.id);
+  if (trendIds.length >= 1) {
+    const [anthArr, compArr] = await Promise.all([
+      sb.from("anthropometrics").select("assessment_id, peso, cintura").in("assessment_id", trendIds),
+      sb.from("composition").select("assessment_id, percentual_gordura, massa_magra").in("assessment_id", trendIds)
+    ]);
+    const byAssId = {};
+    (trendAssessRes.data || []).forEach((a) => {
+      byAssId[a.id] = { data: a.created_at };
+    });
+    (anthArr.data || []).forEach((r) => {
+      Object.assign(byAssId[r.assessment_id] || {}, { peso: r.peso, cintura: r.cintura });
+    });
+    (compArr.data || []).forEach((r) => {
+      Object.assign(byAssId[r.assessment_id] || {}, { percentual_gordura: r.percentual_gordura, massa_magra: r.massa_magra });
+    });
+    const historico = trendIds.map((id) => byAssId[id]).filter((x) => x && x.peso != null);
+    let direcao = "estavel";
+    let variacao_kg = 0;
+    let intervalo_dias = 0;
+    let velocidade_kg_semana = 0;
+    let relevancia = "irrelevante";
+    if (historico.length >= 2) {
+      variacao_kg = Number(historico[0].peso) - Number(historico[historico.length - 1].peso);
+      const dRecent = new Date(historico[0].data).getTime();
+      const dOldest = new Date(historico[historico.length - 1].data).getTime();
+      intervalo_dias = Math.max(1, Math.round((dRecent - dOldest) / 864e5));
+      velocidade_kg_semana = Number((variacao_kg / intervalo_dias * 7).toFixed(2));
+      const pesoBase = Number(historico[historico.length - 1].peso) || 70;
+      const pctVar = Math.abs(variacao_kg) / pesoBase;
+      if (pctVar < 5e-3) relevancia = "irrelevante";
+      else if (pctVar < 0.015) relevancia = "leve";
+      else if (pctVar < 0.04) relevancia = "moderada";
+      else relevancia = "alta";
+      if (variacao_kg > 0.5) direcao = "subindo";
+      else if (variacao_kg < -0.5) direcao = "descendo";
+    }
+    tendencia_peso = {
+      peso_atual: historico[0]?.peso ?? anthro?.peso ?? null,
+      variacao_kg: Number(variacao_kg.toFixed(2)),
+      direcao,
+      intervalo_dias,
+      velocidade_kg_semana,
+      relevancia,
+      historico
+    };
+  }
+  let aderencia_recente = null;
+  const tracking = trackingRes.data || [];
+  if (tracking.length > 0) {
+    const totalRef = tracking.reduce((s, d) => s + (Array.isArray(d.meals_completed) ? d.meals_completed.length : 0), 0);
+    const expectedPerDay = lastDiet ? ultima_dieta?.num_refeicoes || 5 : 5;
+    const expectedTotal = 14 * expectedPerDay;
+    const aguaMedia = tracking.reduce((s, d) => s + (d.water_glasses || 0), 0) / tracking.length;
+    const consistencia_por_refeicao = {};
+    for (let i = 0; i < expectedPerDay; i++) consistencia_por_refeicao[i] = 0;
+    for (const d of tracking) {
+      const arr = Array.isArray(d.meals_completed) ? d.meals_completed : [];
+      for (const idx of arr) {
+        const n = Number(idx);
+        if (Number.isInteger(n) && n >= 0 && n < expectedPerDay) {
+          consistencia_por_refeicao[n] = (consistencia_por_refeicao[n] || 0) + 1;
+        }
+      }
+    }
+    const refeicoes_mais_falhadas = Object.entries(consistencia_por_refeicao).map(([idx, c]) => ({ indice: Number(idx), marcadas: c, falhadas: tracking.length - c })).sort((a, b) => b.falhadas - a.falhadas).slice(0, 3);
+    aderencia_recente = {
+      dias_com_registro: tracking.length,
+      dias_total: 14,
+      dias_com_registro_pct: Math.round(tracking.length / 14 * 100),
+      refeicoes_marcadas: totalRef,
+      refeicoes_esperadas: expectedTotal,
+      percentual_aderencia: Math.round(totalRef / expectedTotal * 100),
+      agua_media_copos_dia: Number(aguaMedia.toFixed(1)),
+      consistencia_por_refeicao,
+      refeicoes_mais_falhadas
+    };
+  }
+  let ultimo_reajuste = null;
+  const lr = lastReadjustRes.data?.[0];
+  if (lr) {
+    const sintomas = [];
+    if (lr.fome_excessiva) sintomas.push("fome excessiva");
+    if (lr.insonia) sintomas.push("ins\xF4nia");
+    if (!lr.energia_ok) sintomas.push("energia baixa");
+    if (!lr.humor_ok) sintomas.push("humor inst\xE1vel");
+    if (!lr.intestino_ok) sintomas.push("desconforto intestinal");
+    if (lr.perdeu_peso) sintomas.push("perdeu peso");
+    if (lr.ganhou_massa) sintomas.push("ganhou massa");
+    ultimo_reajuste = {
+      data: lr.created_at,
+      peso_atual: lr.peso_atual,
+      sintomas,
+      rendimento_treino: lr.rendimento_treino,
+      satisfacao: lr.satisfacao,
+      observacoes: lr.observacoes
+    };
+  }
+  const factors = [];
+  let score = 0;
+  if (ultima_dieta) {
+    factors.push({ key: "last_diet", label: "Dieta anterior encontrada", weight: 25, status: "positive" });
+    score += 25;
+  } else factors.push({ key: "last_diet", label: "Sem dieta anterior \u2014 gera\xE7\xE3o inicial", weight: 0, status: "neutral" });
+  if (tendencia_peso && tendencia_peso.historico?.length >= 2) {
+    factors.push({ key: "weight_trend", label: `Tend\xEAncia de peso dispon\xEDvel (${tendencia_peso.historico.length} avalia\xE7\xF5es em ${tendencia_peso.intervalo_dias}d)`, weight: 25, status: "positive" });
+    score += 25;
+  } else {
+    factors.push({ key: "weight_trend", label: "Tend\xEAncia de peso indispon\xEDvel (avalia\xE7\xF5es insuficientes)", weight: 0, status: "negative" });
+  }
+  if (aderencia_recente && aderencia_recente.dias_com_registro >= 7) {
+    factors.push({ key: "adherence", label: `Ader\xEAncia recente suficiente (${aderencia_recente.dias_com_registro}/14 dias)`, weight: 25, status: "positive" });
+    score += 25;
+  } else if (aderencia_recente && aderencia_recente.dias_com_registro >= 3) {
+    factors.push({ key: "adherence", label: `Ader\xEAncia parcial (${aderencia_recente.dias_com_registro}/14 dias)`, weight: 10, status: "neutral" });
+    score += 10;
+  } else {
+    factors.push({ key: "adherence", label: "Sem ader\xEAncia registrada nos \xFAltimos 14 dias", weight: 0, status: "negative" });
+  }
+  if (ultimo_reajuste) {
+    factors.push({ key: "readjustment", label: "\xDAltimo reajuste/feedback encontrado", weight: 15, status: "positive" });
+    score += 15;
+  } else factors.push({ key: "readjustment", label: "Sem reajuste anterior registrado", weight: 0, status: "neutral" });
+  if (latestQuestionnaire) {
+    factors.push({ key: "questionnaire", label: "Question\xE1rio de dieta recente", weight: 10, status: "positive" });
+    score += 10;
+  } else factors.push({ key: "questionnaire", label: "Sem question\xE1rio recente respondido", weight: 0, status: "negative" });
+  let decisao_recomendada = "nova";
+  const motivos_decisao = [];
+  if (!ultima_dieta) {
+    decisao_recomendada = "nova";
+    motivos_decisao.push("Nenhuma dieta anterior \u2014 gerar do zero.");
+  } else {
+    const adesaoBaixa = aderencia_recente && aderencia_recente.percentual_aderencia < 60;
+    const sintomasNeg = !!ultimo_reajuste?.sintomas?.some((s) => /fome|insônia|insonia|energia baixa|humor/i.test(s));
+    const tendenciaContraria = tendencia_peso?.relevancia === "alta" || tendencia_peso?.relevancia === "moderada";
+    const reajusteRecente = ultimo_reajuste && (Date.now() - new Date(ultimo_reajuste.data).getTime()) / 864e5 < 21;
+    if (adesaoBaixa) {
+      motivos_decisao.push("Ader\xEAncia <60% \u2014 simplificar.");
+      decisao_recomendada = "ajustar";
+    }
+    if (sintomasNeg) {
+      motivos_decisao.push("Sintomas negativos no \xFAltimo reajuste \u2014 revisar.");
+      decisao_recomendada = "ajustar";
+    }
+    if (tendenciaContraria) {
+      motivos_decisao.push(`Tend\xEAncia ${tendencia_peso.direcao} relevante (${tendencia_peso.velocidade_kg_semana}kg/sem) \u2014 calibrar.`);
+      decisao_recomendada = "ajustar";
+    }
+    if (!adesaoBaixa && !sintomasNeg && !tendenciaContraria) {
+      decisao_recomendada = "manter";
+      motivos_decisao.push("Sem varia\xE7\xE3o relevante \u2014 preservar estrutura anterior.");
+    }
+    if (reajusteRecente && ultimo_reajuste?.satisfacao && /ruim|insatisf/i.test(String(ultimo_reajuste.satisfacao))) {
+      decisao_recomendada = "nova";
+      motivos_decisao.push("Aluno insatisfeito no \xFAltimo reajuste \u2014 repensar plano.");
+    }
+  }
+  const confianca = { score: Math.min(score, 100), factors, motivos: factors.filter((f) => f.status === "positive").map((f) => f.label) };
+  const ctx = {
+    nome: profile?.nome,
+    sexo: sp?.sexo,
+    data_nascimento: sp?.data_nascimento,
+    raca: sp?.raca,
+    altura: sp?.altura || anthro?.altura,
+    objetivo: sp?.objetivo,
+    restricoes: sp?.restricoes,
+    lesoes: sp?.lesoes,
+    observacoes: sp?.observacoes,
+    peso: anthro?.peso,
+    imc: anthro?.imc,
+    cintura: anthro?.cintura,
+    quadril: anthro?.quadril,
+    rcq: anthro?.rcq,
+    // All anthropometric measurements
+    antropometria_completa: anthro ? {
+      pescoco: anthro.pescoco,
+      torax: anthro.torax,
+      ombro: anthro.ombro,
+      abdomen: anthro.abdomen,
+      braco_direito: anthro.braco_direito,
+      braco_esquerdo: anthro.braco_esquerdo,
+      antebraco: anthro.antebraco,
+      antebraco_esquerdo: anthro.antebraco_esquerdo,
+      biceps_contraido_direito: anthro.biceps_contraido_direito,
+      biceps_contraido_esquerdo: anthro.biceps_contraido_esquerdo,
+      coxa_direita: anthro.coxa_direita,
+      coxa_esquerda: anthro.coxa_esquerda,
+      panturrilha_direita: anthro.panturrilha_direita,
+      panturrilha_esquerda: anthro.panturrilha_esquerda
+    } : null,
+    percentual_gordura: comp?.percentual_gordura,
+    massa_magra: comp?.massa_magra,
+    massa_gorda: comp?.massa_gorda,
+    massa_magra_data: comp?.massa_magra != null ? latestAssessmentDate : null,
+    massa_magra_origem: comp?.massa_magra != null ? "Composi\xE7\xE3o corporal da avalia\xE7\xE3o f\xEDsica" : null,
+    composicao_obs: comp?.observacoes,
+    // Skinfolds
+    dobras_cutaneas: skinfolds ? {
+      metodo: skinfolds.metodo,
+      triceps: skinfolds.triceps,
+      subescapular: skinfolds.subescapular,
+      suprailiaca: skinfolds.suprailiaca,
+      abdominal: skinfolds.abdominal,
+      peitoral: skinfolds.peitoral,
+      axilar_media: skinfolds.axilar_media,
+      coxa: skinfolds.coxa
+    } : null,
+    // Vitals
+    sinais_vitais: vitals ? {
+      fc_repouso: vitals.fc_repouso,
+      pressao: vitals.pressao,
+      spo2: vitals.spo2,
+      glicemia: vitals.glicemia,
+      observacoes: vitals.observacoes
+    } : null,
+    fc_repouso: vitals?.fc_repouso,
+    // Performance tests
+    testes_performance: perfTests ? {
+      pushup: perfTests.pushup,
+      plank: perfTests.plank,
+      cooper_12min: perfTests.cooper_12min,
+      salto_vertical: perfTests.salto_vertical,
+      agachamento_score: perfTests.agachamento_score,
+      mobilidade_ombro: perfTests.mobilidade_ombro,
+      mobilidade_quadril: perfTests.mobilidade_quadril,
+      mobilidade_tornozelo: perfTests.mobilidade_tornozelo,
+      observacoes: perfTests.observacoes
+    } : null,
+    // Posture (from assessment)
+    postura: posture ? {
+      vista_anterior: posture.vista_anterior,
+      vista_lateral: posture.vista_lateral,
+      vista_posterior: posture.vista_posterior,
+      observacoes: posture.observacoes
+    } : null,
+    // Posture scan (latest)
+    analise_postural: latestPostureScan ? {
+      angles: latestPostureScan.angles_json,
+      region_scores: latestPostureScan.region_scores_json,
+      attention_points: latestPostureScan.attention_points_json,
+      notes: latestPostureScan.notes
+    } : null,
+    // HR zones
+    zonas_fc: latestHrZones ? {
+      fc_repouso: latestHrZones.fc_repouso,
+      fcmax: latestHrZones.fcmax_estimada,
+      formula: latestHrZones.fcmax_formula,
+      zonas: latestHrZones.zonas_karvonen
+    } : null,
+    anamnese: anamnese ? {
+      historico_saude: anamnese.historico_saude,
+      medicacao: anamnese.medicacao,
+      suplementos: anamnese.suplementos,
+      sono: anamnese.sono,
+      stress: anamnese.stress,
+      rotina: anamnese.rotina,
+      treino_atual: anamnese.treino_atual,
+      dores: anamnese.dores,
+      cirurgias: anamnese.cirurgias,
+      tabagismo: anamnese.tabagismo,
+      alcool: anamnese.alcool
+    } : null,
+    fotos_avaliacao: photos.length > 0 ? photos.map((p) => ({ tipo: p.tipo, url: p.url })) : null,
+    // ── HISTÓRICO LONGITUDINAL ──
+    historico_processo: {
+      ultima_dieta,
+      tendencia_peso,
+      aderencia_recente,
+      ultimo_reajuste,
+      confianca_geracao: confianca,
+      decisao_recomendada,
+      motivos_decisao
+    },
+    questionario_dieta: latestQuestionnaire ? {
+      estilo_dieta: latestQuestionnaire.estilo_dieta,
+      fase_atual: latestQuestionnaire.fase_atual,
+      num_refeicoes: latestQuestionnaire.num_refeicoes,
+      horario_treino: latestQuestionnaire.horario_treino,
+      dias_treino: latestQuestionnaire.dias_treino,
+      usa_hormonios: latestQuestionnaire.usa_hormonios,
+      restricoes_alimentares: latestQuestionnaire.restricoes_alimentares,
+      preferencias_alimentares: latestQuestionnaire.preferencias_alimentares,
+      alimentos_por_refeicao: latestQuestionnaire.alimentos_por_refeicao,
+      como_se_sente: latestQuestionnaire.como_se_sente,
+      fraqueza: latestQuestionnaire.fraqueza,
+      dor_cabeca: latestQuestionnaire.dor_cabeca,
+      reduziu_peso: latestQuestionnaire.reduziu_peso,
+      pele_fina: latestQuestionnaire.pele_fina,
+      fome_excessiva: latestQuestionnaire.fome_excessiva,
+      insonia: latestQuestionnaire.insonia,
+      baixa_energia: latestQuestionnaire.baixa_energia,
+      irritabilidade: latestQuestionnaire.irritabilidade,
+      observacoes: latestQuestionnaire.observacoes,
+      respondido_em: latestQuestionnaire.responded_at
+    } : null
+  };
+  return {
+    ctx,
+    studentName: profile?.nome || "Aluno",
+    lastDiet,
+    latestQuestionnaire,
+    prefill: computeDietaPrefill({ latestQuestionnaire, sp, anthro, comp })
+  };
+}
+async function loadActiveTrainingMarkdown(sb, studentId) {
+  const { data } = await sb.from("ai_plans").select("conteudo").eq("student_id", studentId).eq("tipo", "treino").eq("is_draft", false).order("created_at", { ascending: false }).limit(1);
+  return data?.[0]?.conteudo ?? "";
+}
+
+// src/lib/officeWizard/dietaFields.ts
+var DIET_STRATEGY_ADJUSTMENT_IDS = ["refeed", "diet_break", "carb_cycling", "plato"];
+var DIET_STRUCTURE_ADJUSTMENT_IDS = ["meal_change"];
+var DIET_FINE_TUNE_ADJUSTMENT_IDS = ["calorie_adjust", "carb_adjust", "sodium_adjust", "water_adjust"];
+var opt2 = (arr) => arr.map((o) => ({ valor: o.value, rotulo: o.label, ...o.desc ? { descricao: o.desc } : {} }));
+var adjOpts = (ids) => PROTOCOL_ADJUSTMENTS.filter((a) => ids.includes(a.id)).map((a) => ({ valor: a.id, rotulo: a.label, descricao: a.desc }));
+var strOpts = (arr) => arr.map((v) => ({ valor: v, rotulo: v }));
+function dietaFields() {
+  const d = defaultDietaWizardState();
+  const f = (x) => ({
+    padrao: x.stateKey.startsWith("adj.") ? [] : d[x.stateKey],
+    ...x
+  });
+  return [
+    // Etapa 1 — Objetivo do Plano
+    f({ id: "rotina_diaria", stateKey: "dailyRoutine", pergunta: "Rotina di\xE1ria do aluno (trabalho, hor\xE1rios, etc.)", tipo: "texto", obrigatorio: false }),
+    f({ id: "horario_treino", stateKey: "trainingTime", pergunta: "Hor\xE1rio de treino", tipo: "escolha", opcoes: opt2(TRAINING_TIMES), obrigatorio: true }),
+    f({ id: "intensidade_variacao", stateKey: "variationIntensity", pergunta: "Varia\xE7\xE3o em rela\xE7\xE3o \xE0 dieta anterior", tipo: "escolha", opcoes: VARIATION_OPTIONS.map((o) => ({ valor: o.value, rotulo: o.label, descricao: o.desc })), obrigatorio: false }),
+    f({ id: "dias_treino", stateKey: "trainingDays", pergunta: "Frequ\xEAncia de treino", tipo: "escolha", opcoes: opt2(TRAINING_DAYS_OPTIONS), obrigatorio: true }),
+    f({ id: "fase", stateKey: "phase", pergunta: "Fase atual do aluno", tipo: "escolha", opcoes: opt2(PHASES), obrigatorio: true }),
+    f({ id: "usa_hormonios", stateKey: "usesHormones", pergunta: "Usa horm\xF4nios / TRT? (false = natural)", tipo: "booleano", obrigatorio: true }),
+    f({ id: "detalhes_hormonios", stateKey: "hormoneDetails", pergunta: "Detalhes dos horm\xF4nios (ex.: TRT 200mg/sem)", tipo: "texto", obrigatorio: false, depende_de: { campo: "usa_hormonios", valores: [true] } }),
+    f({ id: "nivel_atividade", stateKey: "activityLevel", pergunta: "N\xEDvel de atividade f\xEDsica (fator de atividade)", tipo: "escolha", opcoes: opt2(ACTIVITY_LEVELS), obrigatorio: true }),
+    f({ id: "estrategia", stateKey: "strategy", pergunta: "Estrat\xE9gia cal\xF3rica", tipo: "escolha", opcoes: opt2(STRATEGIES), obrigatorio: true }),
+    // Etapa 2 — Base da Dieta
+    f({ id: "estilo_dieta", stateKey: "dietStyle", pergunta: "Base (estilo) da dieta", tipo: "escolha", opcoes: opt2(DIET_STYLES), obrigatorio: true }),
+    // Etapa 3 — Estratégia da Dieta (nenhum = condução linear)
+    f({ id: "conducao", stateKey: "adj.selectedAdjustments", pergunta: "Condu\xE7\xE3o da dieta (vazio = linear). Carb Cycling ativa metas por dia.", tipo: "multipla", opcoes: adjOpts(DIET_STRATEGY_ADJUSTMENT_IDS), obrigatorio: false }),
+    // Etapa 4 — Estrutura Alimentar do Dia
+    f({ id: "num_refeicoes", stateKey: "mealCount", pergunta: "N\xFAmero de refei\xE7\xF5es por dia", tipo: "escolha", opcoes: opt2(MEAL_COUNTS), obrigatorio: true }),
+    f({ id: "jejum_intermitente", stateKey: "enableJejumIntermitente", pergunta: "Jejum intermitente?", tipo: "booleano", obrigatorio: false }),
+    f({ id: "reorganizacao_refeicoes", stateKey: "adj.selectedAdjustments", pergunta: "Reorganiza\xE7\xE3o de refei\xE7\xF5es", tipo: "multipla", opcoes: adjOpts(DIET_STRUCTURE_ADJUSTMENT_IDS), obrigatorio: false }),
+    f({ id: "restricoes", stateKey: "selectedRestrictions", pergunta: "Restri\xE7\xF5es alimentares", tipo: "multipla", opcoes: strOpts(RESTRICTION_OPTIONS), obrigatorio: false }),
+    f({ id: "restricoes_outras", stateKey: "customRestriction", pergunta: "Outras restri\xE7\xF5es (texto livre)", tipo: "texto", obrigatorio: false }),
+    f({ id: "preferencias", stateKey: "selectedPreferences", pergunta: "Prefer\xEAncias alimentares", tipo: "multipla", opcoes: strOpts(PREFERENCE_OPTIONS), obrigatorio: false }),
+    f({ id: "preferencias_outras", stateKey: "customPreference", pergunta: "Outras prefer\xEAncias (texto livre)", tipo: "texto", obrigatorio: false }),
+    // Etapa 5 — Ajustes Finos do Protocolo
+    f({ id: "meta_base_modo", stateKey: "baseKcalMode", pergunta: "Meta cal\xF3rica base", tipo: "escolha", opcoes: [{ valor: "automatic", rotulo: "Autom\xE1tica (TMB \xD7 fator de atividade \xD7 estrat\xE9gia)" }, { valor: "manual", rotulo: "Manual" }], obrigatorio: false }),
+    f({ id: "meta_base_manual_kcal", stateKey: "manualBaseKcalInput", pergunta: "Meta manual (kcal/dia)", tipo: "numero", minimo: 900, maximo: 8e3, obrigatorio: true, depende_de: { campo: "meta_base_modo", valores: ["manual"] }, toState: (v) => String(Math.round(Number(v))) }),
+    f({ id: "formula_energetica", stateKey: "manualFormula", pergunta: "F\xF3rmula da TMB (autom\xE1tica = escolha do app)", tipo: "escolha", opcoes: [{ valor: "automatica", rotulo: "Autom\xE1tica (escolha do app)" }, ...Object.keys(ENERGY_FORMULA_LABEL).map((k) => ({ valor: k, rotulo: ENERGY_FORMULA_LABEL[k] }))], obrigatorio: false, padrao: "automatica", toState: (v) => v === "automatica" ? null : v }),
+    f({ id: "ajustes_finos", stateKey: "adj.selectedAdjustments", pergunta: "Ajustes finos do protocolo", tipo: "multipla", opcoes: adjOpts(DIET_FINE_TUNE_ADJUSTMENT_IDS), obrigatorio: false }),
+    f({ id: "proteina_g_kg", stateKey: "proteinPerKgOverride", pergunta: "Prote\xEDna em g/kg (vazio = preset da tela pela fase/estrat\xE9gia)", tipo: "numero", minimo: 0.8, maximo: 3.5, obrigatorio: false }),
+    f({ id: "gordura_g_kg", stateKey: "fatPerKgOverride", pergunta: "Gordura em g/kg (vazio = preset da tela pela fase/estrat\xE9gia)", tipo: "numero", minimo: 0.3, maximo: 2, obrigatorio: false }),
+    // Etapa 6 — Calorias por dia (desativado com Carb Cycling, como na tela)
+    f({
+      id: "ajuste_kcal_por_dia",
+      stateKey: "scheduleAdjustments",
+      pergunta: 'Ajuste de kcal por dia da semana sobre a meta base (ex.: {"sab": 300}). Ignorado com Carb Cycling.',
+      tipo: "kcal_por_dia",
+      opcoes: ENERGY_WEEKDAYS.map((wd) => ({ valor: wd, rotulo: WEEKDAY_LABELS[wd] })),
+      obrigatorio: false,
+      padrao: {},
+      toState: (v) => {
+        const out = emptyScheduleAdjustments();
+        for (const [wd, kcal] of Object.entries(v)) out[wd].adjustment_kcal = kcal;
+        return out;
+      }
+    }),
+    // Etapa 7 — Extras e Observações
+    f({ id: "fitoterapia", stateKey: "enableFitoterapia", pergunta: "Receitas de fitoterapia?", tipo: "booleano", obrigatorio: false }),
+    f({ id: "suplementacao", stateKey: "enableSuplementos", pergunta: "Suplementa\xE7\xE3o?", tipo: "booleano", obrigatorio: false }),
+    f({ id: "hiit_termogenicos", stateKey: "enableEmagrecimentoRapido", pergunta: "HIIT + termog\xEAnicos?", tipo: "booleano", obrigatorio: false }),
+    f({ id: "substituicoes", stateKey: "substitutions", pergunta: "Alimentos para substitui\xE7\xE3o [{alimento, porcao}]", tipo: "substituicoes", obrigatorio: false }),
+    f({ id: "dieta_modelo", stateKey: "modelDiet", pergunta: "Dieta modelo (texto colado; a IA ajusta as quantidades)", tipo: "texto", obrigatorio: false })
+  ];
+}
+var validateDietaAnswers = (respostas, instrucoes) => answersToState(dietaFields(), defaultDietaWizardState(), respostas, instrucoes, "dailyRoutine");
+
+// supabase/functions/_shared/macroTolerances.ts
+var OFFICIAL_MACRO_TOLERANCE = {
+  kcal: 50,
+  p: 10,
+  c: 15,
+  g: 8
+};
+var OFFICIAL_MACRO_TOLERANCE_LABELS = {
+  calories: OFFICIAL_MACRO_TOLERANCE.kcal,
+  protein: OFFICIAL_MACRO_TOLERANCE.p,
+  carbs: OFFICIAL_MACRO_TOLERANCE.c,
+  fats: OFFICIAL_MACRO_TOLERANCE.g
+};
+
+// src/lib/canonicalDietValidation.ts
+var sign = (n) => n > 0 ? `+${n}` : `${n}`;
+var toEngineMeals = (day) => (day?.meals ?? []).map((meal) => ({
+  items: (meal?.items ?? []).map((item) => ({
+    foodId: item?.foodId ?? null,
+    name: String(item?.name ?? ""),
+    qtyGrams: Number(item?.qtyGrams) || 0
+  }))
+}));
+var computeCanonicalDay = (day, index) => {
+  const computed = computeDayTotals(toEngineMeals(day), index, "draft", "strict_id");
+  const mealTotals = computed.meals.map((meal, i) => ({
+    meal: String(day?.meals?.[i]?.name ?? `Refei\xE7\xE3o ${i + 1}`),
+    calories: Math.round(meal.totals.kcal),
+    protein: Math.round(meal.totals.p),
+    carbs: Math.round(meal.totals.c),
+    fats: Math.round(meal.totals.g)
+  }));
+  return {
+    totals: {
+      calories: Math.round(computed.totals.kcal),
+      protein: Math.round(computed.totals.p),
+      carbs: Math.round(computed.totals.c),
+      fats: Math.round(computed.totals.g)
+    },
+    mealTotals,
+    unresolved: computed.unresolvedNames
+  };
+};
+var buildIndex = (foods) => buildFoodIndex(
+  (foods ?? []).map((f) => ({
+    ...f,
+    id: String(f.id ?? ""),
+    portion_size: f.portion_size ?? 100
+  }))
+);
+var reasonsForDiff = (diff, prefix = "") => {
+  const out = [];
+  if (Math.abs(diff.calories) > OFFICIAL_MACRO_TOLERANCE.kcal) out.push(`${prefix}Calorias ${sign(diff.calories)} kcal fora da toler\xE2ncia.`);
+  if (Math.abs(diff.protein) > OFFICIAL_MACRO_TOLERANCE.p) out.push(`${prefix}Prote\xEDna ${sign(diff.protein)} g fora da toler\xE2ncia.`);
+  if (Math.abs(diff.carbs) > OFFICIAL_MACRO_TOLERANCE.c) out.push(`${prefix}Carboidrato ${sign(diff.carbs)} g fora da toler\xE2ncia.`);
+  if (Math.abs(diff.fats) > OFFICIAL_MACRO_TOLERANCE.g) out.push(`${prefix}Gordura ${sign(diff.fats)} g fora da toler\xE2ncia.`);
+  return out;
+};
+var validateCanonicalDietTarget = ({
+  plan,
+  target,
+  foods
+}) => {
+  const index = buildIndex(foods);
+  const days = (plan?.days ?? []).filter(Boolean);
+  const computedDays = days.map((d) => computeCanonicalDay(d, index));
+  const first = computedDays[0];
+  const generated = first?.totals ?? { calories: 0, protein: 0, carbs: 0, fats: 0 };
+  const difference = {
+    calories: generated.calories - target.calories,
+    protein: generated.protein - target.protein,
+    carbs: generated.carbs - target.carbs,
+    fats: generated.fats - target.fats
+  };
+  const reasons = [];
+  if (computedDays.length === 0) reasons.push("Plano estruturado sem dias.");
+  computedDays.forEach((d, i) => {
+    const label = days[i]?.label ?? days[i]?.weekday ?? `dia ${i + 1}`;
+    const diff = {
+      calories: d.totals.calories - target.calories,
+      protein: d.totals.protein - target.protein,
+      carbs: d.totals.carbs - target.carbs,
+      fats: d.totals.fats - target.fats
+    };
+    reasons.push(...reasonsForDiff(diff, computedDays.length > 1 ? `${label}: ` : ""));
+  });
+  return {
+    target,
+    generated,
+    difference,
+    valid: reasons.length === 0,
+    tolerances: OFFICIAL_MACRO_TOLERANCE_LABELS,
+    mealTotals: first?.mealTotals ?? [],
+    unmatchedFoods: Array.from(new Set(computedDays.flatMap((d) => d.unresolved))),
+    reasons
+  };
+};
+var validateCanonicalDietDayTargets = ({
+  plan,
+  dayTargets,
+  foods
+}) => {
+  const index = buildIndex(foods);
+  const byWeekday = /* @__PURE__ */ new Map();
+  for (const day of plan?.days ?? []) {
+    const wd = String(day?.weekday ?? "");
+    if (wd && !byWeekday.has(wd)) byWeekday.set(wd, day);
+  }
+  const out = {};
+  const missingDays = [];
+  for (const wd of WEEKDAY_KEYS) {
+    const target = dayTargets[wd];
+    if (!target) continue;
+    const day = byWeekday.get(wd);
+    if (!day) {
+      missingDays.push(wd);
+      continue;
+    }
+    const computed = computeCanonicalDay(day, index);
+    const generated = {
+      kcal: computed.totals.calories,
+      p: computed.totals.protein,
+      c: computed.totals.carbs,
+      g: computed.totals.fats
+    };
+    const difference = {
+      kcal: generated.kcal - target.kcal,
+      p: generated.p - target.p,
+      c: generated.c - target.c,
+      g: generated.g - target.g
+    };
+    const reasons = reasonsForDiff({
+      calories: difference.kcal,
+      protein: difference.p,
+      carbs: difference.c,
+      fats: difference.g
+    });
+    out[wd] = {
+      weekday: wd,
+      type: target.type ?? null,
+      target: { kcal: target.kcal, p: target.p, c: target.c, g: target.g },
+      generated,
+      difference,
+      valid: reasons.length === 0,
+      reasons,
+      unmatchedFoods: computed.unresolved
+    };
+  }
+  const valid = missingDays.length === 0 && Object.keys(out).length > 0 && WEEKDAY_KEYS.every((wd) => !dayTargets[wd] || out[wd]?.valid === true);
+  return { valid, days: out, missingDays, tolerances: OFFICIAL_MACRO_TOLERANCE_LABELS };
+};
+
+// src/lib/dietViability.ts
+var WEIGHTS = {
+  adherence: 0.3,
+  practicality: 0.2,
+  familiarity: 0.25,
+  complexity: 0.15,
+  cost: 0.1
+};
+function normalize2(name) {
+  return (name || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9 ]/g, " ").trim();
+}
+function collectPlanFoods(plan) {
+  const out = [];
+  const days = Array.isArray(plan?.days) ? plan.days : [];
+  for (const d of days) {
+    const meals = Array.isArray(d?.meals) ? d.meals : [];
+    for (const m of meals) {
+      const items = Array.isArray(m?.items) ? m.items : [];
+      for (const it of items) if (it?.name) out.push(normalize2(String(it.name)));
+    }
+  }
+  return out;
+}
+function collectPreferredFoods(questionnaire) {
+  if (!questionnaire) return [];
+  const out = [];
+  const apr = questionnaire.alimentos_por_refeicao;
+  if (apr && typeof apr === "object") {
+    for (const arr of Object.values(apr)) {
+      if (Array.isArray(arr)) {
+        for (const f of arr) if (f) out.push(normalize2(String(f)));
+      }
+    }
+  }
+  const pref = questionnaire.preferencias_alimentares;
+  if (typeof pref === "string") {
+    for (const tok of pref.split(/[,;\n]/)) {
+      const t = normalize2(tok);
+      if (t.length > 2) out.push(t);
+    }
+  }
+  return out;
+}
+var EXPENSIVE_TOKENS = [
+  "salmao",
+  "salm\xE3o",
+  "fil\xE9 mignon",
+  "file mignon",
+  "picanha",
+  "atum",
+  "amendoas",
+  "am\xEAndoas",
+  "castanha",
+  "nozes",
+  "macadamia",
+  "macad\xE2mia",
+  "abacate",
+  "queijo branco",
+  "iogurte grego",
+  "whey",
+  "creatina"
+];
+function computeViabilityScore(input) {
+  const notes = [];
+  const planFoods = collectPlanFoods(input.plan);
+  const preferred = collectPreferredFoods(input.questionnaire);
+  const adherence = Math.max(0, Math.min(
+    100,
+    typeof input.adherencePct === "number" ? input.adherencePct : 60
+  ));
+  const mc = input.mealCount ?? (Array.isArray(input.plan?.days?.[0]?.meals) ? input.plan.days[0].meals.length : 5);
+  let practicality = 100;
+  if (mc <= 2) practicality = 50;
+  else if (mc === 3) practicality = 75;
+  else if (mc === 4 || mc === 5) practicality = 95;
+  else if (mc === 6) practicality = 80;
+  else if (mc >= 7) practicality = 60;
+  if (mc >= 7) notes.push(`${mc} refei\xE7\xF5es/dia \xE9 dif\xEDcil de manter \u2014 considere reduzir.`);
+  let familiarity = 70;
+  if (preferred.length > 0 && planFoods.length > 0) {
+    const matched = planFoods.filter(
+      (f) => preferred.some((p) => f.includes(p) || p.includes(f))
+    ).length;
+    familiarity = Math.round(matched / planFoods.length * 100);
+    if (familiarity < 50) {
+      notes.push(`S\xF3 ${familiarity}% dos alimentos batem com a lista de preferidos do aluno.`);
+    }
+  } else if (preferred.length === 0) {
+    notes.push("Sem lista de alimentos preferidos no question\xE1rio \u2014 viabilidade estimada.");
+  }
+  const meals = Array.isArray(input.plan?.days?.[0]?.meals) ? input.plan.days[0].meals : [];
+  const avgItems = meals.length > 0 ? meals.reduce((a, m) => a + (Array.isArray(m?.items) ? m.items.length : 0), 0) / meals.length : 4;
+  let complexity = 100;
+  if (avgItems > 7) complexity = 55;
+  else if (avgItems > 5) complexity = 75;
+  else if (avgItems > 3) complexity = 95;
+  else complexity = 85;
+  const expensiveHits = planFoods.filter((f) => EXPENSIVE_TOKENS.some((e) => f.includes(e))).length;
+  const expensiveRatio = planFoods.length ? expensiveHits / planFoods.length : 0;
+  const cost = Math.round(100 - Math.min(60, expensiveRatio * 200));
+  if (expensiveRatio > 0.3) notes.push("Plano com propor\xE7\xE3o alta de itens caros \u2014 pode pesar no or\xE7amento.");
+  const breakdown = {
+    adherence: Math.round(adherence),
+    practicality: Math.round(practicality),
+    familiarity: Math.round(familiarity),
+    complexity: Math.round(complexity),
+    cost: Math.round(cost)
+  };
+  const score = Math.round(
+    breakdown.adherence * WEIGHTS.adherence + breakdown.practicality * WEIGHTS.practicality + breakdown.familiarity * WEIGHTS.familiarity + breakdown.complexity * WEIGHTS.complexity + breakdown.cost * WEIGHTS.cost
+  );
+  return { score, breakdown, notes };
+}
+
+// src/lib/newFoodsDetector.ts
+var STOPWORDS = /* @__PURE__ */ new Set([
+  "total",
+  "totais",
+  "total diario",
+  "total di\xE1rio",
+  "total geral",
+  "subtotal",
+  "observa\xE7\xF5es",
+  "observacoes"
+]);
+var PREP_TOKENS = /* @__PURE__ */ new Set([
+  "cozido",
+  "cozida",
+  "cozidos",
+  "cozidas",
+  "cru",
+  "crua",
+  "crus",
+  "cruas",
+  "assado",
+  "assada",
+  "assados",
+  "assadas",
+  "grelhado",
+  "grelhada",
+  "grelhados",
+  "grelhadas",
+  "frito",
+  "frita",
+  "fritos",
+  "fritas",
+  "refogado",
+  "refogada",
+  "refogados",
+  "refogadas",
+  "vapor",
+  "ao",
+  "no",
+  "na",
+  "natural",
+  "fresco",
+  "fresca"
+]);
+function normalizeFoodName2(raw) {
+  if (!raw) return "";
+  let s = raw.toLowerCase().trim();
+  s = s.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  s = s.replace(/\([^)]*\)/g, " ");
+  s = s.replace(/[^a-z0-9\s]/g, " ");
+  s = s.replace(/\s+/g, " ").trim();
+  s = s.split(" ").map((tok) => tok.length > 3 && tok.endsWith("s") ? tok.slice(0, -1) : tok).join(" ");
+  return s;
+}
+function nameTokens(raw) {
+  return normalizeFoodName2(raw).split(" ").filter((t) => t && !PREP_TOKENS.has(t));
+}
+function hasResolutionStatus(plan) {
+  for (const day of plan.days ?? []) {
+    for (const meal of day.meals ?? []) {
+      for (const item of meal.items ?? []) {
+        if (item.resolutionStatus) return true;
+      }
+    }
+  }
+  return false;
+}
+function detectFromResolutionStatus(plan) {
+  const seen = /* @__PURE__ */ new Map();
+  for (const day of plan.days ?? []) {
+    for (const meal of day.meals ?? []) {
+      for (const item of meal.items ?? []) {
+        if (item.resolutionStatus !== "unresolved") continue;
+        const raw = (item.name || "").trim();
+        const norm = normalizeFoodName2(raw);
+        if (!norm || norm.length < 2 || STOPWORDS.has(norm) || seen.has(norm)) continue;
+        seen.set(norm, {
+          name: raw,
+          qtyGrams: item.qtyGrams,
+          kcal: Number(item.macros?.kcal) || 0,
+          protein: Number(item.macros?.p) || 0,
+          carbs: Number(item.macros?.c) || 0,
+          fats: Number(item.macros?.g) || 0
+        });
+      }
+    }
+  }
+  return Array.from(seen.values());
+}
+function detectNewFoodsFromPlan(plan, existingFoodNames) {
+  if (!plan?.days) return [];
+  if (hasResolutionStatus(plan)) return detectFromResolutionStatus(plan);
+  const existingSet = new Set(existingFoodNames.map(normalizeFoodName2).filter(Boolean));
+  const existingTokenSets = existingFoodNames.map((n) => nameTokens(n)).filter((toks) => toks.length > 0);
+  const seen = /* @__PURE__ */ new Map();
+  for (const day of plan.days) {
+    for (const meal of day.meals ?? []) {
+      for (const item of meal.items ?? []) {
+        const raw = (item.name || "").trim();
+        const norm = normalizeFoodName2(raw);
+        if (!norm || norm.length < 2) continue;
+        if (STOPWORDS.has(norm)) continue;
+        if (existingSet.has(norm)) continue;
+        const candTokens = new Set(nameTokens(raw));
+        if (candTokens.size > 0) {
+          const matched = existingTokenSets.some(
+            (dbToks) => dbToks.every((t) => candTokens.has(t))
+          );
+          if (matched) continue;
+        }
+        if (seen.has(norm)) continue;
+        seen.set(norm, {
+          name: raw,
+          qtyGrams: item.qtyGrams,
+          kcal: Number(item.macros?.kcal) || 0,
+          protein: Number(item.macros?.p) || 0,
+          carbs: Number(item.macros?.c) || 0,
+          fats: Number(item.macros?.g) || 0
+        });
+      }
+    }
+  }
+  return Array.from(seen.values());
+}
+
+// src/lib/officeWizard/dietaOffice.ts
+var has = (arr, v) => typeof v === "string" && arr.some((o) => o.value === v);
+var fmtDate = (iso) => iso ? new Date(iso).toLocaleDateString("pt-BR") : "";
+function suggestDietaValues(fields, input) {
+  const { prefill, latestQuestionnaire, currentDiet, ctx } = input;
+  const out = {};
+  const set = (id, v, origem) => {
+    if (v === void 0 || v === null || v === "" || Array.isArray(v) && v.length === 0) return;
+    if (!out[id]) out[id] = { valor_atual: v, origem_valor: origem };
+  };
+  if (currentDiet) {
+    const src = `dieta atual (${fmtDate(currentDiet.published_at ?? currentDiet.created_at)})`;
+    const plan = currentDiet.conteudo_json ?? null;
+    const p = currentDiet.protocols ?? {};
+    const wes = p.weekly_energy_schedule ?? null;
+    const snap = wes?.calculation_snapshot ?? null;
+    const lvl = ACTIVITY_LEVELS.find((a) => snap?.activity_factor != null && Math.abs(a.factor - Number(snap.activity_factor)) < 1e-6);
+    if (lvl) set("nivel_atividade", lvl.value, src);
+    if (has(STRATEGIES, currentDiet.diet_strategy)) set("estrategia", currentDiet.diet_strategy, src);
+    else if (snap?.strategy_percent != null) {
+      const st = STRATEGIES.find((s) => s.pct === Number(snap.strategy_percent));
+      if (st) set("estrategia", st.value, `${src} \u2014 pela % da estrat\xE9gia`);
+    }
+    if (has(PHASES, plan?.meta?.phase)) set("fase", plan.meta.phase, src);
+    if (has(DIET_STYLES, plan?.meta?.style)) set("estilo_dieta", plan.meta.style, src);
+    const meals = Array.isArray(plan?.days?.[0]?.meals) ? plan.days[0].meals.length : null;
+    if (meals && has(MEAL_COUNTS, String(meals))) set("num_refeicoes", String(meals), src);
+    const adj = Array.isArray(p.adjustments) ? p.adjustments : [];
+    set("conducao", adj.filter((a) => DIET_STRATEGY_ADJUSTMENT_IDS.includes(a)), src);
+    set("reorganizacao_refeicoes", adj.filter((a) => DIET_STRUCTURE_ADJUSTMENT_IDS.includes(a)), src);
+    set("ajustes_finos", adj.filter((a) => DIET_FINE_TUNE_ADJUSTMENT_IDS.includes(a)), src);
+    if (p.extras) {
+      if (p.extras.fitoterapia) set("fitoterapia", true, src);
+      if (p.extras.suplementos) set("suplementacao", true, src);
+      if (p.extras.emagrecimento_rapido) set("hiit_termogenicos", true, src);
+      if (p.extras.jejum_intermitente) set("jejum_intermitente", true, src);
+    }
+    if (wes?.base_source === "manual" && typeof wes.base_daily_kcal === "number") {
+      set("meta_base_modo", "manual", src);
+      set("meta_base_manual_kcal", wes.base_daily_kcal, src);
+    } else if (wes?.base_source === "automatic") {
+      set("meta_base_modo", "automatic", src);
+    }
+    if (wes?.days && !p.carb_cycling?.enabled) {
+      const perDay = {};
+      for (const wd of ENERGY_WEEKDAYS) {
+        const a = Number(wes.days?.[wd]?.adjustment_kcal) || 0;
+        if (a !== 0) perDay[wd] = Math.round(a);
+      }
+      if (Object.keys(perDay).length) set("ajuste_kcal_por_dia", perDay, src);
+    }
+    const peso = parsePositiveNumber(ctx?.peso);
+    const t = plan?.targets;
+    if (peso && t) {
+      const pk = Math.round(Number(t.p) / peso * 10) / 10;
+      const gk = Math.round(Number(t.g) / peso * 10) / 10;
+      if (pk >= 0.8 && pk <= 3.5) set("proteina_g_kg", pk, `${src} \u2014 P ${Math.round(Number(t.p))} g \xF7 ${peso} kg`);
+      if (gk >= 0.3 && gk <= 2) set("gordura_g_kg", gk, `${src} \u2014 G ${Math.round(Number(t.g))} g \xF7 ${peso} kg`);
+    }
+  }
+  const qsrc = latestQuestionnaire ? `question\xE1rio de dieta (${fmtDate(latestQuestionnaire.responded_at ?? latestQuestionnaire.created_at)})` : "perfil do aluno";
+  const recSrc = "recomenda\xE7\xE3o do wizard (avalia\xE7\xE3o/objetivo/question\xE1rio)";
+  set("num_refeicoes", prefill.mealCount, qsrc);
+  set("horario_treino", prefill.trainingTime, qsrc);
+  set("dias_treino", prefill.trainingDays, qsrc);
+  if (prefill.usesHormones !== void 0) set("usa_hormonios", prefill.usesHormones, qsrc);
+  set("detalhes_hormonios", prefill.hormoneDetails, qsrc);
+  set("estrategia", prefill.strategy, recSrc);
+  set("fase", prefill.phase, recSrc);
+  set("estilo_dieta", prefill.dietStyle, recSrc);
+  const split = (txt, opts) => {
+    if (!txt) return { sel: [], rest: "" };
+    const parts = txt.split(/[,;\n]/).map((x) => x.trim()).filter(Boolean);
+    const sel = parts.filter((x) => opts.includes(x));
+    return { sel, rest: parts.filter((x) => !opts.includes(x)).join(", ") };
+  };
+  const r = split(prefill.customRestriction, RESTRICTION_OPTIONS);
+  set("restricoes", r.sel, qsrc);
+  set("restricoes_outras", r.rest, qsrc);
+  const pf = split(prefill.customPreference, PREFERENCE_OPTIONS);
+  set("preferencias", pf.sel, qsrc);
+  set("preferencias_outras", pf.rest, qsrc);
+  if (ctx?.anamnese?.rotina) set("rotina_diaria", String(ctx.anamnese.rotina), "anamnese (rotina)");
+  return fillDefaults(fields, out);
+}
+var r0 = (n) => Math.round(Number(n) || 0);
+function resumoDietaAtual(currentDiet) {
+  if (!currentDiet) return "Aluno sem dieta publicada.";
+  const plan = currentDiet.conteudo_json;
+  const t = plan?.targets;
+  const days = Array.isArray(plan?.days) ? plan.days : [];
+  const meals = days[0]?.meals?.length ?? null;
+  const cc = currentDiet.protocols?.carb_cycling?.enabled ? "carb cycling" : "linear";
+  return [
+    `${currentDiet.titulo ?? "Dieta"} \u2014 publicada em ${fmtDate(currentDiet.published_at ?? currentDiet.created_at)}`,
+    t ? `Meta: ${r0(t.kcal)} kcal \xB7 P ${r0(t.p)} g \xB7 C ${r0(t.c)} g \xB7 G ${r0(t.g)} g` : null,
+    `${meals ?? "?"} refei\xE7\xF5es/dia \xB7 ${days.length || "?"} dia(s) no plano \xB7 ${cc}`
+  ].filter(Boolean).join("\n");
+}
+function assessGeneratedDiet(p) {
+  let validation;
+  if (p.carbCyclingEnabled) {
+    const rep = validateCanonicalDietDayTargets({ plan: p.plan, dayTargets: p.weeklyCarbTargets, foods: p.foods });
+    const reasons = [];
+    for (const [wd, d] of Object.entries(rep.days ?? {})) {
+      if (d && !d.valid) reasons.push(`${WEEKDAY_LABELS[wd] ?? wd}: ${(d.reasons ?? []).join(" ")}`.trim());
+    }
+    for (const wd of rep.missingDays ?? []) reasons.push(`${WEEKDAY_LABELS[wd] ?? wd}: dia ausente no plano`);
+    validation = { valid: rep.valid, reasons };
+  } else {
+    const rep = validateCanonicalDietTarget({ plan: p.plan, target: p.target, foods: p.foods });
+    validation = { valid: rep.valid, reasons: rep.reasons };
+  }
+  let viability = null;
+  try {
+    viability = computeViabilityScore({ plan: p.plan, questionnaire: p.questionnaire ?? null, adherencePct: p.adherencePct, mealCount: p.mealCount || void 0 });
+  } catch {
+  }
+  let newFoods = [];
+  try {
+    newFoods = detectNewFoodsFromPlan(p.plan, p.foods.map((f) => f.name)).map((f) => f.name ?? f.normalized ?? String(f));
+  } catch {
+  }
+  const unresolved = [];
+  for (const d of p.plan.days ?? []) for (const m of d.meals ?? []) for (const it of m.items ?? []) {
+    if (it?.resolutionStatus === "unresolved") unresolved.push(`${d.label} \xB7 ${m.name}: ${it.name}`);
+  }
+  return { validation, viability, newFoods, unresolved };
+}
+function resumoDietaCompleto(plan, a, warnings = []) {
+  const lines = [];
+  const t = plan.targets;
+  lines.push(`Meta: ${r0(t.kcal)} kcal \xB7 P ${r0(t.p)} g \xB7 C ${r0(t.c)} g \xB7 G ${r0(t.g)} g`);
+  lines.push(a.validation.valid ? "Valida\xE7\xE3o: dentro da meta (\xB150 kcal / P \xB110 / C \xB115 / G \xB18)." : `Valida\xE7\xE3o: FORA da meta \u2014 ${a.validation.reasons.join(" ")}`);
+  if (a.unresolved.length) lines.push(`Alimentos sem v\xEDnculo com a base (bloqueiam a publica\xE7\xE3o): ${a.unresolved.join("; ")}`);
+  if (a.newFoods.length) lines.push(`Alimentos novos detectados: ${a.newFoods.join(", ")}`);
+  if (a.viability) lines.push(`Viabilidade: ${a.viability.score}/100`);
+  for (const w of warnings) lines.push(`Aviso: ${w}`);
+  const days = plan.days ?? [];
+  const showDays = days.length > 1 ? days : days.slice(0, 1);
+  for (const d of showDays) {
+    lines.push("");
+    lines.push(`${days.length > 1 ? `${d.label} \u2014 ` : ""}${r0(d.totals?.kcal)} kcal \xB7 P ${r0(d.totals?.p)} \xB7 C ${r0(d.totals?.c)} \xB7 G ${r0(d.totals?.g)}`);
+    for (const m of d.meals ?? []) {
+      const items = (m.items ?? []).map((it) => `${it.name}${it.qtyGrams ? ` ${r0(it.qtyGrams)}g` : it.portionLabel ? ` (${it.portionLabel})` : ""}`).join(", ");
+      lines.push(`\u2022 ${m.name}${m.time ? ` (${m.time})` : ""}: ${items}`);
+    }
+  }
+  return lines.join("\n");
+}
+
+// supabase/functions/_shared/canonicalDietMarkdown.ts
+var num = (v) => {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : 0;
+};
+var fmt = (v) => {
+  if (!Number.isFinite(v) || v <= 0) return "0";
+  const r = Math.round(v * 10) / 10;
+  return Number.isInteger(r) ? String(r) : r.toFixed(1);
+};
+var cell2 = (v) => num(v) ? String(Math.round(num(v) * 10) / 10) : "-";
+var buildCanonicalMealTable = (meals) => {
+  const rows = [
+    "| Refei\xE7\xE3o | Hor\xE1rio | Alimento | Quantidade | Kcal | P | C | G |",
+    "|----------|---------|----------|------------|------|---|---|---|"
+  ];
+  let dayKcal = 0, dayP = 0, dayC = 0, dayG = 0;
+  for (const meal of meals ?? []) {
+    let mealKcal = 0, mealP = 0, mealC = 0, mealG = 0;
+    const items = meal?.items ?? [];
+    items.forEach((item, idx) => {
+      const mealCell = idx === 0 ? String(meal?.name ?? "-") : "-";
+      const timeCell = idx === 0 ? String(meal?.time || "-") : "-";
+      const qty = num(item?.qtyGrams);
+      const m = item?.macros ?? {};
+      rows.push(
+        `| ${mealCell} | ${timeCell} | ${String(item?.name ?? "-")} | ${qty > 0 ? `${Math.round(qty * 10) / 10} g` : item?.portionLabel || "-"} | ${cell2(num(m.kcal))} | ${cell2(num(m.p))} | ${cell2(num(m.c))} | ${cell2(num(m.g))} |`
+      );
+      mealKcal += num(m.kcal);
+      mealP += num(m.p);
+      mealC += num(m.c);
+      mealG += num(m.g);
+    });
+    rows.push(
+      `| **Total ${String(meal?.name ?? "")}** | - | - | - | ${fmt(mealKcal)} | ${fmt(mealP)} | ${fmt(mealC)} | ${fmt(mealG)} |`
+    );
+    dayKcal += mealKcal;
+    dayP += mealP;
+    dayC += mealC;
+    dayG += mealG;
+  }
+  rows.push(`| **TOTAL DIA** | - | - | - | ${fmt(dayKcal)} | ${fmt(dayP)} | ${fmt(dayC)} | ${fmt(dayG)} |`);
+  return rows.join("\n");
+};
+var canonicalDietPlanToMarkdown = (plan) => {
+  const days = Array.isArray(plan?.days) ? plan.days : [];
+  const meta = plan?.meta ?? {};
+  const t = plan?.targets ?? {};
+  const headerParts = [];
+  if (meta.objective) headerParts.push(`Objetivo: **${meta.objective}**`);
+  if (meta.strategy) headerParts.push(`Estrat\xE9gia: **${meta.strategy}**`);
+  if (meta.style) headerParts.push(`Estilo: **${meta.style}**`);
+  const lines = [];
+  lines.push(days.length > 1 ? "## PLANO ALIMENTAR POR DIA" : "## CARD\xC1PIO BASE");
+  if (headerParts.length) lines.push(headerParts.join(" \xB7 "));
+  lines.push("");
+  lines.push(
+    `**Meta di\xE1ria:** ${Math.round(num(t.kcal))} kcal \xB7 ${Math.round(num(t.p))}g P \xB7 ${Math.round(num(t.c))}g C \xB7 ${Math.round(num(t.g))}g G`
+  );
+  lines.push("");
+  days.forEach((day, i) => {
+    if (days.length > 1) lines.push(`### ${String(day?.label || day?.weekday || `Dia ${i + 1}`)}`);
+    lines.push(buildCanonicalMealTable(day?.meals ?? []));
+    lines.push("");
+  });
+  if (plan?.tips?.length) {
+    lines.push("## Dicas e timing nutricional");
+    for (const tip of plan.tips) lines.push(`- ${tip}`);
+    lines.push("");
+  }
+  if (plan?.whatsappMessages?.length) {
+    lines.push("## Mensagens WhatsApp");
+    plan.whatsappMessages.forEach((m, idx) => {
+      lines.push(`**Parte ${idx + 1}:**`);
+      lines.push(m);
+      lines.push("");
+    });
+  }
+  if (meta.rationale || meta.decision) {
+    lines.push("## Justificativa T\xE9cnica");
+    if (meta.decision) lines.push(`- **Decis\xE3o:** ${meta.decision}`);
+    if (meta.rationale) lines.push(meta.rationale);
+    if (typeof meta.confidence === "number") lines.push(`- **N\xEDvel de confian\xE7a:** ${meta.confidence}/100`);
+  }
+  return lines.join("\n").trimEnd() + "\n";
+};
+
+// src/lib/dietMarkdownSerializer.ts
+var dietPlanToMarkdown = (plan) => canonicalDietPlanToMarkdown(plan);
 export {
+  assessGeneratedDiet,
   buildCardioPlanInsert,
   buildCardioRequestBody,
+  buildDietAgentBody,
+  buildDietDraftInsert,
+  buildDietFoodHints,
+  buildDietGenerationPrompts,
+  buildDietProtocols,
+  buildDietTrainingContext,
   buildTreinoGenerationRequest,
   buildWorkoutPlanInsertPayload,
   canGenerateTreino,
   cardioFields,
   defaultCardioWizardState,
+  defaultDietaWizardState,
   defaultTreinoWizardState,
+  deriveDietaWizard,
+  dietPlanToMarkdown,
+  dietPreferencesText,
+  dietaFields,
+  finalizeDietAgentPlan,
+  loadActiveTrainingMarkdown,
   loadCardioWizardData,
+  loadDietFoodRecords,
+  loadDietaStudentData,
   loadTreinoWizardData,
   normalizeWorkoutPlan,
   parseCardioPayload,
+  parseDietAgentSse,
+  parseWeekdayWorkouts,
+  processDietDailyAdjustments,
   publicField,
   resumoCardioAtual,
   resumoCardioCompleto,
+  resumoDietaAtual,
+  resumoDietaCompleto,
   resumoTreinoAtual,
   resumoTreinoCompleto,
   snapshotToPlanColumns,
   suggestCardioValues,
+  suggestDietaValues,
   suggestTreinoValues,
   treinoFields,
   validateCardioAnswers,
+  validateDietaAnswers,
   validateTreinoAnswers
 };
