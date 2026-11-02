@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { normalizeSplitSlug } from '@/lib/splitSlugs';
 import { resolvePeriodization, weekNumberToPhase } from '@/lib/periodization';
 import {
@@ -172,6 +172,8 @@ const cases: Array<[string, TreinoWizardState, any]> = [
 ];
 
 describe('wizard Gerar Treino compartilhado', () => {
+  beforeEach(() => { vi.useFakeTimers(); vi.setSystemTime(new Date('2026-11-02T12:00:00Z')); });
+  afterEach(() => vi.useRealTimers());
   it.each(cases)('monta o mesmo pedido do admin (%s)', (_n, state, last) => {
     const next = buildTreinoGenerationRequest({ state, studentCtx: ctx, studentId: 'stu', lastWorkoutPlan: last });
     const old = legacy(state, ctx, 'stu', last);
