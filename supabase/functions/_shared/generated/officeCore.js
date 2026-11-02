@@ -1091,7 +1091,7 @@ function answersToState(fields, defaults, respostas, instrucoes) {
       continue;
     }
     const c = coerce(field, raw);
-    if (!c.ok) {
+    if (c.ok !== true) {
       invalidos.push({ id: field.id, motivo: c.motivo });
       continue;
     }

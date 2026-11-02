@@ -313,7 +313,7 @@ describe('hardening — disponibilidade de equipamento', () => {
 
 describe('hardening — J) gate no trainer-agent e envio do frontend', () => {
   const agent = readFileSync('supabase/functions/trainer-agent/index.ts', 'utf8');
-  const page = readFileSync('src/pages/TreinoIA.tsx', 'utf8');
+  const page = readFileSync('src/pages/TreinoIA.tsx', 'utf8') + readFileSync('src/lib/officeWizard/treinoWizard.ts', 'utf8');
 
   it('perfil REVIEW_REQUIRED entra no draftReviewStatus e bloqueia auto publish', () => {
     expect(agent).toContain('const reviewRequiredByProfile =');
