@@ -9,6 +9,7 @@
  */
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders } from "../_shared/cors.ts";
+import { safeEqual } from "../_shared/officeToken.ts";
 import { loadFoodCatalog } from "../_shared/foodCatalog.ts";
 import { validateFoodContract } from "../_shared/foodContract.ts";
 import { hydrateDietPlanFromFoods } from "../_shared/dietHydration.ts";
@@ -63,20 +64,40 @@ Deno.serve(async (req) => {
   if (!authHeader) return fail("not_authorized", 401);
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-  const anonKey = Deno.env.get("SUPABASE_ANON_KEY") || Deno.env.get("SUPABASE_PUBLISHABLE_KEY")!;
-  const supabase = createClient(supabaseUrl, anonKey, {
-    global: { headers: { Authorization: authHeader } },
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
+  // Escritório de IA (office-gerar): mesmo fluxo de publicação, autenticado pelo
+  // x-office-token em nome do admin; o caminho do admin logado não muda.
+  const officeToken = req.headers.get("x-office-token");
+  const isOffice = officeToken !== null;
+  let supabase;
+  let officeActor: string | null = null;
+  if (isOffice) {
+    const expected = Deno.env.get("OFFICE_FEED_TOKEN");
+    if (!expected || !officeToken || !safeEqual(officeToken, expected)) return fail("not_authorized", 401);
+    supabase = createClient(supabaseUrl, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+  } else {
+    const anonKey = Deno.env.get("SUPABASE_ANON_KEY") || Deno.env.get("SUPABASE_PUBLISHABLE_KEY")!;
+    supabase = createClient(supabaseUrl, anonKey, {
+      global: { headers: { Authorization: authHeader } },
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+  }
 
   try {
-    const { data: userData } = await supabase.auth.getUser();
-    if (!userData?.user) return fail("not_authorized", 401);
-    const { data: isAdmin } = await supabase.rpc("has_role", {
-      _user_id: userData.user.id,
-      _role: "admin",
-    });
-    if (isAdmin !== true) return fail("not_authorized", 403);
+    if (isOffice) {
+      const { data: adm } = await supabase.from("user_roles").select("user_id").eq("role", "admin").order("user_id").limit(1).maybeSingle();
+      if (!adm?.user_id) return fail("not_authorized", 403);
+      officeActor = adm.user_id;
+    } else {
+      const { data: userData } = await supabase.auth.getUser();
+      if (!userData?.user) return fail("not_authorized", 401);
+      const { data: isAdmin } = await supabase.rpc("has_role", {
+        _user_id: userData.user.id,
+        _role: "admin",
+      });
+      if (isAdmin !== true) return fail("not_authorized", 403);
+    }
 
     const body = await req.json().catch(() => ({}));
     const planId = String(body?.planId ?? "");
@@ -200,7 +221,8 @@ Deno.serve(async (req) => {
         return { error: fail("publication_schema_invalid", 422, integrity.issues.slice(0, 20)) };
       }
 
-      const { data, error } = await supabase.rpc("publish_diet_plan_atomic", {
+      const { data, error } = await supabase.rpc(isOffice ? "publish_diet_plan_atomic_office" : "publish_diet_plan_atomic", {
+        ...(isOffice ? { p_actor: officeActor } : {}),
         p_plan_id: planId,
         p_expected_revision: expectedRevision,
         p_final_plan: snapshotPlan,
