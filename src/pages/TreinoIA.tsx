@@ -410,7 +410,7 @@ const TreinoIA = () => {
     setProfileAudit(null);
     setMarkdownEdited(false);
 
-    const { prompt, snapshot, body: agentBody } = buildTreinoGenerationRequest({
+    const { snapshot, body: agentBody } = buildTreinoGenerationRequest({
       state: {
         level, daysPerWeek, split, week, equipment, selectedMachines, exerciseProfile, notes,
         treinoReferencia, customSplit, hasLesao, lesaoLocal, hasDor, dorLocal, limitacaoArticular,
@@ -423,7 +423,6 @@ const TreinoIA = () => {
       studentId: studentId!,
       lastWorkoutPlan,
     });
-    void prompt;
     setPeriodizationSnapshot(snapshot);
 
     try {
@@ -435,22 +434,7 @@ const TreinoIA = () => {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
           },
-          body: JSON.stringify({
-            messages: [{ role: 'user', content: prompt }],
-            studentContext: studentCtx,
-            outputMode: 'json',
-            studentId,
-            variationIntensity,
-            // Phase 1 — additive, optional fields
-            split_slug: canonicalSplit,
-            split_slug_legacy: split && split !== canonicalSplit ? split : null,
-            days_available: daysAvailableNum,
-            periodization: snapshot,
-            phase: weekNumberToPhase(weekNumber),
-            exercise_profile: exerciseProfile,
-            available_equipment:
-              equipment === 'limitado' || equipment === 'casa' ? selectedMachines : [],
-          }),
+          body: JSON.stringify(agentBody),
         }
       );
 
@@ -845,11 +829,6 @@ const TreinoIA = () => {
                 </div>
                 <div className="space-y-2">
                   {Array.from({ length: parseInt(daysPerWeek, 10) }).map((_, i) => {
-                    const MUSCLE_GROUPS = [
-                      'Peito', 'Costas', 'Ombro', 'Bíceps', 'Tríceps',
-                      'Antebraço', 'Quadríceps', 'Posterior', 'Glúteo',
-                      'Panturrilha', 'Abdômen', 'Core', 'Lombar', 'Trapézio', 'Cardio',
-                    ];
                     const WEEKDAYS = [
                       'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira',
                       'Sexta-feira', 'Sábado', 'Domingo',
@@ -1168,7 +1147,7 @@ const TreinoIA = () => {
                 <div className="pl-2 space-y-2">
                   <p className="text-xs text-muted-foreground">Local da lesão (selecione)</p>
                   <div className="flex flex-wrap gap-1.5">
-                    {['Ombro', 'Cotovelo', 'Punho', 'Coluna Cervical', 'Coluna Lombar', 'Coluna Torácica', 'Quadril', 'Joelho', 'Tornozelo', 'Outro'].map(loc => (
+                    {LESAO_LOCAIS.map(loc => (
                       <button key={loc} onClick={() => setLesaoLocal(prev => prev.includes(loc) ? prev.filter(l => l !== loc) : [...prev, loc])}
                         className={`rounded-lg border px-2.5 py-1 text-xs transition-all ${lesaoLocal.includes(loc) ? 'border-primary bg-primary/10 text-primary font-medium' : 'border-border hover:border-primary/50'}`}>
                         {loc}
