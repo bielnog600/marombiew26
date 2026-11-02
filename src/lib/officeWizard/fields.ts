@@ -17,7 +17,7 @@ import { MODALITY_LABEL } from '../cardioParser';
 import { MODEL_LABELS, SELECTABLE_MODELS } from '../periodization';
 import { VARIATION_OPTIONS } from '../variationProfiles';
 
-export type FieldKind = 'escolha' | 'multipla' | 'booleano' | 'texto' | 'divisao_por_dia';
+export type FieldKind = 'escolha' | 'multipla' | 'booleano' | 'texto' | 'divisao_por_dia' | 'numero' | 'kcal_por_dia' | 'substituicoes';
 
 export type WizardOption = { valor: string; rotulo: string; descricao?: string };
 
@@ -31,6 +31,11 @@ export type WizardField = {
   /** Campo só se aplica quando outro campo tem um destes valores. */
   depende_de?: { campo: string; valores: Array<string | boolean> };
   padrao: unknown;
+  /** Limites para campos `numero`. */
+  minimo?: number;
+  maximo?: number;
+  /** Converte o valor validado no formato do estado do wizard (interno). */
+  toState?: (v: unknown) => unknown;
 };
 
 const opt = (arr: ReadonlyArray<{ value: string; label: string; desc?: string }>): WizardOption[] =>
@@ -135,6 +140,35 @@ function coerce(field: WizardField, raw: unknown): { ok: true; value: unknown } 
       if (typeof raw !== 'string') return { ok: false, motivo: 'esperado texto' };
       if (raw.length > 20000) return { ok: false, motivo: 'texto longo demais' };
       return { ok: true, value: raw };
+    case 'numero': {
+      const n = typeof raw === 'string' ? Number(raw.replace(',', '.')) : raw;
+      if (typeof n !== 'number' || !Number.isFinite(n)) return { ok: false, motivo: 'esperado número' };
+      if (field.minimo != null && n < field.minimo) return { ok: false, motivo: `mínimo ${field.minimo}` };
+      if (field.maximo != null && n > field.maximo) return { ok: false, motivo: `máximo ${field.maximo}` };
+      return { ok: true, value: n };
+    }
+    case 'kcal_por_dia': {
+      if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return { ok: false, motivo: 'esperado objeto {seg: kcal, ...}' };
+      const out: Record<string, number> = {};
+      for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+        if (!valid.has(k)) return { ok: false, motivo: `dia inválido: ${k}` };
+        const n = typeof v === 'string' ? Number(v) : v;
+        if (typeof n !== 'number' || !Number.isInteger(n) || Math.abs(n) > 2000) return { ok: false, motivo: `ajuste inválido em ${k} (inteiro entre -2000 e 2000)` };
+        out[k] = n;
+      }
+      return { ok: true, value: out };
+    }
+    case 'substituicoes': {
+      if (!Array.isArray(raw)) return { ok: false, motivo: 'esperado lista [{alimento, porcao}]' };
+      const out: { food: string; portion: string }[] = [];
+      for (const it of raw) {
+        const food = typeof it === 'string' ? it : (it as any)?.alimento;
+        const portion = typeof it === 'string' ? '' : (it as any)?.porcao;
+        if (typeof food !== 'string' || !food.trim()) return { ok: false, motivo: 'cada item precisa de "alimento"' };
+        out.push({ food: food.trim(), portion: (typeof portion === 'string' && portion.trim()) || 'a definir' });
+      }
+      return { ok: true, value: out };
+    }
     case 'divisao_por_dia': {
       if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return { ok: false, motivo: 'esperado objeto {indiceDia: [grupos]}' };
       const out: Record<number, string[]> = {};
@@ -158,6 +192,7 @@ export function answersToState<S extends Record<string, any>>(
   defaults: S,
   respostas: Record<string, unknown>,
   instrucoes?: string | null,
+  notesKey = 'notes',
 ): ValidationResult<S> {
   const faltando: Array<{ id: string; pergunta: string }> = [];
   const invalidos: Array<{ id: string; motivo: string }> = [];
@@ -181,14 +216,20 @@ export function answersToState<S extends Record<string, any>>(
     if (!isActive(field, answers)) continue;
     const v = answers[field.id];
     if (v === undefined) continue;
-    if (field.stateKey.startsWith('eq.')) {
+    if (field.stateKey.startsWith('adj.')) {
+      // Vários grupos de ajustes do wizard alimentam a MESMA lista (selectedAdjustments).
+      const key = field.stateKey.slice(4);
+      state[key] = Array.from(new Set([...(state[key] ?? []), ...(v as string[])]));
+    } else if (field.toState) {
+      state[field.stateKey] = field.toState(v);
+    } else if (field.stateKey.startsWith('eq.')) {
       if (v !== 'auto') state.eq[field.stateKey.slice(3)] = v;
     } else {
       state[field.stateKey] = v;
     }
   }
   const extra = (instrucoes ?? '').trim();
-  if (extra) state.notes = state.notes?.trim() ? `${state.notes.trim()}\n${extra}` : extra;
+  if (extra) state[notesKey] = state[notesKey]?.trim() ? `${state[notesKey].trim()}\n${extra}` : extra;
   return { ok: true, state };
 }
 
@@ -199,4 +240,4 @@ export const validateCardioAnswers = (respostas: Record<string, unknown>, instru
   answersToState<CardioWizardState>(cardioFields(), defaultCardioWizardState(), respostas, instrucoes);
 
 /** Remove `stateKey`/`padrao` internos ao expor as perguntas. */
-export const publicField = ({ stateKey: _s, ...rest }: WizardField) => rest;
+export const publicField = ({ stateKey: _s, toState: _t, ...rest }: WizardField) => rest;
