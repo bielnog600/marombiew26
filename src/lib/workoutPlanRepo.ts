@@ -1,5 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
-import { buildWorkoutPlanInsertPayload } from "./workoutPlanInsert";
+import { buildWorkoutPlanInsertPayload, buildWorkoutPlanUpdatePayload } from "./workoutPlanInsert";
 import type { Json } from "@/integrations/supabase/types";
 import {
   parsedDaysToWorkoutPlan,
