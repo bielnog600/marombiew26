@@ -338,6 +338,9 @@ ${enableEmagrecimentoRapido ? '16) Estratégias avançadas de emagrecimento' : '
               tmb: currentBmr ?? undefined,
               get: currentGET ?? undefined,
             },
+            intent,
+          );
+
   return { prompt, ...captured };
 }
 
