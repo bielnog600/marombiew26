@@ -29,6 +29,4 @@ Deno.test('bundle compartilhado carrega no Deno e valida respostas', () => {
   assertEquals(miss.ok, false)
   const ok = core.validateTreinoAnswers({ nivel: 'iniciante', dias_semana: 4, divisao: 'upper_lower', semana_ciclo: '1', equipamento: 'completa' }, 'foco em glúteo')
   assertEquals(ok.ok, true)
-  const fake = { from: () => ({}) }
-  void fake
 })

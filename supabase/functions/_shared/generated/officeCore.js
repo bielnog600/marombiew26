@@ -981,7 +981,7 @@ function treinoFields() {
     f({ id: "dias_semana", stateKey: "daysPerWeek", pergunta: "Dias por semana", tipo: "escolha", opcoes: opt(DAYS_PER_WEEK), obrigatorio: true }),
     f({ id: "divisao", stateKey: "split", pergunta: "Divis\xE3o do treino", tipo: "escolha", opcoes: opt(SPLITS), obrigatorio: true }),
     f({ id: "divisao_por_dia", stateKey: "customSplit", pergunta: "Grupos musculares por dia (\xEDndice 0 = Segunda)", tipo: "divisao_por_dia", opcoes: optStr(MUSCLE_GROUPS), obrigatorio: false, depende_de: { campo: "divisao", valores: ["custom"] } }),
-    f({ id: "periodizacao", stateKey: "periodizationSelection", pergunta: "Modelo de periodiza\xE7\xE3o", tipo: "escolha", opcoes: [{ valor: "automatica", rotulo: "Autom\xE1tica" }, ...SELECTABLE_MODELS.map((m) => ({ valor: m, rotulo: MODEL_LABELS[m] }))], obrigatorio: false }),
+    f({ id: "periodizacao", stateKey: "periodizationSelection", pergunta: "Modelo de periodiza\xE7\xE3o", tipo: "escolha", opcoes: [{ valor: "automatica", rotulo: MODEL_LABELS.automatica }, ...SELECTABLE_MODELS.map((m) => ({ valor: m, rotulo: MODEL_LABELS[m] }))], obrigatorio: false }),
     f({ id: "semana_ciclo", stateKey: "week", pergunta: "Semana do ciclo", tipo: "escolha", opcoes: opt(WEEKS), obrigatorio: true }),
     f({ id: "equipamento", stateKey: "equipment", pergunta: "Equipamento", tipo: "escolha", opcoes: opt(EQUIPMENT), obrigatorio: true }),
     f({ id: "maquinas", stateKey: "selectedMachines", pergunta: "M\xE1quinas dispon\xEDveis", tipo: "multipla", opcoes: optIds(AVAILABLE_MACHINES), obrigatorio: false, depende_de: { campo: "equipamento", valores: ["limitado", "casa"] } }),
