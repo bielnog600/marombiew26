@@ -173,7 +173,7 @@ export function answersToState<S extends Record<string, any>>(
       continue;
     }
     const c = coerce(field, raw);
-    if (!c.ok) { invalidos.push({ id: field.id, motivo: c.motivo }); continue; }
+    if (c.ok !== true) { invalidos.push({ id: field.id, motivo: (c as { motivo: string }).motivo }); continue; }
     answers[field.id] = c.value;
   }
   if (faltando.length || invalidos.length) return { ok: false, faltando, invalidos };

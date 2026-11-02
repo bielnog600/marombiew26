@@ -22,13 +22,13 @@ describe('perguntas do escritório', () => {
   it('falta campo obrigatório → lista o que falta, sem gerar', () => {
     const r = validateTreinoAnswers({ nivel: 'iniciante' });
     expect(r.ok).toBe(false);
-    if (!r.ok) expect(r.faltando.map((x) => x.id).sort()).toEqual(['dias_semana', 'divisao', 'equipamento', 'semana_ciclo']);
+    if (!r.ok) expect((r as any).faltando.map((x) => x.id).sort()).toEqual(['dias_semana', 'divisao', 'equipamento', 'semana_ciclo']);
   });
 
   it('valor fora das opções é inválido', () => {
     const r = validateTreinoAnswers({ ...required, nivel: 'pro' });
     expect(r.ok).toBe(false);
-    if (!r.ok) expect(r.invalidos[0].id).toBe('nivel');
+    if (!r.ok) expect((r as any).invalidos[0].id).toBe('nivel');
   });
 
   it('respostas viram o mesmo estado da tela e instruções entram nas observações', () => {
