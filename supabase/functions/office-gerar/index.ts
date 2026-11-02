@@ -302,7 +302,10 @@ async function runInBackground(sb: Sb, draftId: string, fn: () => Promise<Record
   return json(await statusOf(sb, draftId))
 }
 
-async function ajustar(sb: Sb, tipo: 'treino' | 'dieta' | 'cardio', studentId: string, categoria: string, pedido: string, id?: string | null) {
+async function ajustar(sb: Sb, tipo: 'treino' | 'dieta' | 'cardio', studentId: string, categoria: string, pedidoIn: string | null | undefined, id?: string | null, alunoNome?: string | null) {
+  const pedido = (pedidoIn ?? '').trim() || (categoria === 'revisar' ? 'Aplicar as regras Marombiew.' : '')
+  if (!pedido) return json({ error: 'respostas_invalidas', faltando: ['pedido'], invalidos: [] }, 422)
+  let semana: number | null = null
   if (!core.categoriaValida(tipo, categoria)) {
     return json({ error: 'categoria_invalida', categorias_validas: core.AJUSTE_CATEGORIAS[tipo] }, 422)
   }
@@ -313,11 +316,12 @@ async function ajustar(sb: Sb, tipo: 'treino' | 'dieta' | 'cardio', studentId: s
   if (id) {
     const r = await loadRascunhoBase(sb, tipo, id, studentId)
     if (!r.ok) return json(r.body, r.status)
-    cur = r.cur; herda = r.herda; requestExtra = r.request_extra ?? {}
+    cur = r.cur; herda = r.herda; requestExtra = r.request_extra ?? {}; semana = r.semana ?? null
   } else {
     const { data } = await loadVigente(sb, studentId, tipo)
     if (!data) return json({ error: 'sem_plano_vigente', detalhe: `O aluno não tem ${tipo} publicado para ajustar.` }, 404)
     cur = data
+    if (tipo === 'treino') semana = core.semanaDoCiclo(data)
   }
   const { data: draft, error } = await sb.from('office_plan_drafts')
     .insert({
@@ -327,7 +331,7 @@ async function ajustar(sb: Sb, tipo: 'treino' | 'dieta' | 'cardio', studentId: s
     .select('id').single()
   if (error) throw error
   return await runInBackground(sb, draft.id, () =>
-    tipo === 'treino' ? runAjusteTreino(sb, cur, categoria, pedido, herda)
+    tipo === 'treino' ? runAjusteTreino(sb, cur, categoria, pedido, herda, { semana, aluno: alunoNome ?? null })
       : tipo === 'dieta' ? runAjusteDieta(sb, studentId, cur, categoria, pedido)
       : runAjusteCardio(cur, categoria, pedido))
 }
@@ -452,7 +456,7 @@ Deno.serve(async (req) => {
       if (!a.ok) return json(a.body, a.status)
       return json({ tipo: 'treino', aluno: who.student, ...a.data })
     }
-    if (b.acao === 'ajustar') return await ajustar(sb, b.tipo, who.student.id, b.categoria, b.pedido, b.id)
+    if (b.acao === 'ajustar') return await ajustar(sb, b.tipo, who.student.id, b.categoria, b.pedido, b.id, (who.student as any)?.nome ?? null)
     if (b.acao === 'ativar') return await ativar(sb, who.student, b.ativo)
     if (b.acao === 'perguntas') return json({ tipo: b.tipo, aluno: await alunoComAtivo(sb, who.student), ...(await perguntas(sb, b.tipo, who.student.id)) })
     return await gerar(sb, b.tipo, who.student.id, b.respostas, b.instrucoes)

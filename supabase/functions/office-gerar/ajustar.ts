@@ -177,8 +177,8 @@ export async function runAjusteTreino(
  * ou do próprio ai_plans com is_draft=true. O rascunho de origem não é alterado.
  */
 export async function loadRascunhoBase(sb: Sb, tipo: 'treino' | 'dieta' | 'cardio', id: string, studentId: string):
-  Promise<{ ok: true; cur: any; herda?: Record<string, unknown>; request_extra?: Record<string, unknown> } | { ok: false; status: number; body: Record<string, unknown> }> {
-  const { data: d } = await sb.from('office_plan_drafts').select('id, tipo, student_id, status, result_payload, request_payload, ai_plan_id').eq('id', id).maybeSingle()
+  Promise<{ ok: true; cur: any; herda?: Record<string, unknown>; request_extra?: Record<string, unknown>; semana?: number | null } | { ok: false; status: number; body: Record<string, unknown> }> {
+  const { data: d } = await sb.from('office_plan_drafts').select('id, tipo, student_id, status, result_payload, request_payload, ai_plan_id, respostas').eq('id', id).maybeSingle()
   if (tipo === 'dieta') {
     const aiId = d ? (d.ai_plan_id ?? d.result_payload?.ai_plan_id) : id
     if (d && d.tipo !== 'dieta') return { ok: false, status: 404, body: { error: 'rascunho_nao_encontrado' } }
@@ -198,10 +198,12 @@ export async function loadRascunhoBase(sb: Sb, tipo: 'treino' | 'dieta' | 'cardi
   if (tipo === 'cardio') return { ok: true, cur: { id: d.id, conteudo: JSON.stringify(rp.payload ?? null) }, request_extra: { origem_rascunho_id: d.id } }
   // Treino: publicar o novo rascunho deve fazer o MESMO que publicaria o de origem.
   if (rp.modo === 'ajuste') {
-    return { ok: true, cur: { id: rp.base_plan_id, conteudo_json: rp.json }, herda: { base_plan_id: rp.base_plan_id, base_conteudo_json: rp.base_conteudo_json, origem_rascunho_id: d.id } }
+    const { data: base } = await sb.from('ai_plans').select('block_start_date, fase_inicio_data, created_at').eq('id', rp.base_plan_id).maybeSingle()
+    return { ok: true, semana: core.semanaDoCiclo(base), cur: { id: rp.base_plan_id, conteudo_json: rp.json }, herda: { base_plan_id: rp.base_plan_id, base_conteudo_json: rp.base_conteudo_json, origem_rascunho_id: d.id } }
   }
   return {
-    ok: true, cur: { id: null, conteudo_json: rp.json },
+    // Fase semanal = semana escolhida no wizard que gerou o rascunho.
+    ok: true, semana: Number(d.respostas?.semana_ciclo ?? d.request_payload?.snapshot?.week) || 1, cur: { id: null, conteudo_json: rp.json },
     herda: { modo: 'gerado', base_plan_id: null, base_conteudo_json: null, origem_rascunho_id: d.id },
     request_extra: { snapshot: d.request_payload?.snapshot ?? null, last_plan_id: d.request_payload?.last_plan_id ?? null, agent: d.request_payload?.agent ?? 'trainer-agent', origem_rascunho_id: d.id },
   }
