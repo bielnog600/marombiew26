@@ -13,7 +13,7 @@ import {
 } from '../periodization';
 import { DEFAULT_INTENSITY, type VariationIntensity } from '../variationProfiles';
 
-const LEVELS = [
+export const LEVELS = [
   { value: 'iniciante', label: 'Iniciante', desc: 'Menos de 6 meses de treino' },
   { value: 'intermediario', label: 'Intermediário', desc: '6 meses a 2 anos' },
   { value: 'avancado', label: 'Avançado', desc: 'Mais de 2 anos consistentes' },
@@ -54,7 +54,7 @@ export const EQUIPMENT = [
    { value: 'casa', label: 'Home Gym', desc: 'Treino em casa com básico' },
  ];
  
- const AVAILABLE_MACHINES = [
+ export const AVAILABLE_MACHINES = [
    { id: 'halteres', label: 'Halteres', category: 'Pesos Livres' },
    { id: 'barras_anilhas', label: 'Barras e Anilhas', category: 'Pesos Livres' },
    { id: 'banco_regulavel', label: 'Banco Regulável', category: 'Pesos Livres' },
@@ -81,7 +81,7 @@ export const EQUIPMENT = [
    { id: 'escada', label: 'Escada', category: 'Cardio' },
  ];
  
- const EXERCISE_PROFILES = [
+ export const EXERCISE_PROFILES = [
    { value: 'basic', label: 'Básico / Tradicional', desc: 'Prioriza equipamentos tradicionais, polias, pesos livres e máquinas convencionais. Não utiliza máquinas articuladas.' },
    { value: 'articulated_plus_basic', label: 'Articulados + Básicos', desc: 'Prioriza máquinas articuladas quando existir uma opção funcional equivalente, mantendo exercícios tradicionais como alternativas.' },
    { value: 'mixed', label: 'Misto / Sem preferência', desc: 'Permite todos os exercícios disponíveis sem priorizar articulados ou tradicionais.' },
@@ -89,7 +89,7 @@ export const EQUIPMENT = [
 
  export type ExerciseProfileValue = typeof EXERCISE_PROFILES[number]['value'];
 
- interface ExerciseProfileAuditState {
+ export interface ExerciseProfileAuditState {
    profile: ExerciseProfileValue;
    status: 'PASS' | 'REPAIRED' | 'REVIEW_REQUIRED';
    violations: Array<{ day: string; where: 'main' | 'variation'; exercise: string; offending: string }>;
