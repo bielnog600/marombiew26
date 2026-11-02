@@ -62,6 +62,14 @@ export { diffWorkoutPlans } from '../workoutPlanDiff';
 export { parseDietPlanLoose } from '../dietSchema';
 export { analisarTreino, semanaDoCiclo } from './treinoAnalysis';
 export {
+  REGRAS_MAROMBIEW_TREINO,
+  REGRAS_MAROMBIEW_DIETA,
+  converterSelects,
+  renomearDias4x,
+  preRevisarTreino,
+  secaoRevisao,
+} from './regrasMarombiew';
+export {
   AJUSTE_CATEGORIAS,
   categoriaValida,
   buildTreinoAjusteMessages,

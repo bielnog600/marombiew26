@@ -6,6 +6,7 @@
 import { normalizeWorkoutPlan, type WorkoutExercise, type WorkoutPlan } from '../workoutSchema';
 import { OFFICE_PAUSE_OPTS, REC_REPS_OPTS, WORK_REPS_OPTS } from '../workoutEditorOptions';
 import { isNaoContavel, isProibido, norm, problemasCampos, seriesDeTrabalho } from './treinoAnalysis';
+import { REGRAS_MAROMBIEW_DIETA, REGRAS_MAROMBIEW_TREINO } from './regrasMarombiew';
 
 export const AJUSTE_CATEGORIAS = {
   treino: ['volume', 'exercicios', 'reps_pausa', 'metodos', 'dias', 'descricoes', 'revisar', 'livre'],
@@ -18,21 +19,17 @@ export function categoriaValida(tipo: AjusteTipo, categoria: string): boolean {
   return (AJUSTE_CATEGORIAS[tipo] as readonly string[]).includes(categoria);
 }
 
-export const REGRAS_TREINO_MAROMBIEW = `REGRAS MAROMBIEW (TREINO)
-- Volume: nunca corte séries para segurar o dia; passe compostos/acessórios para "Reconhecimento + trabalho" (series=1 de reconhecimento, series2=2 de trabalho, reps "12 + 8-10"). Grupos pequenos (bíceps, tríceps, ombro, panturrilha, abdômen) 8–12 séries de trabalho por semana; grandes (costas, peito, quadríceps, glúteo, posterior) 12–20, mesmo que o dia passe de 18.
-- Bíceps, tríceps, extensora, flexoras, elevação pélvica, afundo e kick back: mínimo 3 séries de trabalho.
-- Contagem por grupo principal: afundo/agachamento/leg = quadríceps; elevação pélvica/kick back/abdução = glúteo; stiff/RDL/good morning/flexoras = posterior. Mobilidade, alongamento, liberação, ativação e respiração NÃO contam séries e ficam sem descrição.
-- Variação: mesma família do principal e sem repetir o principal de outro dia. "AGACHAMENTO" sem complemento é peso corporal. Nunca "Isometria parede". "Elevação pélvica unilateral" (a "1") não entra: use "Elevação pélvica unilateral 2" ou "Elevação pélvica". Kick back e Hiperextensão lombar: a variação é o próprio exercício.
-- Dias de inferiores: um grupo por vez (quadríceps → posterior → glúteo → panturrilha), abdutora/adutora no bloco de glúteo, composto de glúteo (elevação pélvica) em todo dia de inferiores, panturrilha com 3 séries por dia de inferiores.
-- Dia de costas sempre com puxada vertical composta.
-- Descrição para avançado = estratégia (pico de contração, excêntrica 3s, onde alongar, série de falha), não ensinar o exercício.
-- Técnicas pedidas (drop set, rest-pause, cluster, pirâmide, bi-set/superset) vão no campo de método/agrupamento E explicadas na descrição. Drop set: metodo "dropset" + metodo_params {aplicar:"ultima"|"todas", drops, reducao_pct}. Rest-pause: metodo "restpause" + {aplicar, pausa_s (10–30), minis}. Cluster: metodo "cluster" + {blocos, reps_bloco, pausa_s}. Bi-set/superset: mesmo grupo_id nos dois exercícios consecutivos, tipo_grupo "biset"|"superset", ordem_grupo "A"/"B", pausa_grupo_s 0–10. Pirâmide de reps: setScheme {mode:"per_set", sets:[{set_number, set_type:"work", target_reps}]} + method {slug:"pyramid_up"} (ou pyramid_down se decrescente).`;
+/** Formato técnico dos campos (como o editor grava as técnicas e o reconhecimento). */
+const FORMATO_TECNICAS = `FORMATO DOS CAMPOS (como o editor grava)
+- Reconhecimento + trabalho: series=1 (reconhecimento), series2=N (trabalho), reps "12 + 8-10".
+- Drop set: metodo "dropset" + metodo_params {aplicar:"ultima"|"todas", drops, reducao_pct}. Rest-pause: metodo "restpause" + {aplicar, pausa_s (10–30), minis}. Cluster: metodo "cluster" + {blocos, reps_bloco, pausa_s}. Bi-set/superset: mesmo grupo_id nos dois exercícios consecutivos, tipo_grupo "biset"|"superset", ordem_grupo "A"/"B", pausa_grupo_s 0–10. Pirâmide de reps: setScheme {mode:"per_set", sets:[{set_number, set_type:"work", target_reps}]} + method {slug:"pyramid_up"} (ou pyramid_down se decrescente).
+- Mobilidade, alongamento, liberação, ativação e respiração NÃO contam séries.`;
 
-export const REGRAS_DIETA_MAROMBIEW = `REGRAS MAROMBIEW (DIETA)
-- Porções reais: ovo 50 g por unidade; fruta 1 unidade; whey 30 g ou 15 g; atum 1 lata (~80 g); iogurte 1 pote; abacate no mínimo 40 g; proteína do almoço e do jantar no mínimo 90 g.
-- Manteiga não entra.
-- Para fechar a meta, mexa nos carboidratos de base (arroz, batata, aveia, pão, tapioca, macarrão…), nunca em porções simbólicas.
-- Tolerância da meta diária: kcal ±50, P ±10 g, C ±15 g, G ±8 g.`;
+export const REGRAS_TREINO_MAROMBIEW = `REGRAS MAROMBIEW (literais do Fabiew)\n${REGRAS_MAROMBIEW_TREINO}\n\n${FORMATO_TECNICAS}`;
+
+export const REGRAS_DIETA_MAROMBIEW = `REGRAS MAROMBIEW (literais do Fabiew)\n${REGRAS_MAROMBIEW_DIETA}
+- Tolerância da meta diária: kcal ±50, P ±10 g, C ±15 g, G ±8 g.
+- portionLabel sempre em medida caseira ("2 ovos", "1 lata", "1 pote", "2 fatias").`;
 
 const OPCOES_EDITOR = `VALORES ACEITOS PELO EDITOR (nada fora disso)
 - Reps de trabalho: ${WORK_REPS_OPTS.join(', ')}.
@@ -62,10 +59,14 @@ export interface AjusteMessages { system: string; user: string }
 
 export function buildTreinoAjusteMessages(p: {
   plan: WorkoutPlan; categoria: string; pedido: string; catalogBlock: string; metodos: string[]; correcao?: string[];
+  semana?: number | null; aluno?: string | null;
 }): AjusteMessages {
+  const revisar = p.categoria === 'revisar';
   const system = [
     'Você é o assistente de prescrição do personal Fabiew (Marombiew). Recebe o treino VIGENTE em JSON e um pedido de ajuste.',
-    'Devolva o treino COMPLETO alterado, no MESMO formato JSON (version, type "workout", metadata, days[].exercises[]), mudando SOMENTE o que o pedido exige. Todo o resto (ids, ordem, campos, textos) fica byte a byte idêntico. Preserve os "id" de dias e exercícios existentes; exercícios novos recebem id novo único.',
+    revisar
+      ? 'REVISÃO: aplique LITERALMENTE TODAS as regras Marombiew abaixo ao treino inteiro e devolva o treino COMPLETO corrigido, no MESMO formato JSON (version, type "workout", metadata, days[].exercises[]). Mude onde for preciso para cumprir as regras e mantenha o resto idêntico. Preserve os "id" de dias e exercícios existentes; exercícios novos recebem id novo único. Em "mudancas", liste cada correção feita (antes → depois, com o motivo).'
+      : 'Devolva o treino COMPLETO alterado, no MESMO formato JSON (version, type "workout", metadata, days[].exercises[]), mudando SOMENTE o que o pedido exige. Todo o resto (ids, ordem, campos, textos) fica byte a byte idêntico. Preserve os "id" de dias e exercícios existentes; exercícios novos recebem id novo único. As regras Marombiew abaixo são regras de fundo: o que você alterar ou incluir precisa respeitá-las.',
     'Exercícios e variações: SOMENTE nomes exatos do banco abaixo.',
     OPCOES_EDITOR,
     REGRAS_TREINO_MAROMBIEW,
@@ -75,6 +76,8 @@ export function buildTreinoAjusteMessages(p: {
   ].join('\n\n');
   const user = [
     `Categoria: ${CATEGORIA_TREINO[p.categoria] ?? p.categoria}`,
+    ...(p.semana ? [`Fase semanal = semana ${p.semana} do ciclo${p.semana === 1 ? ' (limite de 18 séries de trabalho por dia)' : ''}.`] : []),
+    ...(p.aluno ? [`Aluno: ${p.aluno}`] : []),
     `Pedido do Fabiew: ${p.pedido}`,
     ...(p.correcao?.length ? [`CORRIJA estes problemas da sua resposta anterior, sem mexer em mais nada:\n- ${p.correcao.join('\n- ')}`] : []),
     'Treino vigente (JSON):',
@@ -86,9 +89,12 @@ export function buildTreinoAjusteMessages(p: {
 export function buildDietaAjusteMessages(p: {
   plan: unknown; categoria: string; pedido: string; foodCatalogBlock: string; correcao?: string[];
 }): AjusteMessages {
+  const revisar = p.categoria === 'revisar';
   const system = [
     'Você é o assistente de nutrição do personal Fabiew (Marombiew). Recebe a dieta VIGENTE em JSON e um pedido de ajuste.',
-    'Devolva a dieta COMPLETA alterada, no MESMO contrato (meta, targets, days[].meals[].items[] com foodId, name, qtyGrams, portionLabel, macros), mudando SOMENTE o que o pedido exige; o resto fica idêntico. Mantenha targets (a meta publicada) intactos.',
+    revisar
+      ? 'REVISÃO: aplique LITERALMENTE TODAS as regras Marombiew abaixo à dieta inteira e devolva a dieta COMPLETA corrigida, no MESMO contrato (meta, targets, days[].meals[].items[] com foodId, name, qtyGrams, portionLabel, macros). Mantenha targets (a meta publicada) intactos. Em "mudancas", liste cada correção feita (antes → depois, com o motivo).'
+      : 'Devolva a dieta COMPLETA alterada, no MESMO contrato (meta, targets, days[].meals[].items[] com foodId, name, qtyGrams, portionLabel, macros), mudando SOMENTE o que o pedido exige; o resto fica idêntico. Mantenha targets (a meta publicada) intactos. As regras Marombiew abaixo são regras de fundo: o que você alterar ou incluir precisa respeitá-las.',
     'Alimentos: SOMENTE da base abaixo, com o foodId e o nome exatos. Os macros serão recalculados pela base.',
     REGRAS_DIETA_MAROMBIEW,
     'Resposta: JSON { "plan": <dieta completa>, "mudancas": ["antes → depois", ...] }.',

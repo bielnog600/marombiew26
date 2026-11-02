@@ -114,24 +114,38 @@ export async function analisar(sb: Sb, studentId: string, draftId?: string | nul
 // ─── treino ─────────────────────────────────────────────────────────
 
 /** `cur`: { id, conteudo_json } do ponto de partida; `herda` sobrescreve o vínculo de publicação (rascunho de origem). */
-export async function runAjusteTreino(sb: Sb, cur: any, categoria: string, pedido: string, herda?: Record<string, unknown>) {
-  const before = core.normalizeWorkoutPlan(cur.conteudo_json)
-  if (!before) throw new Error('Treino vigente sem JSON estruturado; abra e salve no editor do admin antes de ajustar.')
-  const [catalog, met] = await Promise.all([
+export async function runAjusteTreino(
+  sb: Sb, cur: any, categoria: string, pedido: string, herda?: Record<string, unknown>,
+  ctx: { semana?: number | null; aluno?: string | null } = {},
+) {
+  const original = core.normalizeWorkoutPlan(cur.conteudo_json)
+  if (!original) throw new Error('Treino vigente sem JSON estruturado; abra e salve no editor do admin antes de ajustar.')
+  const revisar = categoria === 'revisar'
+  // Revisar: o servidor aplica sem IA o que é determinístico (dias 4x seg–qui, selects pela tabela).
+  const pre = revisar ? core.preRevisarTreino(original) : { plan: original, correcoes: [] as string[] }
+  const before = pre.plan
+  const [catalog, met, exRows] = await Promise.all([
     loadExerciseCatalog(),
     sb.from('training_methods').select('slug').eq('active', true),
+    revisar ? sb.from('exercises').select('nome, grupo_muscular') : Promise.resolve({ data: null }),
   ])
   if (!catalog.length) throw new Error('Banco de exercícios indisponível.')
   const metodos = (met.data ?? []).map((m: any) => m.slug)
   const catalogBlock = buildCatalogBlock(catalog)
   const names = catalog.map((c) => c.nome)
   let correcao: string[] | undefined
-  let last: { plan: any; erros: string[]; mudancas: string[] } | null = null
+  let last: { plan: any; erros: string[]; mudancas: string[]; conv: string[] } | null = null
   for (let attempt = 0; attempt < 2; attempt++) {
-    const r = await chatAjuste(core.buildTreinoAjusteMessages({ plan: before, categoria, pedido, catalogBlock, metodos, correcao }))
+    const r = await chatAjuste(
+      core.buildTreinoAjusteMessages({ plan: before, categoria, pedido, catalogBlock, metodos, correcao, semana: ctx.semana ?? null, aluno: ctx.aluno ?? null }),
+      revisar ? 32000 : 20000,
+    )
     snapPlanToCatalog(r.plan, catalog)
-    const v = core.validateTreinoAjuste(before, r.plan, names, metodos, categoria)
-    last = { plan: v.plan, erros: v.erros, mudancas: r.mudancas }
+    // Selects fora da tabela que a IA devolver também são convertidos antes das validações.
+    const norm0 = core.normalizeWorkoutPlan(r.plan)
+    const conv = norm0 ? core.converterSelects(norm0) : { plan: r.plan, correcoes: [] as string[] }
+    const v = core.validateTreinoAjuste(before, conv.plan, names, metodos, categoria)
+    last = { plan: v.plan, erros: v.erros, mudancas: r.mudancas, conv: conv.correcoes }
     if (v.plan && !v.erros.length) break
     correcao = v.erros.slice(0, 40)
   }
@@ -140,10 +154,20 @@ export async function runAjusteTreino(sb: Sb, cur: any, categoria: string, pedid
   }
   const built = core.buildWorkoutPlanUpdatePayload(last.plan, {})
   if (built.success !== true) throw new Error('Treino ajustado inválido: ' + built.error)
-  const mud = core.mudancasTreino(before, built.json)
+  // "O que mudou" compara com o ponto de partida real (antes das correções do servidor).
+  const mud = core.mudancasTreino(original, built.json)
+  let resumo = core.resumoTreinoCompleto(built.json) + '\n' + core.secaoOQueMudou(mud, revisar ? [] : last.mudancas)
+  if (revisar) {
+    const corrigido = [
+      ...pre.correcoes.map((c: string) => `${c} (servidor)`),
+      ...last.conv.map((c: string) => `${c} (servidor)`),
+      ...last.mudancas,
+    ]
+    resumo += '\n' + core.secaoRevisao(original, built.json, corrigido, { semana: ctx.semana ?? null, grupoBanco: mapaGrupos(exRows.data) })
+  }
   return {
-    result_payload: { modo: 'ajuste', json: built.json, base_plan_id: cur.id, base_conteudo_json: cur.conteudo_json, ...(herda ?? {}), mudancas: mud, mudancas_ia: last.mudancas },
-    resumo_legivel: core.resumoTreinoCompleto(built.json) + '\n' + core.secaoOQueMudou(mud, last.mudancas),
+    result_payload: { modo: 'ajuste', json: built.json, base_plan_id: cur.id, base_conteudo_json: cur.conteudo_json, ...(herda ?? {}), mudancas: mud, mudancas_ia: last.mudancas, correcoes_servidor: [...pre.correcoes, ...last.conv] },
+    resumo_legivel: resumo,
   }
 }
 
@@ -153,8 +177,8 @@ export async function runAjusteTreino(sb: Sb, cur: any, categoria: string, pedid
  * ou do próprio ai_plans com is_draft=true. O rascunho de origem não é alterado.
  */
 export async function loadRascunhoBase(sb: Sb, tipo: 'treino' | 'dieta' | 'cardio', id: string, studentId: string):
-  Promise<{ ok: true; cur: any; herda?: Record<string, unknown>; request_extra?: Record<string, unknown> } | { ok: false; status: number; body: Record<string, unknown> }> {
-  const { data: d } = await sb.from('office_plan_drafts').select('id, tipo, student_id, status, result_payload, request_payload, ai_plan_id').eq('id', id).maybeSingle()
+  Promise<{ ok: true; cur: any; herda?: Record<string, unknown>; request_extra?: Record<string, unknown>; semana?: number | null } | { ok: false; status: number; body: Record<string, unknown> }> {
+  const { data: d } = await sb.from('office_plan_drafts').select('id, tipo, student_id, status, result_payload, request_payload, ai_plan_id, respostas').eq('id', id).maybeSingle()
   if (tipo === 'dieta') {
     const aiId = d ? (d.ai_plan_id ?? d.result_payload?.ai_plan_id) : id
     if (d && d.tipo !== 'dieta') return { ok: false, status: 404, body: { error: 'rascunho_nao_encontrado' } }
@@ -174,10 +198,12 @@ export async function loadRascunhoBase(sb: Sb, tipo: 'treino' | 'dieta' | 'cardi
   if (tipo === 'cardio') return { ok: true, cur: { id: d.id, conteudo: JSON.stringify(rp.payload ?? null) }, request_extra: { origem_rascunho_id: d.id } }
   // Treino: publicar o novo rascunho deve fazer o MESMO que publicaria o de origem.
   if (rp.modo === 'ajuste') {
-    return { ok: true, cur: { id: rp.base_plan_id, conteudo_json: rp.json }, herda: { base_plan_id: rp.base_plan_id, base_conteudo_json: rp.base_conteudo_json, origem_rascunho_id: d.id } }
+    const { data: base } = await sb.from('ai_plans').select('block_start_date, fase_inicio_data, created_at').eq('id', rp.base_plan_id).maybeSingle()
+    return { ok: true, semana: core.semanaDoCiclo(base), cur: { id: rp.base_plan_id, conteudo_json: rp.json }, herda: { base_plan_id: rp.base_plan_id, base_conteudo_json: rp.base_conteudo_json, origem_rascunho_id: d.id } }
   }
   return {
-    ok: true, cur: { id: null, conteudo_json: rp.json },
+    // Fase semanal = semana escolhida no wizard que gerou o rascunho.
+    ok: true, semana: ((n) => (Number.isFinite(n) && n > 0 ? n : null))(Number(d.respostas?.semana_ciclo ?? d.request_payload?.snapshot?.week)), cur: { id: null, conteudo_json: rp.json },
     herda: { modo: 'gerado', base_plan_id: null, base_conteudo_json: null, origem_rascunho_id: d.id },
     request_extra: { snapshot: d.request_payload?.snapshot ?? null, last_plan_id: d.request_payload?.last_plan_id ?? null, agent: d.request_payload?.agent ?? 'trainer-agent', origem_rascunho_id: d.id },
   }
@@ -203,7 +229,7 @@ export async function runAjusteDieta(sb: Sb, studentId: string, cur: any, catego
   let correcao: string[] | undefined
   let last: any = null
   for (let attempt = 0; attempt < 2; attempt++) {
-    const r = await chatAjuste(core.buildDietaAjusteMessages({ plan: before, categoria, pedido, foodCatalogBlock, correcao }), 24000)
+    const r = await chatAjuste(core.buildDietaAjusteMessages({ plan: before, categoria, pedido, foodCatalogBlock, correcao }), categoria === 'revisar' ? 32000 : 24000)
     let raw = normalizeStructuredDietOutput(r.plan)
     const erros: string[] = []
     if (!raw || !Array.isArray(raw.days)) { erros.push('Plano sem dias.'); correcao = erros; last = { erros }; continue }
@@ -245,7 +271,8 @@ export async function runAjusteDieta(sb: Sb, studentId: string, cur: any, catego
   return {
     ai_plan_id: ins.data.id,
     result_payload: { modo: 'ajuste', ai_plan_id: ins.data.id, base_plan_id: cur.id, assessment: last.assessment, mudancas: mud, mudancas_ia: last.mudancas },
-    resumo_legivel: core.resumoDietaCompleto(last.plan, last.assessment, []) + '\n' + core.secaoOQueMudou(mud, last.mudancas),
+    resumo_legivel: core.resumoDietaCompleto(last.plan, last.assessment, []) + '\n' + core.secaoOQueMudou(mud, categoria === 'revisar' ? [] : last.mudancas)
+      + (categoria === 'revisar' ? '\n\n## O que foi corrigido\n\n' + ((last.mudancas ?? []).length ? last.mudancas.map((m: string) => `- ${m}`).join('\n') : '- Nada precisou ser corrigido.') : ''),
   }
 }
 

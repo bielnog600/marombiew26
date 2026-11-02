@@ -10276,6 +10276,152 @@ function semanaDoCiclo(plan, now = /* @__PURE__ */ new Date()) {
   return w >= 1 ? w : 1;
 }
 
+// src/lib/officeWizard/regrasMarombiew.ts
+var REGRAS_MAROMBIEW_TREINO = `REGRAS (treino):
+- Selects v\xE1lidos: Reps = 6, 8, 10, 12, 15, 6-8, 8-10, 8-12, 10-12, 12-15, 15s, 20s, 30s, 45s, 60s, 90s. Pausa = 10s\u2026 30s, 45s, 60s, 90s, 120s. Converter: 5-8\u21926-8 \xB7 6-10\u21928-10 \xB7 9-12\u21928-12 \xB7 10-15\u219212-15 (ou 10-12) \xB7 15-18\u219212-15 \xB7 20-40s\u219230s \xB7 75s\u219290s (acess\xF3rio 60s) \xB7 105s\u219290s \xB7 150s\u2192120s.
+- Toda Varia\xE7\xE3o preenchida, da mesma fam\xEDlia e sem repetir o principal de outro dia. Alertas de redund\xE2ncia ("mesma fam\xEDlia funcional") \u2192 trocar um dos dois.
+- Volume: N\xC3O cortar s\xE9ries; passar exerc\xEDcios para "Reconhecimento + trabalho" (1 de reconhecimento + demais de trabalho; 3 s\xE9ries = 1 + 2) at\xE9 bater. Limite da semana 1 = 18 s\xE9ries de trabalho por dia.
+- B\xEDceps e tr\xEDceps: 3 s\xE9ries por exerc\xEDcio.
+- Grupos pequenos (b\xEDceps, tr\xEDceps, ombro, panturrilha, abd\xF4men): sempre 8\u201312 s\xE9ries de TRABALHO por semana (reconhecimento n\xE3o conta). Abaixo de 8, acrescentar exerc\xEDcios de 3 s\xE9ries (b\xEDceps no dia de costas + no dia de peito; tr\xEDceps no dia de peito + no dia de costas; panturrilha 3 s\xE9ries em cada dia de inferiores). Vale mesmo que o dia passe de 18 \u2014 para segurar o dia, passar compostos e acess\xF3rios para Reconhecimento + trabalho, nunca deixar grupo pequeno abaixo de 8.
+- Grupos grandes (costas, peito, quadr\xEDceps, gl\xFAteo, posterior): sempre 12\u201320 s\xE9ries de trabalho por semana (contar cada exerc\xEDcio no grupo principal \u2014 afundo/agachamento/leg = quadr\xEDceps; eleva\xE7\xE3o p\xE9lvica/kick back/abdu\xE7\xE3o = gl\xFAteo; stiff/RDL/good morning/flexoras = posterior). Abaixo de 12, acrescentar exerc\xEDcios de 3 s\xE9ries no dia do grupo (costas: remada unilateral + pull down; peito: supino inclinado + crucifixo/peck deck) e voltar para s\xE9ries normais o que tinha virado reconhecimento no grupo. Acima de 20, tirar ou passar para Reconhecimento + trabalho. Vale mesmo que o dia passe de 18.
+- Distribui\xE7\xE3o: dia de inferiores com Gl\xFAteo precisa de composto de gl\xFAteo (Eleva\xE7\xE3o p\xE9lvica) em TODO dia de inferiores; dia de costas precisa de puxada vertical composta (Puxada alta) \u2014 Pull down \xE9 acess\xF3rio; evitar excesso de deltoide anterior (desenvolvimento + eleva\xE7\xE3o frontal + supinos) sem eleva\xE7\xE3o lateral.
+- Dias de inferiores: um grupo por vez: quadr\xEDceps \u2192 posterior \u2192 gl\xFAteo \u2192 panturrilha; nunca alternar quadr\xEDceps e posterior; abdutora/adutora no bloco de gl\xFAteo; cadeira adutora antes da abdu\xE7\xE3o; mobilidade como aquecimento antes do principal.
+- Panturrilha: 3 s\xE9ries por dia de inferiores, total 8\u201312 na semana.
+- Descri\xE7\xE3o para avan\xE7ado = estrat\xE9gia, n\xE3o ensinar o exerc\xEDcio: pico de contra\xE7\xE3o (segura 1\u20132s), exc\xEAntrica controlada (3s), onde alongar, dicas de movimento, em que s\xE9rie ir \xE0 falha, "sem sentir o m\xFAsculo, mais carga e exc\xEAntrica mais lenta". Ex. Stiff: "Pensa em levar o quadril para tr\xE1s, n\xE3o em descer a barra. Segura 1s no alongamento m\xE1ximo do posterior e sobe contraindo gl\xFAteo." Mobilidades sem descri\xE7\xE3o.
+- Varia\xE7\xE3o sempre da mesma fam\xEDlia e sem redund\xE2ncia no dia: Pull Down \u2192 outro modelo de Pull Down (nunca Puxada Alta); Supino inclinado \u2192 Supino inclinado com halteres; Supino inclinado nunca com varia\xE7\xE3o de supino reto.
+- "AGACHAMENTO" (sem complemento) \xE9 peso corporal: nunca \xE9 varia\xE7\xE3o de agachamento com carga nem principal de dia pesado.
+- Ao trocar o principal, preservar o padr\xE3o (reto/inclinado, unilateral/bilateral) e ajustar a varia\xE7\xE3o junto.
+- Hiperextens\xE3o lombar: varia\xE7\xE3o \xE9 a pr\xF3pria Hiperextens\xE3o lombar ("Hiperextens\xE3o lombar 2" \xE9 OUTRO exerc\xEDcio).
+- Nunca usar Isometria parede (nem como varia\xE7\xE3o); trocar por outro do mesmo dia/grupo.
+- Rear delt fly / crucifixo inverso como trabalho: 3 \xD7 12, pausa 60s.
+- Kick back: varia\xE7\xE3o \xE9 o pr\xF3prio Kick back.
+- Eleva\xE7\xE3o p\xE9lvica unilateral (a "1") n\xE3o entra, nem como varia\xE7\xE3o: usar Eleva\xE7\xE3o p\xE9lvica unilateral 2 ou Eleva\xE7\xE3o p\xE9lvica.
+- Cadeira extensora, cadeira/mesa flexora, eleva\xE7\xE3o p\xE9lvica, afundo, kick back: m\xEDnimo 3 s\xE9ries.
+- Trocas preferidas: Supino inclinado Smith \u2192 Supino inclinado barra; Puxada alta neutra \u2192 Puxada alta aberta; Remada m\xE1quina / Remada pronada banco / Remada supinada articulada redundante \u2192 Remada tri\xE2ngulo; Leg press 45/unilateral \u2192 Leg press 180 (exceto se o Fabiew pedir explicitamente Leg press 45 articulado).
+- T\xE9cnicas (drop set, isometria, progress\xE3o 15/12/10 ou 10/8/6): progress\xE3o/pir\xE2mide = modo Repeti\xE7\xF5es por s\xE9rie + method pyramid_up; bi-set/superset = agrupar; drop set/rest-pause/cluster = campo M\xE9todo. Sempre explicar a t\xE9cnica na descri\xE7\xE3o. "T\xE9cnicas mais avan\xE7adas": pir\xE2mide 12/10/8 ou 8/7/6 nos multiarticulares principais, drop set na \xFAltima s\xE9rie dos isoladores, pico de contra\xE7\xE3o 1\u20132s e exc\xEAntrica 3s. Dia "pesado": reps diferentes por s\xE9rie nos multiarticulares principais.
+- Restri\xE7\xF5es de joelho/ombro: evitar sobrecarga e amplitude agressiva; se o aluno n\xE3o tolera flexora/extensora, trocar por alternativas seguras; limita\xE7\xE3o unilateral: vers\xE3o unilateral do lado bom, escrever o lado na descri\xE7\xE3o.
+- Prefer\xEAncias por aluno: Benedita \u2014 sem Remada cavalinho, Rosca Scott, Peck deck, Flexora alternando, Supino reto (usar Supino vertical, varia\xE7\xE3o Supino reto halteres). Cristina \u2014 nada de mesa flexora, cadeira flexora nem flex\xE3o n\xF3rdica.`;
+var REGRAS_MAROMBIEW_DIETA = `REGRAS (dieta) \u2014 Por\xE7\xF5es reais SEMPRE: ovo = 50 g/unidade; fruta = 1 unidade (banana 120\u2013150 g, ma\xE7\xE3 ~150 g, p\xEAssego/pera 100\u2013150 g); whey = 30 g ou 15 g; p\xE3o de forma em fatias (25\u201330 g); atum = 1 lata escorrida (~80 g); iogurte = 1 pote (125\u2013170 g); abacate \u2265 40\u201350 g; carne/frango/peixe no almo\xE7o e jantar \u2265 90\u2013100 g. Fechar a meta mexendo em carboidratos de base (arroz, batata, p\xE3o) e fontes principais; nunca por\xE7\xF5es simb\xF3licas \u2014 se n\xE3o fechar, tirar o item. Manteiga n\xE3o entra (compensar gordura com abacate, azeite ou oleaginosas). No resumo, por\xE7\xF5es em medida caseira ("2 ovos", "1 lata", "1 pote").`;
+var REPS_CONV = {
+  "5-8": "6-8",
+  "6-10": "8-10",
+  "9-12": "8-12",
+  "10-15": "12-15",
+  "15-18": "12-15",
+  "20-40s": "30s"
+};
+var isAcessorio = (name) => /rosca|biceps|triceps|testa|frances|extensora|flexora|elevacao lateral|elevacao frontal|crucifixo|peck|voador|crossover|panturrilha|abdominal|kick ?back|abdutora|adutora|face pull|pull ?down/.test(norm2(name));
+var cleanReps = (r) => r.trim().replace(/\s+/g, "").replace(/–|—/g, "-").toLowerCase();
+function converterReps(reps) {
+  const c = cleanReps(reps);
+  if (WORK_REPS_OPTS.includes(c)) return c === reps.trim() ? null : c;
+  return REPS_CONV[c] ?? null;
+}
+function converterPausa(seg, exercise) {
+  if (OFFICE_PAUSE_OPTS.includes(`${seg}s`)) return null;
+  if (seg === 75) return isAcessorio(exercise) ? 60 : 90;
+  if (seg === 105) return 90;
+  if (seg === 150) return 120;
+  if (seg > 120) return 120;
+  return null;
+}
+function converterExercicio(ex, label, out) {
+  if (isNaoContavel(ex.exercise)) return;
+  const reps = String(ex.reps ?? "");
+  if (reps.trim()) {
+    if (reps.includes("+")) {
+      const [r, w] = reps.split("+");
+      const nw = converterReps(w);
+      if (nw) {
+        ex.reps = `${r.trim()} + ${nw}`;
+        out.push(`${label}: reps ${reps.trim()} \u2192 ${ex.reps}`);
+      }
+    } else {
+      const n = converterReps(reps);
+      if (n) {
+        ex.reps = n;
+        out.push(`${label}: reps ${reps.trim()} \u2192 ${n}`);
+      }
+    }
+  }
+  if (ex.setScheme?.sets?.length) {
+    for (const s of ex.setScheme.sets) {
+      const n = converterReps(String(s.target_reps ?? ""));
+      if (n) {
+        out.push(`${label}: reps da s\xE9rie ${s.set_number} ${s.target_reps} \u2192 ${n}`);
+        s.target_reps = n;
+      }
+    }
+  }
+  const segRaw = ex.restSeconds ?? (() => {
+    const m = /^(\d+)\s*s$/i.exec(String(ex.pause ?? "").trim());
+    return m ? Number(m[1]) : null;
+  })();
+  if (typeof segRaw === "number" && segRaw > 0) {
+    const n = converterPausa(segRaw, ex.exercise);
+    if (n) {
+      out.push(`${label}: pausa ${segRaw}s \u2192 ${n}s`);
+      if (ex.restSeconds != null) ex.restSeconds = n;
+      if (ex.pause) ex.pause = `${n}s`;
+    }
+  }
+}
+function converterSelects(plan) {
+  const p = JSON.parse(JSON.stringify(plan));
+  const correcoes = [];
+  for (const d of p.days) for (const ex of d.exercises) converterExercicio(ex, `${d.day} \xB7 ${ex.exercise}`, correcoes);
+  return { plan: p, correcoes };
+}
+var WD = /^(segunda|terca|quarta|quinta|sexta|sabado|domingo)/;
+var wdOf = (label) => WD.exec(norm2(label))?.[1] ?? null;
+function renomearDias4x(plan) {
+  const wds = plan.days.map((d) => wdOf(d.day));
+  if (plan.days.length !== 4 || wds.join(",") !== "segunda,terca,quarta,quinta") return { plan, correcoes: [] };
+  const p = JSON.parse(JSON.stringify(plan));
+  const correcoes = [];
+  const troca = (d, de, para) => {
+    const antes = d.day;
+    d.day = d.day.replace(de, para);
+    correcoes.push(`Dia ${antes} \u2192 ${d.day}`);
+  };
+  troca(p.days[3], /quinta/i, "Sexta");
+  troca(p.days[2], /quarta/i, "Quinta");
+  return { plan: p, correcoes };
+}
+function preRevisarTreino(plan) {
+  const a = renomearDias4x(plan);
+  const b = converterSelects(a.plan);
+  return { plan: b.plan, correcoes: [...a.correcoes, ...b.correcoes] };
+}
+function secaoRevisao(antes, depois, corrigido, opts = {}) {
+  const a = analisarTreino(antes, opts);
+  const d = analisarTreino(depois, opts);
+  const L = ["", "## S\xE9ries de trabalho por dia (antes \u2192 depois)", "", "| Dia | Antes | Depois |", "|---|---|---|"];
+  const n = Math.max(a.porDia.length, d.porDia.length);
+  for (let i = 0; i < n; i++) {
+    const x = a.porDia[i];
+    const y = d.porDia[i];
+    L.push(`| ${y?.dia ?? x?.dia ?? "\u2014"} | ${x ? x.series : "\u2014"} | ${y ? `${y.series}${y.acimaLimite ? " \u26A0 >18" : ""}` : "\u2014"} |`);
+  }
+  L.push("", "## S\xE9ries de trabalho por grupo na semana (antes \u2192 depois)", "", "| Grupo | Alvo | Antes | Depois | Status |", "|---|---|---|---|---|");
+  const grupos = [.../* @__PURE__ */ new Set([...a.porGrupo.map((g) => g.grupo), ...d.porGrupo.map((g) => g.grupo)])];
+  for (const g of grupos) {
+    const x = a.porGrupo.find((v) => v.grupo === g);
+    const y = d.porGrupo.find((v) => v.grupo === g);
+    const alvo = (y ?? x)?.alvo;
+    const st = y?.status === "ok" ? "\u2713" : y?.status === "abaixo" ? "\u26A0 abaixo" : y?.status === "acima" ? "\u26A0 acima" : "\u2014";
+    L.push(`| ${grupoLabel(g)} | ${alvo ? `${alvo.min}\u2013${alvo.max}` : "\u2014"} | ${x?.series ?? 0} | ${y?.series ?? 0} | ${st} |`);
+  }
+  L.push("", "## O que foi corrigido", "");
+  if (!corrigido.length) L.push("- Nada precisou ser corrigido.");
+  for (const c of corrigido) L.push(`- ${c}`);
+  if (d.avisos.length) {
+    L.push("", "**Pontos que ainda merecem aten\xE7\xE3o:**", "");
+    for (const v of d.avisos) L.push(`- ${v}`);
+  }
+  return L.join("\n");
+}
+
 // src/lib/officeWizard/officeAdjust.ts
 var AJUSTE_CATEGORIAS = {
   treino: ["volume", "exercicios", "reps_pausa", "metodos", "dias", "descricoes", "revisar", "livre"],
@@ -10285,20 +10431,18 @@ var AJUSTE_CATEGORIAS = {
 function categoriaValida(tipo, categoria) {
   return AJUSTE_CATEGORIAS[tipo].includes(categoria);
 }
-var REGRAS_TREINO_MAROMBIEW = `REGRAS MAROMBIEW (TREINO)
-- Volume: nunca corte s\xE9ries para segurar o dia; passe compostos/acess\xF3rios para "Reconhecimento + trabalho" (series=1 de reconhecimento, series2=2 de trabalho, reps "12 + 8-10"). Grupos pequenos (b\xEDceps, tr\xEDceps, ombro, panturrilha, abd\xF4men) 8\u201312 s\xE9ries de trabalho por semana; grandes (costas, peito, quadr\xEDceps, gl\xFAteo, posterior) 12\u201320, mesmo que o dia passe de 18.
-- B\xEDceps, tr\xEDceps, extensora, flexoras, eleva\xE7\xE3o p\xE9lvica, afundo e kick back: m\xEDnimo 3 s\xE9ries de trabalho.
-- Contagem por grupo principal: afundo/agachamento/leg = quadr\xEDceps; eleva\xE7\xE3o p\xE9lvica/kick back/abdu\xE7\xE3o = gl\xFAteo; stiff/RDL/good morning/flexoras = posterior. Mobilidade, alongamento, libera\xE7\xE3o, ativa\xE7\xE3o e respira\xE7\xE3o N\xC3O contam s\xE9ries e ficam sem descri\xE7\xE3o.
-- Varia\xE7\xE3o: mesma fam\xEDlia do principal e sem repetir o principal de outro dia. "AGACHAMENTO" sem complemento \xE9 peso corporal. Nunca "Isometria parede". "Eleva\xE7\xE3o p\xE9lvica unilateral" (a "1") n\xE3o entra: use "Eleva\xE7\xE3o p\xE9lvica unilateral 2" ou "Eleva\xE7\xE3o p\xE9lvica". Kick back e Hiperextens\xE3o lombar: a varia\xE7\xE3o \xE9 o pr\xF3prio exerc\xEDcio.
-- Dias de inferiores: um grupo por vez (quadr\xEDceps \u2192 posterior \u2192 gl\xFAteo \u2192 panturrilha), abdutora/adutora no bloco de gl\xFAteo, composto de gl\xFAteo (eleva\xE7\xE3o p\xE9lvica) em todo dia de inferiores, panturrilha com 3 s\xE9ries por dia de inferiores.
-- Dia de costas sempre com puxada vertical composta.
-- Descri\xE7\xE3o para avan\xE7ado = estrat\xE9gia (pico de contra\xE7\xE3o, exc\xEAntrica 3s, onde alongar, s\xE9rie de falha), n\xE3o ensinar o exerc\xEDcio.
-- T\xE9cnicas pedidas (drop set, rest-pause, cluster, pir\xE2mide, bi-set/superset) v\xE3o no campo de m\xE9todo/agrupamento E explicadas na descri\xE7\xE3o. Drop set: metodo "dropset" + metodo_params {aplicar:"ultima"|"todas", drops, reducao_pct}. Rest-pause: metodo "restpause" + {aplicar, pausa_s (10\u201330), minis}. Cluster: metodo "cluster" + {blocos, reps_bloco, pausa_s}. Bi-set/superset: mesmo grupo_id nos dois exerc\xEDcios consecutivos, tipo_grupo "biset"|"superset", ordem_grupo "A"/"B", pausa_grupo_s 0\u201310. Pir\xE2mide de reps: setScheme {mode:"per_set", sets:[{set_number, set_type:"work", target_reps}]} + method {slug:"pyramid_up"} (ou pyramid_down se decrescente).`;
-var REGRAS_DIETA_MAROMBIEW = `REGRAS MAROMBIEW (DIETA)
-- Por\xE7\xF5es reais: ovo 50 g por unidade; fruta 1 unidade; whey 30 g ou 15 g; atum 1 lata (~80 g); iogurte 1 pote; abacate no m\xEDnimo 40 g; prote\xEDna do almo\xE7o e do jantar no m\xEDnimo 90 g.
-- Manteiga n\xE3o entra.
-- Para fechar a meta, mexa nos carboidratos de base (arroz, batata, aveia, p\xE3o, tapioca, macarr\xE3o\u2026), nunca em por\xE7\xF5es simb\xF3licas.
-- Toler\xE2ncia da meta di\xE1ria: kcal \xB150, P \xB110 g, C \xB115 g, G \xB18 g.`;
+var FORMATO_TECNICAS = `FORMATO DOS CAMPOS (como o editor grava)
+- Reconhecimento + trabalho: series=1 (reconhecimento), series2=N (trabalho), reps "12 + 8-10".
+- Drop set: metodo "dropset" + metodo_params {aplicar:"ultima"|"todas", drops, reducao_pct}. Rest-pause: metodo "restpause" + {aplicar, pausa_s (10\u201330), minis}. Cluster: metodo "cluster" + {blocos, reps_bloco, pausa_s}. Bi-set/superset: mesmo grupo_id nos dois exerc\xEDcios consecutivos, tipo_grupo "biset"|"superset", ordem_grupo "A"/"B", pausa_grupo_s 0\u201310. Pir\xE2mide de reps: setScheme {mode:"per_set", sets:[{set_number, set_type:"work", target_reps}]} + method {slug:"pyramid_up"} (ou pyramid_down se decrescente).
+- Mobilidade, alongamento, libera\xE7\xE3o, ativa\xE7\xE3o e respira\xE7\xE3o N\xC3O contam s\xE9ries.`;
+var REGRAS_TREINO_MAROMBIEW = `REGRAS MAROMBIEW (literais do Fabiew)
+${REGRAS_MAROMBIEW_TREINO}
+
+${FORMATO_TECNICAS}`;
+var REGRAS_DIETA_MAROMBIEW = `REGRAS MAROMBIEW (literais do Fabiew)
+${REGRAS_MAROMBIEW_DIETA}
+- Toler\xE2ncia da meta di\xE1ria: kcal \xB150, P \xB110 g, C \xB115 g, G \xB18 g.
+- portionLabel sempre em medida caseira ("2 ovos", "1 lata", "1 pote", "2 fatias").`;
 var OPCOES_EDITOR = `VALORES ACEITOS PELO EDITOR (nada fora disso)
 - Reps de trabalho: ${WORK_REPS_OPTS.join(", ")}.
 - Reps de reconhecimento (antes do "+"): ${REC_REPS_OPTS.join(", ")}.
@@ -10328,9 +10472,10 @@ var CATEGORIA_CARDIO = {
   livre: "Pedido livre."
 };
 function buildTreinoAjusteMessages(p) {
+  const revisar = p.categoria === "revisar";
   const system = [
     "Voc\xEA \xE9 o assistente de prescri\xE7\xE3o do personal Fabiew (Marombiew). Recebe o treino VIGENTE em JSON e um pedido de ajuste.",
-    'Devolva o treino COMPLETO alterado, no MESMO formato JSON (version, type "workout", metadata, days[].exercises[]), mudando SOMENTE o que o pedido exige. Todo o resto (ids, ordem, campos, textos) fica byte a byte id\xEAntico. Preserve os "id" de dias e exerc\xEDcios existentes; exerc\xEDcios novos recebem id novo \xFAnico.',
+    revisar ? 'REVIS\xC3O: aplique LITERALMENTE TODAS as regras Marombiew abaixo ao treino inteiro e devolva o treino COMPLETO corrigido, no MESMO formato JSON (version, type "workout", metadata, days[].exercises[]). Mude onde for preciso para cumprir as regras e mantenha o resto id\xEAntico. Preserve os "id" de dias e exerc\xEDcios existentes; exerc\xEDcios novos recebem id novo \xFAnico. Em "mudancas", liste cada corre\xE7\xE3o feita (antes \u2192 depois, com o motivo).' : 'Devolva o treino COMPLETO alterado, no MESMO formato JSON (version, type "workout", metadata, days[].exercises[]), mudando SOMENTE o que o pedido exige. Todo o resto (ids, ordem, campos, textos) fica byte a byte id\xEAntico. Preserve os "id" de dias e exerc\xEDcios existentes; exerc\xEDcios novos recebem id novo \xFAnico. As regras Marombiew abaixo s\xE3o regras de fundo: o que voc\xEA alterar ou incluir precisa respeit\xE1-las.',
     "Exerc\xEDcios e varia\xE7\xF5es: SOMENTE nomes exatos do banco abaixo.",
     OPCOES_EDITOR,
     REGRAS_TREINO_MAROMBIEW,
@@ -10340,6 +10485,8 @@ function buildTreinoAjusteMessages(p) {
   ].join("\n\n");
   const user = [
     `Categoria: ${CATEGORIA_TREINO[p.categoria] ?? p.categoria}`,
+    ...p.semana ? [`Fase semanal = semana ${p.semana} do ciclo${p.semana === 1 ? " (limite de 18 s\xE9ries de trabalho por dia)" : ""}.`] : [],
+    ...p.aluno ? [`Aluno: ${p.aluno}`] : [],
     `Pedido do Fabiew: ${p.pedido}`,
     ...p.correcao?.length ? [`CORRIJA estes problemas da sua resposta anterior, sem mexer em mais nada:
 - ${p.correcao.join("\n- ")}`] : [],
@@ -10349,9 +10496,10 @@ function buildTreinoAjusteMessages(p) {
   return { system, user };
 }
 function buildDietaAjusteMessages(p) {
+  const revisar = p.categoria === "revisar";
   const system = [
     "Voc\xEA \xE9 o assistente de nutri\xE7\xE3o do personal Fabiew (Marombiew). Recebe a dieta VIGENTE em JSON e um pedido de ajuste.",
-    "Devolva a dieta COMPLETA alterada, no MESMO contrato (meta, targets, days[].meals[].items[] com foodId, name, qtyGrams, portionLabel, macros), mudando SOMENTE o que o pedido exige; o resto fica id\xEAntico. Mantenha targets (a meta publicada) intactos.",
+    revisar ? 'REVIS\xC3O: aplique LITERALMENTE TODAS as regras Marombiew abaixo \xE0 dieta inteira e devolva a dieta COMPLETA corrigida, no MESMO contrato (meta, targets, days[].meals[].items[] com foodId, name, qtyGrams, portionLabel, macros). Mantenha targets (a meta publicada) intactos. Em "mudancas", liste cada corre\xE7\xE3o feita (antes \u2192 depois, com o motivo).' : "Devolva a dieta COMPLETA alterada, no MESMO contrato (meta, targets, days[].meals[].items[] com foodId, name, qtyGrams, portionLabel, macros), mudando SOMENTE o que o pedido exige; o resto fica id\xEAntico. Mantenha targets (a meta publicada) intactos. As regras Marombiew abaixo s\xE3o regras de fundo: o que voc\xEA alterar ou incluir precisa respeit\xE1-las.",
     "Alimentos: SOMENTE da base abaixo, com o foodId e o nome exatos. Os macros ser\xE3o recalculados pela base.",
     REGRAS_DIETA_MAROMBIEW,
     'Resposta: JSON { "plan": <dieta completa>, "mudancas": ["antes \u2192 depois", ...] }.',
@@ -10549,6 +10697,8 @@ function secaoOQueMudou(mudancas, declaradas = []) {
 }
 export {
   AJUSTE_CATEGORIAS,
+  REGRAS_MAROMBIEW_DIETA,
+  REGRAS_MAROMBIEW_TREINO,
   analisarTreino,
   assessGeneratedDiet,
   buildCardioAjusteMessages,
@@ -10569,6 +10719,7 @@ export {
   canGenerateTreino,
   cardioFields,
   categoriaValida,
+  converterSelects,
   defaultCardioWizardState,
   defaultDietaWizardState,
   defaultTreinoWizardState,
@@ -10593,8 +10744,10 @@ export {
   parseDietAgentSse,
   parseDietPlanLoose,
   parseWeekdayWorkouts,
+  preRevisarTreino,
   processDietDailyAdjustments,
   publicField,
+  renomearDias4x,
   resumoCardioAtual,
   resumoCardioCompleto,
   resumoDietaAtual,
@@ -10602,6 +10755,7 @@ export {
   resumoTreinoAtual,
   resumoTreinoCompleto,
   secaoOQueMudou,
+  secaoRevisao,
   semanaDoCiclo,
   snapshotToPlanColumns,
   suggestCardioValues,
