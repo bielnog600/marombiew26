@@ -129,6 +129,24 @@ export type RecordPrescriptionEditResult =
   | { recorded: true; changes: WorkoutEditChange[] }
   | { recorded: false; reason: "no_changes" | "missing_data" | "no_professor" | "error"; error?: string };
 
+/** Linha de workout_prescription_edits (pura; compartilhada com o escritório). */
+export const buildPrescriptionEditRow = (
+  input: RecordPrescriptionEditInput & { professorId: string },
+  changes: WorkoutEditChange[],
+) => ({
+  professor_id: input.professorId,
+  student_id: input.studentId,
+  plan_id: input.planId,
+  plan_version: input.planVersion ?? null,
+  cycle_key: input.cycleKey ?? null,
+  source: input.source,
+  action_origin: input.actionOrigin ?? "manual",
+  before_json: input.before,
+  after_json: input.after,
+  changes,
+  context_snapshot: buildPrescriptionContextSnapshot(input.context),
+});
+
 export const recordWorkoutPrescriptionEdit = async (
   input: RecordPrescriptionEditInput,
 ): Promise<RecordPrescriptionEditResult> => {
@@ -150,19 +168,9 @@ export const recordWorkoutPrescriptionEdit = async (
       return { recorded: false, reason: "no_professor" };
     }
 
-    const { error } = await supabase.from("workout_prescription_edits").insert({
-      professor_id: professorId,
-      student_id: studentId,
-      plan_id: planId,
-      plan_version: input.planVersion ?? null,
-      cycle_key: input.cycleKey ?? null,
-      source,
-      action_origin: input.actionOrigin ?? "manual",
-      before_json: before as never,
-      after_json: after as never,
-      changes: changes as never,
-      context_snapshot: buildPrescriptionContextSnapshot(input.context) as never,
-    } as never);
+    const { error } = await supabase
+      .from("workout_prescription_edits")
+      .insert(buildPrescriptionEditRow({ ...input, professorId }, changes) as never);
 
     if (error) {
       console.error("[prescription-edits] insert failed", error.message);
