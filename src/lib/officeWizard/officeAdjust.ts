@@ -270,12 +270,12 @@ export function mudancasTexto(before: string, after: string): string[] {
 }
 
 export function secaoOQueMudou(mudancas: string[], declaradas: string[] = []): string {
-  const L = ['', 'O que mudou (antes → depois):'];
-  if (!mudancas.length) L.push('• Nenhuma diferença encontrada no plano.');
-  for (const m of mudancas) L.push(`• ${m}`);
+  const L = ['', '## O que mudou (antes → depois)', ''];
+  if (!mudancas.length) L.push('- Nenhuma diferença encontrada no plano.');
+  for (const m of mudancas) L.push(`- ${m}`);
   if (declaradas.length) {
-    L.push('', 'Resumo da IA:');
-    for (const m of declaradas) L.push(`• ${m}`);
+    L.push('', '**Resumo da IA:**', '');
+    for (const m of declaradas) L.push(`- ${m}`);
   }
   return L.join('\n');
 }

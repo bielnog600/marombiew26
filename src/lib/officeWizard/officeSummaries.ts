@@ -3,7 +3,8 @@
  * Puro (sem cliente); a edge function office-gerar passa as linhas lidas.
  */
 import { normalizeWorkoutPlan } from '../workoutSchema';
-import { workoutPlanToMarkdown } from '../workoutMarkdownSerializer';
+import { executionSummary } from '../workoutExecutionMethods';
+import { formatMethodForMarkdown, type WorkoutMethodRef } from '../trainingMethods';
 import {
   isWeeklyPlan, parseCardioPayload, MODALITY_LABEL, STRUCTURE_LABEL, INTENSITY_LABEL,
   formatDurationFromSec, totalCardioDurationSec, type CardioProtocol, type CardioPayload,
@@ -94,9 +95,37 @@ export function resumoTreinoAtual(lastPlan: any | null): string {
   ].join('\n');
 }
 
+/** Célula de tabela markdown (sem quebras nem pipes). */
+export const mdCell = (v: unknown): string => {
+  const s = v == null ? '' : String(v).replace(/\s*\n\s*/g, ' ').replace(/\|/g, '/').trim();
+  return s || '—';
+};
+
+/** Treino completo em markdown: uma tabela por dia, pronta para o chat. */
 export function resumoTreinoCompleto(json: unknown): string {
   const plan = normalizeWorkoutPlan(json);
-  return plan ? workoutPlanToMarkdown(plan) : '';
+  if (!plan) return '';
+  const out: string[] = [];
+  if (plan.metadata?.goal) out.push(`**Objetivo:** ${mdCell(plan.metadata.goal)}`, '');
+  for (const day of plan.days) {
+    if (!day.exercises.length) continue;
+    out.push(`### ${mdCell(day.day)}${day.focus ? ` — ${mdCell(day.focus)}` : ''}`, '');
+    out.push('| Dia | Exercício | Séries | Reps | RIR | Pausa | Método | Variação | Descrição |');
+    out.push('|---|---|---|---|---|---|---|---|---|');
+    const pair = (idOrName: string) => day.exercises.find((e) => e.id === idOrName || e.exerciseId === idOrName)?.exercise ?? idOrName;
+    for (const ex of day.exercises) {
+      const perSet = ex.setScheme?.mode === 'per_set' && ex.setScheme.sets.length > 0;
+      const series = perSet ? String(ex.setScheme!.sets.length)
+        : ex.series && ex.series2 ? `${ex.series} rec. + ${ex.series2}` : (ex.series || ex.series2);
+      const reps = perSet ? ex.setScheme!.sets.map((x) => x.target_reps).join(' / ') : ex.reps;
+      const pausa = ex.restSeconds ? `${ex.restSeconds}s` : ex.pause;
+      const metodo = executionSummary(ex as any) || formatMethodForMarkdown(ex.method as WorkoutMethodRef | undefined, pair);
+      out.push(`| ${mdCell(day.day)} | ${mdCell(ex.exercise)} | ${mdCell(series)} | ${mdCell(reps)} | ${mdCell(ex.rir)} | ${mdCell(pausa)} | ${mdCell(metodo)} | ${mdCell(ex.variation)} | ${mdCell(ex.description)} |`);
+    }
+    out.push('');
+  }
+  if (plan.metadata?.notes) out.push(`**Observações:** ${mdCell(plan.metadata.notes)}`);
+  return out.join('\n').trim();
 }
 
 const fmtProtocol = (p: CardioProtocol, i?: number): string => {
@@ -124,12 +153,15 @@ const fmtProtocol = (p: CardioProtocol, i?: number): string => {
   return [head, ...blocks, ...extra].join('\n');
 };
 
+/** Sessão de cardio em markdown: título em negrito e blocos como lista. */
+const mdProtocol = (txt: string) => txt.split('\n').map((l, i) => (i === 0 ? `**${l.trim()}**` : `- ${l.replace(/^\s*•\s*/, '').trim()}`)).join('\n');
+
 export function resumoCardioCompleto(payload: CardioPayload | null): string {
   if (!payload) return '';
   if (isWeeklyPlan(payload)) {
-    return [`Plano semanal de cardio — ${payload.frequencyPerWeek}x/semana`, ...payload.protocols.map((p, i) => fmtProtocol(p, i))].join('\n\n');
+    return [`### Plano semanal de cardio — ${payload.frequencyPerWeek}x/semana`, ...payload.protocols.map((p, i) => mdProtocol(fmtProtocol(p, i)))].join('\n\n');
   }
-  return fmtProtocol(payload as CardioProtocol);
+  return mdProtocol(fmtProtocol(payload as CardioProtocol));
 }
 
 export function resumoCardioAtual(lastCardio: any | null): string {
