@@ -21,7 +21,7 @@ const Body = z.discriminatedUnion('acao', [
   }),
   z.object({
     acao: z.literal('ajustar'), tipo: Tipo, aluno: z.string().min(1).max(200),
-    categoria: z.string().min(1).max(40), pedido: z.string().trim().min(1).max(5000),
+    categoria: z.string().min(1).max(40), pedido: z.string().trim().max(5000).optional().nullable(),
     id: z.string().uuid().optional().nullable(),
   }),
   z.object({

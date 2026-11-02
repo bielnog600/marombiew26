@@ -227,7 +227,7 @@ export async function runAjusteDieta(sb: Sb, studentId: string, cur: any, catego
   let correcao: string[] | undefined
   let last: any = null
   for (let attempt = 0; attempt < 2; attempt++) {
-    const r = await chatAjuste(core.buildDietaAjusteMessages({ plan: before, categoria, pedido, foodCatalogBlock, correcao }), 24000)
+    const r = await chatAjuste(core.buildDietaAjusteMessages({ plan: before, categoria, pedido, foodCatalogBlock, correcao }), categoria === 'revisar' ? 32000 : 24000)
     let raw = normalizeStructuredDietOutput(r.plan)
     const erros: string[] = []
     if (!raw || !Array.isArray(raw.days)) { erros.push('Plano sem dias.'); correcao = erros; last = { erros }; continue }
@@ -269,7 +269,8 @@ export async function runAjusteDieta(sb: Sb, studentId: string, cur: any, catego
   return {
     ai_plan_id: ins.data.id,
     result_payload: { modo: 'ajuste', ai_plan_id: ins.data.id, base_plan_id: cur.id, assessment: last.assessment, mudancas: mud, mudancas_ia: last.mudancas },
-    resumo_legivel: core.resumoDietaCompleto(last.plan, last.assessment, []) + '\n' + core.secaoOQueMudou(mud, last.mudancas),
+    resumo_legivel: core.resumoDietaCompleto(last.plan, last.assessment, []) + '\n' + core.secaoOQueMudou(mud, categoria === 'revisar' ? [] : last.mudancas)
+      + (categoria === 'revisar' ? '\n\n## O que foi corrigido\n\n' + ((last.mudancas ?? []).length ? last.mudancas.map((m: string) => `- ${m}`).join('\n') : '- Nada precisou ser corrigido.') : ''),
   }
 }
 
