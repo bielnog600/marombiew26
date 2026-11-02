@@ -127,6 +127,13 @@
       "when": 1793648149279,
       "tag": "0017_create_office_plan_drafts",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1793651195403,
+      "tag": "0018_publish_diet_plan_office_wrapper",
+      "breakpoints": true
     }
   ]
 }
