@@ -41,3 +41,33 @@ export const buildWorkoutPlanInsertPayload = (
   return { success: true, payload: insertPayload, markdown, json: validation.data };
 };
 
+
+/**
+ * Monta (sem gravar) o UPDATE do botão Salvar do editor de treino
+ * (saveWorkoutPlanJSON). Compartilhado com office-gerar → publicar de um ajuste.
+ * `fase` é NOT NULL: nunca sobrescreve com null/undefined.
+ */
+export const buildWorkoutPlanUpdatePayload = (
+  json: WorkoutPlan,
+  extras: SaveExtras = {},
+):
+  | { success: true; updates: Record<string, unknown>; markdown: string; json: WorkoutPlan }
+  | { success: false; error: string } => {
+  const validation = validateWorkoutPlan(removeEmptyDays(json));
+  if (!validation.success) {
+    return { success: false, error: (validation as { error: string }).error };
+  }
+  const markdown = workoutPlanToMarkdown(validation.data);
+  const { periodization, ...rest } = extras;
+  const clean: Record<string, unknown> = { ...rest };
+  if (clean.fase === null || clean.fase === undefined) delete clean.fase;
+  if (clean.fase_inicio_data === undefined) delete clean.fase_inicio_data;
+  if (periodization) Object.assign(clean, periodization);
+  const updates: Record<string, unknown> = {
+    conteudo: markdown,
+    conteudo_json: validation.data as unknown as Json,
+    migration_status: "completed",
+    ...clean,
+  };
+  return { success: true, updates, markdown, json: validation.data };
+};

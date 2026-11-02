@@ -1,0 +1,217 @@
+// office-gerar → ajustar (treino/dieta/cardio) e analisar (treino, só leitura).
+// Prompts, validação e "O que mudou" vêm do código compartilhado com o app
+// (officeCore ← src/lib/officeWizard/officeAdjust.ts). Ajustes de dieta passam
+// pelos MESMOS reparos determinísticos e validações do diet-agent.
+import * as core from '../_shared/generated/officeCore.js'
+import { anthropicChat } from '../_shared/anthropic.ts'
+import { loadExerciseCatalog, buildCatalogBlock, snapPlanToCatalog } from '../_shared/exerciseCatalog.ts'
+import { loadFoodCatalog, formatFoodCatalogPrompt } from '../_shared/foodCatalog.ts'
+import { repairInvalidFoodIds, enforceProteinFloors, fitDayProtein } from '../_shared/dietAutoRepair.ts'
+import { rebalanceDayCarbs } from '../_shared/dayCarbRebalance.ts'
+import { hydrateDietPlanFromFoods } from '../_shared/dietHydration.ts'
+import { normalizeStructuredDietOutput } from '../_shared/structuredDietOutput.ts'
+
+// deno-lint-ignore no-explicit-any
+type Sb = any
+
+const AJUSTE_TOOL_SCHEMA = {
+  type: 'object',
+  properties: { plan: { type: 'object' }, mudancas: { type: 'array', items: { type: 'string' } } },
+  required: ['plan'],
+}
+
+async function chatAjuste(m: { system: string; user: string }, maxTokens = 20000) {
+  const resp = await anthropicChat({
+    method: 'POST',
+    body: JSON.stringify({
+      messages: [{ role: 'system', content: m.system }, { role: 'user', content: m.user }],
+      max_tokens: maxTokens, temperature: 0.2,
+      response_format: { type: 'json_object', tool_schema: AJUSTE_TOOL_SCHEMA },
+    }),
+  })
+  if (!resp.ok) {
+    const d = await resp.json().catch(() => ({}))
+    throw Object.assign(new Error(d?.error ?? 'Falha na IA'), { detail: { status: resp.status } })
+  }
+  const data = await resp.json()
+  const parsed = core.parseAjusteResposta(data?.choices?.[0]?.message?.content ?? '')
+  if (!parsed) throw new Error('Resposta da IA fora do formato esperado.')
+  return parsed
+}
+
+export const loadVigente = (sb: Sb, studentId: string, tipo: 'treino' | 'dieta' | 'cardio') => {
+  const cols = tipo === 'treino' ? 'id, titulo, conteudo_json, version, fase, fase_inicio_data, block_start_date, created_at'
+    : tipo === 'dieta' ? 'id, titulo, conteudo_json, protocols, diet_strategy, created_at'
+    : 'id, titulo, conteudo, created_at'
+  let q = sb.from('ai_plans').select(cols).eq('student_id', studentId).eq('tipo', tipo)
+  if (tipo !== 'cardio') q = q.eq('is_draft', false)
+  return q.order('created_at', { ascending: false }).limit(1).maybeSingle()
+}
+
+// ─── analisar ───────────────────────────────────────────────────────
+
+export async function analisar(sb: Sb, studentId: string) {
+  const [{ data: cur }, ex] = await Promise.all([
+    loadVigente(sb, studentId, 'treino'),
+    sb.from('exercises').select('nome, grupo_muscular'),
+  ])
+  const plan = cur ? core.normalizeWorkoutPlan(cur.conteudo_json) : null
+  if (!plan) return null
+  const grupos = new Map<string, string>()
+  for (const r of ex.data ?? []) grupos.set(String(r.nome ?? '').trim().toLowerCase(), r.grupo_muscular ?? null)
+  const a = core.analisarTreino(plan, {
+    semana: core.semanaDoCiclo(cur),
+    grupoBanco: (n: string) => grupos.get(String(n).trim().toLowerCase()) ?? null,
+  })
+  return { plano_id: cur.id, titulo: cur.titulo, texto: a.texto }
+}
+
+// ─── treino ─────────────────────────────────────────────────────────
+
+export async function runAjusteTreino(sb: Sb, cur: any, categoria: string, pedido: string) {
+  const before = core.normalizeWorkoutPlan(cur.conteudo_json)
+  if (!before) throw new Error('Treino vigente sem JSON estruturado; abra e salve no editor do admin antes de ajustar.')
+  const [catalog, met] = await Promise.all([
+    loadExerciseCatalog(),
+    sb.from('training_methods').select('slug').eq('active', true),
+  ])
+  if (!catalog.length) throw new Error('Banco de exercícios indisponível.')
+  const metodos = (met.data ?? []).map((m: any) => m.slug)
+  const catalogBlock = buildCatalogBlock(catalog)
+  const names = catalog.map((c) => c.nome)
+  let correcao: string[] | undefined
+  let last: { plan: any; erros: string[]; mudancas: string[] } | null = null
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const r = await chatAjuste(core.buildTreinoAjusteMessages({ plan: before, categoria, pedido, catalogBlock, metodos, correcao }))
+    snapPlanToCatalog(r.plan, catalog)
+    const v = core.validateTreinoAjuste(before, r.plan, names, metodos, categoria)
+    last = { plan: v.plan, erros: v.erros, mudancas: r.mudancas }
+    if (v.plan && !v.erros.length) break
+    correcao = v.erros.slice(0, 40)
+  }
+  if (!last?.plan || last.erros.length) {
+    throw Object.assign(new Error('O ajuste não passou nas validações do editor.'), { detail: { erros: last?.erros ?? [] } })
+  }
+  const built = core.buildWorkoutPlanUpdatePayload(last.plan, {})
+  if (built.success !== true) throw new Error('Treino ajustado inválido: ' + built.error)
+  const mud = core.mudancasTreino(before, built.json)
+  return {
+    result_payload: { modo: 'ajuste', json: built.json, base_plan_id: cur.id, base_conteudo_json: cur.conteudo_json, mudancas: mud, mudancas_ia: last.mudancas },
+    resumo_legivel: core.resumoTreinoCompleto(built.json) + '\n' + core.secaoOQueMudou(mud, last.mudancas),
+  }
+}
+
+// ─── dieta ──────────────────────────────────────────────────────────
+
+export async function runAjusteDieta(sb: Sb, studentId: string, cur: any, categoria: string, pedido: string) {
+  const before = core.parseDietPlanLoose(cur.conteudo_json)
+  if (!before) throw new Error('Dieta vigente sem JSON estruturado.')
+  const t = before.targets
+  const cc = cur.protocols?.carb_cycling?.enabled === true && cur.protocols?.weekly_day_targets
+  const weeklyCarbTargets = cc ? cur.protocols.weekly_day_targets : null
+  const schedule = cc
+    ? { days: Object.fromEntries(Object.entries(weeklyCarbTargets).map(([wd, d]: [string, any]) => [wd, { carbs_g: d.c, target_kcal: d.kcal, fat_g: d.g, protein_g: d.p }])) }
+    : null
+  const linear = cc ? null : { carbs_g: t.c, target_kcal: t.kcal, fat_g: t.g }
+  const floors = { main: t.p > 0 ? Math.min(30, Math.round(t.p * 0.25)) : 30, breakfast: t.p > 0 ? Math.min(15, Math.round(t.p * 0.12)) : 15 }
+  const [catalog, foods] = await Promise.all([loadFoodCatalog(sb), core.loadDietFoodRecords(sb)])
+  const foodCatalogBlock = formatFoodCatalogPrompt(catalog)
+  const mealCount = before.days?.[0]?.meals?.length ?? 0
+
+  let correcao: string[] | undefined
+  let last: any = null
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const r = await chatAjuste(core.buildDietaAjusteMessages({ plan: before, categoria, pedido, foodCatalogBlock, correcao }), 24000)
+    let raw = normalizeStructuredDietOutput(r.plan)
+    const erros: string[] = []
+    if (!raw || !Array.isArray(raw.days)) { erros.push('Plano sem dias.'); correcao = erros; last = { erros }; continue }
+    raw.targets = { ...t }
+    raw = repairInvalidFoodIds(raw, catalog).plan
+    // Mesma ordem do diet-agent: piso de proteína → proteína do dia → carbo/gordura, até 3 voltas.
+    for (let round = 0; round < 3; round++) {
+      raw = enforceProteinFloors(raw, catalog, floors).plan
+      raw = fitDayProtein(raw, catalog, schedule, floors, linear ? { protein_g: t.p } : null).plan
+      raw = (schedule ? rebalanceDayCarbs(raw, schedule, catalog) : rebalanceDayCarbs(raw, null, catalog, linear)).plan
+    }
+    raw = enforceProteinFloors(raw, catalog, floors).plan
+    const hydrated = hydrateDietPlanFromFoods(raw, catalog, 'strict_id')
+    const fin = core.finalizeDietAgentPlan(hydrated.plan, { kcal: t.kcal, p: t.p, c: t.c, g: t.g })
+    if (!fin.plan) { erros.push('Resposta fora do contrato da dieta.'); correcao = erros; last = { erros }; continue }
+    const assessment = core.assessGeneratedDiet({
+      plan: fin.plan, foods, carbCyclingEnabled: !!cc,
+      target: { calories: t.kcal, protein: t.p, carbs: t.c, fats: t.g },
+      weeklyCarbTargets: weeklyCarbTargets ?? {}, questionnaire: null, adherencePct: null, mealCount,
+    })
+    erros.push(...core.dietaItensProibidos(fin.plan))
+    if (!assessment.validation.valid) erros.push(...assessment.validation.reasons)
+    if (assessment.unresolved.length) erros.push(...assessment.unresolved.map((u: string) => `Alimento fora da base: ${u}`))
+    last = { plan: fin.plan, assessment, erros, mudancas: r.mudancas }
+    if (!erros.length) break
+    correcao = erros.slice(0, 30)
+  }
+  if (!last?.plan || last.erros.length) {
+    throw Object.assign(new Error('O ajuste da dieta não passou nas validações (meta/tolerâncias/base).'), { detail: { erros: last?.erros ?? [] } })
+  }
+  const insert = core.buildDietDraftInsert({
+    studentId, markdown: core.dietPlanToMarkdown(last.plan), protocols: cur.protocols ?? null, plan: last.plan,
+    strategy: cur.diet_strategy ?? '', intent: 'update',
+    viability: last.assessment.viability ? { score: last.assessment.viability.score, breakdown: last.assessment.viability.breakdown } : null,
+  })
+  const ins = await sb.from('ai_plans').insert(insert).select('id').single()
+  if (ins.error) throw ins.error
+  const mud = core.mudancasDieta(before, last.plan)
+  return {
+    ai_plan_id: ins.data.id,
+    result_payload: { modo: 'ajuste', ai_plan_id: ins.data.id, base_plan_id: cur.id, assessment: last.assessment, mudancas: mud, mudancas_ia: last.mudancas },
+    resumo_legivel: core.resumoDietaCompleto(last.plan, last.assessment, []) + '\n' + core.secaoOQueMudou(mud, last.mudancas),
+  }
+}
+
+// ─── cardio ─────────────────────────────────────────────────────────
+
+export async function runAjusteCardio(cur: any, categoria: string, pedido: string) {
+  const before = core.parseCardioPayload(cur.conteudo)
+  if (!before) throw new Error('Cardio vigente fora do formato estruturado.')
+  const r = await chatAjuste(core.buildCardioAjusteMessages({ payload: before, categoria, pedido }), 12000)
+  const after = core.parseCardioPayload(JSON.stringify(r.plan))
+  if (!after) throw new Error('Resposta da IA fora do formato do cardio.')
+  const antes = core.resumoCardioCompleto(before)
+  const depois = core.resumoCardioCompleto(after)
+  const mud = core.mudancasTexto(antes, depois)
+  return {
+    result_payload: { modo: 'ajuste', payload: after, base_plan_id: cur.id, mudancas: mud, mudancas_ia: r.mudancas },
+    resumo_legivel: depois + '\n' + core.secaoOQueMudou(mud, r.mudancas),
+  }
+}
+
+// ─── publicar ajuste de treino (igual ao botão Salvar do editor) ────
+
+export async function publicarAjusteTreino(sb: Sb, d: any): Promise<{ planId: string } | { conflict: string }> {
+  const rp = d.result_payload ?? {}
+  const { data: plan } = await sb.from('ai_plans').select('id, student_id, conteudo_json, version').eq('id', rp.base_plan_id).maybeSingle()
+  if (!plan) return { conflict: 'O treino vigente que foi ajustado não existe mais.' }
+  if (JSON.stringify(plan.conteudo_json) !== JSON.stringify(rp.base_conteudo_json)) {
+    return { conflict: 'O treino vigente foi alterado depois do ajuste. Descarte e peça o ajuste de novo.' }
+  }
+  const built = core.buildWorkoutPlanUpdatePayload(rp.json, {})
+  if (built.success !== true) throw new Error('Erro ao salvar: ' + built.error)
+  const up = await sb.from('ai_plans').update(built.updates).eq('id', plan.id)
+  if (up.error) throw up.error
+  // Mesmo registro de edição do editor (telemetria: falha não desfaz o save).
+  try {
+    const before = core.normalizeWorkoutPlan(plan.conteudo_json)
+    const changes = before ? core.diffWorkoutPlans(before, built.json) : []
+    const { data: admin } = await sb.from('user_roles').select('user_id').eq('role', 'admin').limit(1).maybeSingle()
+    if (before && changes.length && admin?.user_id && admin.user_id !== plan.student_id) {
+      const row = core.buildPrescriptionEditRow({
+        before, after: built.json, studentId: plan.student_id, planId: plan.id, source: 'manual_plan_editor',
+        actionOrigin: 'ai_assisted', planVersion: plan.version ?? null, professorId: admin.user_id,
+      }, changes)
+      const r = await sb.from('workout_prescription_edits').insert(row)
+      if (r.error) console.error('[office-gerar] prescription_edit_failed', r.error.message)
+    }
+  } catch (e) {
+    console.error('[office-gerar] prescription_edit_failed', (e as Error).message)
+  }
+  return { planId: plan.id }
+}

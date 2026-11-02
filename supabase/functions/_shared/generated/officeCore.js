@@ -5883,6 +5883,25 @@ var buildWorkoutPlanInsertPayload = (studentId, json, extras = {}) => {
   };
   return { success: true, payload: insertPayload, markdown, json: validation.data };
 };
+var buildWorkoutPlanUpdatePayload = (json, extras = {}) => {
+  const validation = validateWorkoutPlan(removeEmptyDays(json));
+  if (!validation.success) {
+    return { success: false, error: validation.error };
+  }
+  const markdown = workoutPlanToMarkdown(validation.data);
+  const { periodization, ...rest } = extras;
+  const clean = { ...rest };
+  if (clean.fase === null || clean.fase === void 0) delete clean.fase;
+  if (clean.fase_inicio_data === void 0) delete clean.fase_inicio_data;
+  if (periodization) Object.assign(clean, periodization);
+  const updates = {
+    conteudo: markdown,
+    conteudo_json: validation.data,
+    migration_status: "completed",
+    ...clean
+  };
+  return { success: true, updates, markdown, json: validation.data };
+};
 
 // src/lib/weeklyEnergy.ts
 var ENERGY_WEEKDAYS = [
@@ -6879,8 +6898,8 @@ var buildFoodIndex = (foods) => {
     if (food?.id) byId.set(food.id, food);
     const key = normalizeFoodName(food?.name ?? "");
     if (!key) continue;
-    const list = byName.get(key);
-    if (list) list.push(food);
+    const list2 = byName.get(key);
+    if (list2) list2.push(food);
     else byName.set(key, [food]);
   }
   return { byId, byName };
@@ -9470,9 +9489,9 @@ function detectFromResolutionStatus(plan) {
       for (const item of meal.items ?? []) {
         if (item.resolutionStatus !== "unresolved") continue;
         const raw = (item.name || "").trim();
-        const norm = normalizeFoodName2(raw);
-        if (!norm || norm.length < 2 || STOPWORDS.has(norm) || seen.has(norm)) continue;
-        seen.set(norm, {
+        const norm3 = normalizeFoodName2(raw);
+        if (!norm3 || norm3.length < 2 || STOPWORDS.has(norm3) || seen.has(norm3)) continue;
+        seen.set(norm3, {
           name: raw,
           qtyGrams: item.qtyGrams,
           kcal: Number(item.macros?.kcal) || 0,
@@ -9495,10 +9514,10 @@ function detectNewFoodsFromPlan(plan, existingFoodNames) {
     for (const meal of day.meals ?? []) {
       for (const item of meal.items ?? []) {
         const raw = (item.name || "").trim();
-        const norm = normalizeFoodName2(raw);
-        if (!norm || norm.length < 2) continue;
-        if (STOPWORDS.has(norm)) continue;
-        if (existingSet.has(norm)) continue;
+        const norm3 = normalizeFoodName2(raw);
+        if (!norm3 || norm3.length < 2) continue;
+        if (STOPWORDS.has(norm3)) continue;
+        if (existingSet.has(norm3)) continue;
         const candTokens = new Set(nameTokens(raw));
         if (candTokens.size > 0) {
           const matched = existingTokenSets.some(
@@ -9506,8 +9525,8 @@ function detectNewFoodsFromPlan(plan, existingFoodNames) {
           );
           if (matched) continue;
         }
-        if (seen.has(norm)) continue;
-        seen.set(norm, {
+        if (seen.has(norm3)) continue;
+        seen.set(norm3, {
           name: raw,
           qtyGrams: item.qtyGrams,
           kcal: Number(item.macros?.kcal) || 0,
@@ -9761,8 +9780,746 @@ var canonicalDietPlanToMarkdown = (plan) => {
 
 // src/lib/dietMarkdownSerializer.ts
 var dietPlanToMarkdown = (plan) => canonicalDietPlanToMarkdown(plan);
+
+// src/lib/prescriptionEditRow.ts
+var num2 = (v) => {
+  if (v === null || v === void 0 || v === "") return null;
+  const n = typeof v === "number" ? v : Number(String(v).replace(/[^\d.-]/g, ""));
+  return Number.isFinite(n) ? n : null;
+};
+var str = (v) => {
+  const s = String(v ?? "").trim();
+  return s ? s : null;
+};
+var list = (v) => Array.isArray(v) ? v.map((x) => String(x).trim()).filter(Boolean) : [];
+var buildPrescriptionContextSnapshot = (input = {}) => ({
+  objective: str(input.objective),
+  level: str(input.level),
+  days_per_week: num2(input.daysPerWeek),
+  priority_muscles: list(input.priorityMuscles),
+  periodization: {
+    model: str(input.periodization?.model),
+    block_type: str(input.periodization?.block_type),
+    block_number: num2(input.periodization?.block_number),
+    week: num2(input.periodization?.week),
+    volume_target: num2(input.periodization?.volume_target)
+  },
+  restrictions: {
+    status: str(input.restrictions?.status),
+    explicit_restrictions: list(input.restrictions?.explicit_restrictions),
+    pain_flags: list(input.restrictions?.pain_flags)
+  },
+  recovery: {
+    recent_rpe: num2(input.recovery?.recent_rpe),
+    adherence: num2(input.recovery?.adherence),
+    data_quality: str(input.recovery?.data_quality)
+  },
+  session_context: {
+    day_id: str(input.sessionContext?.day_id),
+    day_name: str(input.sessionContext?.day_name),
+    session_role: input.sessionContext?.session_role ?? "unknown"
+  },
+  captured_at: (/* @__PURE__ */ new Date()).toISOString()
+});
+var buildPrescriptionEditRow = (input, changes) => ({
+  professor_id: input.professorId,
+  student_id: input.studentId,
+  plan_id: input.planId,
+  plan_version: input.planVersion ?? null,
+  cycle_key: input.cycleKey ?? null,
+  source: input.source,
+  action_origin: input.actionOrigin ?? "manual",
+  before_json: input.before,
+  after_json: input.after,
+  changes,
+  context_snapshot: buildPrescriptionContextSnapshot(input.context)
+});
+
+// src/lib/workoutPlanEdit.ts
+var parsePauseToSeconds2 = (raw) => {
+  if (!raw) return void 0;
+  const s = String(raw).trim().toLowerCase();
+  if (!s || s === "-" || s === "\u2014") return void 0;
+  const min = s.match(/^(\d+(?:[.,]\d+)?)\s*(?:min|m)\b/);
+  if (min) return Math.round(Number(min[1].replace(",", ".")) * 60);
+  const sec = s.match(/^(\d+)/);
+  if (sec) return Number(sec[1]);
+  return void 0;
+};
+
+// src/lib/workoutPlanDiff.ts
+var norm = (v) => String(v ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, " ").trim().toLowerCase();
+var restSecondsOf = (e) => {
+  if (typeof e.restSeconds === "number" && Number.isFinite(e.restSeconds)) return e.restSeconds;
+  const parsed = parsePauseToSeconds2(e.pause);
+  return typeof parsed === "number" ? parsed : null;
+};
+var intOf = (v) => {
+  const n = parseInt(String(v ?? "").replace(/[^\d]/g, ""), 10);
+  return Number.isFinite(n) ? n : 0;
+};
+var setCounts = (e) => {
+  const s1 = intOf(e.series);
+  const s2 = intOf(e.series2);
+  if (s2 > 0) return { recon: s1, work: s2 };
+  return { recon: 0, work: s1 };
+};
+var perSetSignature = (scheme) => {
+  if (!scheme || !Array.isArray(scheme.sets) || scheme.sets.length === 0) return null;
+  return [...scheme.sets].sort((a, b) => (a.set_number || 0) - (b.set_number || 0)).map((s) => `${s.set_number}:${s.set_type}:${norm(s.target_reps)}`).join("|");
+};
+var schemeSnapshot = (e) => ({
+  series: e.series || "",
+  series2: e.series2 || "",
+  setScheme: e.setScheme ?? null
+});
+var baseChange = (type, ctx, before, after, metadata = {}) => ({
+  type,
+  day_id: ctx.dayId,
+  day_name: ctx.dayName,
+  exercise_id: ctx.exerciseId,
+  exercise_before: ctx.before?.exercise ?? null,
+  exercise_after: ctx.after?.exercise ?? null,
+  position_before: ctx.positionBefore ?? null,
+  position_after: ctx.positionAfter ?? null,
+  before,
+  after,
+  metadata: { exercise_role: "unknown", ...metadata }
+});
+var matchDays = (before, after) => {
+  const pairs = [];
+  const beforeById = new Map(before.days.map((d) => [d.id, d]));
+  const usedBefore = /* @__PURE__ */ new Set();
+  after.days.forEach((ad) => {
+    let bd = beforeById.get(ad.id);
+    if (!bd) bd = before.days.find((d) => !usedBefore.has(d.id) && norm(d.day) === norm(ad.day));
+    if (bd) usedBefore.add(bd.id);
+    pairs.push({ before: bd, after: ad });
+  });
+  before.days.forEach((bd) => {
+    if (!usedBefore.has(bd.id) && !after.days.some((ad) => ad.id === bd.id)) {
+      pairs.push({ before: bd, after: void 0 });
+    }
+  });
+  return pairs;
+};
+var diffWorkoutPlans = (before, after) => {
+  const changes = [];
+  matchDays(before, after).forEach(({ before: bDay, after: aDay }) => {
+    const dayId = aDay?.id ?? bDay?.id ?? null;
+    const dayName = aDay?.day ?? bDay?.day ?? null;
+    if (bDay && !aDay) {
+      bDay.exercises.forEach((ex, i) => {
+        changes.push(
+          baseChange(
+            "EXERCISE_REMOVED",
+            { dayId: bDay.id, dayName: bDay.day, exerciseId: ex.id, before: ex, positionBefore: i + 1 },
+            { exercise: ex.exercise, exerciseId: ex.exerciseId ?? null },
+            null
+          )
+        );
+      });
+      return;
+    }
+    if (!aDay) return;
+    if (bDay && norm(bDay.day) !== norm(aDay.day)) {
+      changes.push(
+        baseChange(
+          "DAY_CHANGED",
+          { dayId: aDay.id, dayName: aDay.day, exerciseId: null },
+          { day: bDay.day },
+          { day: aDay.day }
+        )
+      );
+    }
+    const beforeExercises = bDay?.exercises ?? [];
+    const beforeIndex = new Map(beforeExercises.map((e, i) => [e.id, { ex: e, pos: i + 1 }]));
+    const afterIds = new Set(aDay.exercises.map((e) => e.id));
+    beforeExercises.forEach((ex, i) => {
+      if (afterIds.has(ex.id)) return;
+      changes.push(
+        baseChange(
+          "EXERCISE_REMOVED",
+          { dayId: aDay.id, dayName: aDay.day, exerciseId: ex.id, before: ex, positionBefore: i + 1 },
+          { exercise: ex.exercise, exerciseId: ex.exerciseId ?? null },
+          null
+        )
+      );
+    });
+    const reorderOperationId = `reorder:${aDay.id}`;
+    aDay.exercises.forEach((aEx, idx) => {
+      const posAfter = idx + 1;
+      const prev = beforeIndex.get(aEx.id);
+      if (!prev) {
+        changes.push(
+          baseChange(
+            "EXERCISE_ADDED",
+            { dayId: aDay.id, dayName: aDay.day, exerciseId: aEx.id, after: aEx, positionAfter: posAfter },
+            null,
+            { exercise: aEx.exercise, exerciseId: aEx.exerciseId ?? null }
+          )
+        );
+        return;
+      }
+      const bEx = prev.ex;
+      const posBefore = prev.pos;
+      const ctx = {
+        dayId: aDay.id,
+        dayName: aDay.day,
+        exerciseId: aEx.id,
+        before: bEx,
+        after: aEx,
+        positionBefore: posBefore,
+        positionAfter: posAfter
+      };
+      if (posBefore !== posAfter) {
+        changes.push(
+          baseChange("EXERCISE_REORDERED", ctx, { position: posBefore }, { position: posAfter }, {
+            reorder_operation_id: reorderOperationId
+          })
+        );
+      }
+      const replaced = norm(bEx.exercise) !== norm(aEx.exercise) || !!bEx.exerciseId && !!aEx.exerciseId && bEx.exerciseId !== aEx.exerciseId;
+      if (replaced) {
+        changes.push(
+          baseChange(
+            "EXERCISE_REPLACED",
+            ctx,
+            { exercise: bEx.exercise, exerciseId: bEx.exerciseId ?? null },
+            { exercise: aEx.exercise, exerciseId: aEx.exerciseId ?? null }
+          )
+        );
+        return;
+      }
+      const bc = setCounts(bEx);
+      const ac = setCounts(aEx);
+      if (bc.recon !== ac.recon) {
+        changes.push(
+          baseChange("RECOGNITION_SETS_CHANGED", ctx, schemeSnapshot(bEx), schemeSnapshot(aEx))
+        );
+      } else if (bc.work !== ac.work) {
+        changes.push(baseChange("SETS_CHANGED", ctx, schemeSnapshot(bEx), schemeSnapshot(aEx)));
+      }
+      const bMode = bEx.setScheme?.mode ?? null;
+      const aMode = aEx.setScheme?.mode ?? null;
+      const bSig = perSetSignature(bEx.setScheme);
+      const aSig = perSetSignature(aEx.setScheme);
+      const perSetInvolved = bMode === "per_set" || aMode === "per_set";
+      if (perSetInvolved && (bSig !== aSig || bMode !== aMode)) {
+        changes.push(
+          baseChange(
+            "PER_SET_REPS_CHANGED",
+            ctx,
+            { reps: bEx.reps || "", setScheme: bEx.setScheme ?? null },
+            { reps: aEx.reps || "", setScheme: aEx.setScheme ?? null }
+          )
+        );
+      } else if (norm(bEx.reps) !== norm(aEx.reps)) {
+        changes.push(baseChange("REPS_CHANGED", ctx, { reps: bEx.reps || "" }, { reps: aEx.reps || "" }));
+      }
+      if (norm(bEx.rir) !== norm(aEx.rir)) {
+        changes.push(baseChange("RIR_CHANGED", ctx, { rir: bEx.rir || "" }, { rir: aEx.rir || "" }));
+      }
+      const bRest = restSecondsOf(bEx);
+      const aRest = restSecondsOf(aEx);
+      if (bRest !== aRest) {
+        changes.push(
+          baseChange(
+            "REST_CHANGED",
+            ctx,
+            { restSeconds: bRest, pause: bEx.pause || "" },
+            { restSeconds: aRest, pause: aEx.pause || "" }
+          )
+        );
+      }
+      if (norm(bEx.variation) !== norm(aEx.variation)) {
+        changes.push(
+          baseChange("VARIATION_CHANGED", ctx, { variation: bEx.variation || "" }, { variation: aEx.variation || "" })
+        );
+      }
+      if (norm(bEx.description) !== norm(aEx.description)) {
+        changes.push(
+          baseChange(
+            "DESCRIPTION_CHANGED",
+            ctx,
+            { description: bEx.description || "" },
+            { description: aEx.description || "" }
+          )
+        );
+      }
+      if (norm(bEx.tempo) !== norm(aEx.tempo)) {
+        changes.push(baseChange("TEMPO_CHANGED", ctx, { tempo: bEx.tempo || "" }, { tempo: aEx.tempo || "" }));
+      }
+      if (norm(bEx.notes) !== norm(aEx.notes)) {
+        changes.push(baseChange("NOTES_CHANGED", ctx, { notes: bEx.notes || "" }, { notes: aEx.notes || "" }));
+      }
+    });
+  });
+  return changes;
+};
+
+// src/lib/workoutEditorOptions.ts
+var REC_REPS_OPTS = ["8", "10", "12", "15", "20", "15s", "20s", "30s", "45s", "60s"];
+var WORK_REPS_OPTS = ["6", "8", "10", "12", "15", "6-8", "8-10", "8-12", "10-12", "12-15", "15s", "20s", "30s", "45s", "60s", "90s"];
+var PAUSE_OPTS = ["10s", "15s", "30s", "45s", "60s", "90s", "120s", "180s"];
+var OFFICE_PAUSE_OPTS = PAUSE_OPTS.filter((p) => p !== "180s");
+
+// src/lib/officeWizard/treinoAnalysis.ts
+var GRUPOS_PEQUENOS = ["biceps", "triceps", "ombro", "panturrilha", "abdomen"];
+var GRUPOS_GRANDES = ["costas", "peito", "quadriceps", "gluteo", "posterior"];
+var ALVO_PEQUENO = { min: 8, max: 12 };
+var ALVO_GRANDE = { min: 12, max: 20 };
+var LIMITE_DIA_SEMANA1 = 18;
+var GRUPO_LABEL = {
+  peito: "Peito",
+  costas: "Costas",
+  quadriceps: "Quadr\xEDceps",
+  gluteo: "Gl\xFAteo",
+  posterior: "Posterior",
+  biceps: "B\xEDceps",
+  triceps: "Tr\xEDceps",
+  ombro: "Ombro",
+  panturrilha: "Panturrilha",
+  abdomen: "Abd\xF4men",
+  adutores: "Adutores",
+  outro: "Outros"
+};
+var grupoLabel = (g) => GRUPO_LABEL[g];
+var norm2 = (s) => String(s ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
+var isNaoContavel = (name) => /mobilidade|alongamento|liberacao|ativacao|respiracao/.test(norm2(name));
+function grupoPrincipal(name, grupoBanco) {
+  const n = norm2(name);
+  if (/triceps/.test(n)) return "triceps";
+  if (/elevacao pelvica|hip thrust|kick ?back|abdutora|abducao|gluteo|coice/.test(n)) return "gluteo";
+  if (/adutora|aducao/.test(n)) return "adutores";
+  if (/stiff|rdl|romeno|good morning|flexora|nordic|hiperextensao/.test(n)) return "posterior";
+  if (/panturrilha|gemeos|soleo/.test(n)) return "panturrilha";
+  if (/crucifixo inverso|face pull|desenvolvimento|elevacao lateral|elevacao frontal|ombro|arnold|remada alta/.test(n)) return "ombro";
+  if (/afundo|agachamento|leg|hack|extensora|bulgaro|passada|sissy|avanco|step ?up/.test(n)) return "quadriceps";
+  if (/rosca|biceps/.test(n)) return "biceps";
+  if (/testa|frances|mergulho/.test(n)) return "triceps";
+  if (/supino|crucifixo|peck|voador|crossover|cross over|flexao de braco|peitoral/.test(n)) return "peito";
+  if (/puxada|remada|pulldown|pull ?down|barra fixa|pull ?up|pullover|costas|graviton|serrote/.test(n)) return "costas";
+  if (/abdominal|abdomen|prancha|crunch|infra|obliquo|roda abdominal/.test(n)) return "abdomen";
+  const b = norm2(grupoBanco);
+  if (/peit/.test(b)) return "peito";
+  if (/costa|dorsal/.test(b)) return "costas";
+  if (/quadri|coxa/.test(b)) return "quadriceps";
+  if (/glut/.test(b)) return "gluteo";
+  if (/posterior|isquio/.test(b)) return "posterior";
+  if (/bicep/.test(b)) return "biceps";
+  if (/tricep/.test(b)) return "triceps";
+  if (/ombro|deltoid/.test(b)) return "ombro";
+  if (/pantu/.test(b)) return "panturrilha";
+  if (/abdo|core/.test(b)) return "abdomen";
+  return "outro";
+}
+var int = (v) => {
+  const n = parseInt(String(v ?? "").trim(), 10);
+  return Number.isFinite(n) && n > 0 ? n : 0;
+};
+function seriesDeTrabalho(ex) {
+  if (isNaoContavel(ex.exercise)) return 0;
+  if (ex.setScheme?.sets?.length) return ex.setScheme.sets.filter((s) => s.set_type === "work").length;
+  const s1 = int(ex.series);
+  const s2 = int(ex.series2);
+  if (s1 > 0 && s2 > 0) return s2;
+  return s1 || s2;
+}
+var isComposite = (reps) => reps.includes("+");
+var pauseLabel = (ex) => ex.restSeconds ? `${ex.restSeconds}s` : String(ex.pause ?? "").trim();
+function problemasCampos(ex) {
+  const out = [];
+  if (!String(ex.exercise ?? "").trim()) out.push("exerc\xEDcio sem nome");
+  const mob = isNaoContavel(ex.exercise);
+  const reps = String(ex.reps ?? "").trim();
+  if (!int(ex.series) && !int(ex.series2) && !ex.setScheme?.sets?.length) out.push("s\xE9ries em branco");
+  if (ex.setScheme?.sets?.length) {
+    for (const s of ex.setScheme.sets) {
+      const ok = s.set_type === "work" ? WORK_REPS_OPTS : [...REC_REPS_OPTS, ...WORK_REPS_OPTS];
+      if (!ok.includes(String(s.target_reps).trim())) out.push(`reps "${s.target_reps}" fora do editor (s\xE9rie ${s.set_number})`);
+    }
+  } else if (!reps) {
+    out.push("reps em branco");
+  } else if (!mob) {
+    if (isComposite(reps)) {
+      const [r, w] = reps.split("+").map((p2) => p2.trim());
+      if (!REC_REPS_OPTS.includes(r) && !WORK_REPS_OPTS.includes(r)) out.push(`reps de reconhecimento "${r}" fora do editor`);
+      if (!WORK_REPS_OPTS.includes(w)) out.push(`reps "${w}" fora do editor`);
+    } else if (!WORK_REPS_OPTS.includes(reps)) out.push(`reps "${reps}" fora do editor`);
+  }
+  const p = pauseLabel(ex);
+  if (!p) {
+    if (!mob) out.push("pausa em branco");
+  } else if (!OFFICE_PAUSE_OPTS.includes(p)) out.push(`pausa "${p}" fora do editor`);
+  return out;
+}
+var VARIACAO_PROPRIA = /^(kick ?back|hiperextensao lombar)/;
+var isProibido = (name) => {
+  const n = norm2(name);
+  return /isometria (na )?parede/.test(n) || n === "elevacao pelvica unilateral" || n === "elevacao pelvica unilateral 1";
+};
+var isCompostoGluteo = (name) => /elevacao pelvica|hip thrust/.test(norm2(name));
+var isPuxadaVertical = (name) => /puxada|pulldown|pull ?down|barra fixa|pull ?up|graviton/.test(norm2(name)) && !/(braco|bracos) estendido|pullover/.test(norm2(name));
+var isInferior = (g) => ["quadriceps", "gluteo", "posterior", "adutores"].includes(g);
+function analisarTreino(plan, opts = {}) {
+  const semana = opts.semana ?? null;
+  const porDia = [];
+  const totals = /* @__PURE__ */ new Map();
+  const avisos = [];
+  const principaisPorDia = plan.days.map((d) => new Set(d.exercises.map((e) => norm2(e.exercise))));
+  plan.days.forEach((day, di) => {
+    let diaSeries = 0;
+    const gruposDia = /* @__PURE__ */ new Map();
+    for (const ex of day.exercises) {
+      const g = grupoPrincipal(ex.exercise, opts.grupoBanco?.(ex.exercise));
+      const s = seriesDeTrabalho(ex);
+      diaSeries += s;
+      if (s > 0) {
+        totals.set(g, (totals.get(g) ?? 0) + s);
+        gruposDia.set(g, (gruposDia.get(g) ?? 0) + 1);
+      }
+      const label = `${day.day} \xB7 ${ex.exercise || "(sem nome)"}`;
+      for (const p of problemasCampos(ex)) avisos.push(`${label}: ${p}.`);
+      if (isProibido(ex.exercise)) avisos.push(`${label}: exerc\xEDcio que n\xE3o entra nas regras Marombiew.`);
+      if (!isNaoContavel(ex.exercise)) {
+        const v = String(ex.variation ?? "").trim();
+        if (!v || v === "-" || v === "\u2014") avisos.push(`${label}: varia\xE7\xE3o vazia.`);
+        else {
+          if (isProibido(v)) avisos.push(`${label}: varia\xE7\xE3o "${v}" n\xE3o entra nas regras Marombiew.`);
+          const nv = norm2(v);
+          if (!VARIACAO_PROPRIA.test(norm2(ex.exercise))) {
+            const outro = principaisPorDia.findIndex((set, j) => j !== di && set.has(nv));
+            if (outro >= 0) avisos.push(`${label}: varia\xE7\xE3o "${v}" repete o principal de ${plan.days[outro].day}.`);
+          }
+        }
+      }
+    }
+    const temInferior = [...gruposDia.keys()].filter(isInferior).length > 0 && (gruposDia.get("quadriceps") ?? 0) + (gruposDia.get("gluteo") ?? 0) + (gruposDia.get("posterior") ?? 0) >= 2;
+    if (temInferior && (gruposDia.get("gluteo") ?? 0) > 0 && !day.exercises.some((e) => isCompostoGluteo(e.exercise))) {
+      avisos.push(`${day.day}: dia de inferiores com gl\xFAteo sem composto de gl\xFAteo (eleva\xE7\xE3o p\xE9lvica).`);
+    }
+    const costasDia = (gruposDia.get("costas") ?? 0) >= 2 || /costas|dorsal/.test(norm2(day.focus));
+    if (costasDia && !day.exercises.some((e) => isPuxadaVertical(e.exercise))) {
+      avisos.push(`${day.day}: dia de costas sem puxada vertical composta.`);
+    }
+    const acimaLimite = (semana == null || semana === 1) && diaSeries > LIMITE_DIA_SEMANA1;
+    porDia.push({ dia: day.day, series: diaSeries, acimaLimite });
+  });
+  const porGrupo = [];
+  for (const g of [...GRUPOS_GRANDES, ...GRUPOS_PEQUENOS]) {
+    const s = totals.get(g) ?? 0;
+    const alvo = GRUPOS_GRANDES.includes(g) ? ALVO_GRANDE : ALVO_PEQUENO;
+    porGrupo.push({ grupo: g, series: s, alvo, status: s < alvo.min ? "abaixo" : s > alvo.max ? "acima" : "ok" });
+  }
+  for (const g of ["adutores", "outro"]) {
+    const s = totals.get(g) ?? 0;
+    if (s > 0) porGrupo.push({ grupo: g, series: s, alvo: null, status: "sem_alvo" });
+  }
+  const L = [];
+  L.push(`An\xE1lise do treino${semana ? ` (semana ${semana} do ciclo)` : ""}`);
+  L.push("");
+  L.push("S\xE9ries de trabalho por dia (reconhecimento e mobilidade n\xE3o contam):");
+  for (const d of porDia) L.push(`\u2022 ${d.dia}: ${d.series}${d.acimaLimite ? ` \u26A0 acima de ${LIMITE_DIA_SEMANA1}${semana == null ? " (semana do ciclo desconhecida; limite da semana 1)" : " na semana 1"}` : ""}`);
+  L.push("");
+  L.push("S\xE9ries de trabalho por grupo na semana:");
+  for (const g of porGrupo) {
+    const alvo = g.alvo ? ` (alvo ${g.alvo.min}\u2013${g.alvo.max})` : "";
+    const st = g.status === "abaixo" ? " \u26A0 abaixo" : g.status === "acima" ? " \u26A0 acima" : g.status === "ok" ? " \u2713" : "";
+    L.push(`\u2022 ${grupoLabel(g.grupo)}: ${g.series}${alvo}${st}`);
+  }
+  L.push("");
+  if (avisos.length) {
+    L.push("Pontos a corrigir:");
+    for (const a of avisos) L.push(`\u2022 ${a}`);
+  } else L.push("Nenhum campo em branco, valor fora do editor ou falha de estrutura encontrado.");
+  return { texto: L.join("\n"), porDia, porGrupo, avisos };
+}
+function semanaDoCiclo(plan, now = /* @__PURE__ */ new Date()) {
+  const start = plan?.block_start_date ?? plan?.fase_inicio_data ?? plan?.created_at ?? null;
+  if (!start) return null;
+  const t = Date.parse(start);
+  if (!Number.isFinite(t)) return null;
+  const w = Math.floor((now.getTime() - t) / (7 * 864e5)) + 1;
+  return w >= 1 ? w : 1;
+}
+
+// src/lib/officeWizard/officeAdjust.ts
+var AJUSTE_CATEGORIAS = {
+  treino: ["volume", "exercicios", "reps_pausa", "metodos", "dias", "descricoes", "revisar", "livre"],
+  dieta: ["porcoes", "alimentos", "macros", "refeicoes", "revisar", "livre"],
+  cardio: ["frequencia", "intensidade", "modalidade", "livre"]
+};
+function categoriaValida(tipo, categoria) {
+  return AJUSTE_CATEGORIAS[tipo].includes(categoria);
+}
+var REGRAS_TREINO_MAROMBIEW = `REGRAS MAROMBIEW (TREINO)
+- Volume: nunca corte s\xE9ries para segurar o dia; passe compostos/acess\xF3rios para "Reconhecimento + trabalho" (series=1 de reconhecimento, series2=2 de trabalho, reps "12 + 8-10"). Grupos pequenos (b\xEDceps, tr\xEDceps, ombro, panturrilha, abd\xF4men) 8\u201312 s\xE9ries de trabalho por semana; grandes (costas, peito, quadr\xEDceps, gl\xFAteo, posterior) 12\u201320, mesmo que o dia passe de 18.
+- B\xEDceps, tr\xEDceps, extensora, flexoras, eleva\xE7\xE3o p\xE9lvica, afundo e kick back: m\xEDnimo 3 s\xE9ries de trabalho.
+- Contagem por grupo principal: afundo/agachamento/leg = quadr\xEDceps; eleva\xE7\xE3o p\xE9lvica/kick back/abdu\xE7\xE3o = gl\xFAteo; stiff/RDL/good morning/flexoras = posterior. Mobilidade, alongamento, libera\xE7\xE3o, ativa\xE7\xE3o e respira\xE7\xE3o N\xC3O contam s\xE9ries e ficam sem descri\xE7\xE3o.
+- Varia\xE7\xE3o: mesma fam\xEDlia do principal e sem repetir o principal de outro dia. "AGACHAMENTO" sem complemento \xE9 peso corporal. Nunca "Isometria parede". "Eleva\xE7\xE3o p\xE9lvica unilateral" (a "1") n\xE3o entra: use "Eleva\xE7\xE3o p\xE9lvica unilateral 2" ou "Eleva\xE7\xE3o p\xE9lvica". Kick back e Hiperextens\xE3o lombar: a varia\xE7\xE3o \xE9 o pr\xF3prio exerc\xEDcio.
+- Dias de inferiores: um grupo por vez (quadr\xEDceps \u2192 posterior \u2192 gl\xFAteo \u2192 panturrilha), abdutora/adutora no bloco de gl\xFAteo, composto de gl\xFAteo (eleva\xE7\xE3o p\xE9lvica) em todo dia de inferiores, panturrilha com 3 s\xE9ries por dia de inferiores.
+- Dia de costas sempre com puxada vertical composta.
+- Descri\xE7\xE3o para avan\xE7ado = estrat\xE9gia (pico de contra\xE7\xE3o, exc\xEAntrica 3s, onde alongar, s\xE9rie de falha), n\xE3o ensinar o exerc\xEDcio.
+- T\xE9cnicas pedidas (drop set, rest-pause, cluster, pir\xE2mide, bi-set/superset) v\xE3o no campo de m\xE9todo/agrupamento E explicadas na descri\xE7\xE3o. Drop set: metodo "dropset" + metodo_params {aplicar:"ultima"|"todas", drops, reducao_pct}. Rest-pause: metodo "restpause" + {aplicar, pausa_s (10\u201330), minis}. Cluster: metodo "cluster" + {blocos, reps_bloco, pausa_s}. Bi-set/superset: mesmo grupo_id nos dois exerc\xEDcios consecutivos, tipo_grupo "biset"|"superset", ordem_grupo "A"/"B", pausa_grupo_s 0\u201310. Pir\xE2mide de reps: setScheme {mode:"per_set", sets:[{set_number, set_type:"work", target_reps}]} + method {slug:"pyramid_up"} (ou pyramid_down se decrescente).`;
+var REGRAS_DIETA_MAROMBIEW = `REGRAS MAROMBIEW (DIETA)
+- Por\xE7\xF5es reais: ovo 50 g por unidade; fruta 1 unidade; whey 30 g ou 15 g; atum 1 lata (~80 g); iogurte 1 pote; abacate no m\xEDnimo 40 g; prote\xEDna do almo\xE7o e do jantar no m\xEDnimo 90 g.
+- Manteiga n\xE3o entra.
+- Para fechar a meta, mexa nos carboidratos de base (arroz, batata, aveia, p\xE3o, tapioca, macarr\xE3o\u2026), nunca em por\xE7\xF5es simb\xF3licas.
+- Toler\xE2ncia da meta di\xE1ria: kcal \xB150, P \xB110 g, C \xB115 g, G \xB18 g.`;
+var OPCOES_EDITOR = `VALORES ACEITOS PELO EDITOR (nada fora disso)
+- Reps de trabalho: ${WORK_REPS_OPTS.join(", ")}.
+- Reps de reconhecimento (antes do "+"): ${REC_REPS_OPTS.join(", ")}.
+- Pausa (restSeconds em segundos, equivalente a): ${OFFICE_PAUSE_OPTS.join(", ")}.`;
+var CATEGORIA_TREINO = {
+  volume: "Ajuste de VOLUME (s\xE9ries por exerc\xEDcio/grupo).",
+  exercicios: "Troca/inclus\xE3o/remo\xE7\xE3o de EXERC\xCDCIOS ou varia\xE7\xF5es.",
+  reps_pausa: "Ajuste de REPETI\xC7\xD5ES e PAUSAS.",
+  metodos: "Aplicar/remover M\xC9TODOS (drop set, rest-pause, cluster, pir\xE2mide, bi-set/superset).",
+  dias: "Mudan\xE7a na estrutura de DIAS (ordem, divis\xE3o, foco).",
+  descricoes: "Reescrever DESCRI\xC7\xD5ES (estrat\xE9gia para avan\xE7ado).",
+  revisar: "REVISAR o treino inteiro aplicando TODAS as regras Marombiew (pode mexer onde for preciso para cumprir as regras).",
+  livre: "Pedido livre."
+};
+var CATEGORIA_DIETA = {
+  porcoes: "Ajuste de POR\xC7\xD5ES.",
+  alimentos: "Troca/inclus\xE3o/remo\xE7\xE3o de ALIMENTOS.",
+  macros: "Ajuste de MACROS (mantendo a meta publicada).",
+  refeicoes: "Mudan\xE7a de REFEI\xC7\xD5ES (hor\xE1rios, ordem, composi\xE7\xE3o).",
+  revisar: "REVISAR a dieta inteira aplicando TODAS as regras Marombiew.",
+  livre: "Pedido livre."
+};
+var CATEGORIA_CARDIO = {
+  frequencia: "Ajuste de FREQU\xCANCIA.",
+  intensidade: "Ajuste de INTENSIDADE/zonas.",
+  modalidade: "Troca de MODALIDADE.",
+  livre: "Pedido livre."
+};
+function buildTreinoAjusteMessages(p) {
+  const system = [
+    "Voc\xEA \xE9 o assistente de prescri\xE7\xE3o do personal Fabiew (Marombiew). Recebe o treino VIGENTE em JSON e um pedido de ajuste.",
+    'Devolva o treino COMPLETO alterado, no MESMO formato JSON (version, type "workout", metadata, days[].exercises[]), mudando SOMENTE o que o pedido exige. Todo o resto (ids, ordem, campos, textos) fica byte a byte id\xEAntico. Preserve os "id" de dias e exerc\xEDcios existentes; exerc\xEDcios novos recebem id novo \xFAnico.',
+    "Exerc\xEDcios e varia\xE7\xF5es: SOMENTE nomes exatos do banco abaixo.",
+    OPCOES_EDITOR,
+    REGRAS_TREINO_MAROMBIEW,
+    `M\xE9todos ativos (method.slug): ${p.metodos.join(", ") || "nenhum"}.`,
+    'Resposta: JSON { "plan": <treino completo>, "mudancas": ["antes \u2192 depois", ...] }.',
+    "BANCO DE EXERC\xCDCIOS:\n" + p.catalogBlock
+  ].join("\n\n");
+  const user = [
+    `Categoria: ${CATEGORIA_TREINO[p.categoria] ?? p.categoria}`,
+    `Pedido do Fabiew: ${p.pedido}`,
+    ...p.correcao?.length ? [`CORRIJA estes problemas da sua resposta anterior, sem mexer em mais nada:
+- ${p.correcao.join("\n- ")}`] : [],
+    "Treino vigente (JSON):",
+    JSON.stringify(p.plan)
+  ].join("\n\n");
+  return { system, user };
+}
+function buildDietaAjusteMessages(p) {
+  const system = [
+    "Voc\xEA \xE9 o assistente de nutri\xE7\xE3o do personal Fabiew (Marombiew). Recebe a dieta VIGENTE em JSON e um pedido de ajuste.",
+    "Devolva a dieta COMPLETA alterada, no MESMO contrato (meta, targets, days[].meals[].items[] com foodId, name, qtyGrams, portionLabel, macros), mudando SOMENTE o que o pedido exige; o resto fica id\xEAntico. Mantenha targets (a meta publicada) intactos.",
+    "Alimentos: SOMENTE da base abaixo, com o foodId e o nome exatos. Os macros ser\xE3o recalculados pela base.",
+    REGRAS_DIETA_MAROMBIEW,
+    'Resposta: JSON { "plan": <dieta completa>, "mudancas": ["antes \u2192 depois", ...] }.',
+    "BASE DE ALIMENTOS:\n" + p.foodCatalogBlock
+  ].join("\n\n");
+  const user = [
+    `Categoria: ${CATEGORIA_DIETA[p.categoria] ?? p.categoria}`,
+    `Pedido do Fabiew: ${p.pedido}`,
+    ...p.correcao?.length ? [`CORRIJA estes problemas da sua resposta anterior, sem mexer em mais nada:
+- ${p.correcao.join("\n- ")}`] : [],
+    "Dieta vigente (JSON):",
+    JSON.stringify(p.plan)
+  ].join("\n\n");
+  return { system, user };
+}
+function buildCardioAjusteMessages(p) {
+  return {
+    system: [
+      "Voc\xEA \xE9 o assistente de cardio do personal Fabiew (Marombiew). Recebe o plano de cardio VIGENTE em JSON e um pedido de ajuste.",
+      "Devolva o plano COMPLETO alterado no MESMO formato JSON, mudando SOMENTE o que o pedido exige; o resto fica id\xEAntico.",
+      'Resposta: JSON { "plan": <cardio completo>, "mudancas": ["antes \u2192 depois", ...] }.'
+    ].join("\n\n"),
+    user: [`Categoria: ${CATEGORIA_CARDIO[p.categoria] ?? p.categoria}`, `Pedido do Fabiew: ${p.pedido}`, "Cardio vigente (JSON):", JSON.stringify(p.payload)].join("\n\n")
+  };
+}
+function parseAjusteResposta(content) {
+  let v = content;
+  if (typeof v === "string") {
+    const t = v.trim().replace(/^```(?:json)?/i, "").replace(/```$/, "").trim();
+    try {
+      v = JSON.parse(t);
+    } catch {
+      return null;
+    }
+  }
+  if (!v || typeof v !== "object") return null;
+  let plan = "plan" in v ? v.plan : v;
+  if (typeof plan === "string") {
+    try {
+      plan = JSON.parse(plan);
+    } catch {
+      return null;
+    }
+  }
+  const mudancas = Array.isArray(v.mudancas) ? v.mudancas.map(String) : [];
+  return plan && typeof plan === "object" ? { plan, mudancas } : null;
+}
+var MIN3 = /rosca|biceps|triceps|testa|frances|extensora|flexora|elevacao pelvica|hip thrust|afundo|kick ?back/;
+function validateTreinoAjuste(before, rawAfter, catalogNames, metodos, categoria) {
+  const after = normalizeWorkoutPlan(rawAfter);
+  if (!after || !after.days.length) return { plan: null, erros: ["Resposta sem treino no formato do editor (days/exercises)."] };
+  const names = new Set([...catalogNames].map(norm2));
+  const slugs2 = /* @__PURE__ */ new Set([...metodos]);
+  const beforeById = /* @__PURE__ */ new Map();
+  for (const d of before.days) for (const e of d.exercises) beforeById.set(e.id, e);
+  const erros = [];
+  const ids = /* @__PURE__ */ new Set();
+  for (const day of after.days) {
+    for (const ex of day.exercises) {
+      const label = `${day.day} \xB7 ${ex.exercise || "(sem nome)"}`;
+      if (ids.has(ex.id)) erros.push(`${label}: id repetido (${ex.id}).`);
+      ids.add(ex.id);
+      const prev = beforeById.get(ex.id);
+      const changed = categoria === "revisar" || !prev || JSON.stringify(prev) !== JSON.stringify(ex);
+      if (!changed) continue;
+      if (!names.has(norm2(ex.exercise))) erros.push(`${label}: exerc\xEDcio fora do banco (use o nome exato).`);
+      const v = String(ex.variation ?? "").trim();
+      if (v && v !== "-" && v !== "\u2014" && !names.has(norm2(v))) erros.push(`${label}: varia\xE7\xE3o "${v}" fora do banco.`);
+      if (isProibido(ex.exercise) || v && isProibido(v)) erros.push(`${label}: exerc\xEDcio proibido pelas regras Marombiew.`);
+      for (const pr of problemasCampos(ex)) erros.push(`${label}: ${pr}.`);
+      if (!isNaoContavel(ex.exercise) && MIN3.test(norm2(ex.exercise)) && seriesDeTrabalho(ex) < 3) erros.push(`${label}: m\xEDnimo 3 s\xE9ries de trabalho.`);
+      if (ex.method?.slug && slugs2.size && !slugs2.has(ex.method.slug)) erros.push(`${label}: m\xE9todo "${ex.method.slug}" n\xE3o existe.`);
+      if (ex.grupo_id) {
+        const pares = day.exercises.filter((o) => o.grupo_id === ex.grupo_id);
+        if (pares.length !== 2) erros.push(`${label}: agrupamento ${ex.tipo_grupo ?? ""} precisa de exatamente 2 exerc\xEDcios.`);
+      }
+    }
+  }
+  return { plan: after, erros };
+}
+var exResumo = (e) => {
+  const reps = e.setScheme?.mode === "per_set" ? e.setScheme.sets.map((s) => s.target_reps).join("/") : e.reps;
+  const series = e.series2 ? `${e.series}+${e.series2}` : e.series;
+  const pausa = e.restSeconds ? `${e.restSeconds}s` : e.pause;
+  const metodo = [e.method?.slug, e.metodo && e.metodo !== "nenhum" ? e.metodo : null, e.tipo_grupo ? `${e.tipo_grupo} ${e.ordem_grupo ?? ""}`.trim() : null].filter(Boolean).join(", ");
+  return `${e.exercise} ${series || "?"}x${reps || "?"}${pausa ? ` pausa ${pausa}` : ""}${metodo ? ` [${metodo}]` : ""}${e.variation ? ` (var. ${e.variation})` : ""}`;
+};
+var CAMPOS = [
+  ["exercise", "exerc\xEDcio"],
+  ["variation", "varia\xE7\xE3o"],
+  ["series", "s\xE9ries"],
+  ["series2", "s\xE9ries de trabalho"],
+  ["reps", "reps"],
+  ["rir", "RIR"],
+  ["restSeconds", "pausa"],
+  ["pause", "pausa"],
+  ["description", "descri\xE7\xE3o"],
+  ["setScheme", "esquema de s\xE9ries"],
+  ["method", "m\xE9todo"],
+  ["metodo", "m\xE9todo"],
+  ["metodo_params", "par\xE2metros do m\xE9todo"],
+  ["grupo_id", "agrupamento"],
+  ["tipo_grupo", "tipo de agrupamento"]
+];
+var show = (v) => v == null || v === "" ? "\u2014" : typeof v === "object" ? JSON.stringify(v) : String(v);
+function mudancasTreino(before, after) {
+  const out = [];
+  const bDays = new Map(before.days.map((d) => [d.id, d]));
+  const aDays = new Map(after.days.map((d) => [d.id, d]));
+  for (const d of before.days) if (!aDays.has(d.id)) out.push(`${d.day}: dia removido`);
+  for (const d of after.days) {
+    const b = bDays.get(d.id);
+    if (!b) {
+      out.push(`${d.day}: dia novo (${d.exercises.map((e) => e.exercise).join(", ")})`);
+      continue;
+    }
+    if (b.day !== d.day || (b.focus ?? "") !== (d.focus ?? "")) out.push(`${b.day}${b.focus ? ` (${b.focus})` : ""} \u2192 ${d.day}${d.focus ? ` (${d.focus})` : ""}`);
+    const bEx = new Map(b.exercises.map((e) => [e.id, e]));
+    const aIds = new Set(d.exercises.map((e) => e.id));
+    for (const e of b.exercises) if (!aIds.has(e.id)) out.push(`${d.day}: removido ${exResumo(e)}`);
+    d.exercises.forEach((e, i) => {
+      const p = bEx.get(e.id);
+      if (!p) {
+        out.push(`${d.day}: inclu\xEDdo ${exResumo(e)}`);
+        return;
+      }
+      for (const [k, label] of CAMPOS) {
+        if (JSON.stringify(p[k] ?? null) !== JSON.stringify(e[k] ?? null)) out.push(`${d.day} \xB7 ${p.exercise}: ${label} ${show(p[k])} \u2192 ${show(e[k])}`);
+      }
+      if (b.exercises.indexOf(p) !== i) out.push(`${d.day} \xB7 ${e.exercise}: posi\xE7\xE3o ${b.exercises.indexOf(p) + 1} \u2192 ${i + 1}`);
+    });
+  }
+  return out;
+}
+var itemKey = (it) => String(it?.foodId || norm2(it?.name));
+var itemTxt = (it) => `${it?.name ?? "?"}${it?.qtyGrams ? ` ${Math.round(Number(it.qtyGrams))}g` : ""}`;
+function mudancasDieta(before, after) {
+  const out = [];
+  const bDays = before?.days ?? [];
+  const aDays = after?.days ?? [];
+  const multi = aDays.length > 1;
+  aDays.forEach((d, di) => {
+    const b = bDays.find((x) => x.label === d.label) ?? bDays[di];
+    const pre = multi ? `${d.label} \xB7 ` : "";
+    if (!b) {
+      out.push(`${pre}dia novo`);
+      return;
+    }
+    const bMeals = b.meals ?? [];
+    for (const m of bMeals) if (!(d.meals ?? []).some((x) => x.id === m.id || x.name === m.name)) out.push(`${pre}${m.name}: refei\xE7\xE3o removida`);
+    for (const m of d.meals ?? []) {
+      const pm = bMeals.find((x) => x.id === m.id) ?? bMeals.find((x) => x.name === m.name);
+      if (!pm) {
+        out.push(`${pre}${m.name}: refei\xE7\xE3o nova (${(m.items ?? []).map(itemTxt).join(", ")})`);
+        continue;
+      }
+      if ((pm.time ?? "") !== (m.time ?? "")) out.push(`${pre}${m.name}: hor\xE1rio ${pm.time ?? "\u2014"} \u2192 ${m.time ?? "\u2014"}`);
+      const bi = new Map((pm.items ?? []).map((it) => [itemKey(it), it]));
+      const ai = new Map((m.items ?? []).map((it) => [itemKey(it), it]));
+      for (const [k, it] of bi) if (!ai.has(k)) out.push(`${pre}${m.name}: sai ${itemTxt(it)}`);
+      for (const [k, it] of ai) {
+        const p = bi.get(k);
+        if (!p) out.push(`${pre}${m.name}: entra ${itemTxt(it)}`);
+        else if (Math.round(Number(p.qtyGrams ?? 0)) !== Math.round(Number(it.qtyGrams ?? 0))) out.push(`${pre}${m.name}: ${itemTxt(p)} \u2192 ${itemTxt(it)}`);
+      }
+    }
+    const bt = b.totals ?? {};
+    const at = d.totals ?? {};
+    if (Math.round(bt.kcal ?? 0) !== Math.round(at.kcal ?? 0)) out.push(`${pre}total ${Math.round(bt.kcal ?? 0)} kcal \xB7 P ${Math.round(bt.p ?? 0)} \xB7 C ${Math.round(bt.c ?? 0)} \xB7 G ${Math.round(bt.g ?? 0)} \u2192 ${Math.round(at.kcal ?? 0)} kcal \xB7 P ${Math.round(at.p ?? 0)} \xB7 C ${Math.round(at.c ?? 0)} \xB7 G ${Math.round(at.g ?? 0)}`);
+  });
+  return out;
+}
+function dietaItensProibidos(plan) {
+  const out = [];
+  for (const d of plan?.days ?? []) for (const m of d.meals ?? []) for (const it of m.items ?? []) {
+    if (/manteiga/.test(norm2(it?.name)) && !/amendoim|castanha|amendoa/.test(norm2(it?.name))) out.push(`${d.label} \xB7 ${m.name}: ${it.name} (manteiga n\xE3o entra)`);
+  }
+  return out;
+}
+function mudancasTexto(before, after) {
+  const b = new Set(before.split("\n").map((l) => l.trim()).filter(Boolean));
+  const a = after.split("\n").map((l) => l.trim()).filter(Boolean);
+  const aSet = new Set(a);
+  return [...[...b].filter((l) => !aSet.has(l)).map((l) => `antes: ${l}`), ...a.filter((l) => !b.has(l)).map((l) => `depois: ${l}`)];
+}
+function secaoOQueMudou(mudancas, declaradas = []) {
+  const L = ["", "O que mudou (antes \u2192 depois):"];
+  if (!mudancas.length) L.push("\u2022 Nenhuma diferen\xE7a encontrada no plano.");
+  for (const m of mudancas) L.push(`\u2022 ${m}`);
+  if (declaradas.length) {
+    L.push("", "Resumo da IA:");
+    for (const m of declaradas) L.push(`\u2022 ${m}`);
+  }
+  return L.join("\n");
+}
 export {
+  AJUSTE_CATEGORIAS,
+  analisarTreino,
   assessGeneratedDiet,
+  buildCardioAjusteMessages,
   buildCardioPlanInsert,
   buildCardioRequestBody,
   buildDietAgentBody,
@@ -9771,10 +10528,15 @@ export {
   buildDietGenerationPrompts,
   buildDietProtocols,
   buildDietTrainingContext,
+  buildDietaAjusteMessages,
+  buildPrescriptionEditRow,
+  buildTreinoAjusteMessages,
   buildTreinoGenerationRequest,
   buildWorkoutPlanInsertPayload,
+  buildWorkoutPlanUpdatePayload,
   canGenerateTreino,
   cardioFields,
+  categoriaValida,
   defaultCardioWizardState,
   defaultDietaWizardState,
   defaultTreinoWizardState,
@@ -9782,15 +10544,22 @@ export {
   dietPlanToMarkdown,
   dietPreferencesText,
   dietaFields,
+  dietaItensProibidos,
+  diffWorkoutPlans,
   finalizeDietAgentPlan,
   loadActiveTrainingMarkdown,
   loadCardioWizardData,
   loadDietFoodRecords,
   loadDietaStudentData,
   loadTreinoWizardData,
+  mudancasDieta,
+  mudancasTexto,
+  mudancasTreino,
   normalizeWorkoutPlan,
+  parseAjusteResposta,
   parseCardioPayload,
   parseDietAgentSse,
+  parseDietPlanLoose,
   parseWeekdayWorkouts,
   processDietDailyAdjustments,
   publicField,
@@ -9800,6 +10569,8 @@ export {
   resumoDietaCompleto,
   resumoTreinoAtual,
   resumoTreinoCompleto,
+  secaoOQueMudou,
+  semanaDoCiclo,
   snapshotToPlanColumns,
   suggestCardioValues,
   suggestDietaValues,
@@ -9807,5 +10578,6 @@ export {
   treinoFields,
   validateCardioAnswers,
   validateDietaAnswers,
+  validateTreinoAjuste,
   validateTreinoAnswers
 };

@@ -1,4 +1,4 @@
-// office-gerar — escritório de IA: perguntas / gerar / status / publicar / descartar.
+// office-gerar — escritório de IA: perguntas / gerar / ajustar / analisar / status / publicar / descartar.
 // Usa o MESMO código do admin (bundle gerado de src/lib/officeWizard) e os
 // MESMOS agentes (trainer-agent / cardio-agent / diet-agent). Rascunhos ficam em
 // office_plan_drafts (dieta também em ai_plans com is_draft=true, como o
@@ -7,6 +7,7 @@ import { createClient } from 'npm:@supabase/supabase-js@2'
 import { z } from 'npm:zod@3'
 import * as core from '../_shared/generated/officeCore.js'
 import { safeEqual, resolveStudent } from './lib.ts'
+import { analisar, loadVigente, runAjusteTreino, runAjusteDieta, runAjusteCardio, publicarAjusteTreino } from './ajustar.ts'
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } })
@@ -18,6 +19,11 @@ const Body = z.discriminatedUnion('acao', [
     acao: z.literal('gerar'), tipo: Tipo, aluno: z.string().min(1).max(200),
     respostas: z.record(z.unknown()).default({}), instrucoes: z.string().max(5000).optional().nullable(),
   }),
+  z.object({
+    acao: z.literal('ajustar'), tipo: Tipo, aluno: z.string().min(1).max(200),
+    categoria: z.string().min(1).max(40), pedido: z.string().trim().min(1).max(5000),
+  }),
+  z.object({ acao: z.literal('analisar'), tipo: z.literal('treino'), aluno: z.string().min(1).max(200) }),
   z.object({ acao: z.literal('status'), id: z.string().uuid() }),
   z.object({ acao: z.literal('publicar'), tipo: Tipo, id: z.string().uuid() }),
   z.object({ acao: z.literal('descartar'), tipo: Tipo, id: z.string().uuid() }),
@@ -245,22 +251,46 @@ async function gerar(sb: Sb, tipo: string, studentId: string, respostas: Record<
     .insert({ student_id: studentId, tipo, status: 'gerando', respostas, instrucoes: instrucoes ?? null })
     .select('id').single()
   if (error) throw error
+  return await runInBackground(sb, draft.id, () =>
+    tipo === 'treino' ? runTreino(sb, draft.id, studentId, v.state)
+      : tipo === 'dieta' ? runDieta(sb, draft.id, studentId, v.state)
+      : runCardio(sb, draft.id, studentId, v.state))
+}
 
+/** Roda a geração/ajuste em segundo plano; responde em até ~110 s (senão status "gerando"). */
+async function runInBackground(sb: Sb, draftId: string, fn: () => Promise<Record<string, unknown>>) {
   const task = (async () => {
     try {
-      const out = tipo === 'treino' ? await runTreino(sb, draft.id, studentId, v.state)
-        : tipo === 'dieta' ? await runDieta(sb, draft.id, studentId, v.state)
-        : await runCardio(sb, draft.id, studentId, v.state)
-      await sb.from('office_plan_drafts').update({ status: 'pronto', ...out, error: null }).eq('id', draft.id)
+      const out = await fn()
+      await sb.from('office_plan_drafts').update({ status: 'pronto', ...out, error: null }).eq('id', draftId)
     } catch (e) {
-      console.error('[office-gerar] generation_failed', draft.id, e)
-      await sb.from('office_plan_drafts').update({ status: 'erro', error: { message: (e as Error).message, detail: (e as any)?.detail ?? null } }).eq('id', draft.id)
+      console.error('[office-gerar] generation_failed', draftId, e)
+      await sb.from('office_plan_drafts').update({ status: 'erro', error: { message: (e as Error).message, detail: (e as any)?.detail ?? null } }).eq('id', draftId)
     }
   })()
   // deno-lint-ignore no-explicit-any
   ;(globalThis as any).EdgeRuntime?.waitUntil?.(task)
   await Promise.race([task, new Promise((r) => setTimeout(r, WAIT_MS))])
-  return json(await statusOf(sb, draft.id))
+  return json(await statusOf(sb, draftId))
+}
+
+async function ajustar(sb: Sb, tipo: 'treino' | 'dieta' | 'cardio', studentId: string, categoria: string, pedido: string) {
+  if (!core.categoriaValida(tipo, categoria)) {
+    return json({ error: 'categoria_invalida', categorias_validas: core.AJUSTE_CATEGORIAS[tipo] }, 422)
+  }
+  const { data: cur } = await loadVigente(sb, studentId, tipo)
+  if (!cur) return json({ error: 'sem_plano_vigente', detalhe: `O aluno não tem ${tipo} publicado para ajustar.` }, 404)
+  const { data: draft, error } = await sb.from('office_plan_drafts')
+    .insert({
+      student_id: studentId, tipo, status: 'gerando', respostas: {}, instrucoes: pedido,
+      request_payload: { modo: 'ajuste', categoria, pedido, base_plan_id: cur.id },
+    })
+    .select('id').single()
+  if (error) throw error
+  return await runInBackground(sb, draft.id, () =>
+    tipo === 'treino' ? runAjusteTreino(sb, cur, categoria, pedido)
+      : tipo === 'dieta' ? runAjusteDieta(sb, studentId, cur, categoria, pedido)
+      : runAjusteCardio(cur, categoria, pedido))
 }
 
 async function statusOf(sb: Sb, id: string) {
@@ -285,7 +315,14 @@ async function publicar(sb: Sb, tipo: string, id: string) {
   if (!lock?.length) return json({ error: 'publicacao_em_andamento' }, 409)
   try {
     let planId: string
-    if (tipo === 'treino') {
+    if (tipo === 'treino' && d.result_payload?.modo === 'ajuste') {
+      const r = await publicarAjusteTreino(sb, d)
+      if ('conflict' in r) {
+        await sb.from('office_plan_drafts').update({ status: 'pronto' }).eq('id', id)
+        return json({ error: 'plano_vigente_mudou', detalhe: r.conflict }, 409)
+      }
+      planId = r.planId
+    } else if (tipo === 'treino') {
       const req = d.request_payload ?? {}
       const built = core.buildWorkoutPlanInsertPayload(d.student_id, d.result_payload.json, {
         titulo: `Treino - ${new Date().toLocaleDateString('pt-BR')}`,
@@ -371,6 +408,12 @@ Deno.serve(async (req) => {
     const who = await resolveStudent(sb, b.aluno)
     if (who.kind === 'none') return json({ error: 'aluno_nao_encontrado' }, 404)
     if (who.kind === 'many') return json({ error: 'aluno_ambiguo', candidatos: who.candidates }, 409)
+    if (b.acao === 'analisar') {
+      const a = await analisar(sb, who.student.id)
+      if (!a) return json({ error: 'sem_plano_vigente', detalhe: 'O aluno não tem treino publicado com JSON estruturado.' }, 404)
+      return json({ tipo: 'treino', aluno: who.student, ...a })
+    }
+    if (b.acao === 'ajustar') return await ajustar(sb, b.tipo, who.student.id, b.categoria, b.pedido)
     if (b.acao === 'perguntas') return json({ tipo: b.tipo, aluno: who.student, ...(await perguntas(sb, b.tipo, who.student.id)) })
     return await gerar(sb, b.tipo, who.student.id, b.respostas, b.instrucoes)
   } catch (e) {

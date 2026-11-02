@@ -1,5 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
-import { buildWorkoutPlanInsertPayload } from "./workoutPlanInsert";
+import { buildWorkoutPlanInsertPayload, buildWorkoutPlanUpdatePayload } from "./workoutPlanInsert";
 import type { Json } from "@/integrations/supabase/types";
 import {
   parsedDaysToWorkoutPlan,
@@ -62,21 +62,13 @@ export const saveWorkoutPlanJSON = async (
   json: WorkoutPlan,
   extras: SaveExtras = {},
 ): Promise<SaveResult> => {
-  // Dia vazio nunca é gravado (nem no JSON nem no markdown).
-  const validation = validateWorkoutPlan(removeEmptyDays(json));
-  if (!validation.success) {
-    return { success: false, error: (validation as { error: string }).error };
-  }
-  const markdown = workoutPlanToMarkdown(validation.data);
-  const updates: Record<string, unknown> = {
-    conteudo: markdown,
-    conteudo_json: validation.data as unknown as Json,
-    migration_status: "completed",
-    ...sanitizeExtras(extras),
-  };
+  // Dia vazio nunca é gravado (nem no JSON nem no markdown). Mesmo builder do escritório.
+  const built = buildWorkoutPlanUpdatePayload(json, extras);
+  if (built.success !== true) return { success: false, error: (built as { error: string }).error };
+  const { updates, markdown } = built;
   const { error } = await supabase.from("ai_plans").update(updates).eq("id", planId);
   if (error) return { success: false, error: error.message };
-  return { success: true, markdown, json: validation.data };
+  return { success: true, markdown, json: built.json };
 };
 
 /**
