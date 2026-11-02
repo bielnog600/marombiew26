@@ -7,7 +7,7 @@ import { createClient } from 'npm:@supabase/supabase-js@2'
 import { z } from 'npm:zod@3'
 import * as core from '../_shared/generated/officeCore.js'
 import { safeEqual, resolveStudent } from './lib.ts'
-import { analisar, loadVigente, runAjusteTreino, runAjusteDieta, runAjusteCardio, publicarAjusteTreino } from './ajustar.ts'
+import { analisar, loadVigente, loadRascunhoBase, runAjusteTreino, runAjusteDieta, runAjusteCardio, publicarAjusteTreino } from './ajustar.ts'
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } })
@@ -22,6 +22,7 @@ const Body = z.discriminatedUnion('acao', [
   z.object({
     acao: z.literal('ajustar'), tipo: Tipo, aluno: z.string().min(1).max(200),
     categoria: z.string().min(1).max(40), pedido: z.string().trim().min(1).max(5000),
+    id: z.string().uuid().optional().nullable(),
   }),
   z.object({ acao: z.literal('analisar'), tipo: z.literal('treino'), aluno: z.string().min(1).max(200) }),
   z.object({ acao: z.literal('status'), id: z.string().uuid() }),
@@ -274,21 +275,32 @@ async function runInBackground(sb: Sb, draftId: string, fn: () => Promise<Record
   return json(await statusOf(sb, draftId))
 }
 
-async function ajustar(sb: Sb, tipo: 'treino' | 'dieta' | 'cardio', studentId: string, categoria: string, pedido: string) {
+async function ajustar(sb: Sb, tipo: 'treino' | 'dieta' | 'cardio', studentId: string, categoria: string, pedido: string, id?: string | null) {
   if (!core.categoriaValida(tipo, categoria)) {
     return json({ error: 'categoria_invalida', categorias_validas: core.AJUSTE_CATEGORIAS[tipo] }, 422)
   }
-  const { data: cur } = await loadVigente(sb, studentId, tipo)
-  if (!cur) return json({ error: 'sem_plano_vigente', detalhe: `O aluno não tem ${tipo} publicado para ajustar.` }, 404)
+  // Com `id`: parte do rascunho (que fica intacto) e cria um NOVO rascunho. Sem `id`: plano vigente.
+  let cur: any
+  let herda: Record<string, unknown> | undefined
+  let requestExtra: Record<string, unknown> = {}
+  if (id) {
+    const r = await loadRascunhoBase(sb, tipo, id, studentId)
+    if (!r.ok) return json(r.body, r.status)
+    cur = r.cur; herda = r.herda; requestExtra = r.request_extra ?? {}
+  } else {
+    const { data } = await loadVigente(sb, studentId, tipo)
+    if (!data) return json({ error: 'sem_plano_vigente', detalhe: `O aluno não tem ${tipo} publicado para ajustar.` }, 404)
+    cur = data
+  }
   const { data: draft, error } = await sb.from('office_plan_drafts')
     .insert({
       student_id: studentId, tipo, status: 'gerando', respostas: {}, instrucoes: pedido,
-      request_payload: { modo: 'ajuste', categoria, pedido, base_plan_id: cur.id },
+      request_payload: { ...requestExtra, modo: 'ajuste', categoria, pedido, base_plan_id: cur.id ?? null, origem: id ? 'rascunho' : 'vigente' },
     })
     .select('id').single()
   if (error) throw error
   return await runInBackground(sb, draft.id, () =>
-    tipo === 'treino' ? runAjusteTreino(sb, cur, categoria, pedido)
+    tipo === 'treino' ? runAjusteTreino(sb, cur, categoria, pedido, herda)
       : tipo === 'dieta' ? runAjusteDieta(sb, studentId, cur, categoria, pedido)
       : runAjusteCardio(cur, categoria, pedido))
 }
@@ -413,7 +425,7 @@ Deno.serve(async (req) => {
       if (!a) return json({ error: 'sem_plano_vigente', detalhe: 'O aluno não tem treino publicado com JSON estruturado.' }, 404)
       return json({ tipo: 'treino', aluno: who.student, ...a })
     }
-    if (b.acao === 'ajustar') return await ajustar(sb, b.tipo, who.student.id, b.categoria, b.pedido)
+    if (b.acao === 'ajustar') return await ajustar(sb, b.tipo, who.student.id, b.categoria, b.pedido, b.id)
     if (b.acao === 'perguntas') return json({ tipo: b.tipo, aluno: who.student, ...(await perguntas(sb, b.tipo, who.student.id)) })
     return await gerar(sb, b.tipo, who.student.id, b.respostas, b.instrucoes)
   } catch (e) {

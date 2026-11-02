@@ -68,7 +68,8 @@ export async function analisar(sb: Sb, studentId: string) {
 
 // ─── treino ─────────────────────────────────────────────────────────
 
-export async function runAjusteTreino(sb: Sb, cur: any, categoria: string, pedido: string) {
+/** `cur`: { id, conteudo_json } do ponto de partida; `herda` sobrescreve o vínculo de publicação (rascunho de origem). */
+export async function runAjusteTreino(sb: Sb, cur: any, categoria: string, pedido: string, herda?: Record<string, unknown>) {
   const before = core.normalizeWorkoutPlan(cur.conteudo_json)
   if (!before) throw new Error('Treino vigente sem JSON estruturado; abra e salve no editor do admin antes de ajustar.')
   const [catalog, met] = await Promise.all([
@@ -96,8 +97,44 @@ export async function runAjusteTreino(sb: Sb, cur: any, categoria: string, pedid
   if (built.success !== true) throw new Error('Treino ajustado inválido: ' + built.error)
   const mud = core.mudancasTreino(before, built.json)
   return {
-    result_payload: { modo: 'ajuste', json: built.json, base_plan_id: cur.id, base_conteudo_json: cur.conteudo_json, mudancas: mud, mudancas_ia: last.mudancas },
+    result_payload: { modo: 'ajuste', json: built.json, base_plan_id: cur.id, base_conteudo_json: cur.conteudo_json, ...(herda ?? {}), mudancas: mud, mudancas_ia: last.mudancas },
     resumo_legivel: core.resumoTreinoCompleto(built.json) + '\n' + core.secaoOQueMudou(mud, last.mudancas),
+  }
+}
+
+/**
+ * Ponto de partida de um ajuste a partir de um RASCUNHO do escritório.
+ * Treino/cardio: office_plan_drafts (status pronto). Dieta: id do office_plan_drafts
+ * ou do próprio ai_plans com is_draft=true. O rascunho de origem não é alterado.
+ */
+export async function loadRascunhoBase(sb: Sb, tipo: 'treino' | 'dieta' | 'cardio', id: string, studentId: string):
+  Promise<{ ok: true; cur: any; herda?: Record<string, unknown>; request_extra?: Record<string, unknown> } | { ok: false; status: number; body: Record<string, unknown> }> {
+  const { data: d } = await sb.from('office_plan_drafts').select('id, tipo, student_id, status, result_payload, request_payload, ai_plan_id').eq('id', id).maybeSingle()
+  if (tipo === 'dieta') {
+    const aiId = d ? (d.ai_plan_id ?? d.result_payload?.ai_plan_id) : id
+    if (d && d.tipo !== 'dieta') return { ok: false, status: 404, body: { error: 'rascunho_nao_encontrado' } }
+    const { data: row } = aiId
+      ? await sb.from('ai_plans').select('id, student_id, is_draft, titulo, conteudo_json, protocols, diet_strategy, created_at').eq('id', aiId).eq('tipo', 'dieta').maybeSingle()
+      : { data: null }
+    if (!row) return { ok: false, status: 404, body: { error: 'rascunho_nao_encontrado' } }
+    if (row.student_id !== studentId) return { ok: false, status: 409, body: { error: 'rascunho_de_outro_aluno' } }
+    if (row.is_draft !== true) return { ok: false, status: 409, body: { error: 'ja_publicado', detalhe: 'Esse rascunho já foi publicado; ajuste sem id para partir da dieta vigente.' } }
+    return { ok: true, cur: row }
+  }
+  if (!d || d.tipo !== tipo) return { ok: false, status: 404, body: { error: 'rascunho_nao_encontrado' } }
+  if (d.student_id !== studentId) return { ok: false, status: 409, body: { error: 'rascunho_de_outro_aluno' } }
+  if (d.status === 'publicado') return { ok: false, status: 409, body: { error: 'ja_publicado', detalhe: 'Esse rascunho já foi publicado; ajuste sem id para partir do plano vigente.' } }
+  if (d.status !== 'pronto') return { ok: false, status: 409, body: { error: 'rascunho_nao_pronto', status: d.status } }
+  const rp = d.result_payload ?? {}
+  if (tipo === 'cardio') return { ok: true, cur: { id: d.id, conteudo: JSON.stringify(rp.payload ?? null) }, request_extra: { origem_rascunho_id: d.id } }
+  // Treino: publicar o novo rascunho deve fazer o MESMO que publicaria o de origem.
+  if (rp.modo === 'ajuste') {
+    return { ok: true, cur: { id: rp.base_plan_id, conteudo_json: rp.json }, herda: { base_plan_id: rp.base_plan_id, base_conteudo_json: rp.base_conteudo_json, origem_rascunho_id: d.id } }
+  }
+  return {
+    ok: true, cur: { id: null, conteudo_json: rp.json },
+    herda: { modo: 'gerado', base_plan_id: null, base_conteudo_json: null, origem_rascunho_id: d.id },
+    request_extra: { snapshot: d.request_payload?.snapshot ?? null, last_plan_id: d.request_payload?.last_plan_id ?? null, agent: d.request_payload?.agent ?? 'trainer-agent', origem_rascunho_id: d.id },
   }
 }
 
@@ -179,7 +216,7 @@ export async function runAjusteCardio(cur: any, categoria: string, pedido: strin
   const depois = core.resumoCardioCompleto(after)
   const mud = core.mudancasTexto(antes, depois)
   return {
-    result_payload: { modo: 'ajuste', payload: after, base_plan_id: cur.id, mudancas: mud, mudancas_ia: r.mudancas },
+    result_payload: { modo: 'ajuste', payload: after, base_plan_id: cur.id ?? null, mudancas: mud, mudancas_ia: r.mudancas },
     resumo_legivel: depois + '\n' + core.secaoOQueMudou(mud, r.mudancas),
   }
 }

@@ -184,7 +184,7 @@ export function assessGeneratedDiet(p: {
 export function resumoDietaCompleto(plan: DietPlan, a: DietAssessment, warnings: string[] = []): string {
   const lines: string[] = [];
   const t = plan.targets;
-  lines.push(`Meta: ${r0(t.kcal)} kcal · P ${r0(t.p)} g · C ${r0(t.c)} g · G ${r0(t.g)} g`);
+  lines.push(`**Meta:** ${r0(t.kcal)} kcal · P ${r0(t.p)} g · C ${r0(t.c)} g · G ${r0(t.g)} g`);
   lines.push(a.validation.valid ? 'Validação: dentro da meta (±50 kcal / P ±10 / C ±15 / G ±8).' : `Validação: FORA da meta — ${a.validation.reasons.join(' ')}`);
   if (a.unresolved.length) lines.push(`Alimentos sem vínculo com a base (bloqueiam a publicação): ${a.unresolved.join('; ')}`);
   if (a.newFoods.length) lines.push(`Alimentos novos detectados: ${a.newFoods.join(', ')}`);
@@ -192,12 +192,19 @@ export function resumoDietaCompleto(plan: DietPlan, a: DietAssessment, warnings:
   for (const w of warnings) lines.push(`Aviso: ${w}`);
   const days = plan.days ?? [];
   const showDays = days.length > 1 ? days : days.slice(0, 1);
+  const c = (v: unknown) => (v == null || String(v).trim() === '' ? '—' : String(v).replace(/\|/g, '/').replace(/\s*\n\s*/g, ' ').trim());
   for (const d of showDays) {
     lines.push('');
-    lines.push(`${days.length > 1 ? `${d.label} — ` : ''}${r0(d.totals?.kcal)} kcal · P ${r0(d.totals?.p)} · C ${r0(d.totals?.c)} · G ${r0(d.totals?.g)}`);
+    lines.push(`### ${days.length > 1 ? `${c(d.label)} — ` : ''}${r0(d.totals?.kcal)} kcal · P ${r0(d.totals?.p)} · C ${r0(d.totals?.c)} · G ${r0(d.totals?.g)}`);
+    lines.push('');
+    lines.push('| Refeição | Horário | Alimento | Quantidade | kcal | P | C | G |');
+    lines.push('|---|---|---|---|---|---|---|---|');
     for (const m of d.meals ?? []) {
-      const items = (m.items ?? []).map((it) => `${it.name}${it.qtyGrams ? ` ${r0(it.qtyGrams)}g` : it.portionLabel ? ` (${it.portionLabel})` : ''}`).join(', ');
-      lines.push(`• ${m.name}${m.time ? ` (${m.time})` : ''}: ${items}`);
+      for (const it of m.items ?? []) {
+        const qtd = it.qtyGrams ? `${r0(it.qtyGrams)} g${it.portionLabel ? ` (${it.portionLabel})` : ''}` : it.portionLabel;
+        lines.push(`| ${c(m.name)} | ${c(m.time)} | ${c(it.name)} | ${c(qtd)} | ${r0(it.macros?.kcal)} | ${r0(it.macros?.p)} | ${r0(it.macros?.c)} | ${r0(it.macros?.g)} |`);
+      }
+      lines.push(`| **${c(m.name)} — total** |  |  |  | **${r0(m.totals?.kcal)}** | **${r0(m.totals?.p)}** | **${r0(m.totals?.c)}** | **${r0(m.totals?.g)}** |`);
     }
   }
   return lines.join('\n');
