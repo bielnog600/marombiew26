@@ -60,9 +60,12 @@ export interface AjusteMessages { system: string; user: string }
 export function buildTreinoAjusteMessages(p: {
   plan: WorkoutPlan; categoria: string; pedido: string; catalogBlock: string; metodos: string[]; correcao?: string[];
 }): AjusteMessages {
+  const revisar = p.categoria === 'revisar';
   const system = [
     'Você é o assistente de prescrição do personal Fabiew (Marombiew). Recebe o treino VIGENTE em JSON e um pedido de ajuste.',
-    'Devolva o treino COMPLETO alterado, no MESMO formato JSON (version, type "workout", metadata, days[].exercises[]), mudando SOMENTE o que o pedido exige. Todo o resto (ids, ordem, campos, textos) fica byte a byte idêntico. Preserve os "id" de dias e exercícios existentes; exercícios novos recebem id novo único.',
+    revisar
+      ? 'REVISÃO: aplique LITERALMENTE TODAS as regras Marombiew abaixo ao treino inteiro e devolva o treino COMPLETO corrigido, no MESMO formato JSON (version, type "workout", metadata, days[].exercises[]). Mude onde for preciso para cumprir as regras e mantenha o resto idêntico. Preserve os "id" de dias e exercícios existentes; exercícios novos recebem id novo único. Em "mudancas", liste cada correção feita (antes → depois, com o motivo).'
+      : 'Devolva o treino COMPLETO alterado, no MESMO formato JSON (version, type "workout", metadata, days[].exercises[]), mudando SOMENTE o que o pedido exige. Todo o resto (ids, ordem, campos, textos) fica byte a byte idêntico. Preserve os "id" de dias e exercícios existentes; exercícios novos recebem id novo único. As regras Marombiew abaixo são regras de fundo: o que você alterar ou incluir precisa respeitá-las.',
     'Exercícios e variações: SOMENTE nomes exatos do banco abaixo.',
     OPCOES_EDITOR,
     REGRAS_TREINO_MAROMBIEW,
@@ -72,6 +75,8 @@ export function buildTreinoAjusteMessages(p: {
   ].join('\n\n');
   const user = [
     `Categoria: ${CATEGORIA_TREINO[p.categoria] ?? p.categoria}`,
+    ...(p.semana ? [`Fase semanal = semana ${p.semana} do ciclo${p.semana === 1 ? ' (limite de 18 séries de trabalho por dia)' : ''}.`] : []),
+    ...(p.aluno ? [`Aluno: ${p.aluno}`] : []),
     `Pedido do Fabiew: ${p.pedido}`,
     ...(p.correcao?.length ? [`CORRIJA estes problemas da sua resposta anterior, sem mexer em mais nada:\n- ${p.correcao.join('\n- ')}`] : []),
     'Treino vigente (JSON):',
@@ -83,9 +88,12 @@ export function buildTreinoAjusteMessages(p: {
 export function buildDietaAjusteMessages(p: {
   plan: unknown; categoria: string; pedido: string; foodCatalogBlock: string; correcao?: string[];
 }): AjusteMessages {
+  const revisar = p.categoria === 'revisar';
   const system = [
     'Você é o assistente de nutrição do personal Fabiew (Marombiew). Recebe a dieta VIGENTE em JSON e um pedido de ajuste.',
-    'Devolva a dieta COMPLETA alterada, no MESMO contrato (meta, targets, days[].meals[].items[] com foodId, name, qtyGrams, portionLabel, macros), mudando SOMENTE o que o pedido exige; o resto fica idêntico. Mantenha targets (a meta publicada) intactos.',
+    revisar
+      ? 'REVISÃO: aplique LITERALMENTE TODAS as regras Marombiew abaixo à dieta inteira e devolva a dieta COMPLETA corrigida, no MESMO contrato (meta, targets, days[].meals[].items[] com foodId, name, qtyGrams, portionLabel, macros). Mantenha targets (a meta publicada) intactos. Em "mudancas", liste cada correção feita (antes → depois, com o motivo).'
+      : 'Devolva a dieta COMPLETA alterada, no MESMO contrato (meta, targets, days[].meals[].items[] com foodId, name, qtyGrams, portionLabel, macros), mudando SOMENTE o que o pedido exige; o resto fica idêntico. Mantenha targets (a meta publicada) intactos. As regras Marombiew abaixo são regras de fundo: o que você alterar ou incluir precisa respeitá-las.',
     'Alimentos: SOMENTE da base abaixo, com o foodId e o nome exatos. Os macros serão recalculados pela base.',
     REGRAS_DIETA_MAROMBIEW,
     'Resposta: JSON { "plan": <dieta completa>, "mudancas": ["antes → depois", ...] }.',
