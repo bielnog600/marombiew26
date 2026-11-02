@@ -5648,59 +5648,6 @@ var validateWorkoutPlan = (raw) => {
   return { success: true, data: parsed.data };
 };
 
-// src/lib/workoutMarkdownSerializer.ts
-var cell = (v) => {
-  if (v == null) return "-";
-  const s = String(v).trim();
-  return s.length === 0 ? "-" : s.replace(/\|/g, "/");
-};
-var restCell = (restSeconds, pause) => {
-  if (typeof restSeconds === "number" && restSeconds > 0) return `${restSeconds}s`;
-  return cell(pause);
-};
-var repsForMarkdown = (ex) => {
-  if (ex.setScheme?.mode === "per_set" && ex.setScheme.sets.length > 0) {
-    return ex.setScheme.sets.map((s) => s.target_reps).join(" / ");
-  }
-  return cell(ex.reps);
-};
-var seriesForMarkdown = (ex) => {
-  if (ex.setScheme?.mode === "per_set" && ex.setScheme.sets.length > 0) {
-    return String(ex.setScheme.sets.length);
-  }
-  return cell(ex.series);
-};
-var workoutPlanToMarkdown = (plan) => {
-  const lines = [];
-  if (plan.metadata?.goal) {
-    lines.push(`**Objetivo:** ${plan.metadata.goal}`);
-    lines.push("");
-  }
-  lines.push(
-    "| TREINO DO DIA | EXERC\xCDCIO | S\xC9RIE | S\xC9RIE 2 | REPETI\xC7\xD5ES | RIR | PAUSA | DESCRI\xC7\xC3O | VARIA\xC7\xC3O |"
-  );
-  lines.push("|---|---|---|---|---|---|---|---|---|");
-  for (const day of plan.days) {
-    const resolvePair = (idOrName) => {
-      const found = day.exercises.find((e) => e.id === idOrName || e.exerciseId === idOrName);
-      return found?.exercise ?? idOrName;
-    };
-    for (const ex of day.exercises) {
-      const metodo = executionSummary(ex) || formatMethodForMarkdown(ex.method, resolvePair);
-      const desc = [metodo, (ex.description || "").trim()].filter((s) => s && s !== "-").join(" \xB7 ");
-      lines.push(
-        `| ${cell(day.day)} | ${cell(ex.exercise)} | ${seriesForMarkdown(ex)} | ${cell(ex.series2)} | ${repsForMarkdown(ex)} | ${cell(ex.rir)} | ${restCell(ex.restSeconds, ex.pause)} | ${cell(desc)} | ${cell(ex.variation)} |`
-      );
-    }
-  }
-  lines.push("");
-  if (plan.metadata?.notes) {
-    lines.push("");
-    lines.push(`> ${plan.metadata.notes}`);
-  }
-  return lines.join("\n");
-};
-
 // src/lib/officeWizard/officeSummaries.ts
 var NEXT_WEEK = { semana_1: "2", semana_2: "3", semana_3: "4", deload: "1" };
 function suggestTreinoValues(fields, input) {
@@ -5774,9 +5721,33 @@ function resumoTreinoAtual(lastPlan) {
     ...days.map((d) => `- ${d.day}${d.focus ? ` (${d.focus})` : ""}: ${d.exercises.length} exerc\xEDcios`)
   ].join("\n");
 }
+var mdCell = (v) => {
+  const s = v == null ? "" : String(v).replace(/\s*\n\s*/g, " ").replace(/\|/g, "/").trim();
+  return s || "\u2014";
+};
 function resumoTreinoCompleto(json) {
   const plan = normalizeWorkoutPlan(json);
-  return plan ? workoutPlanToMarkdown(plan) : "";
+  if (!plan) return "";
+  const out = [];
+  if (plan.metadata?.goal) out.push(`**Objetivo:** ${mdCell(plan.metadata.goal)}`, "");
+  for (const day of plan.days) {
+    if (!day.exercises.length) continue;
+    out.push(`### ${mdCell(day.day)}${day.focus ? ` \u2014 ${mdCell(day.focus)}` : ""}`, "");
+    out.push("| Dia | Exerc\xEDcio | S\xE9ries | Reps | RIR | Pausa | M\xE9todo | Varia\xE7\xE3o | Descri\xE7\xE3o |");
+    out.push("|---|---|---|---|---|---|---|---|---|");
+    const pair = (idOrName) => day.exercises.find((e) => e.id === idOrName || e.exerciseId === idOrName)?.exercise ?? idOrName;
+    for (const ex of day.exercises) {
+      const perSet = ex.setScheme?.mode === "per_set" && ex.setScheme.sets.length > 0;
+      const series = perSet ? String(ex.setScheme.sets.length) : ex.series && ex.series2 ? `${ex.series} rec. + ${ex.series2}` : ex.series || ex.series2;
+      const reps = perSet ? ex.setScheme.sets.map((x) => x.target_reps).join(" / ") : ex.reps;
+      const pausa = ex.restSeconds ? `${ex.restSeconds}s` : ex.pause;
+      const metodo = executionSummary(ex) || formatMethodForMarkdown(ex.method, pair);
+      out.push(`| ${mdCell(day.day)} | ${mdCell(ex.exercise)} | ${mdCell(series)} | ${mdCell(reps)} | ${mdCell(ex.rir)} | ${mdCell(pausa)} | ${mdCell(metodo)} | ${mdCell(ex.variation)} | ${mdCell(ex.description)} |`);
+    }
+    out.push("");
+  }
+  if (plan.metadata?.notes) out.push(`**Observa\xE7\xF5es:** ${mdCell(plan.metadata.notes)}`);
+  return out.join("\n").trim();
 }
 var fmtProtocol = (p, i) => {
   const head = `${i != null ? `Sess\xE3o ${i + 1}: ` : ""}${p.title} \u2014 ${MODALITY_LABEL[p.modality] ?? p.modality}, ${STRUCTURE_LABEL[p.structure] ?? p.structure}, intensidade ${INTENSITY_LABEL[p.intensity] ?? p.intensity}, ${formatDurationFromSec(totalCardioDurationSec(p))}`;
@@ -5802,12 +5773,13 @@ var fmtProtocol = (p, i) => {
   ].filter(Boolean);
   return [head, ...blocks, ...extra].join("\n");
 };
+var mdProtocol = (txt) => txt.split("\n").map((l, i) => i === 0 ? `**${l.trim()}**` : `- ${l.replace(/^\s*•\s*/, "").trim()}`).join("\n");
 function resumoCardioCompleto(payload) {
   if (!payload) return "";
   if (isWeeklyPlan(payload)) {
-    return [`Plano semanal de cardio \u2014 ${payload.frequencyPerWeek}x/semana`, ...payload.protocols.map((p, i) => fmtProtocol(p, i))].join("\n\n");
+    return [`### Plano semanal de cardio \u2014 ${payload.frequencyPerWeek}x/semana`, ...payload.protocols.map((p, i) => mdProtocol(fmtProtocol(p, i)))].join("\n\n");
   }
-  return fmtProtocol(payload);
+  return mdProtocol(fmtProtocol(payload));
 }
 function resumoCardioAtual(lastCardio) {
   if (!lastCardio) return "Aluno sem cardio publicado.";
@@ -5820,6 +5792,59 @@ function resumoCardioAtual(lastCardio) {
     ...protocols.map((x) => `- ${x.title}: ${MODALITY_LABEL[x.modality] ?? x.modality}, ${STRUCTURE_LABEL[x.structure] ?? x.structure}, ${x.totalDurationMin} min`)
   ].join("\n");
 }
+
+// src/lib/workoutMarkdownSerializer.ts
+var cell = (v) => {
+  if (v == null) return "-";
+  const s = String(v).trim();
+  return s.length === 0 ? "-" : s.replace(/\|/g, "/");
+};
+var restCell = (restSeconds, pause) => {
+  if (typeof restSeconds === "number" && restSeconds > 0) return `${restSeconds}s`;
+  return cell(pause);
+};
+var repsForMarkdown = (ex) => {
+  if (ex.setScheme?.mode === "per_set" && ex.setScheme.sets.length > 0) {
+    return ex.setScheme.sets.map((s) => s.target_reps).join(" / ");
+  }
+  return cell(ex.reps);
+};
+var seriesForMarkdown = (ex) => {
+  if (ex.setScheme?.mode === "per_set" && ex.setScheme.sets.length > 0) {
+    return String(ex.setScheme.sets.length);
+  }
+  return cell(ex.series);
+};
+var workoutPlanToMarkdown = (plan) => {
+  const lines = [];
+  if (plan.metadata?.goal) {
+    lines.push(`**Objetivo:** ${plan.metadata.goal}`);
+    lines.push("");
+  }
+  lines.push(
+    "| TREINO DO DIA | EXERC\xCDCIO | S\xC9RIE | S\xC9RIE 2 | REPETI\xC7\xD5ES | RIR | PAUSA | DESCRI\xC7\xC3O | VARIA\xC7\xC3O |"
+  );
+  lines.push("|---|---|---|---|---|---|---|---|---|");
+  for (const day of plan.days) {
+    const resolvePair = (idOrName) => {
+      const found = day.exercises.find((e) => e.id === idOrName || e.exerciseId === idOrName);
+      return found?.exercise ?? idOrName;
+    };
+    for (const ex of day.exercises) {
+      const metodo = executionSummary(ex) || formatMethodForMarkdown(ex.method, resolvePair);
+      const desc = [metodo, (ex.description || "").trim()].filter((s) => s && s !== "-").join(" \xB7 ");
+      lines.push(
+        `| ${cell(day.day)} | ${cell(ex.exercise)} | ${seriesForMarkdown(ex)} | ${cell(ex.series2)} | ${repsForMarkdown(ex)} | ${cell(ex.rir)} | ${restCell(ex.restSeconds, ex.pause)} | ${cell(desc)} | ${cell(ex.variation)} |`
+      );
+    }
+  }
+  lines.push("");
+  if (plan.metadata?.notes) {
+    lines.push("");
+    lines.push(`> ${plan.metadata.notes}`);
+  }
+  return lines.join("\n");
+};
 
 // src/lib/workoutEmptyDays.ts
 var hasName = (e) => !!e && typeof e === "object" && typeof e.exercise === "string" && e.exercise.trim().length > 0;
@@ -9672,7 +9697,7 @@ function assessGeneratedDiet(p) {
 function resumoDietaCompleto(plan, a, warnings = []) {
   const lines = [];
   const t = plan.targets;
-  lines.push(`Meta: ${r0(t.kcal)} kcal \xB7 P ${r0(t.p)} g \xB7 C ${r0(t.c)} g \xB7 G ${r0(t.g)} g`);
+  lines.push(`**Meta:** ${r0(t.kcal)} kcal \xB7 P ${r0(t.p)} g \xB7 C ${r0(t.c)} g \xB7 G ${r0(t.g)} g`);
   lines.push(a.validation.valid ? "Valida\xE7\xE3o: dentro da meta (\xB150 kcal / P \xB110 / C \xB115 / G \xB18)." : `Valida\xE7\xE3o: FORA da meta \u2014 ${a.validation.reasons.join(" ")}`);
   if (a.unresolved.length) lines.push(`Alimentos sem v\xEDnculo com a base (bloqueiam a publica\xE7\xE3o): ${a.unresolved.join("; ")}`);
   if (a.newFoods.length) lines.push(`Alimentos novos detectados: ${a.newFoods.join(", ")}`);
@@ -9680,12 +9705,19 @@ function resumoDietaCompleto(plan, a, warnings = []) {
   for (const w of warnings) lines.push(`Aviso: ${w}`);
   const days = plan.days ?? [];
   const showDays = days.length > 1 ? days : days.slice(0, 1);
+  const c = (v) => v == null || String(v).trim() === "" ? "\u2014" : String(v).replace(/\|/g, "/").replace(/\s*\n\s*/g, " ").trim();
   for (const d of showDays) {
     lines.push("");
-    lines.push(`${days.length > 1 ? `${d.label} \u2014 ` : ""}${r0(d.totals?.kcal)} kcal \xB7 P ${r0(d.totals?.p)} \xB7 C ${r0(d.totals?.c)} \xB7 G ${r0(d.totals?.g)}`);
+    lines.push(`### ${days.length > 1 ? `${c(d.label)} \u2014 ` : ""}${r0(d.totals?.kcal)} kcal \xB7 P ${r0(d.totals?.p)} \xB7 C ${r0(d.totals?.c)} \xB7 G ${r0(d.totals?.g)}`);
+    lines.push("");
+    lines.push("| Refei\xE7\xE3o | Hor\xE1rio | Alimento | Quantidade | kcal | P | C | G |");
+    lines.push("|---|---|---|---|---|---|---|---|");
     for (const m of d.meals ?? []) {
-      const items = (m.items ?? []).map((it) => `${it.name}${it.qtyGrams ? ` ${r0(it.qtyGrams)}g` : it.portionLabel ? ` (${it.portionLabel})` : ""}`).join(", ");
-      lines.push(`\u2022 ${m.name}${m.time ? ` (${m.time})` : ""}: ${items}`);
+      for (const it of m.items ?? []) {
+        const qtd = it.qtyGrams ? `${r0(it.qtyGrams)} g${it.portionLabel ? ` (${it.portionLabel})` : ""}` : it.portionLabel;
+        lines.push(`| ${c(m.name)} | ${c(m.time)} | ${c(it.name)} | ${c(qtd)} | ${r0(it.macros?.kcal)} | ${r0(it.macros?.p)} | ${r0(it.macros?.c)} | ${r0(it.macros?.g)} |`);
+      }
+      lines.push(`| **${c(m.name)} \u2014 total** |  |  |  | **${r0(m.totals?.kcal)}** | **${r0(m.totals?.p)}** | **${r0(m.totals?.c)}** | **${r0(m.totals?.g)}** |`);
     }
   }
   return lines.join("\n");
@@ -10506,12 +10538,12 @@ function mudancasTexto(before, after) {
   return [...[...b].filter((l) => !aSet.has(l)).map((l) => `antes: ${l}`), ...a.filter((l) => !b.has(l)).map((l) => `depois: ${l}`)];
 }
 function secaoOQueMudou(mudancas, declaradas = []) {
-  const L = ["", "O que mudou (antes \u2192 depois):"];
-  if (!mudancas.length) L.push("\u2022 Nenhuma diferen\xE7a encontrada no plano.");
-  for (const m of mudancas) L.push(`\u2022 ${m}`);
+  const L = ["", "## O que mudou (antes \u2192 depois)", ""];
+  if (!mudancas.length) L.push("- Nenhuma diferen\xE7a encontrada no plano.");
+  for (const m of mudancas) L.push(`- ${m}`);
   if (declaradas.length) {
-    L.push("", "Resumo da IA:");
-    for (const m of declaradas) L.push(`\u2022 ${m}`);
+    L.push("", "**Resumo da IA:**", "");
+    for (const m of declaradas) L.push(`- ${m}`);
   }
   return L.join("\n");
 }

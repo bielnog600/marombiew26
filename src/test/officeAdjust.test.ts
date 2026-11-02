@@ -135,3 +135,14 @@ describe('equivalência: publicar ajuste grava igual ao botão Salvar do editor'
     expect(json.days[0].exercises[1].grupo_id).toBe('g1');
   });
 });
+
+describe('resumo_legivel em markdown', () => {
+  it('treino vira tabela com dia, exercício, séries, reps, RIR, pausa, método, variação e descrição', async () => {
+    const { resumoTreinoCompleto } = await import('@/lib/officeWizard/officeSummaries');
+    const md = resumoTreinoCompleto(plan([{ id: 'd1', day: 'Treino A', focus: 'Peito', exercises: [
+      ex('1', 'Supino reto', { series: '1', series2: '2', reps: '12 + 8-10', rir: '1', description: 'Excêntrica 3s | pico' }),
+    ] }]));
+    expect(md).toContain('| Dia | Exercício | Séries | Reps | RIR | Pausa | Método | Variação | Descrição |');
+    expect(md).toContain('| Treino A | Supino reto | 1 rec. + 2 | 12 + 8-10 | 1 | 60s | — | Supino inclinado | Excêntrica 3s / pico |');
+  });
+});
