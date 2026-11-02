@@ -1,4 +1,4 @@
-// office-gerar — escritório de IA: perguntas / gerar / ajustar / analisar / status / publicar / descartar.
+// office-gerar — escritório de IA: perguntas / ativar / gerar / ajustar / analisar / status / publicar / descartar.
 // Usa o MESMO código do admin (bundle gerado de src/lib/officeWizard) e os
 // MESMOS agentes (trainer-agent / cardio-agent / diet-agent). Rascunhos ficam em
 // office_plan_drafts (dieta também em ai_plans com is_draft=true, como o
@@ -28,10 +28,34 @@ const Body = z.discriminatedUnion('acao', [
     acao: z.literal('analisar'), tipo: z.literal('treino'), aluno: z.string().min(1).max(200),
     id: z.string().uuid().optional().nullable(),
   }),
+  z.object({ acao: z.literal('ativar'), aluno: z.string().min(1).max(200), ativo: z.boolean() }),
   z.object({ acao: z.literal('status'), id: z.string().uuid() }),
   z.object({ acao: z.literal('publicar'), tipo: Tipo, id: z.string().uuid() }),
   z.object({ acao: z.literal('descartar'), tipo: Tipo, id: z.string().uuid() }),
 ])
+
+// Mesmos campos que suspend_student_access / reactivate_student_access gravam (o RPC exige JWT de admin).
+// deno-lint-ignore no-explicit-any
+async function alunoComAtivo(sb: Sb, st: any) {
+  const { data } = await sb.from('students_profile').select('ativo').eq('user_id', st.id).maybeSingle()
+  return { id: st.id, nome: st.nome ?? null, email: st.email ?? null, ativo: data ? data.ativo !== false : false }
+}
+
+// deno-lint-ignore no-explicit-any
+async function ativar(sb: Sb, st: any, ativo: boolean) {
+  const nowIso = new Date().toISOString()
+  let patch: Record<string, unknown>
+  if (ativo) {
+    patch = { access_status: 'active', ativo: true, suspension_reason: null, suspended_at: null, suspended_by: null, last_active_at: nowIso }
+  } else {
+    const { data: adm } = await sb.from('user_roles').select('user_id').eq('role', 'admin').limit(1).maybeSingle()
+    patch = { access_status: 'suspended', ativo: false, suspension_reason: 'manual', suspended_at: nowIso, suspended_by: adm?.user_id ?? null }
+  }
+  const { data, error } = await sb.from('students_profile').update(patch).eq('user_id', st.id).select('ativo').maybeSingle()
+  if (error) throw error
+  if (!data) return json({ error: 'perfil_de_aluno_nao_encontrado' }, 404)
+  return json({ ok: true, aluno: { id: st.id, nome: st.nome ?? null, ativo: data.ativo !== false } })
+}
 
 const WAIT_MS = 110_000
 
@@ -429,7 +453,8 @@ Deno.serve(async (req) => {
       return json({ tipo: 'treino', aluno: who.student, ...a.data })
     }
     if (b.acao === 'ajustar') return await ajustar(sb, b.tipo, who.student.id, b.categoria, b.pedido, b.id)
-    if (b.acao === 'perguntas') return json({ tipo: b.tipo, aluno: who.student, ...(await perguntas(sb, b.tipo, who.student.id)) })
+    if (b.acao === 'ativar') return await ativar(sb, who.student, b.ativo)
+    if (b.acao === 'perguntas') return json({ tipo: b.tipo, aluno: await alunoComAtivo(sb, who.student), ...(await perguntas(sb, b.tipo, who.student.id)) })
     return await gerar(sb, b.tipo, who.student.id, b.respostas, b.instrucoes)
   } catch (e) {
     console.error('[office-gerar] error', e)
