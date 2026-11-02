@@ -114,24 +114,38 @@ export async function analisar(sb: Sb, studentId: string, draftId?: string | nul
 // ─── treino ─────────────────────────────────────────────────────────
 
 /** `cur`: { id, conteudo_json } do ponto de partida; `herda` sobrescreve o vínculo de publicação (rascunho de origem). */
-export async function runAjusteTreino(sb: Sb, cur: any, categoria: string, pedido: string, herda?: Record<string, unknown>) {
-  const before = core.normalizeWorkoutPlan(cur.conteudo_json)
-  if (!before) throw new Error('Treino vigente sem JSON estruturado; abra e salve no editor do admin antes de ajustar.')
-  const [catalog, met] = await Promise.all([
+export async function runAjusteTreino(
+  sb: Sb, cur: any, categoria: string, pedido: string, herda?: Record<string, unknown>,
+  ctx: { semana?: number | null; aluno?: string | null } = {},
+) {
+  const original = core.normalizeWorkoutPlan(cur.conteudo_json)
+  if (!original) throw new Error('Treino vigente sem JSON estruturado; abra e salve no editor do admin antes de ajustar.')
+  const revisar = categoria === 'revisar'
+  // Revisar: o servidor aplica sem IA o que é determinístico (dias 4x seg–qui, selects pela tabela).
+  const pre = revisar ? core.preRevisarTreino(original) : { plan: original, correcoes: [] as string[] }
+  const before = pre.plan
+  const [catalog, met, exRows] = await Promise.all([
     loadExerciseCatalog(),
     sb.from('training_methods').select('slug').eq('active', true),
+    revisar ? sb.from('exercises').select('nome, grupo_muscular') : Promise.resolve({ data: null }),
   ])
   if (!catalog.length) throw new Error('Banco de exercícios indisponível.')
   const metodos = (met.data ?? []).map((m: any) => m.slug)
   const catalogBlock = buildCatalogBlock(catalog)
   const names = catalog.map((c) => c.nome)
   let correcao: string[] | undefined
-  let last: { plan: any; erros: string[]; mudancas: string[] } | null = null
+  let last: { plan: any; erros: string[]; mudancas: string[]; conv: string[] } | null = null
   for (let attempt = 0; attempt < 2; attempt++) {
-    const r = await chatAjuste(core.buildTreinoAjusteMessages({ plan: before, categoria, pedido, catalogBlock, metodos, correcao }))
+    const r = await chatAjuste(
+      core.buildTreinoAjusteMessages({ plan: before, categoria, pedido, catalogBlock, metodos, correcao, semana: ctx.semana ?? null, aluno: ctx.aluno ?? null }),
+      revisar ? 32000 : 20000,
+    )
     snapPlanToCatalog(r.plan, catalog)
-    const v = core.validateTreinoAjuste(before, r.plan, names, metodos, categoria)
-    last = { plan: v.plan, erros: v.erros, mudancas: r.mudancas }
+    // Selects fora da tabela que a IA devolver também são convertidos antes das validações.
+    const norm0 = core.normalizeWorkoutPlan(r.plan)
+    const conv = norm0 ? core.converterSelects(norm0) : { plan: r.plan, correcoes: [] as string[] }
+    const v = core.validateTreinoAjuste(before, conv.plan, names, metodos, categoria)
+    last = { plan: v.plan, erros: v.erros, mudancas: r.mudancas, conv: conv.correcoes }
     if (v.plan && !v.erros.length) break
     correcao = v.erros.slice(0, 40)
   }
@@ -140,10 +154,20 @@ export async function runAjusteTreino(sb: Sb, cur: any, categoria: string, pedid
   }
   const built = core.buildWorkoutPlanUpdatePayload(last.plan, {})
   if (built.success !== true) throw new Error('Treino ajustado inválido: ' + built.error)
-  const mud = core.mudancasTreino(before, built.json)
+  // "O que mudou" compara com o ponto de partida real (antes das correções do servidor).
+  const mud = core.mudancasTreino(original, built.json)
+  let resumo = core.resumoTreinoCompleto(built.json) + '\n' + core.secaoOQueMudou(mud, revisar ? [] : last.mudancas)
+  if (revisar) {
+    const corrigido = [
+      ...pre.correcoes.map((c: string) => `${c} (servidor)`),
+      ...last.conv.map((c: string) => `${c} (servidor)`),
+      ...last.mudancas,
+    ]
+    resumo += '\n' + core.secaoRevisao(original, built.json, corrigido, { semana: ctx.semana ?? 1, grupoBanco: mapaGrupos(exRows.data) })
+  }
   return {
-    result_payload: { modo: 'ajuste', json: built.json, base_plan_id: cur.id, base_conteudo_json: cur.conteudo_json, ...(herda ?? {}), mudancas: mud, mudancas_ia: last.mudancas },
-    resumo_legivel: core.resumoTreinoCompleto(built.json) + '\n' + core.secaoOQueMudou(mud, last.mudancas),
+    result_payload: { modo: 'ajuste', json: built.json, base_plan_id: cur.id, base_conteudo_json: cur.conteudo_json, ...(herda ?? {}), mudancas: mud, mudancas_ia: last.mudancas, correcoes_servidor: [...pre.correcoes, ...last.conv] },
+    resumo_legivel: resumo,
   }
 }
 
