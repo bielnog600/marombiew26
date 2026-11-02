@@ -50,8 +50,15 @@ export const loadVigente = (sb: Sb, studentId: string, tipo: 'treino' | 'dieta' 
 
 // ─── analisar ───────────────────────────────────────────────────────
 
+export interface AnaliseDados {
+  origem: 'vigente' | 'rascunho'
+  plano_id: string | null
+  titulo: string | null
+  texto: string
+  rascunho_id?: string
+}
 export type AnaliseRes =
-  | { ok: true; data: Record<string, unknown> }
+  | { ok: true; data: AnaliseDados }
   | { ok: false; status: number; body: Record<string, unknown> }
 
 const mapaGrupos = (rows: Array<{ nome?: string; grupo_muscular?: string | null }> | null) => {
