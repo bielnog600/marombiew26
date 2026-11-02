@@ -163,7 +163,7 @@ export async function runAjusteTreino(
       ...last.conv.map((c: string) => `${c} (servidor)`),
       ...last.mudancas,
     ]
-    resumo += '\n' + core.secaoRevisao(original, built.json, corrigido, { semana: ctx.semana ?? 1, grupoBanco: mapaGrupos(exRows.data) })
+    resumo += '\n' + core.secaoRevisao(original, built.json, corrigido, { semana: ctx.semana ?? null, grupoBanco: mapaGrupos(exRows.data) })
   }
   return {
     result_payload: { modo: 'ajuste', json: built.json, base_plan_id: cur.id, base_conteudo_json: cur.conteudo_json, ...(herda ?? {}), mudancas: mud, mudancas_ia: last.mudancas, correcoes_servidor: [...pre.correcoes, ...last.conv] },
@@ -203,7 +203,7 @@ export async function loadRascunhoBase(sb: Sb, tipo: 'treino' | 'dieta' | 'cardi
   }
   return {
     // Fase semanal = semana escolhida no wizard que gerou o rascunho.
-    ok: true, semana: Number(d.respostas?.semana_ciclo ?? d.request_payload?.snapshot?.week) || 1, cur: { id: null, conteudo_json: rp.json },
+    ok: true, semana: ((n) => (Number.isFinite(n) && n > 0 ? n : null))(Number(d.respostas?.semana_ciclo ?? d.request_payload?.snapshot?.week)), cur: { id: null, conteudo_json: rp.json },
     herda: { modo: 'gerado', base_plan_id: null, base_conteudo_json: null, origem_rascunho_id: d.id },
     request_extra: { snapshot: d.request_payload?.snapshot ?? null, last_plan_id: d.request_payload?.last_plan_id ?? null, agent: d.request_payload?.agent ?? 'trainer-agent', origem_rascunho_id: d.id },
   }
