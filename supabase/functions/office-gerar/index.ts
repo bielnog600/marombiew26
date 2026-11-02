@@ -424,9 +424,9 @@ Deno.serve(async (req) => {
     if (who.kind === 'none') return json({ error: 'aluno_nao_encontrado' }, 404)
     if (who.kind === 'many') return json({ error: 'aluno_ambiguo', candidatos: who.candidates }, 409)
     if (b.acao === 'analisar') {
-      const a = await analisar(sb, who.student.id)
-      if (!a) return json({ error: 'sem_plano_vigente', detalhe: 'O aluno não tem treino publicado com JSON estruturado.' }, 404)
-      return json({ tipo: 'treino', aluno: who.student, ...a })
+      const a = await analisar(sb, who.student.id, b.id)
+      if (!a.ok) return json(a.body, a.status)
+      return json({ tipo: 'treino', aluno: who.student, ...a.data })
     }
     if (b.acao === 'ajustar') return await ajustar(sb, b.tipo, who.student.id, b.categoria, b.pedido, b.id)
     if (b.acao === 'perguntas') return json({ tipo: b.tipo, aluno: who.student, ...(await perguntas(sb, b.tipo, who.student.id)) })
