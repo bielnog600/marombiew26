@@ -56,3 +56,22 @@ export { loadDietaStudentData, loadActiveTrainingMarkdown } from './dietaStudent
 export { dietaFields, validateDietaAnswers } from './dietaFields';
 export { suggestDietaValues, resumoDietaAtual, resumoDietaCompleto, assessGeneratedDiet } from './dietaOffice';
 export { dietPlanToMarkdown } from '../dietMarkdownSerializer';
+export { buildWorkoutPlanUpdatePayload } from '../workoutPlanInsert';
+export { buildPrescriptionEditRow } from '../prescriptionEditRow';
+export { diffWorkoutPlans } from '../workoutPlanDiff';
+export { parseDietPlanLoose } from '../dietSchema';
+export { analisarTreino, semanaDoCiclo } from './treinoAnalysis';
+export {
+  AJUSTE_CATEGORIAS,
+  categoriaValida,
+  buildTreinoAjusteMessages,
+  buildDietaAjusteMessages,
+  buildCardioAjusteMessages,
+  parseAjusteResposta,
+  validateTreinoAjuste,
+  mudancasTreino,
+  mudancasDieta,
+  mudancasTexto,
+  dietaItensProibidos,
+  secaoOQueMudou,
+} from './officeAdjust';
