@@ -25,7 +25,7 @@ async function chatAjuste(m: { system: string; user: string }, maxTokens = 20000
     method: 'POST',
     body: JSON.stringify({
       messages: [{ role: 'system', content: m.system }, { role: 'user', content: m.user }],
-      max_tokens: maxTokens, temperature: 0.2,
+      max_tokens: maxTokens,
       response_format: { type: 'json_object', tool_schema: AJUSTE_TOOL_SCHEMA },
     }),
   })

@@ -95,7 +95,7 @@ function buildRequest(chat: ChatBody) {
   const schema = chat.response_format?.type === "json_schema" ? chat.response_format.json_schema?.schema : undefined;
   const body: Record<string, any> = { model: PRESCRIPTION_MODEL, max_tokens: maxTokens, thinking: { type: 'disabled' }, messages, stream: chat.stream === true };
   if (system.length) body.system = system;
-  if (chat.temperature !== undefined) body.temperature = chat.temperature;
+  // The prescription model rejects `temperature` (HTTP 400 "deprecated for this model"); never forward it.
   if (schema) body.output_config = { format: { type: "json_schema", schema: supportedSchema(schema) } };
   if (chat.tools?.length) {
     body.tools = chat.tools.map((tool) => ({
