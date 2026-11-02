@@ -36,3 +36,23 @@ export { buildWorkoutPlanInsertPayload } from '../workoutPlanInsert';
 export { normalizeWorkoutPlan } from '../workoutSchema';
 export { snapshotToPlanColumns } from '../periodization';
 export { parseCardioPayload } from '../cardioParser';
+export {
+  defaultDietaWizardState,
+  deriveDietaWizard,
+  buildDietGenerationPrompts,
+  buildDietTrainingContext,
+  loadDietFoodRecords,
+  buildDietFoodHints,
+  buildDietAgentBody,
+  parseDietAgentSse,
+  finalizeDietAgentPlan,
+  processDietDailyAdjustments,
+  buildDietProtocols,
+  buildDietDraftInsert,
+  dietPreferencesText,
+  parseWeekdayWorkouts,
+} from './dietaWizard';
+export { loadDietaStudentData, loadActiveTrainingMarkdown } from './dietaStudentData';
+export { dietaFields, validateDietaAnswers } from './dietaFields';
+export { suggestDietaValues, resumoDietaAtual, resumoDietaCompleto, assessGeneratedDiet } from './dietaOffice';
+export { dietPlanToMarkdown } from '../dietMarkdownSerializer';
