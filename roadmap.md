@@ -146,3 +146,9 @@ Fora do escopo desta entrega (Fases 3-6): LOW/MEDIUM/HIGH, novo carb cycling, aj
 - [x] Auditoria somente leitura: 168 planos, 123 com JSON, 572 dias; zero exercícios null/inválidos e zero grupos incompletos; dias vazios em Fabiew (07/09, sábado) e Wemerson (04/09, terça).
 - [x] 1271 testes passaram na suíte completa e o teste adicional das abas ausentes passou; compilação automática OK.
 - [ ] Conferir /meus-treinos autenticado no iPhone — bloqueado: acesso automático não encontra a conta solicitante e autorização de sessão explícita indisponível.
+
+## Escritório de IA — office-gerar
+- [x] Perguntas do wizard (Gerar Treino, Cardio IA) com valor atual e resumo do plano vigente; gerar com 422 para faltando/inválido; status; publicar sem duplicar; descartar. Rascunhos em office_plan_drafts.
+- [x] Admin usa o mesmo código (prompt/pedido de treino, leitura do aluno, cardio, gravação); equivalência testada.
+- [ ] Dieta pelo escritório: migrar a montagem do Agente de Dieta (DietaIA) para o código compartilhado. Hoje responde 501.
+- [ ] Teste real de ponta a ponta: aguardando token cadastrado e autorização para chamadas reais de IA.
