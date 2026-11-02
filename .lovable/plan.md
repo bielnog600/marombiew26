@@ -33,10 +33,20 @@ Guarda os rascunhos do escritório: tipo, aluno, instruções, plano gerado, res
 - Antes de cada extração, crio um teste de equivalência: com as mesmas entradas, a versão antiga e a nova precisam gerar prompt e corpo da chamada **idênticos**.
 - O salvamento do treino (`createWorkoutPlanJSON` + marcar o anterior como `renovado`) e o do cardio também vão para um módulo compartilhado.
 
+- **As perguntas do wizard também passam a ter uma única definição compartilhada.** Para cada gerador, ela registra o id do campo, o texto da pergunta, o tipo, as opções válidas, se é obrigatória e quando aparece (por exemplo, a lista de máquinas só aparece com equipamento "limitado" ou "casa").
+  - O wizard do admin passa a montar os campos a partir dessa definição, mas a aparência e o comportamento continuam os mesmos.
+  - O teste de equivalência confirma que campos, opções e valores padrão são os mesmos de hoje.
+- Também fica nesse código compartilhado uma função que converte `respostas` no mesmo estado que o wizard teria. A partir dele são montados o prompt e o corpo da chamada, exatamente como no admin.
+
 ### 3. Edge function `office-gerar` (POST, header `x-office-token`, comparação resistente a ataques de tempo, sem JWT de usuário, sem CORS aberto)
-- `gerar { tipo, aluno, instrucoes? }`
-  - Encontra o aluno por id, e-mail ou nome. Se o nome bater com mais de um aluno, devolve 409 com a lista.
-  - Lê os dados do aluno no servidor e monta tudo com os mesmos módulos do admin.
+- Em todas as ações, o aluno pode ser informado por id, e-mail ou nome. Se o nome bater com mais de um aluno, a função devolve 409 com a lista.
+- `perguntas { tipo, aluno }`: devolve `{ campos: [{ id, pergunta, tipo, opcoes, obrigatorio, depende_de, valor_atual, origem_valor }], resumo_atual }`.
+  - O `valor_atual` é sugerido a partir do que já existe do aluno: o plano vigente daquele tipo, a anamnese e a última avaliação. Por exemplo, um treino atual de 5 dias dá `dias_semana = 5`; a semana do ciclo segue o plano anterior; refeições, fórmula e estilo saem da dieta vigente; frequência e modalidades saem do cardio vigente.
+  - `origem_valor` diz de onde veio a sugestão, por exemplo "treino atual", "anamnese" ou "avaliação de 12/10".
+  - `resumo_atual` traz um resumo curto do plano vigente.
+- `gerar { tipo, aluno, respostas, instrucoes? }`
+  - As respostas são validadas pela mesma definição de campos. Se faltar algo obrigatório, a função devolve **422** `{ faltando: [...] }`; se houver um valor fora das opções, devolve **422** `{ invalidos: [...] }`. Em nenhum desses casos ela gera.
+  - Os dados do aluno são lidos no servidor e tudo é montado com os mesmos módulos do admin. O texto de `instrucoes` entra no mesmo campo de observações do wizard.
   - Chama o mesmo agente (`trainer-agent` / `diet-agent` / `cardio-agent`) internamente e com autenticação.
   - Salva o rascunho e responde `{ id, status, resumo_legivel }`. O resumo traz o plano completo em texto: dias, exercícios, séries, reps, RIR e pausa; refeições, alimentos e macros; sessões de cardio.
 - `publicar { tipo, id }`
@@ -48,11 +58,11 @@ Guarda os rascunhos do escritório: tipo, aluno, instruções, plano gerado, res
 - `status { id }`: mostra o andamento (veja a premissa 3).
 
 ### 4. Testes
-Equivalência dos construtores; autenticação, 401/405/409 e validação das entradas; resolução do aluno; resumo legível; publicar e descartar sem duplicar. **Não faço nenhuma chamada real de IA sem a sua autorização.** O teste completo de ponta a ponta fica para você liberar.
+Equivalência dos construtores e das perguntas com o wizard; `valor_atual` sugerido a partir de dados de exemplo; 422 para resposta faltando ou inválida; autenticação, 401/405/409; resolução do aluno; resumo legível; publicar e descartar sem duplicar. **Não faço nenhuma chamada real de IA sem a sua autorização.** O teste completo de ponta a ponta fica para você liberar.
 
 ## Premissas (corrija se alguma estiver errada)
-1. **Wizard de treino sem perguntas:** como não há tela, uso o que o admin usa quando deixa no "auto": divisão, dias e quantidade de exercícios no automático, semana do ciclo seguindo o plano anterior e equipamento completo. O texto de `instrucoes` entra como observações do professor; por exemplo, "4x semana" vira 4 dias e "foco em glúteo" vira prioridade.
-2. **Dieta:** segue o mesmo modo "auto" do admin (fórmula, nº de refeições e estilo pelo padrão atual). As `instrucoes` entram como observações.
+1. **Sem modo automático:** o escritório responde as mesmas perguntas do wizard. As opções "auto" só valem quando também existem no wizard do admin (por exemplo, "Mobilidade: IA decide") e quando você as escolhe de propósito.
+2. **`valor_atual`:** se não houver plano anterior nem anamnese que responda uma pergunta, o campo volta com `valor_atual: null`. Se for obrigatório, precisa ser respondido.
 3. **Tempo de geração:** a dieta pode passar do limite de uma chamada. Por isso o `gerar` espera até ~120 s. Se ficar pronto, devolve o resumo; se não, devolve `{ id, status: 'gerando' }`, e o seu motor consulta com `status` até receber `pronto`.
 4. **Admin:** os rascunhos de dieta aparecem na aba Dieta como já aparecem hoje. Os de treino e cardio só existem pelo escritório; posso mostrá-los no admin depois, se você quiser.
 
