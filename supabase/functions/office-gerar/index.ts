@@ -24,7 +24,10 @@ const Body = z.discriminatedUnion('acao', [
     categoria: z.string().min(1).max(40), pedido: z.string().trim().min(1).max(5000),
     id: z.string().uuid().optional().nullable(),
   }),
-  z.object({ acao: z.literal('analisar'), tipo: z.literal('treino'), aluno: z.string().min(1).max(200) }),
+  z.object({
+    acao: z.literal('analisar'), tipo: z.literal('treino'), aluno: z.string().min(1).max(200),
+    id: z.string().uuid().optional().nullable(),
+  }),
   z.object({ acao: z.literal('status'), id: z.string().uuid() }),
   z.object({ acao: z.literal('publicar'), tipo: Tipo, id: z.string().uuid() }),
   z.object({ acao: z.literal('descartar'), tipo: Tipo, id: z.string().uuid() }),
