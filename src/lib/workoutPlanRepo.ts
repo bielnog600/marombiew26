@@ -83,11 +83,17 @@ export const saveWorkoutPlanJSON = async (
  * Same guarantees as saveWorkoutPlanJSON: never persists invalid data,
  * never inserts with conteudo_json null when JSON is valid.
  */
-export const createWorkoutPlanJSON = async (
+/**
+ * Monta (sem gravar) a linha de ai_plans de um treino novo. Compartilhado com
+ * a edge function office-gerar para que "publicar" grave exatamente o mesmo.
+ */
+export const buildWorkoutPlanInsertPayload = (
   studentId: string,
   json: WorkoutPlan,
   extras: SaveExtras & { tipo?: string; cycle_status?: string } = {},
-): Promise<CreateResult> => {
+):
+  | { success: true; payload: Record<string, unknown>; markdown: string; json: WorkoutPlan }
+  | { success: false; error: string } => {
   // Dia vazio nunca é gravado (nem no JSON nem no markdown).
   const validation = validateWorkoutPlan(removeEmptyDays(json));
   if (!validation.success) {
@@ -110,6 +116,18 @@ export const createWorkoutPlanJSON = async (
     fase_inicio_data: extras.fase_inicio_data ?? new Date().toISOString().slice(0, 10),
     ...(extras.periodization ?? {}),
   };
+  return { success: true, payload: insertPayload, markdown, json: validation.data };
+};
+
+export const createWorkoutPlanJSON = async (
+  studentId: string,
+  json: WorkoutPlan,
+  extras: SaveExtras & { tipo?: string; cycle_status?: string } = {},
+): Promise<CreateResult> => {
+  const built = buildWorkoutPlanInsertPayload(studentId, json, extras);
+  if (built.success !== true) return { success: false, error: (built as { error: string }).error };
+  const { payload: insertPayload, markdown } = built;
+  const validation = { data: built.json };
   const { data, error } = await supabase
     .from("ai_plans")
     .insert(insertPayload as any)
