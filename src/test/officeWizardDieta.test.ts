@@ -8,6 +8,7 @@ import { getMacroPrescription } from '@/lib/macroConfig';
 import { WEEKDAY_KEYS, resolveDayTarget } from '@/lib/dietDayTargets';
 import { ENERGY_WEEKDAYS, WEEKDAY_LABELS, type EnergyWeekday } from '@/lib/weeklyEnergy';
 import { buildStructuredDietPrompt } from '@/lib/structuredDietPrompt';
+import type { DietMacroTargets } from '@/lib/dietMacroValidation';
 
 // Cópia literal do código que existia inline em DietaIA.generatePlan antes da
 // extração. Garante que admin e office-gerar montam o MESMO pedido ao diet-agent.
