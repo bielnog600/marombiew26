@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { buildWorkoutPlanInsertPayload } from "./workoutPlanInsert";
 import type { Json } from "@/integrations/supabase/types";
 import {
   parsedDaysToWorkoutPlan,
@@ -83,33 +84,17 @@ export const saveWorkoutPlanJSON = async (
  * Same guarantees as saveWorkoutPlanJSON: never persists invalid data,
  * never inserts with conteudo_json null when JSON is valid.
  */
+export { buildWorkoutPlanInsertPayload };
+
 export const createWorkoutPlanJSON = async (
   studentId: string,
   json: WorkoutPlan,
   extras: SaveExtras & { tipo?: string; cycle_status?: string } = {},
 ): Promise<CreateResult> => {
-  // Dia vazio nunca é gravado (nem no JSON nem no markdown).
-  const validation = validateWorkoutPlan(removeEmptyDays(json));
-  if (!validation.success) {
-    return { success: false, error: (validation as { error: string }).error };
-  }
-  const markdown = workoutPlanToMarkdown(validation.data);
-  const insertPayload: Record<string, unknown> = {
-    student_id: studentId,
-    tipo: extras.tipo ?? "treino",
-    titulo: extras.titulo ?? `Treino - ${new Date().toLocaleDateString("pt-BR")}`,
-    conteudo: markdown,
-    conteudo_json: validation.data as unknown as Json,
-    migration_status: "completed",
-    cycle_status: extras.cycle_status ?? "em_dia",
-    // `fase` is NOT NULL on ai_plans. Always derive a fallback so insert never fails.
-    fase:
-      extras.fase ??
-      calculateCurrentPhase(extras.fase_inicio_data ?? null) ??
-      getPhaseByMonthDay(),
-    fase_inicio_data: extras.fase_inicio_data ?? new Date().toISOString().slice(0, 10),
-    ...(extras.periodization ?? {}),
-  };
+  const built = buildWorkoutPlanInsertPayload(studentId, json, extras);
+  if (built.success !== true) return { success: false, error: (built as { error: string }).error };
+  const { payload: insertPayload, markdown } = built;
+  const validation = { data: built.json };
   const { data, error } = await supabase
     .from("ai_plans")
     .insert(insertPayload as any)

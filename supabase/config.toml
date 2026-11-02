@@ -27,3 +27,6 @@ verify_jwt = false
 
 [functions.office-alunos]
 verify_jwt = false
+
+[functions.office-gerar]
+verify_jwt = false
