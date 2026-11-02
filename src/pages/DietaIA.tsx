@@ -1210,7 +1210,6 @@ const DietaIA = () => {
     }
     return { plan: finalized.plan };
   };
-  };
 
   // Fase 4.2: o fluxo structured valida por foodId — o `id` é obrigatório aqui.
   const loadFoodMacroRecords = async (): Promise<Array<FoodMacroRecord & { id: string }>> => loadDietFoodRecords(supabase);
