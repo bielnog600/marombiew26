@@ -13,7 +13,7 @@ function Harness() {
   return (
     <div className="min-h-screen bg-background p-4">
       <div className="mx-auto w-full max-w-[390px]">
-        <MethodSetRows exercise={ex} set={set} index={0} count={3} targetReps="12" weightPlaceholder="kg"
+        <MethodSetRows exercise={ex} set={set} index={2} count={3} targetReps="12" weightPlaceholder="kg"
           disabled={false} onChange={update} onComplete={update} />
       </div>
     </div>
