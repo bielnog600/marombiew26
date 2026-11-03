@@ -1,4 +1,4 @@
-import { assertEquals } from 'npm:@std/assert'
+import { assertEquals } from 'https://deno.land/std@0.224.0/assert/mod.ts'
 import { planDates, planFields } from './planos.ts'
 
 const row = (student_id: string, tipo: string, extra: Record<string, unknown> = {}) => ({
