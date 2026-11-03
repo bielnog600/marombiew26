@@ -59,7 +59,7 @@ Deno.serve(async (req) => {
     const since30 = new Date(now.getTime() - 31 * 86400000).toISOString()
     const since30Date = new Date(now.getTime() - 31 * 86400000).toISOString().slice(0, 10)
 
-    const [roles, profiles, sps, wlRecent, wlLast, ws, dc, cs, rs] = await Promise.all([
+    const [roles, profiles, sps, plans, wlRecent, wlLast, ws, dc, cs, rs] = await Promise.all([
       readAll(() => sb.from('user_roles').select('user_id, role')),
       readAll(() => sb.from('profiles').select('user_id, nome, telefone, created_at')),
       readAll(() => sb.from('students_profile').select('user_id, sexo, ativo, presencial, access_status')),
@@ -98,6 +98,17 @@ Deno.serve(async (req) => {
       if (age <= 6) ws7.set(s.student_id, (ws7.get(s.student_id) ?? 0) + 1)
       if (age <= 29) ws30.set(s.student_id, (ws30.get(s.student_id) ?? 0) + 1)
     }
+    // Published plans only (is_draft = false). Office drafts live in office_plan_drafts
+    // and in ai_plans with is_draft = true, so they never reach this list.
+    const planDate = new Map<string, string>()
+    for (const p of plans) {
+      const raw = p.published_at ?? p.created_at
+      if (!raw) continue
+      const d = lisbonDate(new Date(raw))
+      const k = `${p.student_id}|${p.tipo}`
+      if (!planDate.has(k) || d > planDate.get(k)!) planDate.set(k, d)
+    }
+    const planOf = (id: string, tipo: string) => planDate.get(`${id}|${tipo}`) ?? null
 
     const alunos = ids.map((id) => {
       const sp = spBy.get(id), pr = profBy.get(id)
@@ -111,6 +122,16 @@ Deno.serve(async (req) => {
         ativo: sp ? sp.ativo !== false : false,
         telefone_ddi: ddi(pr?.telefone ?? null),
         modalidade: sp?.presencial == null ? null : sp.presencial ? 'presencial' : 'online',
+        cadastro: pr?.created_at ? lisbonDate(new Date(pr.created_at)) : null,
+        acesso: sp?.access_status ?? null,
+        planos: {
+          treino: planOf(id, 'treino') !== null,
+          dieta: planOf(id, 'dieta') !== null,
+          cardio: planOf(id, 'cardio') !== null,
+          treino_data: planOf(id, 'treino'),
+          dieta_data: planOf(id, 'dieta'),
+          cardio_data: planOf(id, 'cardio'),
+        },
         peso: {
           ultimo: lw ? { data: lw.data, kg: Number(lw.peso) } : null,
           registros30d: rec.length,
