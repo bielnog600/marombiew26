@@ -61,8 +61,9 @@ Deno.serve(async (req) => {
 
     const [roles, profiles, sps, wlRecent, wlLast, ws, dc, cs, rs] = await Promise.all([
       readAll(() => sb.from('user_roles').select('user_id, role')),
-      readAll(() => sb.from('profiles').select('user_id, nome, telefone')),
-      readAll(() => sb.from('students_profile').select('user_id, sexo, ativo, presencial')),
+      readAll(() => sb.from('profiles').select('user_id, nome, telefone, created_at')),
+      readAll(() => sb.from('students_profile').select('user_id, sexo, ativo, presencial, access_status')),
+      readAll(() => sb.from('ai_plans').select('student_id, tipo, created_at, published_at').eq('is_draft', false).in('tipo', ['treino', 'dieta', 'cardio'])),
       readAll(() => sb.from('weight_logs').select('student_id, peso, data, created_at').gte('data', since30Date).order('data').order('created_at')),
       readAll(() => sb.from('weight_logs').select('student_id, peso, data, created_at').order('data', { ascending: false }).order('created_at', { ascending: false })),
       readAll(() => sb.from('workout_sessions').select('student_id, completed_at').not('completed_at', 'is', null).order('completed_at', { ascending: false })),
