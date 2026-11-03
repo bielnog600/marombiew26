@@ -100,7 +100,7 @@ export function QuickMethodSetRows({ exercise, set, index, targetReps, weightPla
       </div> : next >= 0 && (cluster || next > 0) && <div className="space-y-2" aria-label={records[next].label}>
         {cluster ? <>
           <Button className="h-14 w-full text-base" disabled={disabled} onClick={() => confirm(params.reps_bloco)}>Fiz {params.reps_bloco} reps</Button>
-          {params.reps_bloco > 1 && <Button variant="link" className="h-11" disabled={disabled} onClick={() => setLess(!less)}>Fiz menos</Button>}
+          {params.reps_bloco > 1 && <Button variant="outline" className="h-12 w-full border-primary text-base text-primary hover:bg-primary/10 hover:text-primary" disabled={disabled} onClick={() => setLess(!less)}>Fiz menos</Button>}
         </> : null}
         {(!cluster || less) && <div className="grid grid-cols-4 gap-2">
           {Array.from({ length: cluster ? params.reps_bloco - 1 : 8 }, (_, i) => i + 1).map(reps =>
