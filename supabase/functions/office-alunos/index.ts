@@ -1,5 +1,6 @@
 // Read-only feed for the external follow-up assistant. Never writes.
 import { createClient } from 'npm:@supabase/supabase-js@2'
+import { lisbonDate, planDates, planFields } from './planos.ts'
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } })
@@ -13,8 +14,6 @@ function safeEqual(a: string, b: string): boolean {
   return diff === 0 && x.length === y.length
 }
 
-const lisbonDate = (d: Date) =>
-  new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Lisbon', year: 'numeric', month: '2-digit', day: '2-digit' }).format(d)
 const dayNum = (ymd: string) => Math.floor(Date.UTC(+ymd.slice(0, 4), +ymd.slice(5, 7) - 1, +ymd.slice(8, 10)) / 86400000)
 
 const DDIS = ['351', '55', '1', '44', '34', '33', '49', '39', '41', '352', '244', '258', '238', '239', '245']
@@ -59,10 +58,11 @@ Deno.serve(async (req) => {
     const since30 = new Date(now.getTime() - 31 * 86400000).toISOString()
     const since30Date = new Date(now.getTime() - 31 * 86400000).toISOString().slice(0, 10)
 
-    const [roles, profiles, sps, wlRecent, wlLast, ws, dc, cs, rs] = await Promise.all([
+    const [roles, profiles, sps, plans, wlRecent, wlLast, ws, dc, cs, rs] = await Promise.all([
       readAll(() => sb.from('user_roles').select('user_id, role')),
-      readAll(() => sb.from('profiles').select('user_id, nome, telefone')),
-      readAll(() => sb.from('students_profile').select('user_id, sexo, ativo, presencial')),
+      readAll(() => sb.from('profiles').select('user_id, nome, telefone, created_at')),
+      readAll(() => sb.from('students_profile').select('user_id, sexo, ativo, presencial, access_status')),
+      readAll(() => sb.from('ai_plans').select('student_id, tipo, created_at, published_at, is_draft').eq('is_draft', false).in('tipo', ['treino', 'dieta', 'cardio'])),
       readAll(() => sb.from('weight_logs').select('student_id, peso, data, created_at').gte('data', since30Date).order('data').order('created_at')),
       readAll(() => sb.from('weight_logs').select('student_id, peso, data, created_at').order('data', { ascending: false }).order('created_at', { ascending: false })),
       readAll(() => sb.from('workout_sessions').select('student_id, completed_at').not('completed_at', 'is', null).order('completed_at', { ascending: false })),
@@ -97,6 +97,9 @@ Deno.serve(async (req) => {
       if (age <= 6) ws7.set(s.student_id, (ws7.get(s.student_id) ?? 0) + 1)
       if (age <= 29) ws30.set(s.student_id, (ws30.get(s.student_id) ?? 0) + 1)
     }
+    // Published plans only (is_draft = false). Office drafts live in office_plan_drafts
+    // and in ai_plans with is_draft = true, so they never reach this list.
+    const planDate = planDates(plans)
 
     const alunos = ids.map((id) => {
       const sp = spBy.get(id), pr = profBy.get(id)
@@ -110,6 +113,9 @@ Deno.serve(async (req) => {
         ativo: sp ? sp.ativo !== false : false,
         telefone_ddi: ddi(pr?.telefone ?? null),
         modalidade: sp?.presencial == null ? null : sp.presencial ? 'presencial' : 'online',
+        cadastro: pr?.created_at ? lisbonDate(new Date(pr.created_at)) : null,
+        acesso: sp?.access_status ?? null,
+        planos: planFields(planDate, id),
         peso: {
           ultimo: lw ? { data: lw.data, kg: Number(lw.peso) } : null,
           registros30d: rec.length,
