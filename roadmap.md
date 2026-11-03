@@ -154,3 +154,7 @@ Fora do escopo desta entrega (Fases 3-6): LOW/MEDIUM/HIGH, novo carb cycling, aj
 - [x] `ajustar` (treino/dieta/cardio, por categoria e pedido livre) e `analisar` (treino, determinístico); resumo em markdown com tabelas e "O que mudou".
 - [x] `ajustar` e `analisar` aceitam `id` de rascunho: o ajustar parte do rascunho e cria um novo; o analisar só lê esse rascunho. Mesmas travas de aluno/status/publicado.
 - [ ] Teste real de ponta a ponta pelo escritório (perguntas → gerar/ajustar/analisar → publicar/descartar) — com o Fabiew; nenhuma chamada real de IA foi feita por mim.
+
+## Escritório de IA — office-alunos (só leitura)
+- [x] `cadastro` (profiles.created_at), `acesso` (students_profile.access_status) e `planos` (treino/dieta/cardio + data publicada mais recente) por aluno; só ai_plans publicados, rascunhos do escritório fora. Lógica pura em `office-alunos/planos.ts` com 8 testes; campos existentes intactos.
+- [ ] Conferir a resposta real pelo escritório (a função exige a senha do escritório, que eu não tenho).
