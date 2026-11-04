@@ -162,6 +162,8 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
   const [aiNotes, setAiNotes] = useState<Record<string, string[]>>({});
   const [editedPlans, setEditedPlans] = useState<Record<string, DietPlan>>({});
   const [editedSchedules, setEditedSchedules] = useState<Record<string, WeeklyEnergySchedule>>({});
+  /** Protocolos alterados no editor (ciclo de carbo → weekly_day_targets). */
+  const [editedProtocols, setEditedProtocols] = useState<Record<string, any>>({});
   const [editingId, setEditingId] = useState<string | null>(null);
   const [saving, setSaving] = useState<string | null>(null);
   const [macroModalPlanId, setMacroModalPlanId] = useState<string | null>(null);
@@ -467,10 +469,12 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
       updatePayload.conteudo_json = finalPlan as any;
       updatePayload.migration_status = 'completed';
     }
-    if (scheduleEdit) {
+    const protocolsEdit = editedProtocols[planId];
+    if (scheduleEdit || protocolsEdit) {
       updatePayload.protocols = {
         ...((plan as any).protocols ?? {}),
-        weekly_energy_schedule: scheduleEdit,
+        ...(protocolsEdit ?? {}),
+        ...(scheduleEdit ? { weekly_energy_schedule: scheduleEdit } : {}),
       };
     }
 
@@ -492,6 +496,7 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
     setEditedDays(prev => { const c = { ...prev }; delete c[planId]; return c; });
     setEditedPlans(prev => { const c = { ...prev }; delete c[planId]; return c; });
     setEditedSchedules(prev => { const c = { ...prev }; delete c[planId]; return c; });
+    setEditedProtocols(prev => { const c = { ...prev }; delete c[planId]; return c; });
     setAiNotes(prev => { const c = { ...prev }; delete c[planId]; return c; });
     setEditingId(null);
     setSaving(null);
@@ -904,11 +909,11 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
                         const isStructured = isStructuredCanonicalPlan(canonical);
                         if (isStructured && canonical) {
                           // Metas reais persistidas (carb cycling por weekday).
+                          const protocolsRow = editedProtocols[plan.id] ?? (plan as any).protocols ?? null;
                           const targetsByDay = resolvePersistedTargetsByDay({
                             plan: canonical,
-                            protocols: (plan as any).protocols,
+                            protocols: protocolsRow,
                           });
-                          const protocolsRow = (plan as any).protocols ?? null;
                           const dayTypesByDay = (canonical.days ?? []).map((d: any) => {
                             const wd = String(d?.weekday ?? '').toLowerCase();
                             return (
@@ -923,6 +928,11 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
                               targetsByDay={targetsByDay}
                               dayTypesByDay={dayTypesByDay}
                               onChange={(p) => handlePlanChange(plan.id, p)}
+                              protocols={protocolsRow}
+                              onCarbCycleApply={(p, prot) => {
+                                handlePlanChange(plan.id, p);
+                                setEditedProtocols(prev => ({ ...prev, [plan.id]: prot }));
+                              }}
                             />
                           );
                         }
