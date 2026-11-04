@@ -156,7 +156,10 @@ const AdminTodayOverview: React.FC = () => {
 
   const startOfDay = startOfTodayIso();
   const workoutByStudent = new Map<string, string>();
-  for (const w of workoutSessions) if (w.completed_at >= startOfDay || new Date(w.completed_at).toISOString() >= startOfDay) if (!workoutByStudent.has(w.student_id)) workoutByStudent.set(w.student_id, w.completed_at);
+  for (const w of workoutSessions) {
+    if (new Date(w.completed_at).toISOString() < startOfDay) continue;
+    if (!workoutByStudent.has(w.student_id)) workoutByStudent.set(w.student_id, w.completed_at);
+  }
 
   const byStudent = new Map<string, string[]>();
   for (const a of activity) {
