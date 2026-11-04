@@ -1,6 +1,6 @@
 // Read-only feed for the external follow-up assistant. Never writes.
 import { createClient } from 'npm:@supabase/supabase-js@2'
-import { dayNum, lisbonDate, planDates, planFields, recentSessions } from './planos.ts'
+import { dayNum, lisbonDate, planDates, planFields, recentSessions, weightHistory } from './planos.ts'
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } })
