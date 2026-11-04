@@ -16,7 +16,7 @@ Deno.test('publicado sem published_at usa a data de criação', () => {
   assertEquals(planFields(d, 'a1'), {
     treino: true, dieta: false, cardio: false,
     treino_data: '2026-10-30', dieta_data: null, cardio_data: null,
-    treino_fim: null,
+    treino_fim: null, dieta_fim: null, cardio_fim: null,
   })
 })
 
@@ -35,7 +35,7 @@ Deno.test('rascunho do escritório não conta', () => {
   assertEquals(planFields(d, 'a1'), {
     treino: false, dieta: false, cardio: false,
     treino_data: null, dieta_data: null, cardio_data: null,
-    treino_fim: null,
+    treino_fim: null, dieta_fim: null, cardio_fim: null,
   })
 })
 
@@ -89,7 +89,7 @@ Deno.test('aluno sem plano publicado', () => {
   assertEquals(planFields(d, 'a1'), {
     treino: false, dieta: false, cardio: false,
     treino_data: null, dieta_data: null, cardio_data: null,
-    treino_fim: null,
+    treino_fim: null, dieta_fim: null, cardio_fim: null,
   })
 })
 
