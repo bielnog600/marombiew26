@@ -65,17 +65,20 @@ const finite = (v: unknown): number | null => {
 export const computeLevelTarget = (base: MacroTargetValue, adj: CarbLevelAdjust): MacroTargetValue => {
   const p = finite(adj.p) ?? base.p;
   const g = finite(adj.g) ?? base.g;
+  // Mudanças de P/G entram na kcal; o carbo segue o pedido do nível.
+  const pgKcal = (p - base.p) * 4 + (g - base.g) * 9;
   if (adj.carbMode === 'auto') {
-    const kcal = adj.kcalMode === 'pct'
-      ? base.kcal * (1 + (Number(adj.kcalValue) || 0) / 100)
-      : base.kcal + (Number(adj.kcalValue) || 0);
-    const c = Math.max(0, (kcal - p * 4 - g * 9) / 4);
-    return { kcal: r(p * 4 + c * 4 + g * 9), p: r(p), c: r(c), g: r(g) };
+    const extra = adj.kcalMode === 'pct'
+      ? base.kcal * ((Number(adj.kcalValue) || 0) / 100)
+      : Number(adj.kcalValue) || 0;
+    // Todo o extra/déficit de kcal vem do carboidrato.
+    const c = Math.max(0, r(base.c + extra / 4));
+    return { kcal: r(base.kcal + (c - base.c) * 4 + pgKcal), p: r(p), c, g: r(g) };
   }
-  const c = Math.max(0, adj.carbMode === 'g'
+  const c = Math.max(0, r(adj.carbMode === 'g'
     ? base.c + (Number(adj.carbValue) || 0)
-    : base.c * (1 + (Number(adj.carbValue) || 0) / 100));
-  return { kcal: r(p * 4 + c * 4 + g * 9), p: r(p), c: r(c), g: r(g) };
+    : base.c * (1 + (Number(adj.carbValue) || 0) / 100)));
+  return { kcal: r(base.kcal + (c - base.c) * 4 + pgKcal), p: r(p), c, g: r(g) };
 };
 
 const clone = <T,>(v: T): T => JSON.parse(JSON.stringify(v));
@@ -186,7 +189,9 @@ export const applyCarbCycle = (
       return day;
     }
     const target = computeLevelTarget(base, config.levels[level]);
-    const res = scaleDayCarbs(day, target.c, foods);
+    // Mantém o desvio real do cardápio base: só soma a diferença de carbo do nível.
+    const baseDayC = Number(baseDay?.totals?.c) || 0;
+    const res = scaleDayCarbs(day, Math.max(0, baseDayC + (target.c - base.c)), foods);
     if (!res.ok) warnings.push(`${label}: nenhuma fonte de carboidrato para ajustar.`);
     day.label = `${label} — ${CARB_LEVEL_LABELS[level]}`;
     day.carbLevel = level;
