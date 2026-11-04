@@ -41,4 +41,4 @@
 
 - Fabiew's literal Marombiew rules live in `src/lib/officeWizard/regrasMarombiew.ts` (bundled into officeCore, re-exported by `_shared/regrasMarombiew.ts`): `revisar` applies all of them, other ajustar categories use them as background rules, and deterministic fixes (4x Mon–Thu day rename, select conversion table) run on the server before/after the AI so the editor never receives invalid values.
 - The `office-alunos` feed stays read-only and its published-plan summary (cadastro/acesso/planos) resolves in the pure `supabase/functions/office-alunos/planos.ts`: only `is_draft = false` rows of tipo treino/dieta/cardio count, the date is `published_at ?? created_at` rendered as a Lisbon day, so office drafts (`office_plan_drafts` or diet `is_draft=true`) can never reach the assistant.
-- Editor carb cycling lives in pure `dietCarbCycle`: 7 weekday days from saved meta.carbCycle.baseDay, carb-only 5 g scaling, targets in day.targets + protocols.weekly_day_targets (publication validates daily diets via that layer).
+- Editor carb cycling: pure `dietCarbCycle`; per-day targets also go to protocols.weekly_day_targets, which publication validates.
