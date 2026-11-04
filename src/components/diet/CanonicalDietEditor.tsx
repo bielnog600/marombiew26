@@ -62,6 +62,8 @@ import CanonicalFoodSubstitutionDialog from './CanonicalFoodSubstitutionDialog';
 import MealAiSuggestionsDialog from './MealAiSuggestionsDialog';
 import { applyMealSuggestion } from '@/lib/mealAiSuggestions';
 import MealTimePopover from './MealTimePopover';
+import CarbCyclePanel from './CarbCyclePanel';
+import { applyCarbCycle, type CarbCycleConfig } from '@/lib/dietCarbCycle';
 import { applyMealTimeAndSort } from '@/lib/dietMealTime';
 
 interface Props {
@@ -73,6 +75,10 @@ interface Props {
   /** LOW/MEDIUM/HIGH por índice de dia, quando existir (carb cycling). */
   dayTypesByDay?: Array<string | null | undefined>;
   onChange: (plan: DietPlan) => void;
+  /** Protocolos atuais da linha (para o ciclo de carbo gravar weekly_day_targets). */
+  protocols?: any;
+  /** Ciclo de carbo aplicado: novo plano + protocolos com metas por dia. */
+  onCarbCycleApply?: (plan: DietPlan, protocols: any) => void;
 }
 
 const clone = <T,>(v: T): T => JSON.parse(JSON.stringify(v));
@@ -90,7 +96,7 @@ const fmt = (n: number) => (Number.isInteger(n) ? String(n) : (Math.round(n * 10
 const line = (m: { kcal: number; p: number; c: number; g: number } | null | undefined) =>
   m ? `${Math.round(m.kcal)} kcal · ${Math.round(m.p)}P · ${Math.round(m.c)}C · ${Math.round(m.g)}G` : '—';
 
-const CanonicalDietEditor: React.FC<Props> = ({ plan, foods, targetsByDay, dayTypesByDay, onChange }) => {
+const CanonicalDietEditor: React.FC<Props> = ({ plan, foods, targetsByDay, dayTypesByDay, onChange, protocols, onCarbCycleApply }) => {
   const [dayIndex, setDayIndex] = useState(0);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [preview, setPreview] = useState<AutoAdjustResult | null>(null);
@@ -328,8 +334,27 @@ const CanonicalDietEditor: React.FC<Props> = ({ plan, foods, targetsByDay, dayTy
     toast.success('Sugestão aplicada.');
   };
 
-  const dayName = (d: any, i: number) =>
-    (d?.weekday ?? d?.label ?? `Dia ${i + 1}`).toString().toUpperCase();
+  const CARB_SHORT: Record<string, string> = { alto: 'ALTO', medio: 'MÉDIO', baixo: 'BAIXO' };
+  const dayName = (d: any, i: number) => {
+    const name = (d?.weekday ?? d?.label ?? `Dia ${i + 1}`).toString().toUpperCase();
+    return d?.carbLevel && CARB_SHORT[d.carbLevel] ? `${name} · ${CARB_SHORT[d.carbLevel]}` : name;
+  };
+
+  const handleCarbCycle = (config: CarbCycleConfig) => {
+    if (!onCarbCycleApply) return;
+    if (!foodRecords.length) {
+      toast.warning('Base de alimentos ainda carregando.');
+      return;
+    }
+    if ((plan.meta as any)?.strategy === 'carb_cycling' &&
+      !window.confirm('Reaplicar recria os 7 dias a partir do cardápio base. Continuar?')) return;
+    const res = applyCarbCycle(plan, protocols, config, foodRecords);
+    setUndoSnapshot(null);
+    setDayIndex(0);
+    onCarbCycleApply(res.plan, res.protocols);
+    res.warnings.forEach((w) => toast.warning(w));
+    toast.success('Ciclo de carboidratos aplicado. Revise cada dia e clique em Salvar.');
+  };
 
   const dayTypeAt = (i: number) =>
     normalizeDayType(
@@ -390,6 +415,9 @@ const CanonicalDietEditor: React.FC<Props> = ({ plan, foods, targetsByDay, dayTy
 
   return (
     <div className="space-y-3">
+      {onCarbCycleApply && (
+        <CarbCyclePanel plan={plan} disabled={hasUnresolved} onApply={handleCarbCycle} />
+      )}
       {days.length > 1 && (
         <div className="flex flex-wrap items-center gap-1">
           {days.map((d, i) => (

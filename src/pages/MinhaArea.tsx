@@ -59,6 +59,7 @@ const MinhaArea = () => {
   const [dietSections, setDietSections] = useState<ParsedSection[]>([]);
   /** Refeições publicadas do dia de hoje (dieta structured). */
   const [structuredTodayMeals, setStructuredTodayMeals] = useState<ParsedMeal[] | null>(null);
+  const [todayCarbLabel, setTodayCarbLabel] = useState<string | null>(null);
   const [_trainingTitle, setTrainingTitle] = useState('');
   const [_dietTitle, setDietTitle] = useState('');
   const [isTrainingDay, setIsTrainingDay] = useState(false);
@@ -224,8 +225,10 @@ const MinhaArea = () => {
             STUDENT_WEEKDAY_KEYS[todayWeekdayIndex()],
           );
           setStructuredTodayMeals(today?.meals ?? null);
+          setTodayCarbLabel(today?.carbLabel ?? null);
         } else {
           setStructuredTodayMeals(null);
+          setTodayCarbLabel(null);
         }
       }
 
@@ -513,7 +516,7 @@ const MinhaArea = () => {
 
         {/* Diet Summary */}
         {(meals.length > 0 || (structuredTodayMeals?.length ?? 0) > 0) && (
-          <DietPlanCard sections={dietSections} structuredTodayMeals={structuredTodayMeals ?? undefined} />
+          <DietPlanCard sections={dietSections} structuredTodayMeals={structuredTodayMeals ?? undefined} carbLabel={todayCarbLabel} />
         )}
 
         {/* Dashboard Cards */}

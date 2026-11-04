@@ -7172,6 +7172,7 @@ var DietObjective = external_exports.enum([
 var DietStrategy = external_exports.enum([
   "linear",
   "carb_cycle",
+  "carb_cycling",
   "refeed",
   "diet_break",
   "low_carb",
@@ -7295,6 +7296,9 @@ var DietDay = external_exports.object({
   weekday: Weekday.optional(),
   carbBias: external_exports.enum(["low", "normal", "high"]).optional(),
   trainingDay: external_exports.boolean().optional(),
+  /** Ciclo de carbo aplicado no editor: nível e meta materializada do dia. */
+  carbLevel: external_exports.enum(["alto", "medio", "baixo", "base"]).optional(),
+  targets: Macros.optional(),
   meals: external_exports.array(Meal),
   totals: Macros
 });
@@ -7340,7 +7344,9 @@ var DietPlanMeta = external_exports.object({
   /** FASE 6 — preenchidos SOMENTE pelo RPC de publicação (nunca pela IA). */
   publishedAt: external_exports.string().optional(),
   publishedBy: external_exports.string().optional(),
-  publicationRevision: external_exports.number().optional()
+  publicationRevision: external_exports.number().optional(),
+  /** Configuração do ciclo de carbo aplicado no editor (níveis, dias, dia base). */
+  carbCycle: external_exports.any().optional()
 });
 var DietPlan = external_exports.object({
   meta: DietPlanMeta,

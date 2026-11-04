@@ -949,6 +949,13 @@ const MinhasDietas = () => {
 
         {/* Calorias do dia */}
         {/* Meta PRESCRITA (nunca a soma da versão editada pelo aluno). */}
+        {isStructuredDiet && structuredGroups[activeGroupIndex]?.carbLabel && (
+          <div className="flex justify-start">
+            <span className="rounded-full border border-primary/40 bg-primary/10 px-3 py-1 text-[11px] font-semibold text-primary">
+              {structuredGroups[activeGroupIndex]?.carbLabel}
+            </span>
+          </div>
+        )}
         <DailyCaloriesCard
           label={selectedDate === trackingToday ? 'Calorias de hoje' : `Calorias de ${WEEKDAY_LABELS[selectedWeekday]}`}
           consumed={consumed.kcal}
