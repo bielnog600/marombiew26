@@ -27,6 +27,7 @@ const KIND_META: Record<ActivityKind, { icon: React.ComponentType<{ className?: 
   workout_done: { icon: CheckCircle2, color: 'text-emerald-400', bg: 'bg-emerald-500/10' },
   water: { icon: Droplet, color: 'text-sky-400', bg: 'bg-sky-500/10' },
   meal: { icon: UtensilsCrossed, color: 'text-amber-400', bg: 'bg-amber-500/10' },
+  student_today: { icon: Dumbbell, color: 'text-primary', bg: 'bg-primary/10' },
 };
 
 const MAX_ITEMS = 40;
