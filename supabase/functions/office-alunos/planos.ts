@@ -56,7 +56,56 @@ export function planFields(dates: Map<string, PlanInfo>, studentId: string) {
     dieta_data: dieta?.date ?? null,
     cardio_data: cardio?.date ?? null,
     treino_fim: treino?.end ?? null,
+    dieta_fim: dieta?.end ?? null,
+    cardio_fim: cardio?.end ?? null,
   }
+}
+
+// Weight entries, as selected by the office-alunos feed query.
+export type WeightRow = {
+  student_id: string
+  data: string | null
+  peso: number | string | null
+  created_at?: string | null
+}
+
+export type WeightPoint = { data: string; kg: number }
+
+// One point per calendar day (the last entry written that day), oldest first,
+// at most `limit` days of the last `days` Lisbon days. A row dated ahead of
+// today is not part of the past 60 days, so it is left out; a row whose weight
+// is missing or unreadable is skipped too.
+export function weightHistory(
+  rows: WeightRow[],
+  today: number,
+  days = 60,
+  limit = 60,
+): Map<string, WeightPoint[]> {
+  const byDay = new Map<string, Map<number, { data: string; kg: number; at: string }>>()
+  for (const w of rows) {
+    const s = w.data === null || w.data === undefined ? '' : String(w.data)
+    if (!/^\d{4}-\d{2}-\d{2}/.test(s)) continue
+    const ymd = s.slice(0, 10)
+    const day = dayNum(ymd)
+    const age = today - day
+    if (age > days - 1 || age < 0) continue
+    const kg = numOr(w.peso)
+    if (kg === null) continue
+    const at = w.created_at ? String(w.created_at) : ''
+    const map = byDay.get(w.student_id) ?? new Map<number, { data: string; kg: number; at: string }>()
+    const cur = map.get(day)
+    if (!cur || at >= cur.at) map.set(day, { data: ymd, kg, at })
+    byDay.set(w.student_id, map)
+  }
+  const out = new Map<string, WeightPoint[]>()
+  for (const [id, map] of byDay) {
+    const list = [...map.values()]
+      .sort((a, b) => (a.data < b.data ? -1 : a.data > b.data ? 1 : 0))
+      .slice(-limit)
+      .map(({ data, kg }) => ({ data, kg }))
+    out.set(id, list)
+  }
+  return out
 }
 
 // Completed workout sessions, as selected by the office-alunos feed query.
