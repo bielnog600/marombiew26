@@ -401,7 +401,7 @@ const WorkoutView: React.FC<{ a: ActivityRef }> = ({ a }) => {
       <div className="flex items-center justify-between gap-2">
         <div className="min-w-0">
           <p className="text-sm font-semibold truncate">{session.day_name || 'Treino'}</p>
-          <p className="text-[11px] text-muted-foreground">Início {hhmm(started)}{session.completed_at ? ` · Fim ${hhmm(session.completed_at_real || session.completed_at)}` : ''}</p>
+          <p className="text-[11px] text-muted-foreground">Início {hhmm(started)}{state === 'Finalizado' ? ` · Fim ${hhmm(session.completed_at_real || session.completed_at)}` : ''}</p>
         </div>
         <Badge variant="outline" className={cn('gap-1 shrink-0',
           state === 'Ao vivo' && 'border-emerald-500/50 text-emerald-500',
