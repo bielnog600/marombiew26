@@ -13,13 +13,24 @@ export type PlanRow = {
   created_at: string | null
   published_at?: string | null
   is_draft?: boolean | null
+  block_end_date?: string | null
 }
 
-// Latest published date (YYYY-MM-DD, Lisbon) per student + plan type.
+// Latest published plan (date + block end) per student + plan type.
 // published_at wins when present; otherwise the row's creation date is the
 // publish date, because treino/cardio are saved straight as published.
-export function planDates(rows: PlanRow[]): Map<string, string> {
-  const out = new Map<string, string>()
+export type PlanInfo = { date: string; end: string | null }
+
+// block_end_date is a plain `date` column, so it is already a calendar day:
+// no timezone shifting here, only a shape guard.
+const endDate = (v: unknown): string | null => {
+  if (v === null || v === undefined || v === '') return null
+  const s = String(v)
+  return /^\d{4}-\d{2}-\d{2}/.test(s) ? s.slice(0, 10) : null
+}
+
+export function planDates(rows: PlanRow[]): Map<string, PlanInfo> {
+  const out = new Map<string, PlanInfo>()
   for (const p of rows) {
     if (p.is_draft !== false) continue
     if (p.tipo !== 'treino' && p.tipo !== 'dieta' && p.tipo !== 'cardio') continue
@@ -27,12 +38,13 @@ export function planDates(rows: PlanRow[]): Map<string, string> {
     if (!raw) continue
     const d = lisbonDate(new Date(raw))
     const k = `${p.student_id}|${p.tipo}`
-    if (!out.has(k) || d > out.get(k)!) out.set(k, d)
+    const cur = out.get(k)
+    if (!cur || d > cur.date) out.set(k, { date: d, end: endDate(p.block_end_date) })
   }
   return out
 }
 
-export function planFields(dates: Map<string, string>, studentId: string) {
+export function planFields(dates: Map<string, PlanInfo>, studentId: string) {
   const treino = dates.get(`${studentId}|treino`) ?? null
   const dieta = dates.get(`${studentId}|dieta`) ?? null
   const cardio = dates.get(`${studentId}|cardio`) ?? null
@@ -40,9 +52,10 @@ export function planFields(dates: Map<string, string>, studentId: string) {
     treino: treino !== null,
     dieta: dieta !== null,
     cardio: cardio !== null,
-    treino_data: treino,
-    dieta_data: dieta,
-    cardio_data: cardio,
+    treino_data: treino?.date ?? null,
+    dieta_data: dieta?.date ?? null,
+    cardio_data: cardio?.date ?? null,
+    treino_fim: treino?.end ?? null,
   }
 }
 
