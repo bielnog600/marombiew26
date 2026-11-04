@@ -5,6 +5,8 @@
 export const lisbonDate = (d: Date) =>
   new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Lisbon', year: 'numeric', month: '2-digit', day: '2-digit' }).format(d)
 
+export const dayNum = (ymd: string) => Math.floor(Date.UTC(+ymd.slice(0, 4), +ymd.slice(5, 7) - 1, +ymd.slice(8, 10)) / 86400000)
+
 export type PlanRow = {
   student_id: string
   tipo: string
@@ -42,4 +44,62 @@ export function planFields(dates: Map<string, string>, studentId: string) {
     dieta_data: dieta,
     cardio_data: cardio,
   }
+}
+
+// Completed workout sessions, as selected by the office-alunos feed query.
+export type SessionRow = {
+  student_id: string
+  completed_at: string | null
+  day_name?: string | null
+  duration_minutes?: number | string | null
+  avg_rpe?: number | string | null
+  total_sets?: number | string | null
+  exercises_completed?: number | string | null
+  total_exercises?: number | string | null
+}
+
+export type RecentSession = {
+  completed_at: string
+  dia: string | null
+  duracao_min: number | null
+  rpe: number | null
+  series: number | null
+  exercicios_feitos: number | null
+  exercicios_total: number | null
+}
+
+// PostgREST may send numerics (avg_rpe) as strings; everything leaves as a
+// plain number or null so the assistant never has to guess.
+const numOr = (v: unknown): number | null => {
+  if (v === null || v === undefined || v === '') return null
+  const n = typeof v === 'number' ? v : Number(v)
+  return Number.isFinite(n) ? n : null
+}
+
+// Completed sessions of the last `days` Lisbon days (today included), newest
+// first, at most `limit` per student. A row dated slightly in the future is
+// kept as today's session instead of being dropped.
+export function recentSessions(rows: SessionRow[], today: number, days = 14, limit = 20): Map<string, RecentSession[]> {
+  const out = new Map<string, RecentSession[]>()
+  for (const s of rows) {
+    if (!s.completed_at) continue
+    const age = today - dayNum(lisbonDate(new Date(s.completed_at)))
+    if (age > days - 1) continue
+    const list = out.get(s.student_id) ?? []
+    list.push({
+      completed_at: s.completed_at,
+      dia: s.day_name ?? null,
+      duracao_min: numOr(s.duration_minutes),
+      rpe: numOr(s.avg_rpe),
+      series: numOr(s.total_sets),
+      exercicios_feitos: numOr(s.exercises_completed),
+      exercicios_total: numOr(s.total_exercises),
+    })
+    out.set(s.student_id, list)
+  }
+  for (const [id, list] of out) {
+    list.sort((a, b) => (a.completed_at < b.completed_at ? 1 : a.completed_at > b.completed_at ? -1 : 0))
+    out.set(id, list.slice(0, limit))
+  }
+  return out
 }
