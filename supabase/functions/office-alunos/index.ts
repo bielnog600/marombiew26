@@ -1,6 +1,6 @@
 // Read-only feed for the external follow-up assistant. Never writes.
 import { createClient } from 'npm:@supabase/supabase-js@2'
-import { dayNum, lisbonDate, planDates, planFields, recentSessions } from './planos.ts'
+import { dayNum, lisbonDate, planDates, planFields, recentSessions, weightHistory } from './planos.ts'
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } })
@@ -55,14 +55,16 @@ Deno.serve(async (req) => {
     const now = new Date()
     const today = dayNum(lisbonDate(now))
     const since30 = new Date(now.getTime() - 31 * 86400000).toISOString()
-    const since30Date = new Date(now.getTime() - 31 * 86400000).toISOString().slice(0, 10)
+    // Weight window: 61 days back in Lisbon time guarantees the full 60 Lisbon
+    // days are read; the 30-day counters below still filter their own range.
+    const sinceWeightDate = lisbonDate(new Date(now.getTime() - 61 * 86400000))
 
     const [roles, profiles, sps, plans, wlRecent, wlLast, ws, dc, cs, rs] = await Promise.all([
       readAll(() => sb.from('user_roles').select('user_id, role')),
       readAll(() => sb.from('profiles').select('user_id, nome, telefone, created_at')),
       readAll(() => sb.from('students_profile').select('user_id, sexo, ativo, presencial, access_status')),
       readAll(() => sb.from('ai_plans').select('student_id, tipo, created_at, published_at, is_draft, block_end_date').eq('is_draft', false).in('tipo', ['treino', 'dieta', 'cardio'])),
-      readAll(() => sb.from('weight_logs').select('student_id, peso, data, created_at').gte('data', since30Date).order('data').order('created_at')),
+      readAll(() => sb.from('weight_logs').select('student_id, peso, data, created_at').gte('data', sinceWeightDate).order('data').order('created_at')),
       readAll(() => sb.from('weight_logs').select('student_id, peso, data, created_at').order('data', { ascending: false }).order('created_at', { ascending: false })),
       readAll(() => sb.from('workout_sessions').select('student_id, completed_at, day_name, duration_minutes, avg_rpe, total_sets, exercises_completed, total_exercises').not('completed_at', 'is', null).order('completed_at', { ascending: false })),
       readAll(() => sb.from('diet_checkins').select('student_id, completed_at').not('completed_at', 'is', null).order('completed_at', { ascending: false })),
@@ -101,6 +103,9 @@ Deno.serve(async (req) => {
     const planDate = planDates(plans)
     // Completed sessions of the last 14 days (newest first, max 20 per student).
     const recentWs = recentSessions(ws, today)
+    // Weight trend: one entry per day (the last one written that day), oldest
+    // first, at most 60 days.
+    const weightHist = weightHistory(wlRecent, today)
 
     const alunos = ids.map((id) => {
       const sp = spBy.get(id), pr = profBy.get(id)
@@ -122,6 +127,7 @@ Deno.serve(async (req) => {
           registros30d: rec.length,
           variacao30dKg: rec.length >= 2 ? Math.round((Number(rec[rec.length - 1].peso) - Number(rec[0].peso)) * 10) / 10 : null,
           diasSemPesar: lw ? today - dayNum(lw.data) : null,
+          historico60d: weightHist.get(id) ?? [],
         },
         treino: {
           ultimo: lt,

@@ -1,5 +1,5 @@
 import { assertEquals } from 'https://deno.land/std@0.224.0/assert/mod.ts'
-import { dayNum, planDates, planFields, recentSessions } from './planos.ts'
+import { dayNum, planDates, planFields, recentSessions, weightHistory } from './planos.ts'
 
 const row = (student_id: string, tipo: string, extra: Record<string, unknown> = {}) => ({
   student_id,
@@ -16,7 +16,7 @@ Deno.test('publicado sem published_at usa a data de criação', () => {
   assertEquals(planFields(d, 'a1'), {
     treino: true, dieta: false, cardio: false,
     treino_data: '2026-10-30', dieta_data: null, cardio_data: null,
-    treino_fim: null,
+    treino_fim: null, dieta_fim: null, cardio_fim: null,
   })
 })
 
@@ -35,7 +35,7 @@ Deno.test('rascunho do escritório não conta', () => {
   assertEquals(planFields(d, 'a1'), {
     treino: false, dieta: false, cardio: false,
     treino_data: null, dieta_data: null, cardio_data: null,
-    treino_fim: null,
+    treino_fim: null, dieta_fim: null, cardio_fim: null,
   })
 })
 
@@ -84,12 +84,64 @@ Deno.test('dieta ou cardio publicados não definem treino_fim', () => {
   assertEquals(planFields(d, 'a1').treino_fim, null)
 })
 
+Deno.test('dieta_fim vem da dieta publicada mais recente', () => {
+  const d = planDates([
+    row('a1', 'dieta', { created_at: '2026-09-20T12:00:00+00:00', block_end_date: '2026-10-18' }),
+    row('a1', 'dieta', { created_at: '2026-11-02T23:15:17.630+00:00', block_end_date: '2026-11-30' }),
+    row('a1', 'dieta', { created_at: '2026-10-01T12:00:00+00:00', block_end_date: '2026-10-29' }),
+  ])
+  assertEquals(planFields(d, 'a1').dieta_data, '2026-11-02')
+  assertEquals(planFields(d, 'a1').dieta_fim, '2026-11-30')
+})
+
+Deno.test('cardio_fim vem do cardio publicado mais recente', () => {
+  const d = planDates([
+    row('a1', 'cardio', { created_at: '2026-09-20T12:00:00+00:00', block_end_date: '2026-10-18' }),
+    row('a1', 'cardio', { created_at: '2026-11-02T23:15:17.630+00:00', block_end_date: '2026-12-20' }),
+  ])
+  assertEquals(planFields(d, 'a1').cardio_data, '2026-11-02')
+  assertEquals(planFields(d, 'a1').cardio_fim, '2026-12-20')
+})
+
+Deno.test('dieta_fim usa o bloco do plano escolhido pelo published_at', () => {
+  const d = planDates([
+    row('a1', 'dieta', { created_at: '2026-11-01T10:00:00+00:00', block_end_date: '2026-11-20' }),
+    row('a1', 'dieta', {
+      created_at: '2026-10-30T10:00:00+00:00',
+      published_at: '2026-11-03T23:36:51.368+00:00',
+      block_end_date: '2026-12-01',
+    }),
+  ])
+  assertEquals(planFields(d, 'a1').dieta_data, '2026-11-03')
+  assertEquals(planFields(d, 'a1').dieta_fim, '2026-12-01')
+})
+
+Deno.test('plano publicado sem block_end_date dá fim null', () => {
+  const d = planDates([
+    row('a1', 'dieta', { created_at: '2026-11-02T10:00:00+00:00' }),
+    row('a1', 'cardio', { created_at: '2026-11-02T10:00:00+00:00' }),
+  ])
+  assertEquals(planFields(d, 'a1').dieta_fim, null)
+  assertEquals(planFields(d, 'a1').cardio_fim, null)
+})
+
+Deno.test('cada tipo define só o próprio fim', () => {
+  const d = planDates([
+    row('a1', 'treino', { created_at: '2026-11-02T10:00:00+00:00', block_end_date: '2026-11-30' }),
+    row('a1', 'cardio', { created_at: '2026-11-02T10:00:00+00:00', block_end_date: '2026-12-20' }),
+  ])
+  const f = planFields(d, 'a1')
+  assertEquals(f.treino_fim, '2026-11-30')
+  assertEquals(f.cardio_fim, '2026-12-20')
+  assertEquals(f.dieta_fim, null)
+})
+
 Deno.test('aluno sem plano publicado', () => {
   const d = planDates([row('a2', 'dieta', { created_at: '2026-11-01T12:00:00+00:00' })])
   assertEquals(planFields(d, 'a1'), {
     treino: false, dieta: false, cardio: false,
     treino_data: null, dieta_data: null, cardio_data: null,
-    treino_fim: null,
+    treino_fim: null, dieta_fim: null, cardio_fim: null,
   })
 })
 
@@ -190,5 +242,71 @@ Deno.test('sessão com hora à frente no tempo conta como hoje', () => {
 
 Deno.test('aluno sem sessão concluída nos últimos 14 dias fica de fora', () => {
   const m = recentSessions([sess('a2', '2026-01-05T09:00:00+00:00')], TODAY)
+  assertEquals(m.has('a2'), false)
+})
+
+const peso = (student_id: string, data: string | null, pesoKg: unknown, created_at: string | null = null) => ({
+  student_id,
+  data,
+  peso: pesoKg,
+  created_at,
+})
+
+Deno.test('histórico traz um ponto por dia, do mais antigo para o mais novo', () => {
+  const m = weightHistory([
+    peso('a1', '2026-11-02', '72.4', '2026-11-02T09:00:00+00:00'),
+    peso('a1', '2026-10-01', 74, '2026-10-01T09:00:00+00:00'),
+    peso('a1', '2026-11-04', '72.1', '2026-11-04T09:00:00+00:00'),
+  ], TODAY)
+  assertEquals(m.get('a1'), [
+    { data: '2026-10-01', kg: 74 },
+    { data: '2026-11-02', kg: 72.4 },
+    { data: '2026-11-04', kg: 72.1 },
+  ])
+})
+
+Deno.test('histórico vale o último registro escrito no dia', () => {
+  const m = weightHistory([
+    peso('a1', '2026-11-03', 70, '2026-11-03T08:00:00+00:00'),
+    peso('a1', '2026-11-03', 70.6, '2026-11-03T21:30:00+00:00'),
+    peso('a1', '2026-11-03', 70.2, '2026-11-03T12:00:00+00:00'),
+  ], TODAY)
+  assertEquals(m.get('a1'), [{ data: '2026-11-03', kg: 70.6 }])
+})
+
+Deno.test('histórico pega os 60 dias de Lisboa, nem um a mais', () => {
+  const m = weightHistory([
+    peso('a1', '2026-11-04', 72), // hoje
+    peso('a1', '2026-09-06', 73), // 59 dias atrás: dentro
+    peso('a1', '2026-09-05', 74), // 60 dias atrás: fora
+  ], TODAY)
+  assertEquals(m.get('a1'), [
+    { data: '2026-09-06', kg: 73 },
+    { data: '2026-11-04', kg: 72 },
+  ])
+})
+
+Deno.test('histórico no máximo 60 pontos', () => {
+  const rows = Array.from({ length: 80 }, (_, i) =>
+    peso('a1', new Date(Date.UTC(2026, 10, 4) - i * 86400000).toISOString().slice(0, 10), 70 + i / 10))
+  const list = weightHistory(rows, TODAY).get('a1')!
+  assertEquals(list.length, 60)
+  assertEquals(list[0].data, '2026-09-06')
+  assertEquals(list[59].data, '2026-11-04')
+})
+
+Deno.test('histórico ignora peso ausente, data ausente e data à frente', () => {
+  const m = weightHistory([
+    peso('a1', '2026-11-03', null),
+    peso('a1', '2026-11-02', 'abc'),
+    peso('a1', null, 71),
+    peso('a1', '2026-11-05', 71), // amanhã: não é um dos últimos 60 dias
+    peso('a1', '2026-11-01', 71.5),
+  ], TODAY)
+  assertEquals(m.get('a1'), [{ data: '2026-11-01', kg: 71.5 }])
+})
+
+Deno.test('aluno sem pesagem nos últimos 60 dias fica de fora do histórico', () => {
+  const m = weightHistory([peso('a2', '2026-01-05', 80)], TODAY)
   assertEquals(m.has('a2'), false)
 })
