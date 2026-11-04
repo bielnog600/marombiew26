@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { supabase } from '@/integrations/supabase/client';
 import { UserCheck, CheckCircle2 } from 'lucide-react';
@@ -16,6 +16,26 @@ const startOfTodayIso = () => {
   return d.toISOString();
 };
 
+/** Remove duplicatas por aluno + horário. */
+export const dedupeActivity = (rows: { student_id: string; at: string }[]) => {
+  const seen = new Set<string>();
+  return rows.filter((r) => {
+    const k = `${r.student_id}|${new Date(r.at).getTime()}`;
+    if (seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  });
+};
+const dedupeWorkouts = (rows: { student_id: string; completed_at: string }[]) => {
+  const seen = new Set<string>();
+  return rows.filter((r) => {
+    const k = `${r.student_id}|${new Date(r.completed_at).getTime()}`;
+    if (seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  });
+};
+
 const AdminTodayOverview: React.FC = () => {
   const [students, setStudents] = useState<{ id: string; name: string }[]>([]);
   const [activity, setActivity] = useState<{ student_id: string; at: string }[]>([]);
@@ -31,77 +51,101 @@ const AdminTodayOverview: React.FC = () => {
     return () => window.clearInterval(t);
   }, []);
 
+  const idSetRef = useRef<Set<string>>(new Set());
+  const loadSeqRef = useRef(0);
+
+  /** Recarrega tudo do dia e SUBSTITUI o estado (nunca acumula). "Hoje" é recalculado a cada chamada. */
+  const loadToday = useCallback(async () => {
+    const seq = ++loadSeqRef.current;
+    const { data: roles } = await supabase.from('user_roles').select('user_id').eq('role', 'aluno');
+    const ids = (roles ?? []).map((r) => r.user_id);
+    const safeIds = ids.length > 0 ? ids : ['00000000-0000-0000-0000-000000000000'];
+    const startOfDay = startOfTodayIso();
+    const [profilesRes, openedRes, workoutRes, activeRes] = await Promise.all([
+      supabase.from('profiles').select('user_id, nome').in('user_id', safeIds),
+      supabase.from('student_events').select('student_id, created_at')
+        .eq('event_type', 'app_opened').gte('created_at', startOfDay).in('student_id', safeIds),
+      supabase.from('workout_sessions').select('student_id, completed_at')
+        .eq('status', 'completed').gte('completed_at', startOfDay).in('student_id', safeIds)
+        .order('completed_at', { ascending: false }),
+      // Atividade real durante o treino (last_active_at é renovado pelo player).
+      supabase.from('workout_sessions').select('student_id, last_active_at')
+        .gte('last_active_at', startOfDay).in('student_id', safeIds),
+    ]);
+    if (seq !== loadSeqRef.current) return; // resposta antiga: descarta
+    idSetRef.current = new Set(ids);
+    setStudents((profilesRes.data ?? []).map((p) => ({ id: p.user_id, name: p.nome || 'Sem nome' })));
+    setActivity(dedupeActivity([
+      ...(openedRes.data ?? []).map((e) => ({ student_id: e.student_id, at: e.created_at })),
+      ...(activeRes.data ?? []).filter((s) => s.last_active_at).map((s) => ({ student_id: s.student_id, at: s.last_active_at as string })),
+    ]));
+    setWorkoutSessions(dedupeWorkouts((workoutRes.data ?? []) as any));
+    setNow(Date.now());
+  }, []);
+
+  // Mount + a cada 60 s + aba visível / janela em foco.
   useEffect(() => {
-    let presenceCh: ReturnType<typeof supabase.channel> | null = null;
-    let dataCh: ReturnType<typeof supabase.channel> | null = null;
-    let cancelled = false;
+    void loadToday();
+    const t = window.setInterval(() => { void loadToday(); }, 60000);
+    const onVisible = () => { if (document.visibilityState === 'visible') void loadToday(); };
+    const onFocus = () => { void loadToday(); };
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('focus', onFocus);
+    return () => {
+      window.clearInterval(t);
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('focus', onFocus);
+      loadSeqRef.current++; // invalida carga em andamento
+    };
+  }, [loadToday]);
 
-    (async () => {
-      const { data: roles } = await supabase.from('user_roles').select('user_id').eq('role', 'aluno');
-      const ids = (roles ?? []).map((r) => r.user_id);
-      const idSet = new Set(ids);
-      const safeIds = ids.length > 0 ? ids : ['00000000-0000-0000-0000-000000000000'];
+  // Abrir o modal "Acessaram hoje" força refresh.
+  useEffect(() => { if (open) void loadToday(); }, [open, loadToday]);
 
-      const { data: profiles } = await supabase.from('profiles').select('user_id, nome').in('user_id', safeIds);
-      if (cancelled) return;
-      setStudents((profiles ?? []).map((p) => ({ id: p.user_id, name: p.nome || 'Sem nome' })));
+  // Realtime + presença para atualização instantânea; reconexão dispara loadToday.
+  useEffect(() => {
+    let dropped = false;
+    const onStatus = (status: string) => {
+      if (status === 'CLOSED' || status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') dropped = true;
+      else if (status === 'SUBSCRIBED' && dropped) { dropped = false; void loadToday(); }
+    };
 
-      const startOfDay = startOfTodayIso();
-      const [openedRes, workoutRes, activeRes] = await Promise.all([
-        supabase.from('student_events').select('student_id, created_at')
-          .eq('event_type', 'app_opened').gte('created_at', startOfDay).in('student_id', safeIds),
-        supabase.from('workout_sessions').select('student_id, completed_at')
-          .eq('status', 'completed').gte('completed_at', startOfDay).in('student_id', safeIds)
-          .order('completed_at', { ascending: false }),
-        // Atividade real durante o treino (last_active_at é renovado pelo player).
-        supabase.from('workout_sessions').select('student_id, last_active_at')
-          .gte('last_active_at', startOfDay).in('student_id', safeIds),
-      ]);
-      if (cancelled) return;
-      setActivity([
-        ...(openedRes.data ?? []).map((e) => ({ student_id: e.student_id, at: e.created_at })),
-        ...(activeRes.data ?? []).filter((s) => s.last_active_at).map((s) => ({ student_id: s.student_id, at: s.last_active_at as string })),
-      ]);
-      setWorkoutSessions((workoutRes.data ?? []) as any);
+    // Presença em tempo real — alunos entram em 'students-online' com o app aberto.
+    const presenceCh = supabase.channel('students-online', { config: { presence: { key: 'admin-watch' } } });
+    presenceCh
+      .on('presence', { event: 'sync' }, () => {
+        const state = presenceCh.presenceState() as Record<string, Array<{ user_id?: string; online_at?: string }>>;
+        const map = new Map<string, string>();
+        Object.values(state).forEach((arr) => arr.forEach((p) => {
+          if (p.user_id) map.set(p.user_id, p.online_at || new Date().toISOString());
+        }));
+        setPresence(map);
+      })
+      .subscribe(onStatus);
 
-      // Presença em tempo real — alunos entram em 'students-online' com o app aberto.
-      presenceCh = supabase.channel('students-online', { config: { presence: { key: 'admin-watch' } } });
-      presenceCh
-        .on('presence', { event: 'sync' }, () => {
-          const state = presenceCh!.presenceState() as Record<string, Array<{ user_id?: string; online_at?: string }>>;
-          const map = new Map<string, string>();
-          Object.values(state).forEach((arr) => arr.forEach((p) => {
-            if (p.user_id) map.set(p.user_id, p.online_at || new Date().toISOString());
-          }));
-          setPresence(map);
-        })
-        .subscribe();
-
-      // Novos acessos e atividade de treino ao vivo.
-      dataCh = supabase
-        .channel(`admin-today-${Math.random().toString(36).slice(2)}`)
-        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'student_events' }, (payload) => {
-          const row = payload.new as any;
-          if (row?.event_type !== 'app_opened' || !idSet.has(row.student_id)) return;
-          setActivity((prev) => [...prev, { student_id: row.student_id, at: row.created_at }]);
-        })
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'workout_sessions' }, (payload) => {
-          const row = payload.new as any;
-          if (!row?.student_id || !idSet.has(row.student_id)) return;
-          if (row.last_active_at) setActivity((prev) => [...prev, { student_id: row.student_id, at: row.last_active_at }]);
-          if (row.status === 'completed' && row.completed_at) {
-            setWorkoutSessions((prev) => [{ student_id: row.student_id, completed_at: row.completed_at }, ...prev]);
-          }
-        })
-        .subscribe();
-    })();
+    // Novos acessos e atividade de treino ao vivo.
+    const dataCh = supabase
+      .channel(`admin-today-${Math.random().toString(36).slice(2)}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'student_events' }, (payload) => {
+        const row = payload.new as any;
+        if (row?.event_type !== 'app_opened' || !idSetRef.current.has(row.student_id)) return;
+        setActivity((prev) => dedupeActivity([...prev, { student_id: row.student_id, at: row.created_at }]));
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'workout_sessions' }, (payload) => {
+        const row = payload.new as any;
+        if (!row?.student_id || !idSetRef.current.has(row.student_id)) return;
+        if (row.last_active_at) setActivity((prev) => dedupeActivity([...prev, { student_id: row.student_id, at: row.last_active_at }]));
+        if (row.status === 'completed' && row.completed_at) {
+          setWorkoutSessions((prev) => dedupeWorkouts([{ student_id: row.student_id, completed_at: row.completed_at }, ...prev]));
+        }
+      })
+      .subscribe(onStatus);
 
     return () => {
-      cancelled = true;
-      if (presenceCh) supabase.removeChannel(presenceCh);
-      if (dataCh) supabase.removeChannel(dataCh);
+      supabase.removeChannel(presenceCh);
+      supabase.removeChannel(dataCh);
     };
-  }, []);
+  }, [loadToday]);
 
   const nameOf = (id: string) => students.find((s) => s.id === id)?.name ?? 'Aluno';
   const fmt = (iso: string) => format(new Date(iso), 'HH:mm', { locale: ptBR });
@@ -110,15 +154,19 @@ const AdminTodayOverview: React.FC = () => {
     return `há ${formatDistanceToNowStrict(new Date(iso), { locale: ptBR })}`;
   };
 
+  const startOfDay = startOfTodayIso();
   const workoutByStudent = new Map<string, string>();
-  for (const w of workoutSessions) if (!workoutByStudent.has(w.student_id)) workoutByStudent.set(w.student_id, w.completed_at);
+  for (const w of workoutSessions) {
+    if (new Date(w.completed_at).toISOString() < startOfDay) continue;
+    if (!workoutByStudent.has(w.student_id)) workoutByStudent.set(w.student_id, w.completed_at);
+  }
 
   const byStudent = new Map<string, string[]>();
   for (const a of activity) {
+    if (new Date(a.at).toISOString() < startOfDay) continue;
     if (!byStudent.has(a.student_id)) byStudent.set(a.student_id, []);
     byStudent.get(a.student_id)!.push(a.at);
   }
-  const startOfDay = startOfTodayIso();
   presence.forEach((at, id) => {
     if (!byStudent.has(id)) byStudent.set(id, []);
     byStudent.get(id)!.push(at < startOfDay ? new Date(now).toISOString() : at);
