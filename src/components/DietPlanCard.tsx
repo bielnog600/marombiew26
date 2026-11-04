@@ -17,9 +17,11 @@ interface DietPlanCardProps {
   onToggleMeal?: (index: number) => void;
   /** Dieta structured publicada: refeições REAIS do dia de hoje. */
   structuredTodayMeals?: ParsedMeal[];
+  /** Selo do ciclo de carbo de hoje ("Carbo alto"…). */
+  carbLabel?: string | null;
 }
 
-const DietPlanCard: React.FC<DietPlanCardProps> = ({ sections, mealsCompleted = [], onToggleMeal, structuredTodayMeals }) => {
+const DietPlanCard: React.FC<DietPlanCardProps> = ({ sections, mealsCompleted = [], onToggleMeal, structuredTodayMeals, carbLabel }) => {
   const navigate = useNavigate();
 
   const mealSections = useMemo(
@@ -94,6 +96,11 @@ const DietPlanCard: React.FC<DietPlanCardProps> = ({ sections, mealsCompleted = 
             <div>
               <p className="text-[10px] uppercase tracking-widest text-chart-3 font-semibold">Plano Alimentar</p>
               <h3 className="text-base font-bold text-foreground mt-0.5">{currentMeals.length} refeições</h3>
+              {carbLabel && (
+                <span className="mt-1 inline-block rounded-full border border-primary/40 bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">
+                  {carbLabel}
+                </span>
+              )}
             </div>
           </div>
           <div className="h-10 w-10 rounded-full bg-primary flex items-center justify-center shadow-lg group-hover:scale-105 transition-transform">
