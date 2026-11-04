@@ -1,6 +1,6 @@
 // Read-only feed for the external follow-up assistant. Never writes.
 import { createClient } from 'npm:@supabase/supabase-js@2'
-import { lisbonDate, planDates, planFields } from './planos.ts'
+import { dayNum, lisbonDate, planDates, planFields, recentSessions } from './planos.ts'
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } })
@@ -14,7 +14,6 @@ function safeEqual(a: string, b: string): boolean {
   return diff === 0 && x.length === y.length
 }
 
-const dayNum = (ymd: string) => Math.floor(Date.UTC(+ymd.slice(0, 4), +ymd.slice(5, 7) - 1, +ymd.slice(8, 10)) / 86400000)
 
 const DDIS = ['351', '55', '1', '44', '34', '33', '49', '39', '41', '352', '244', '258', '238', '239', '245']
 function ddi(tel: string | null): string | null {
@@ -65,7 +64,7 @@ Deno.serve(async (req) => {
       readAll(() => sb.from('ai_plans').select('student_id, tipo, created_at, published_at, is_draft').eq('is_draft', false).in('tipo', ['treino', 'dieta', 'cardio'])),
       readAll(() => sb.from('weight_logs').select('student_id, peso, data, created_at').gte('data', since30Date).order('data').order('created_at')),
       readAll(() => sb.from('weight_logs').select('student_id, peso, data, created_at').order('data', { ascending: false }).order('created_at', { ascending: false })),
-      readAll(() => sb.from('workout_sessions').select('student_id, completed_at').not('completed_at', 'is', null).order('completed_at', { ascending: false })),
+      readAll(() => sb.from('workout_sessions').select('student_id, completed_at, day_name, duration_minutes, avg_rpe, total_sets, exercises_completed, total_exercises').not('completed_at', 'is', null).order('completed_at', { ascending: false })),
       readAll(() => sb.from('diet_checkins').select('student_id, completed_at').not('completed_at', 'is', null).order('completed_at', { ascending: false })),
       readAll(() => sb.from('cardio_sessions').select('student_id, completed_at').not('completed_at', 'is', null).order('completed_at', { ascending: false })),
       readAll(() => sb.from('run_sessions').select('student_id, completed_at').not('completed_at', 'is', null).order('completed_at', { ascending: false })),
@@ -100,6 +99,8 @@ Deno.serve(async (req) => {
     // Published plans only (is_draft = false). Office drafts live in office_plan_drafts
     // and in ai_plans with is_draft = true, so they never reach this list.
     const planDate = planDates(plans)
+    // Completed sessions of the last 14 days (newest first, max 20 per student).
+    const recentWs = recentSessions(ws, today)
 
     const alunos = ids.map((id) => {
       const sp = spBy.get(id), pr = profBy.get(id)
@@ -127,6 +128,7 @@ Deno.serve(async (req) => {
           sessoes7d: ws7.get(id) ?? 0,
           sessoes30d: ws30.get(id) ?? 0,
           diasSemTreinar: lt ? today - dayNum(lisbonDate(new Date(lt))) : null,
+          recentes: recentWs.get(id) ?? [],
         },
         dieta: { ultimoCheckin: lastDc.get(id) ?? null },
         cardio: { ultimo: lastCardio.get(id) ?? null },
