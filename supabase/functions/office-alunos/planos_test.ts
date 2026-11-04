@@ -250,7 +250,6 @@ const peso = (student_id: string, data: string | null, pesoKg: unknown, created_
   data,
   peso: pesoKg,
   created_at,
-  ...{},
 })
 
 Deno.test('histórico traz um ponto por dia, do mais antigo para o mais novo', () => {
