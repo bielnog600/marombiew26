@@ -5,6 +5,7 @@
  */
 import type { ParsedFood, ParsedMeal } from '@/lib/dietResultParser';
 import { isStructuredCanonicalPlan } from '@/lib/dietStructuredGuards';
+import { dayCarbLevelLabel } from '@/lib/dietCarbCycle';
 
 export const STUDENT_WEEKDAY_KEYS = ['seg', 'ter', 'qua', 'qui', 'sex', 'sab', 'dom'] as const;
 export const STUDENT_WEEKDAY_LABELS = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
@@ -89,6 +90,8 @@ export interface PublishedDayTarget {
   c: number;
   g: number;
   type?: string | null;
+  /** Rótulo legível do nível (ex.: "Carbo alto"), quando houver. */
+  label?: string | null;
 }
 
 /**
@@ -113,6 +116,7 @@ export const getPublishedDayTarget = (
     c: num(entry.c),
     g: num(entry.g),
     type: entry.type ? String(entry.type).toUpperCase() : null,
+    label: typeof entry.label === 'string' && entry.label.trim() ? entry.label.trim() : null,
   };
 };
 
@@ -120,6 +124,8 @@ export interface StudentStructuredDay {
   weekday: StudentWeekdayKey;
   label: string;
   tag: string;
+  /** Selo do ciclo de carbo do dia ("Carbo alto"…), null nos dias padrão. */
+  carbLabel: string | null;
   meals: ParsedMeal[];
   totals: { kcal: number; p: number; c: number; g: number };
   target: PublishedDayTarget | null;
@@ -154,10 +160,12 @@ export const buildStructuredDisplayGroups = (
     const totals = day?.totals
       ? { kcal: num(day.totals.kcal), p: num(day.totals.p), c: num(day.totals.c), g: num(day.totals.g) }
       : sumMeals(meals);
+    const carbLabel = dayCarbLevelLabel(day, target);
     out.push({
       weekday: key,
       label: STUDENT_WEEKDAY_LABELS[i],
-      tag: target?.type ?? '',
+      tag: carbLabel ?? target?.type ?? '',
+      carbLabel,
       meals,
       totals,
       target,

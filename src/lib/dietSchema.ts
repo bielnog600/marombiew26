@@ -25,6 +25,7 @@ export type DietObjective = z.infer<typeof DietObjective>;
 export const DietStrategy = z.enum([
   'linear',
   'carb_cycle',
+  'carb_cycling',
   'refeed',
   'diet_break',
   'low_carb',
@@ -161,6 +162,9 @@ export const DietDay = z.object({
   weekday: Weekday.optional(),
   carbBias: z.enum(['low', 'normal', 'high']).optional(),
   trainingDay: z.boolean().optional(),
+  /** Ciclo de carbo aplicado no editor: nível e meta materializada do dia. */
+  carbLevel: z.enum(['alto', 'medio', 'baixo', 'base']).optional(),
+  targets: Macros.optional(),
   meals: z.array(Meal),
   totals: Macros,
 });
@@ -212,6 +216,8 @@ export const DietPlanMeta = z.object({
   publishedAt: z.string().optional(),
   publishedBy: z.string().optional(),
   publicationRevision: z.number().optional(),
+  /** Configuração do ciclo de carbo aplicado no editor (níveis, dias, dia base). */
+  carbCycle: z.any().optional(),
 });
 export type DietPlanMeta = z.infer<typeof DietPlanMeta>;
 
