@@ -7,6 +7,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { format, formatDistanceToNowStrict } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { buildAccessRows } from '@/lib/studentOnlineStatus';
+import LiveActivityDetailDialog, { type ActivityRef } from './LiveActivityDetailDialog';
 
 /** Início do dia local (o admin vê "hoje" no fuso dele). */
 const startOfTodayIso = () => {
@@ -22,6 +23,7 @@ const AdminTodayOverview: React.FC = () => {
   const [presence, setPresence] = useState<Map<string, string>>(new Map());
   const [open, setOpen] = useState(false);
   const [now, setNow] = useState(Date.now());
+  const [selected, setSelected] = useState<ActivityRef | null>(null);
 
   // Reavalia "online" a cada 30 s (a janela de 5 min expira sozinha).
   useEffect(() => {
@@ -168,7 +170,15 @@ const AdminTodayOverview: React.FC = () => {
                 {rows.map((r) => {
                   const workoutTime = workoutByStudent.get(r.id);
                   return (
-                    <div key={r.id} className="flex items-center gap-2 p-2.5 rounded-lg bg-secondary/40">
+                    <button
+                      type="button"
+                      key={r.id}
+                      onClick={() => setSelected({
+                        kind: 'student_today', studentId: r.id, studentName: r.name, at: new Date().toISOString(),
+                        todayStatus: r.online ? 'online' : workoutTime ? 'trained' : 'none',
+                      })}
+                      className="w-full text-left flex items-center gap-2 p-2.5 rounded-lg bg-secondary/40 cursor-pointer hover:bg-secondary/70 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    >
                       <span
                         className={`h-2.5 w-2.5 rounded-full shrink-0 ${r.online ? 'bg-emerald-500 animate-pulse' : 'bg-muted-foreground/30'}`}
                         title={r.online ? 'Online agora' : 'Offline'}
@@ -185,7 +195,7 @@ const AdminTodayOverview: React.FC = () => {
                       <p className={`text-xs shrink-0 ml-1 ${r.online ? 'text-emerald-500 font-medium' : 'text-muted-foreground'}`}>
                         {r.online ? 'Online agora' : r.lastAccess ? ago(r.lastAccess) : '—'}
                       </p>
-                    </div>
+                    </button>
                   );
                 })}
               </div>
@@ -193,6 +203,7 @@ const AdminTodayOverview: React.FC = () => {
           </ScrollArea>
         </DialogContent>
       </Dialog>
+      <LiveActivityDetailDialog activity={selected} onClose={() => setSelected(null)} />
     </>
   );
 };

@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogClose } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -19,7 +20,7 @@ import { ExerciseProgressSummary, type ExerciseProgressData } from './ExercisePr
 import { diffMealFoods, foodName, sumMeals, type OverrideMeal } from '@/lib/studentDietOverrideDiff';
 import { WATER_STEP_ML, ML_PER_KG_REST, TRAINING_DAY_MULTIPLIER, DEFAULT_WATER_GOAL_GLASSES } from '@/hooks/useDailyTracking';
 
-export type ActivityKind = 'workout_start' | 'workout_end' | 'water' | 'meal' | 'workout_done';
+export type ActivityKind = 'workout_start' | 'workout_end' | 'water' | 'meal' | 'workout_done' | 'student_today';
 
 export interface ActivityRef {
   kind: ActivityKind;
@@ -30,6 +31,8 @@ export interface ActivityRef {
   /** Data (yyyy-mm-dd) do registro diário. */
   date?: string;
   mealIndex?: number;
+  /** Situação do aluno na lista "Acessaram hoje". */
+  todayStatus?: 'online' | 'trained' | 'none';
 }
 
 const r0 = (n: number) => Math.round(n || 0);
@@ -398,7 +401,7 @@ const WorkoutView: React.FC<{ a: ActivityRef }> = ({ a }) => {
       <div className="flex items-center justify-between gap-2">
         <div className="min-w-0">
           <p className="text-sm font-semibold truncate">{session.day_name || 'Treino'}</p>
-          <p className="text-[11px] text-muted-foreground">Início {hhmm(started)}</p>
+          <p className="text-[11px] text-muted-foreground">Início {hhmm(started)}{session.completed_at ? ` · Fim ${hhmm(session.completed_at_real || session.completed_at)}` : ''}</p>
         </div>
         <Badge variant="outline" className={cn('gap-1 shrink-0',
           state === 'Ao vivo' && 'border-emerald-500/50 text-emerald-500',
@@ -506,12 +509,83 @@ const WorkoutDoneResolver: React.FC<{ a: ActivityRef }> = ({ a }) => {
   return <WorkoutView a={{ ...a, sessionId: sid }} />;
 };
 
+/* ======================== TREINO DE HOJE (lista "Acessaram hoje") ======================== */
+
+const WEEKDAY_KEYS = [['domingo'], ['segunda'], ['terca', 'terça'], ['quarta'], ['quinta'], ['sexta'], ['sabado', 'sábado']];
+
+const StudentTodayView: React.FC<{ a: ActivityRef }> = ({ a }) => {
+  const [sid, setSid] = useState<string | null | undefined>(undefined);
+  const [planned, setPlanned] = useState<{ day: string; exercises: any[] } | null | undefined>(undefined);
+  useEffect(() => {
+    let alive = true;
+    const start = new Date(); start.setHours(0, 0, 0, 0);
+    const startIso = start.toISOString();
+    const find = async () => {
+      const { data } = await supabase.from('workout_sessions').select('id')
+        .eq('student_id', a.studentId).or(`started_at.gte.${startIso},completed_at.gte.${startIso},last_active_at.gte.${startIso}`)
+        .order('started_at', { ascending: false }).limit(1).maybeSingle();
+      if (alive) setSid((prev) => (data?.id ?? null) || (prev ?? null));
+    };
+    void find();
+    // Se o aluno começar o treino com o modal aberto, passa a mostrar ao vivo.
+    const ch = supabase.channel(`today-ws-${a.studentId}-${Math.random().toString(36).slice(2)}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'workout_sessions', filter: `student_id=eq.${a.studentId}` }, () => { void find(); })
+      .subscribe();
+    return () => { alive = false; supabase.removeChannel(ch); };
+  }, [a.studentId]);
+  useEffect(() => {
+    if (sid !== null) return;
+    let alive = true;
+    (async () => {
+      const { data: plan } = await supabase.from('ai_plans').select('id, conteudo, conteudo_json, migration_status, tipo')
+        .eq('student_id', a.studentId).eq('tipo', 'treino').eq('is_draft', false)
+        .order('created_at', { ascending: false }).limit(1).maybeSingle();
+      if (!alive) return;
+      if (!plan) { setPlanned(null); return; }
+      const { days } = getSafeWorkoutDays({ ...(plan as any), tipo: 'treino' });
+      const keys = WEEKDAY_KEYS[new Date().getDay()];
+      const d = days.find((x: any) => keys.some((k) => String(x.day ?? '').toLowerCase().includes(k)));
+      setPlanned(d ? { day: d.day, exercises: (d.exercises ?? []).filter(Boolean) } : { day: '', exercises: [] });
+    })();
+    return () => { alive = false; };
+  }, [sid, a.studentId]);
+
+  if (sid === undefined) return <Skeleton className="h-40 w-full" />;
+  if (sid) return <WorkoutView key={sid} a={{ ...a, sessionId: sid }} />;
+  return (
+    <div className="space-y-3">
+      <div className="rounded-lg bg-secondary/40 p-3">
+        <p className="text-sm font-semibold">Ainda não treinou hoje</p>
+        <p className="text-[11px] text-muted-foreground">Treino previsto pelo plano atual</p>
+      </div>
+      {planned === undefined ? <Skeleton className="h-32 w-full" />
+        : planned === null ? <p className="text-sm text-muted-foreground">Aluno sem treino publicado.</p>
+        : !planned.day ? <p className="text-sm text-muted-foreground">Nenhum treino previsto para hoje no plano atual.</p>
+        : (
+          <div className="space-y-2">
+            <p className="text-sm font-semibold">{planned.day}</p>
+            {planned.exercises.map((ex: any, i: number) => (
+              <div key={i} className="flex items-center justify-between gap-2 rounded-lg bg-secondary/40 p-2.5">
+                <p className="text-sm min-w-0 truncate">{ex.exercise}</p>
+                <p className="text-xs text-muted-foreground shrink-0 tabular-nums">
+                  {[ex.series && `${ex.series}x`, ex.reps].filter(Boolean).join(' ')}
+                </p>
+              </div>
+            ))}
+          </div>
+        )}
+      <Button asChild variant="outline" className="w-full"><Link to={`/alunos/${a.studentId}`}>Abrir página do aluno</Link></Button>
+    </div>
+  );
+};
+
 /* ======================== DIALOG ======================== */
 
 const TITLE: Record<ActivityKind, { label: string; icon: React.ComponentType<{ className?: string }> }> = {
   workout_start: { label: 'Treino', icon: Dumbbell },
   workout_end: { label: 'Resumo do treino', icon: Dumbbell },
   workout_done: { label: 'Resumo do treino', icon: Dumbbell },
+  student_today: { label: 'Treino de hoje', icon: Dumbbell },
   water: { label: 'Água', icon: Droplet },
   meal: { label: 'Refeição registrada', icon: UtensilsCrossed },
 };
@@ -527,7 +601,21 @@ const LiveActivityDetailDialog: React.FC<{ activity: (ActivityRef & { addedGlass
             <Icon className="h-4 w-4 text-primary" />
             {meta?.label}
           </DialogTitle>
-          <DialogDescription>{activity?.studentName}</DialogDescription>
+          <DialogDescription asChild>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="font-medium text-foreground">{activity?.studentName}</span>
+              {activity?.kind === 'student_today' && (
+                <>
+                  <Badge variant="outline" className={cn('text-[10px]',
+                    activity.todayStatus === 'online' && 'border-emerald-500/50 text-emerald-500',
+                    activity.todayStatus === 'trained' && 'border-primary/50 text-primary')}>
+                    {activity.todayStatus === 'online' ? 'Online agora' : activity.todayStatus === 'trained' ? 'Treinou hoje' : 'Não treinou'}
+                  </Badge>
+                  <Link to={`/alunos/${activity.studentId}`} className="text-xs text-primary underline-offset-2 hover:underline">Ver aluno</Link>
+                </>
+              )}
+            </div>
+          </DialogDescription>
         </DialogHeader>
         {/* Fechamento próprio: fica abaixo da safe area do iPhone (barra de status) e com área de toque de 44px. */}
         <DialogClose
@@ -545,6 +633,7 @@ const LiveActivityDetailDialog: React.FC<{ activity: (ActivityRef & { addedGlass
           activity.kind === 'meal' ? <MealView a={activity} />
           : activity.kind === 'water' ? <WaterView a={activity} addedGlasses={activity.addedGlasses} />
           : activity.kind === 'workout_done' ? <WorkoutDoneResolver a={activity} />
+          : activity.kind === 'student_today' ? <StudentTodayView a={activity} />
           : activity.sessionId ? <WorkoutView key={activity.sessionId} a={activity} />
           : <p className="text-sm text-muted-foreground">Sessão não encontrada.</p>
         )}
