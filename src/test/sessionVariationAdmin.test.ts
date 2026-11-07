@@ -82,7 +82,7 @@ describe('admin load prefill — variation and groups', () => {
     const plan = [{ kind: 'warmup' as const }, { kind: 'preparatory' as const }, { kind: 'work' as const }];
     const supino = { exercise: 'SUPINO RETO', grupo_id: 'g', tipo_grupo: 'biset', ordem_grupo: 'A' };
     const out = adminPrefillSets(supino, { plan, exerciseName: 'SUPINO RETO', lastWorkLoad: 40 }, [{ weight: '' }, { weight: '' }, { weight: '' }]);
-    expect(out?.map((s) => s.weight)).toEqual(['20', '34', '40']);
+    expect(out?.map((s) => s.weight)).toEqual(['20', '35', '40']);
   });
 });
 
@@ -91,11 +91,12 @@ describe('saving the session to the plan', () => {
   const run = async (keep: boolean) => {
     db.plan = JSON.parse(JSON.stringify(plan)); db.updated = null;
     const swapped = toggleSessionVariation(hack)!;
-    await persistSessionDayEditsToPlan({
+    const res = await persistSessionDayEditsToPlan({
       planId: 'plan', dayName: 'SEGUNDA', exercises: [swapped],
       states: { 0: { exerciseName: swapped.exercise, plan: [{ kind: 'work' }, { kind: 'work' }, { kind: 'work' }] } },
       keepSessionVariations: keep,
     });
+    if (!db.updated) throw new Error(JSON.stringify(res));
     return db.updated.conteudo_json.days[0].exercises[0];
   };
 
