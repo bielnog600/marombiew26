@@ -52,6 +52,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { workoutPlanToMarkdown } from '@/lib/workoutMarkdownSerializer';
 import { useEmptyDaysConfirm } from './EmptyDaysConfirm';
 import { persistSessionDayEditsToPlan } from '@/lib/sessionPlanPersistence';
+import { isWorkLogSetType, kindToSetType, type SetPlanKind } from '@/lib/setTypes';
 import {
   buildExerciseUids,
   makeExerciseUid,
