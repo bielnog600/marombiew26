@@ -1549,6 +1549,7 @@ const TreinoExecucaoInner = () => {
       {/* Área rolável: chips em diante, com espaço no topo igual à altura do vídeo fixo. */}
       <div className="relative z-0 flex-1 min-h-0 flex flex-col overflow-hidden" style={{ paddingTop: 'var(--workout-media-h)' }}>
       {/* Só o selo do método (ex.: Cluster, Rest-pause). O resumo de séries, o RIR e o descanso não aparecem mais aqui. */}
+      <div data-testid="prescription-chips">8–12 reps</div>
       {(() => {
         const method = (exercise as { method?: { slug: string; params?: Record<string, string | number> } }).method;
         return method?.slug ? (
