@@ -49,7 +49,7 @@ const optionalString = z
  */
 export const SetSchemeSetSchema = z.object({
   set_number: z.number().int().positive(),
-  set_type: z.enum(["work", "recognition"]),
+  set_type: z.enum(["work", "recognition", "warmup", "preparatory"]),
   target_reps: z.string().min(1),
 });
 
@@ -210,7 +210,7 @@ export const normalizeSetScheme = (raw: any): SetScheme | undefined => {
     const so = s as any;
     const target = String(so.target_reps ?? so.reps ?? "").trim();
     if (!target) return;
-    const setType = so.set_type === "recognition" ? "recognition" : "work";
+    const setType = normalizePlanSetType(so.set_type);
     const setNumber = Number(so.set_number);
     sets.push({
       set_number: Number.isFinite(setNumber) && setNumber > 0 ? Math.trunc(setNumber) : i + 1,
