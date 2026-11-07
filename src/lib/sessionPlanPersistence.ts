@@ -8,6 +8,7 @@ import {
   type WorkoutPlan,
 } from '@/lib/workoutSchema';
 import { workoutPlanToMarkdown } from '@/lib/workoutMarkdownSerializer';
+import { kindToSetType, normalizePlanSetType, type SetPlanKind } from '@/lib/setTypes';
 import {
   recordWorkoutPrescriptionEdit,
   type PrescriptionContextInput,
@@ -47,7 +48,7 @@ const parsePauseToSeconds = (raw?: string): number | undefined => {
 export interface SessionExerciseState {
   exerciseName?: string;
   notes?: string;
-  plan?: { kind: 'work' | 'recon'; targetReps?: string }[];
+  plan?: { kind: SetPlanKind; targetReps?: string }[];
 }
 
 export interface PersistDayEditsInput {
@@ -113,8 +114,24 @@ export const persistSessionDayEditsToPlan = async (
     const workCount = setPlan.filter((p) => p.kind === 'work').length;
     const totalCount =
       setPlan.length || parseInt(ex.series2 || '', 10) || parseInt(ex.series || '', 10) || 0;
-    const series = reconCount > 0 ? String(reconCount) : String(totalCount || ex.series || '');
-    const series2 = reconCount > 0 ? String(workCount) : ex.series2 || '';
+    // Aquecimento/preparatória (ou tipos trocados na sessão) só cabem no esquema
+    // por série: grava cada linha com o seu tipo. Sem isso, mantém o formato atual.
+    const schemeSets = ex.setScheme?.mode === 'per_set' ? ex.setScheme.sets : null;
+    const typesDiffer = !!schemeSets && setPlan.length > 0
+      && (schemeSets.length !== setPlan.length || setPlan.some((p, k) => kindToSetType(p.kind) !== normalizePlanSetType(schemeSets[k]?.set_type)));
+    const typedPlan = setPlan.some((p) => p.kind === 'warmup' || p.kind === 'preparatory') || typesDiffer;
+    const typedScheme = typedPlan
+      ? {
+          mode: 'per_set' as const,
+          sets: setPlan.map((p, k) => ({
+            set_number: k + 1,
+            set_type: kindToSetType(p.kind),
+            target_reps: p.targetReps || schemeSets?.[k]?.target_reps || '',
+          })),
+        }
+      : null;
+    const series = typedScheme ? String(setPlan.length) : reconCount > 0 ? String(reconCount) : String(totalCount || ex.series || '');
+    const series2 = typedScheme ? '' : reconCount > 0 ? String(workCount) : ex.series2 || '';
     const name = (st?.exerciseName || ex.exercise || '').trim();
 
     // Identidade: casa pelo `id` do slot quando disponível (plano v2).
@@ -145,7 +162,7 @@ export const persistSessionDayEditsToPlan = async (
       variation: ex.variation || '',
       tempo: sameName ? prevEx?.tempo : undefined,
       notes: st?.notes ? st.notes : sameName ? prevEx?.notes || '' : '',
-      setScheme: ex.setScheme ?? (sameName ? prevEx?.setScheme : undefined),
+      setScheme: typedScheme ?? ex.setScheme ?? (sameName ? prevEx?.setScheme : undefined),
       method: ex.method, metodo: ex.metodo, metodo_params: ex.metodo_params,
       grupo_id: ex.grupo_id, tipo_grupo: ex.tipo_grupo, ordem_grupo: ex.ordem_grupo, pausa_grupo_s: ex.pausa_grupo_s,
       targetLoadKg: ex.targetLoadKg ?? prevEx?.targetLoadKg,
