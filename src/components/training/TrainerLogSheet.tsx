@@ -203,12 +203,13 @@ export const HistoryPopover: React.FC<{
     setLoading(true);
     const { data } = await supabase
       .from('exercise_set_logs')
-      .select('performed_at, set_number, weight_kg, reps')
+      .select('performed_at, set_number, weight_kg, reps, set_type')
       .eq('student_id', studentId)
       .ilike('exercise_name', normalizeExName(exerciseName))
       .order('performed_at', { ascending: false })
       .limit(200);
-    setRows((data as HistoryRow[]) || []);
+    // Histórico: só séries de trabalho (nulo = legado = trabalho).
+    setRows(((data as (HistoryRow & { set_type?: string | null })[]) || []).filter((r) => isWorkLogSetType(r.set_type)));
     setLoading(false);
   };
 
