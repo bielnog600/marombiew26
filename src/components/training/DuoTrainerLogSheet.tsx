@@ -39,7 +39,7 @@ import { useSessionProgression } from '@/hooks/useSessionProgression';
 import { readProgressionSnapshot, type ProgressionSnapshot, getRecommendationFor } from '@/lib/sessionProgression';
 import { resolveCurrentTrainingPhase } from '@/lib/currentPhase';
 import { persistSessionDayEditsToPlan } from '@/lib/sessionPlanPersistence';
-import { kindToSetType } from '@/lib/setTypes';
+import { kindToSetType, SET_TYPE_BADGE_CLASS, SET_TYPE_LABEL, SET_TYPE_TAG } from '@/lib/setTypes';
 import {
   buildExerciseUids,
   makeExerciseUid,
@@ -1107,17 +1107,16 @@ export const DuoTrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studen
                   <div className="space-y-1.5 max-h-[30vh] overflow-y-auto">
                     {timerSt.sets.map((s: any, setIdx: number) => {
                       const p = timerSt.plan?.[setIdx] ?? { kind: 'work' as const, targetReps: '' };
-                      const isRecon = p?.kind === 'recon';
+                      const tType = kindToSetType(p?.kind);
                       return (
                         <div key={setIdx} className="grid grid-cols-[60px_1fr_1fr] items-center gap-2">
                           <span
                             className={`text-[9px] font-bold text-center px-1 py-0.5 rounded ${
-                              isRecon
-                                ? 'bg-primary/15 text-primary border border-primary/30'
-                                : 'bg-secondary text-foreground'
+                              tType !== 'work' ? SET_TYPE_BADGE_CLASS[tType] : 'bg-secondary text-foreground'
                             }`}
+                            title={SET_TYPE_LABEL[tType]}
                           >
-                            {isRecon ? `REC #${setIdx + 1}` : `#${setIdx + 1}`}
+                            {tType !== 'work' ? `${SET_TYPE_TAG[tType]} #${setIdx + 1}` : `#${setIdx + 1}`}
                           </span>
                           <Input
                             type="number"
