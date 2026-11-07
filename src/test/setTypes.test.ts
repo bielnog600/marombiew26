@@ -1,10 +1,9 @@
-import { buildPlanDisplaySummary } from '@/lib/setPlanBuilder';
 import { describe, expect, it, vi } from 'vitest';
 import {
   buildWarmupPrepWorkSets, isWorkLogSetType, normalizePlanSetType, suggestedLoadForSetType, typedSetsSummary,
 } from '@/lib/setTypes';
 import { normalizeSetScheme } from '@/lib/workoutSchema';
-import { buildSetPlan } from '@/lib/setPlanBuilder';
+import { buildPlanDisplaySummary, buildSetPlan } from '@/lib/setPlanBuilder';
 import { setRoleOf, selectBestSet } from '@/lib/weeklyProgression';
 import { studentWeightPlaceholder, setTypeContexts, lastWorkSetLine, type PreviousExerciseSet } from '@/lib/studentExerciseLoadPresentation';
 import { finalWorkingSetIndex } from '@/lib/finalWorkingSetRir';
