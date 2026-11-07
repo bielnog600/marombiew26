@@ -1583,7 +1583,7 @@ const TreinoExecucaoInner = () => {
         const chip = 'inline-flex items-center h-8 px-2.5 rounded text-sm text-foreground bg-secondary/80 whitespace-nowrap shrink-0';
         const pauseSecs = (() => { const m = String(exercise.pause ?? '').match(/(\d+)/); return m ? parseInt(m[1], 10) : null; })();
         return (
-          <div className="shrink-0 px-4 pt-0.5 flex items-center justify-center gap-1.5 flex-nowrap overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" data-testid="prescription-chips">
+          <div className="shrink-0 px-4 pt-0.5 flex flex-wrap items-center justify-center gap-1.5" data-testid="prescription-chips">
             {summary
               ? <span className={`${chip} font-semibold`}>{summary}</span>
               : isReal(exercise.series) && <span className={chip}>{exercise.series} séries</span>}

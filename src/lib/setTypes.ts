@@ -21,7 +21,7 @@ export const SET_TYPE_LABEL: Record<PlanSetType, string> = {
   work: 'Trabalho',
 };
 
-/** Rótulo curto para resumos ("Aquec. 1×12-15 · Prep. 1×10 · Trabalho 2×6-8"). */
+/** Rótulo curto para resumos ("Aquec. 12-15 · Prep. 10 · Trabalho 6-8"). */
 export const SET_TYPE_SHORT: Record<PlanSetType, string> = {
   warmup: 'Aquec.',
   preparatory: 'Prep.',

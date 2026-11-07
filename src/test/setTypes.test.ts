@@ -30,8 +30,20 @@ describe('tipos de série: aquecimento, preparatória, reconhecimento e trabalho
       .toEqual(['preparatory', 'work', 'work', 'work']);
   });
 
-  it('resumo do card agrupa por tipo', () => {
-    expect(typedSetsSummary(scheme.sets)).toBe('Aquec. 1×12-15 · Prep. 1×10 · Trabalho 2×6-8');
+  it('resumo do card agrupa por tipo e mostra só as repetições', () => {
+    expect(typedSetsSummary(scheme.sets)).toBe('Aquec. 12-15 · Prep. 10 · Trabalho 6-8');
+  });
+
+  it('resumo sem aquecimento lista só os tipos existentes', () => {
+    expect(typedSetsSummary(buildWarmupPrepWorkSets({ warmup: false, workSets: 2 }))).toBe('Prep. 10 · Trabalho 6-8');
+  });
+
+  it('reps diferentes do mesmo tipo se juntam no resumo', () => {
+    expect(typedSetsSummary([
+      { set_type: 'preparatory', target_reps: '10' },
+      { set_type: 'work', target_reps: '8' },
+      { set_type: 'work', target_reps: '6' },
+    ])).toBe('Prep. 10 · Trabalho 8/6');
   });
 
   it('o plano preserva os tipos novos e planos antigos continuam válidos', () => {
