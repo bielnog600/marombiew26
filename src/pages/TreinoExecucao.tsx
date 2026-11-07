@@ -1549,65 +1549,14 @@ const TreinoExecucaoInner = () => {
       />
       {/* Área rolável: chips em diante, com espaço no topo igual à altura do vídeo fixo. */}
       <div className="relative z-0 flex-1 min-h-0 flex flex-col overflow-hidden" style={{ paddingTop: 'var(--workout-media-h)' }}>
-      {/* Chips de prescrição + botão Descrição — fora do vídeo, abaixo dele. */}
+      {/* Só o selo do método (ex.: Cluster, Rest-pause). O resumo de séries, o RIR e o descanso não aparecem mais aqui. */}
       {(() => {
-        const isReal = (v?: string | null) => {
-          if (!v) return false;
-          const t = v.trim();
-          return t.length > 0 && !['-', '—', '–', 'n/a', 'na'].includes(t.toLowerCase());
-        };
-        const extractRange = (raw: string): { a: number; b: number } | null => {
-          const nums = raw.match(/\d+/g);
-          if (!nums || nums.length === 0) return null;
-          const a = parseInt(nums[0], 10);
-          const b = nums[1] ? parseInt(nums[1], 10) : a;
-          return { a: Math.min(a, b), b: Math.max(a, b) };
-        };
-        const parseRir = (raw: string): string | null => {
-          const r = extractRange(raw);
-          if (!r) return null;
-          if (r.b >= 5) return null;
-          return r.a === r.b ? `RIR ${r.a}` : `RIR ${r.a}–${r.b}`;
-        };
-        const parseReps = (raw: string): string | null => {
-          const r = extractRange(raw);
-          if (!r) return null;
-          const isTime = /\b\d+\s*(s|seg|segundos?)\b|\d+["']/i.test(raw);
-          const unit = isTime ? 's' : ' reps';
-          return r.a === r.b ? `${r.a}${unit}` : `${r.a}–${r.b}${unit}`;
-        };
-        const isPerSet = exercise.setScheme?.mode === 'per_set' && setPlan.length > 0;
-        const repsLabel = !isPerSet && isReal(exercise.reps) ? parseReps(exercise.reps) : null;
-        const rirLabel = isReal(exercise.rir) ? parseRir(exercise.rir) : null;
-        const isComposed = setPlan.some((p) => p.type === 'recognition') && setPlan.some((p) => p.type === 'work');
-        const summary = isPerSet || isComposed ? buildPlanDisplaySummary(setPlan, isPerSet) : null;
-        const chip = 'inline-flex items-center h-8 px-2.5 rounded text-sm text-foreground bg-secondary/80 whitespace-nowrap shrink-0';
-        const pauseSecs = (() => { const m = String(exercise.pause ?? '').match(/(\d+)/); return m ? parseInt(m[1], 10) : null; })();
-        return (
-          <div className="shrink-0 px-4 pt-0.5 flex flex-wrap items-center justify-center gap-1.5" data-testid="prescription-chips">
-            {summary && planHasTypedSets(setPlan)
-              ? <FitSummaryLine
-                  full={summary}
-                  compact={buildPlanDisplaySummary(setPlan, isPerSet, 'compact')}
-                  basePx={14}
-                  className="basis-full h-8 leading-8 px-2.5 rounded text-center text-foreground bg-secondary/80 font-semibold"
-                  testId="typed-sets-chip"
-                />
-              : summary
-              ? <span className={`${chip} font-semibold`}>{summary}</span>
-              : isReal(exercise.series) && <span className={chip}>{exercise.series} séries</span>}
-            {!summary && repsLabel && <span className={chip}>{repsLabel}</span>}
-            {rirLabel && <span className="inline-flex items-center h-8 px-2.5 rounded text-sm text-primary bg-primary/10 whitespace-nowrap shrink-0">{rirLabel}</span>}
-            {pauseSecs != null && <span className={chip}><Timer className="h-3.5 w-3.5 mr-1" />{pauseSecs}s</span>}
-            {(exercise as { method?: { slug: string; params?: Record<string, string | number> } }).method?.slug && (
-              <MethodBadge
-                method={(exercise as { method?: { slug: string; params?: Record<string, string | number> } }).method}
-                dayExercises={exercises}
-                className="py-1"
-              />
-            )}
+        const method = (exercise as { method?: { slug: string; params?: Record<string, string | number> } }).method;
+        return method?.slug ? (
+          <div className="shrink-0 px-4 pt-0.5 flex items-center justify-center gap-1.5">
+            <MethodBadge method={method} dayExercises={exercises} className="py-1" />
           </div>
-        );
+        ) : null;
       })()}
 
       {groupFlow.indices.length === 2
