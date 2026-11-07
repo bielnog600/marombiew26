@@ -1,3 +1,4 @@
+import { buildPlanDisplaySummary } from '@/lib/setPlanBuilder';
 import { describe, expect, it, vi } from 'vitest';
 import {
   buildWarmupPrepWorkSets, isWorkLogSetType, normalizePlanSetType, suggestedLoadForSetType, typedSetsSummary,
@@ -30,20 +31,20 @@ describe('tipos de série: aquecimento, preparatória, reconhecimento e trabalho
       .toEqual(['preparatory', 'work', 'work', 'work']);
   });
 
-  it('resumo do card agrupa por tipo e mostra só as repetições', () => {
-    expect(typedSetsSummary(scheme.sets)).toBe('Aquec. 12-15 · Prep. 10 · Trabalho 6-8');
+  it('resumo lista cada série com número e reps alvo numa linha', () => {
+    expect(typedSetsSummary(scheme.sets)).toBe('1 set: 12-15 · 2 set: 10 · 3 set: 6-8 · 4 set: 6-8');
   });
 
-  it('resumo sem aquecimento lista só os tipos existentes', () => {
-    expect(typedSetsSummary(buildWarmupPrepWorkSets({ warmup: false, workSets: 2 }))).toBe('Prep. 10 · Trabalho 6-8');
+  it('forma compacta para telas estreitas', () => {
+    expect(typedSetsSummary(scheme.sets, 'compact')).toBe('1: 12-15 · 2: 10 · 3: 6-8 · 4: 6-8');
   });
 
-  it('reps diferentes do mesmo tipo se juntam no resumo', () => {
-    expect(typedSetsSummary([
-      { set_type: 'preparatory', target_reps: '10' },
-      { set_type: 'work', target_reps: '8' },
-      { set_type: 'work', target_reps: '6' },
-    ])).toBe('Prep. 10 · Trabalho 8/6');
+  it('sem aquecimento numera a partir da preparatória', () => {
+    expect(typedSetsSummary(buildWarmupPrepWorkSets({ warmup: false, workSets: 2 }))).toBe('1 set: 10 · 2 set: 6-8 · 3 set: 6-8');
+  });
+
+  it('exercício sem tipos continua no formato antigo', () => {
+    expect(buildPlanDisplaySummary(buildSetPlan('3', '', '8-10', null))).not.toContain('set:');
   });
 
   it('o plano preserva os tipos novos e planos antigos continuam válidos', () => {
