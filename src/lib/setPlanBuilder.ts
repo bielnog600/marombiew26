@@ -98,7 +98,7 @@ export const buildPlanSummary = (plan: PlannedSet[]): string => {
 
 /**
  * Resumo para exibição. Com aquecimento/preparatória no plano:
- * "Aquec. 1×12-15 · Prep. 1×10 · Trabalho 2×6-8"; senão mantém o formato atual.
+ * "Aquec. 12-15 · Prep. 10 · Trabalho 6-8"; senão mantém o formato atual.
  */
 export const buildPlanDisplaySummary = (plan: PlannedSet[], perSet = false): string => {
   if (plan.some((p) => p.type === 'warmup' || p.type === 'preparatory')) {

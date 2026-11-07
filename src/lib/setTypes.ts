@@ -21,7 +21,7 @@ export const SET_TYPE_LABEL: Record<PlanSetType, string> = {
   work: 'Trabalho',
 };
 
-/** Rótulo curto para resumos ("Aquec. 1×12-15 · Prep. 1×10 · Trabalho 2×6-8"). */
+/** Rótulo curto para resumos ("Aquec. 12-15 · Prep. 10 · Trabalho 6-8"). */
 export const SET_TYPE_SHORT: Record<PlanSetType, string> = {
   warmup: 'Aquec.',
   preparatory: 'Prep.',
@@ -152,19 +152,23 @@ export const hasTypedSets = (sets: Array<{ set_type?: unknown }> | null | undefi
   (sets ?? []).some((s) => normalizePlanSetType(s.set_type) !== 'work');
 
 /**
- * Resumo agrupando séries consecutivas do mesmo tipo e reps:
- * "Aquec. 1×12-15 · Prep. 1×10 · Trabalho 2×6-8".
+ * Resumo agrupando por tipo e mostrando só as repetições (sem contador de
+ * séries, para não cortar em telas estreitas):
+ * "Aquec. 12-15 · Prep. 10 · Trabalho 6-8".
+ * Só entram os tipos existentes; reps diferentes do mesmo tipo se juntam
+ * ("Trabalho 8/6").
  */
 export const typedSetsSummary = (sets: Array<{ set_type?: unknown; target_reps?: unknown }> | null | undefined): string => {
-  const blocks: { type: PlanSetType; reps: string; count: number }[] = [];
+  const order: PlanSetType[] = [];
+  const repsByType = new Map<PlanSetType, string[]>();
   for (const s of sets ?? []) {
     const type = normalizePlanSetType(s.set_type);
     const reps = String(s.target_reps ?? '').trim() || '?';
-    const last = blocks[blocks.length - 1];
-    if (last && last.type === type && last.reps === reps) last.count += 1;
-    else blocks.push({ type, reps, count: 1 });
+    let list = repsByType.get(type);
+    if (!list) { list = []; repsByType.set(type, list); order.push(type); }
+    if (!list.includes(reps)) list.push(reps);
   }
-  return blocks.map((b) => `${SET_TYPE_SHORT[b.type]} ${b.count}×${b.reps}`).join(' · ');
+  return order.map((type) => `${SET_TYPE_SHORT[type]} ${repsByType.get(type)!.join('/')}`).join(' · ');
 };
 
 /** Séries de trabalho de um esquema por série (volume). */
