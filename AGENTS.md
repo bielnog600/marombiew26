@@ -9,7 +9,7 @@
 - Share Consultoria training raw inputs through one paginated query cache, keeping summary and progression-review calculations separate because their plan selection, phases and session windows differ.
 - Use counted pagination for progression history and Consultoria plans/sessions, fetching ordered batches of at most six pages and falling back to sequential reads when counting fails to preserve results without serial latency.
 
-- Keep load learning and per-set recommendations in pure deterministic helpers: all automatic consumers use the quantitative engine, derive summary kg/action from the same maximum-working-load set of the latest execution, and share reference expiry with Consultoria; retain individual prescription targets and final-working-set RIR without changing persistence or timers.
+- Keep load learning in pure deterministic helpers: every consumer uses the quantitative engine, decides kg/action on the latest execution's heaviest working sets and shares reference expiry with Consultoria; uniform schemes give all work sets one load (never positional), pyramids keep per-set loads, persistence/timers unchanged.
 
 - Isolate official Anthropic prescription calls in `_shared/anthropic.ts`, adapting tools, structured JSON, usage and SSE to existing contracts; keep the OpenAI router and unrelated features unchanged so migrating prescriptions does not migrate assessment or catalog features.
 - Disable thinking explicitly at the scanner and prescription Anthropic boundaries so existing output budgets remain available for text/tools; log empty-response metadata without reasoning content and preserve valid tool-only responses.
