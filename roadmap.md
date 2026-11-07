@@ -1,5 +1,9 @@
 # Roadmap
 
+## Tela do aluno — sem linha de chips abaixo do exercício
+- [x] Removidos o chip de resumo das séries/reps, o de RIR e o de descanso; "Série X de Y", botões Semana/Cargas/Ajuste/Execução, rótulos por série, cargas pré-preenchidas e timer de descanso mantidos. Editor do admin e Modo Treino intactos.
+- [x] Teste novo na tela montada (falha se o chip voltar); suíte 1.583 passaram (falha antiga Anthropic/temperature); compilação OK.
+
 ## Carga pré-preenchida por série
 - [x] Campo de carga já vem preenchido (aluno e Modo Treino admin, inclusive dois alunos): trabalho = sugestão ou última série de trabalho; prep 85%, aquec. 50%, rec. 85%; só campo vazio, sem registrar; 1ª de trabalho alterada recalcula as seguintes.
 - [x] 10 testes novos; suíte 1.577 passaram (falha antiga Anthropic/temperature). Telas não conferidas com aluno real.
