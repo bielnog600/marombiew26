@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRestTimer, type RestTimerState } from './useRestTimer';
 
-export type InlineRestState = RestTimerState & { setIndex: number };
+export type InlineRestState = RestTimerState & { setIndex: number; /** Ex.: "Trabalho 3 min" (descanso por tipo de série). */ label?: string | null };
 export type RestCompletion = { exIdx: number; setIndex: number; id: number };
 
 /** Absolute deadlines survive navigation/backgrounding; no progression data is changed. */
@@ -44,9 +44,9 @@ export function useInlineWorkoutRest(storageKey?: string) {
       if (raw) restore(JSON.parse(raw));
     } catch { /* ignore invalid cache */ }
   }, [storageKey, restore, timer.stopTimer]);
-  const start = useCallback((seconds: number, exIdx: number, setIndex: number) => {
+  const start = useCallback((seconds: number, exIdx: number, setIndex: number, label?: string | null) => {
     const now = Date.now();
-    const state: InlineRestState = { total: Math.max(0, seconds), remaining: Math.max(0, seconds), exIdx, setIndex, startTime: now, endTime: now + Math.max(0, seconds) * 1000 };
+    const state: InlineRestState = { total: Math.max(0, seconds), remaining: Math.max(0, seconds), exIdx, setIndex, startTime: now, endTime: now + Math.max(0, seconds) * 1000, ...(label ? { label } : {}) };
     persist(state);
     setCompletion(null);
     timer.startTimer(state.total, exIdx, setIndex);
@@ -69,6 +69,7 @@ export function useInlineWorkoutRest(storageKey?: string) {
   }, [timer.restTimer?.remaining, finish]);
   // Deadline-only snapshot keeps session autosaves independent of countdown ticks.
   const snapshot = useMemo(() => activeRef.current, [timer.restTimer?.endTime, timer.restTimer?.exIdx, timer.restTimer?.setIndex]);
-  const rest = timer.restTimer?.setIndex != null ? timer.restTimer as InlineRestState : null;
+  const label = activeRef.current?.label ?? null;
+  const rest = useMemo(() => timer.restTimer?.setIndex != null ? { ...(timer.restTimer as InlineRestState), label } : null, [timer.restTimer, label]);
   return { rest, snapshot, completion, start, adjust, skip: finish, restore, cancel, reindex };
 }

@@ -9,9 +9,14 @@ const mock = vi.hoisted(() => ({
     { id: 'slot-1', exercise: 'CRUCIFIXO', series: '2', reps: '10-12', grupo_id: 'g1', tipo_grupo: 'biset', ordem_grupo: 'B' },
     { id: 'slot-2', exercise: 'HACK MACHINE', variation: 'AGACHAMENTO LIVRE', series: '2', reps: '8-12', targetLoadKg: 120 },
     { id: 'slot-3', exercise: 'LEG PRESS', variation: 'LEG PRESS HORIZONTAL', series: '2', reps: '10' },
+    { id: 'slot-4', exercise: 'AGACHAMENTO SMITH', series: '3', reps: '6-8', pause: '90s', setScheme: { mode: 'per_set', sets: [
+      { set_number: 1, set_type: 'warmup', target_reps: '12-15' },
+      { set_number: 2, set_type: 'preparatory', target_reps: '10' },
+      { set_number: 3, set_type: 'work', target_reps: '6-8' },
+    ] } },
   ] as any[],
   history: {
-    'SUPINO RETO': 40, CRUCIFIXO: 14, 'HACK MACHINE': 100, 'AGACHAMENTO LIVRE': 60, 'LEG PRESS': 200,
+    'SUPINO RETO': 40, CRUCIFIXO: 14, 'HACK MACHINE': 100, 'AGACHAMENTO LIVRE': 60, 'LEG PRESS': 200, 'AGACHAMENTO SMITH': 100,
   } as Record<string, number>,
   currentIndex: 0,
   updates: [] as any[],
@@ -105,5 +110,32 @@ describe('student load prefill — bi-set and variation', () => {
     fireEvent.click(screen.getByText('Variação', { selector: 'button' }));
     await screen.findByText('LEG PRESS HORIZONTAL', { selector: 'h1' });
     await waitFor(() => expect(weights()).toEqual(['', '']));
+  });
+});
+
+describe('student rest by set type', () => {
+  it('Aquecimento 60s, Preparatória 120s and Trabalho 180s, showing which rest is running', async () => {
+    mock.currentIndex = 4;
+    render(<TreinoExecucao />);
+    await screen.findByText('AGACHAMENTO SMITH', { selector: 'h1' });
+    fireEvent.click(screen.getByLabelText('Confirmar série 1'));
+    await screen.findByText(/Descanso · Aquecimento 1 min/);
+    expect(document.querySelector('[data-testid="inline-rest"] [role="timer"]')?.textContent).toBe('1:00');
+    fireEvent.click(screen.getByLabelText('Confirmar série 2'));
+    await screen.findByText(/Descanso · Preparatória 2 min/);
+    expect(document.querySelector('[data-testid="inline-rest"] [role="timer"]')?.textContent).toBe('2:00');
+    fireEvent.click(screen.getByLabelText('Confirmar série 3'));
+    await screen.findByText(/Descanso · Trabalho 3 min/);
+    expect(document.querySelector('[data-testid="inline-rest"] [role="timer"]')?.textContent).toBe('3:00');
+  });
+
+  it('exercise without set types keeps the plan pause, with no type label', async () => {
+    mock.currentIndex = 3;
+    render(<TreinoExecucao />);
+    await screen.findByText('LEG PRESS', { selector: 'h1' });
+    fireEvent.click(screen.getByLabelText('Confirmar série 1'));
+    await screen.findByText('DESCANSO');
+    expect(document.querySelector('[data-testid="inline-rest"] [role="timer"]')?.textContent).toBe('1:00');
+    expect(screen.queryByText(/Descanso · /)).toBeNull();
   });
 });

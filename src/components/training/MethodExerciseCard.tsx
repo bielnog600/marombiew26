@@ -1,5 +1,6 @@
 import { finalWorkingSetIndex } from '@/lib/finalWorkingSetRir';
 import { buildSetPlan } from '@/lib/setPlanBuilder';
+import { restAfterSet } from '@/lib/setTypeRest';
 import { normalizePlanSetType } from '@/lib/setTypes';
 import { setTypeContexts, studentWeightPlaceholder, workSetRecommendedLoad } from '@/lib/studentExerciseLoadPresentation';
 import { useCallback, useEffect, useState } from 'react';
@@ -71,7 +72,9 @@ export function MethodExerciseCard({ exercises, indices, sets, onChange, onCompl
     const b = exercises[indices[1] ?? current];
     const rest = parsePauseSeconds(b?.pause);
     if (!flow.complete(index, { ...sets, [current]: nextRows }, rest)) {
-      inlineRest.start(rest, current, index);
+      // Fora de grupo (método numa série só): descanso pelo tipo da série confirmada.
+      const typed = indices.length === 2 ? { seconds: rest, label: null } : restAfterSet({ setTypes: buildSetPlan(ex.series, ex.series2, ex.reps, ex.setScheme).map((p) => p.type), setIndex: index, planPauseSeconds: rest });
+      inlineRest.start(typed.seconds, current, index, typed.label);
     }
   };
   const displayedPause = indices.length === 2 ? flow.pause ?? savedPause : null;

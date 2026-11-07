@@ -22,6 +22,8 @@ import { hasTypedSets, typedSetsSummary, kindToSetType, PLAN_SET_TYPES, SET_TYPE
 import { setTypeContexts, studentWeightPlaceholder } from '@/lib/studentExerciseLoadPresentation';
 import { adminPrefillSets, adminSetLoadDefaults, lastWorkRows } from '@/lib/adminSetLoadPrefill';
 import { SessionVariationButton } from './SessionVariationButton';
+import { MethodSetRows } from './MethodSetRows';
+import { restAfterSet } from '@/lib/setTypeRest';
 
 interface SetEntry {
   weight: string;
@@ -92,6 +94,11 @@ interface Props {
   onPrefillSets?: (exIdx: number, apply: (sets: any[]) => any[] | null) => void;
   /** Troca original ⇄ variação do plano, só na sessão (Modo Treino admin). */
   onToggleVariation?: (exIdx: number) => void;
+  /**
+   * Registro série a série no mesmo formato do bi-set/superset (rótulo do tipo,
+   * carga, reps alvo, confirmar). Recebe a série inteira, como nos grupos.
+   */
+  onChangeSetEntry?: (exIdx: number, setIdx: number, entry: MethodSetEntry) => void;
 }
 
 const ExerciseLogCard: React.FC<Props> = ({
@@ -121,6 +128,7 @@ const ExerciseLogCard: React.FC<Props> = ({
   groupAction,
   onPrefillSets,
   onToggleVariation,
+  onChangeSetEntry,
 }) => {
   const [editOpen, setEditOpen] = useState(false);
 
@@ -134,6 +142,10 @@ const ExerciseLogCard: React.FC<Props> = ({
     const v = studentWeightPlaceholder(setIdx + 1, lastWork, loadTarget, recommendation, typeCtx[setIdx] ?? { type: 'work' });
     return v === 'kg' ? 'kg' : `${v} kg`;
   };
+
+  // Descanso automático pelo tipo da série confirmada (sem tipos = pausa do plano).
+  const restFor = (setIdx: number) => restAfterSet({ setTypes: (st.plan || []).map((p) => kindToSetType(p.kind)), setIndex: setIdx, planPauseSeconds: parsePauseSeconds(ex.pause) });
+  const nextPending = st.sets.findIndex((x) => !x.completed);
 
   // Pré-preenche a carga das séries vazias (valor real, editável). Não registra:
   // a série só é gravada ao confirmar/salvar com reps.
@@ -281,7 +293,62 @@ const ExerciseLogCard: React.FC<Props> = ({
         </div>
 
         {methodBody ? methodBody : <div className="space-y-1.5">
-          {st.sets.map((s, setIdx) => {
+          {onChangeSetEntry && inlineRest ? st.sets.map((s, setIdx) => {
+            const p = st.plan?.[setIdx] ?? { kind: 'work' as const, targetReps: '' };
+            const sType = kindToSetType(p?.kind);
+            const ph = studentWeightPlaceholder(setIdx + 1, lastWork, loadTarget, recommendation, typeCtx[setIdx] ?? { type: 'work' });
+            const headerExtra = (onChangeSetType || onRemoveSet) ? <>
+              {onChangeSetType && (
+                <Select value={sType} onValueChange={(v) => onChangeSetType(exIdx, setIdx, setTypeToKind(v))}>
+                  <SelectTrigger
+                    aria-label={`Tipo da série ${setIdx + 1}: ${SET_TYPE_LABEL[sType]}`}
+                    title={`${SET_TYPE_LABEL[sType]} — toque para mudar`}
+                    disabled={!!s.completed}
+                    className={`h-6 w-auto gap-0.5 px-1.5 py-0 text-[9px] font-bold rounded [&>svg]:h-3 [&>svg]:w-3 ${SET_TYPE_BADGE_CLASS[sType]}`}
+                  >
+                    {SET_TYPE_TAG[sType]}
+                  </SelectTrigger>
+                  <SelectContent>
+                    {PLAN_SET_TYPES.map((t) => <SelectItem key={t} value={t} className="text-xs">{SET_TYPE_LABEL[t]}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              )}
+              {onRemoveSet && (
+                <button
+                  type="button"
+                  onClick={() => onRemoveSet(exIdx, setIdx)}
+                  disabled={st.sets.length <= 1 || !!s.completed}
+                  className="h-6 w-6 flex items-center justify-center rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 disabled:opacity-30 disabled:cursor-not-allowed"
+                  aria-label={`Remover série ${setIdx + 1}`}
+                  title="Remover série"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </> : undefined;
+            return (
+              <MethodSetRows
+                key={setIdx}
+                exercise={ex}
+                set={s as MethodSetEntry}
+                index={setIdx}
+                count={st.sets.length}
+                setType={sType}
+                fullTypeLabel
+                headerExtra={headerExtra}
+                targetReps={p?.targetReps || undefined}
+                weightPlaceholder={ph}
+                finalWork={setIdx === finalWorkingSetIndex(st.sets.map((_, i) => st.plan?.[i]?.kind ?? 'work'))}
+                restPresentation={{ exIdx, rest: inlineRest.rest, completion: inlineRest.completion, next: !inlineRest.rest && setIdx === nextPending, onAdd: inlineRest.adjust, onSkip: () => inlineRest.skip() }}
+                onChange={(entry) => onChangeSetEntry(exIdx, setIdx, entry)}
+                onComplete={(entry) => {
+                  onCompleteSet?.(exIdx, setIdx, entry);
+                  const r = restFor(setIdx);
+                  inlineRest.start(r.seconds, exIdx, setIdx, r.label);
+                }}
+              />
+            );
+          }) : st.sets.map((s, setIdx) => {
             const p = st.plan?.[setIdx] ?? { kind: 'work' as const, targetReps: '' };
             const sType = kindToSetType(p?.kind);
             const tagClass = sType !== 'work' ? SET_TYPE_BADGE_CLASS[sType] : 'bg-secondary text-foreground';
@@ -334,7 +401,8 @@ const ExerciseLogCard: React.FC<Props> = ({
                 />
                 {inlineRest && <Button size="icon" variant="outline" className={`h-11 w-11 ${s.completed ? 'bg-chart-3/15 border-chart-3/50 text-chart-3 hover:bg-chart-3/20 hover:text-chart-3' : ''}`} aria-label={`Confirmar série ${setIdx + 1}`} disabled={!!s.completed || !(Number(s.reps) > 0)} onClick={() => {
                   onCompleteSet?.(exIdx, setIdx, { ...s, completed: true });
-                  inlineRest.start(parsePauseSeconds(ex.pause), exIdx, setIdx);
+                  const r = restFor(setIdx);
+                  inlineRest.start(r.seconds, exIdx, setIdx, r.label);
                 }}><Check className="h-4 w-4" /></Button>}
                 {onRemoveSet ? (
                 <button

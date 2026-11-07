@@ -906,6 +906,7 @@ export const DuoTrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studen
                                   onStartRestTimer={startRestFor('A')}
                                   inlineRest={inlineRestA}
                                   onCompleteSet={(idx, setIdx, entry) => saveMethodSet('A', idx, setIdx, entry)}
+                                  onChangeSetEntry={(idx, setIdx, entry) => changeMethodSet('A', idx, setIdx, entry)}
                                   onExerciseNameChange={(name) => setStudentA(p => {
                                     if (!p) return null;
                                     const ns = { ...p.state, [i]: { ...p.state[i], exerciseName: name } };
@@ -1016,6 +1017,7 @@ export const DuoTrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studen
                                   onStartRestTimer={startRestFor('B')}
                                   inlineRest={inlineRestB}
                                   onCompleteSet={(idx, setIdx, entry) => saveMethodSet('B', idx, setIdx, entry)}
+                                  onChangeSetEntry={(idx, setIdx, entry) => changeMethodSet('B', idx, setIdx, entry)}
                                   onExerciseNameChange={(name) => setStudentB(p => {
                                     if (!p) return null;
                                     const ns = { ...p.state, [i]: { ...p.state[i], exerciseName: name } };

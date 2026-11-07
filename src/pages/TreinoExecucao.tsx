@@ -54,6 +54,7 @@ import MethodBadge from '@/components/training/MethodBadge';
 import { variationPrefKey, backendVariationPref } from '@/lib/exerciseVariationPref';
 import { WorkoutViewportDebug } from '@/components/training/WorkoutViewportDebug';
 import { parsePauseSeconds } from '@/components/training/TrainerLogSheetUtils';
+import { restAfterSet } from '@/lib/setTypeRest';
 
 
 import {
@@ -1105,7 +1106,9 @@ const TreinoExecucaoInner = () => {
     const secs = parsePauseSeconds(exercise?.pause);
     const current = [...(sets[currentIndex] || [])];
     current[setIndex] = { ...current[setIndex], completed: !current[setIndex]?.completed };
-    if (completing && !groupFlow.complete(setIndex, { ...sets, [currentIndex]: current }, parsePauseSeconds(exercises[groupFlow.indices[1]]?.pause))) inlineRest.start(secs, currentIndex, setIndex);
+    // Fora de grupo: descanso pelo tipo da série confirmada (sem tipos = pausa do plano).
+    const typedRest = groupFlow.indices.length === 2 ? { seconds: secs, label: null } : restAfterSet({ setTypes: setPlan.map((p) => p.type), setIndex, planPauseSeconds: secs });
+    if (completing && !groupFlow.complete(setIndex, { ...sets, [currentIndex]: current }, parsePauseSeconds(exercises[groupFlow.indices[1]]?.pause))) inlineRest.start(typedRest.seconds, currentIndex, setIndex, typedRest.label);
     // Group transitions retain their existing focus behavior; normal sets scroll on rest completion.
     if (completing && groupFlow.indices.length === 2) {
       window.setTimeout(() => {
@@ -1140,7 +1143,9 @@ const TreinoExecucaoInner = () => {
     const next = { ...sets, [currentIndex]: updated };
     setSets(next); syncLocalActiveSession(next, currentIndex);
     const rest = parsePauseSeconds(exercises[groupFlow.indices[1]]?.pause ?? exercise?.pause);
-    if (!groupFlow.complete(index, next, rest)) inlineRest.start(parsePauseSeconds(exercise?.pause), currentIndex, index);
+    const planPause = parsePauseSeconds(exercise?.pause);
+    const typedRest = groupFlow.indices.length === 2 ? { seconds: planPause, label: null } : restAfterSet({ setTypes: setPlan.map((p) => p.type), setIndex: index, planPauseSeconds: planPause });
+    if (!groupFlow.complete(index, next, rest)) inlineRest.start(typedRest.seconds, currentIndex, index, typedRest.label);
   };
   const currentSets = sets[currentIndex] || [];
   const previousSets = lastLogsByExercise[selectedExerciseName.toUpperCase().trim()] ?? [];

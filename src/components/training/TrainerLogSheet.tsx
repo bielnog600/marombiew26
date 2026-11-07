@@ -1312,6 +1312,7 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
                         onStartRestTimer={setRestTimer}
                         inlineRest={inlineRest}
                         onCompleteSet={saveMethodSet}
+                        onChangeSetEntry={changeMethodSet}
                         onExerciseNameChange={(name) => updateExerciseName(exIdx, name)}
                         onAddSet={addSet}
                         onRemoveSet={removeSet}
