@@ -12,13 +12,18 @@ export const ProgressionHintCard = ({
   recommendation,
   targetLoad,
   variant = 'default',
+  setTypes,
+  exerciseName,
 }: {
   recommendation: SessionRecommendation | null;
   targetLoad?: { kg?: number | null; note?: string | null; perSet?: unknown } | null;
   variant?: 'default' | 'compact';
+  /** Tipos das séries de hoje: o texto cita aquecimento/preparatória com a % da carga de trabalho. */
+  setTypes?: Array<string | null | undefined>;
+  exerciseName?: string | null;
 }) => {
   const manual = formatTargetLoadHint(targetLoad?.kg ?? null, targetLoad?.note ?? null, targetLoad?.perSet ?? null);
-  const hint = manual ?? formatSessionHint(recommendation);
+  const hint = manual ?? formatSessionHint(recommendation, { setTypes, exerciseName });
   if (!hint) return null;
   const Icon = manual ? Target : TrendingUp;
   const prefix = manual ? '' : 'Sugestão · ';

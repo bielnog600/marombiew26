@@ -1,7 +1,7 @@
 import { finalWorkingSetIndex } from '@/lib/finalWorkingSetRir';
 import { buildSetPlan } from '@/lib/setPlanBuilder';
 import { normalizePlanSetType } from '@/lib/setTypes';
-import { setTypeContexts, studentWeightPlaceholder } from '@/lib/studentExerciseLoadPresentation';
+import { setTypeContexts, studentWeightPlaceholder, workSetRecommendedLoad } from '@/lib/studentExerciseLoadPresentation';
 import { useCallback, useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import type { ParsedExercise } from '@/lib/trainingResultParser';
@@ -87,7 +87,7 @@ export function MethodExerciseCard({ exercises, indices, sets, onChange, onCompl
     {onToggleVariation && <SessionVariationButton ex={ex} onToggle={() => onToggleVariation(current)} />}
     {editPanel}
     <ExerciseMediaFrame embed={matched?.video_embed} imageUrl={matched?.imagem_url} alt={ex.exercise} />
-    {(recommendation || ex.targetLoadKg || ex.targetLoadPerSet) && <ProgressionHintCard recommendation={recommendation} targetLoad={{ kg: ex.targetLoadKg, perSet: ex.targetLoadPerSet, note: ex.targetLoadNote }} variant="compact" />}
+    {(recommendation || ex.targetLoadKg || ex.targetLoadPerSet) && <ProgressionHintCard recommendation={recommendation} targetLoad={{ kg: ex.targetLoadKg, perSet: ex.targetLoadPerSet, note: ex.targetLoadNote }} setTypes={buildSetPlan(ex.series, ex.series2, ex.reps, ex.setScheme).map((p) => p.type)} exerciseName={ex.exercise} variant="compact" />}
     </>}
     {displayedPause && indices.length === 2 && (() => {
       const pause: GroupPause = {
@@ -118,7 +118,8 @@ export function MethodExerciseCard({ exercises, indices, sets, onChange, onCompl
       const setType = normalizePlanSetType(plannedTypes[index]);
       const isRecognition = ex.setScheme?.sets[index]?.set_type === 'recognition' || (Number(ex.series2) > 0 && index < Number(ex.series));
       // Trabalho mantém a sugestão atual; aquecimento/preparatória/reconhecimento recebem a % da carga de trabalho.
-      const workPlaceholder = String(targetLoadForSet(ex.targetLoadPerSet, index + 1) ?? ex.targetLoadKg ?? recommendation?.seriesTargets?.find(s => s.setNumber === index + 1)?.recommendedLoadKg ?? recommendation?.recommendedLoadKg ?? 'kg');
+      // Mesma carga em todas as séries de trabalho (pirâmide: a da própria série), nunca por posição da sessão anterior.
+      const workPlaceholder = String(targetLoadForSet(ex.targetLoadPerSet, index + 1) ?? ex.targetLoadKg ?? workSetRecommendedLoad(recommendation ?? null, setTypeContexts(plannedTypes, ex.exercise)[index]?.workOrdinal, index + 1) ?? recommendation?.recommendedLoadKg ?? 'kg');
       const weightPlaceholder = setType === 'work' && !isRecognition
         ? workPlaceholder
         : studentWeightPlaceholder(index + 1, [], { kg: ex.targetLoadKg, perSet: ex.targetLoadPerSet }, recommendation ?? null, setTypeContexts(plannedTypes, ex.exercise)[index] ?? { type: 'recognition', exerciseName: ex.exercise });

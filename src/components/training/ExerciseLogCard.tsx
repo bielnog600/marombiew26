@@ -127,7 +127,7 @@ const ExerciseLogCard: React.FC<Props> = ({
   const recommendation = getRecommendationFor(progressionSnapshot ?? null, st.exerciseName || ex.exercise);
   // Carga sugerida por tipo: trabalho = sugestão; aquecimento ~50% e preparatória ~85% dela.
   const typeCtx = setTypeContexts((st.plan || []).map((p) => kindToSetType(p.kind)), st.exerciseName || ex.exercise);
-  // Base = carga da ÚLTIMA série de trabalho da última sessão (sugestão de progressão vence).
+  // Base = MAIOR carga de trabalho da última sessão (sugestão de progressão vence).
   const lastWork = lastWorkRows(st.lastWorkLoad, st.lastDate);
   const loadTarget = { kg: ex?.targetLoadKg ?? null, perSet: ex?.targetLoadPerSet ?? null };
   const loadPlaceholder = (setIdx: number) => {
@@ -238,6 +238,8 @@ const ExerciseLogCard: React.FC<Props> = ({
             <ProgressionHintCard
               recommendation={recommendation}
               targetLoad={{ kg: ex?.targetLoadKg ?? null, note: ex?.targetLoadNote ?? null, perSet: ex?.targetLoadPerSet ?? null }}
+              setTypes={(st.plan || []).map((p) => kindToSetType(p.kind))}
+              exerciseName={st.exerciseName || ex?.exercise}
               variant="compact"
             />
           )}
