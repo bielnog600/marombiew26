@@ -373,6 +373,50 @@ export const DuoTrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studen
     });
   };
 
+  // Bi-set/superset: cada exercício do grupo recebe o mesmo pré-preenchimento
+  // dos exercícios normais (o cartão de grupo não tem o ExerciseLogCard).
+  useEffect(() => {
+    const run = (slot: 'A' | 'B', st: StudentSessionState | null, snap: typeof snapshotA) => {
+      const exercises = st?.days[st.activeDayIdx]?.exercises;
+      if (!st || st.loading || !exercises) return;
+      const grouped = exerciseBlocks(exercises).filter((b) => b.indices.length === 2).flatMap((b) => b.indices);
+      for (const idx of grouped) {
+        const cur = st.state[idx], ex = exercises[idx];
+        if (cur && ex && adminPrefillSets(ex, cur, cur.sets, snap)) prefillSets(slot, idx, (sets) => adminPrefillSets(ex, cur, sets, snap));
+      }
+    };
+    run('A', studentA, snapshotA);
+    run('B', studentB, snapshotB);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [studentA?.state, studentA?.days, studentA?.loading, studentB?.state, studentB?.days, studentB?.loading, snapshotA, snapshotB]);
+
+  /** Troca original ⇄ variação do plano só nesta sessão (nome, vídeo, histórico e registro). */
+  const toggleVariation = (slot: 'A' | 'B', exIdx: number) => {
+    const st = slot === 'A' ? studentA : studentB;
+    const day = st?.days[st.activeDayIdx];
+    const next = day?.exercises[exIdx] ? toggleSessionVariation(day.exercises[exIdx]) : null;
+    if (!st || !next) return;
+    const name = next.exercise;
+    mutateSlot(slot, (prev) => {
+      const d = prev.days[prev.activeDayIdx];
+      const cur = prev.state[exIdx];
+      if (!d || !cur) return prev;
+      const newExercises = d.exercises.map((e, i) => (i === exIdx ? next : e));
+      const out = {
+        ...prev,
+        days: prev.days.map((dd, i) => (i === prev.activeDayIdx ? { ...dd, exercises: newExercises } : dd)),
+        state: { ...prev.state, [exIdx]: { ...cur, exerciseName: name, ...EMPTY_LAST_LOAD } },
+      };
+      persistSlot(out);
+      return out;
+    });
+    void fetchExerciseLastLoad(st.studentId, name).then((info) => mutateSlot(slot, (prev) => {
+      const cur = prev.state[exIdx];
+      if (!cur || cur.exerciseName !== name) return prev;
+      return { ...prev, state: { ...prev.state, [exIdx]: { ...cur, ...info } } };
+    }));
+  };
+
   const changeMethodSet = (slot: 'A' | 'B', exIdx: number, setIdx: number, entry: MethodSetEntry) => {
     const setFn = slot === 'A' ? setStudentA : setStudentB;
     setFn(prev => {
