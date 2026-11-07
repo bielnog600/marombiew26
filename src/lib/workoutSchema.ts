@@ -4,6 +4,7 @@ import { normalizeWorkoutMethod } from "./trainingMethods";
 import { executionFields } from './workoutExecutionFields';
 import { validateGroups } from './workoutExecutionMethods';
 import { sortTrainingDays } from './trainingDayOrder';
+import { normalizePlanSetType } from "./setTypes";
 
 /**
  * Workout plan v2 — JSON-first source of truth.
