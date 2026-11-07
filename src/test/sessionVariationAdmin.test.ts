@@ -87,7 +87,7 @@ describe('admin load prefill — variation and groups', () => {
 });
 
 describe('saving the session to the plan', () => {
-  const plan = { version: 2, days: [{ id: 'd1', day: 'SEGUNDA', exercises: [{ ...hack }] }] };
+  const plan = { type: 'workout', version: '2', days: [{ id: 'd1', day: 'SEGUNDA', exercises: [{ ...hack }] }] };
   const run = async (keep: boolean) => {
     db.plan = JSON.parse(JSON.stringify(plan)); db.updated = null;
     const swapped = toggleSessionVariation(hack)!;
