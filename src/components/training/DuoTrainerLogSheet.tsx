@@ -39,6 +39,7 @@ import { useSessionProgression } from '@/hooks/useSessionProgression';
 import { readProgressionSnapshot, type ProgressionSnapshot, getRecommendationFor } from '@/lib/sessionProgression';
 import { resolveCurrentTrainingPhase } from '@/lib/currentPhase';
 import { persistSessionDayEditsToPlan } from '@/lib/sessionPlanPersistence';
+import { isPrefillOnlySet, lastWorkSetLoad } from '@/lib/setLoadPrefill';
 import { isPreparationLogSetType, kindToSetType, SET_TYPE_BADGE_CLASS, SET_TYPE_LABEL, SET_TYPE_TAG } from '@/lib/setTypes';
 import {
   buildExerciseUids,
@@ -317,7 +318,7 @@ export const DuoTrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studen
           if (!ex.exercise) return;
           const { data } = await supabase
             .from('exercise_set_logs')
-            .select('weight_kg, reps, performed_at, session_id, set_type')
+            .select('weight_kg, reps, performed_at, session_id, set_type, set_number')
             .eq('student_id', st.studentId)
             .ilike('exercise_name', normalizeExName(ex.exercise))
             .order('performed_at', { ascending: false })
@@ -334,6 +335,7 @@ export const DuoTrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studen
             initial[i].lastWeight = melhor.weight_kg;
             initial[i].lastReps = melhor.reps;
             initial[i].lastDate = melhor.performed_at;
+            initial[i].lastWorkLoad = lastWorkSetLoad(daSessao);
           }
         })
       );
@@ -367,6 +369,18 @@ export const DuoTrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studen
       if (!prev) return null;
       const nextState = { ...prev.state };
       nextState[exIdx].sets[setIdx][field] = value;
+      saveDraft(prev.studentId, prev.days[prev.activeDayIdx].day, makeDaySignature(prev.days[prev.activeDayIdx]), nextState);
+      return { ...prev, state: nextState };
+    });
+  };
+
+  const prefillSets = (slot: 'A' | 'B', exIdx: number, apply: (sets: any[]) => any[] | null) => {
+    const setFn = slot === 'A' ? setStudentA : setStudentB;
+    setFn(prev => {
+      const cur = prev?.state[exIdx];
+      const sets = cur ? apply(cur.sets) : null;
+      if (!prev || !cur || !sets) return prev;
+      const nextState = { ...prev.state, [exIdx]: { ...cur, sets } };
       saveDraft(prev.studentId, prev.days[prev.activeDayIdx].day, makeDaySignature(prev.days[prev.activeDayIdx]), nextState);
       return { ...prev, state: nextState };
     });
@@ -627,9 +641,10 @@ export const DuoTrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studen
     const exState = st.state[exIdx];
     const exerciseName = (exState.exerciseName || ex.exercise || '').trim();
 
+    // Série só com a carga pré-preenchida (sem reps) não é registro.
     const validSets = exState.sets
-      .map((s: any, idx: number) => ({ idx, weight: parseFloat(s.weight), reps: parseInt(s.reps, 10) }))
-      .filter((s: any) => !Number.isNaN(s.weight) || !Number.isNaN(s.reps));
+      .map((s: any, idx: number) => ({ idx, weight: parseFloat(s.weight), reps: parseInt(s.reps, 10), prefillOnly: isPrefillOnlySet(s) }))
+      .filter((s: any) => !s.prefillOnly && (!Number.isNaN(s.weight) || !Number.isNaN(s.reps)));
 
     if (validSets.length === 0) {
       toast.error('Preencha ao menos uma série');
@@ -852,6 +867,7 @@ export const DuoTrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studen
                                   onUpdateSet={(idx, sIdx, f, v) => updateSet('A', idx, sIdx, f, v)}
                                   onUpdateNotes={(idx, v) => updateNotes('A', idx, v)}
                                   onSaveExercise={(idx) => saveExerciseImpl('A', idx)}
+                                  onPrefillSets={(idx, apply) => prefillSets('A', idx, apply)}
                                   onStartRestTimer={startRestFor('A')}
                                   inlineRest={inlineRestA}
                                   onCompleteSet={(idx, setIdx, entry) => saveMethodSet('A', idx, setIdx, entry)}
@@ -960,6 +976,7 @@ export const DuoTrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studen
                                   onUpdateSet={(idx, sIdx, f, v) => updateSet('B', idx, sIdx, f, v)}
                                   onUpdateNotes={(idx, v) => updateNotes('B', idx, v)}
                                   onSaveExercise={(idx) => saveExerciseImpl('B', idx)}
+                                  onPrefillSets={(idx, apply) => prefillSets('B', idx, apply)}
                                   onStartRestTimer={startRestFor('B')}
                                   inlineRest={inlineRestB}
                                   onCompleteSet={(idx, setIdx, entry) => saveMethodSet('B', idx, setIdx, entry)}
