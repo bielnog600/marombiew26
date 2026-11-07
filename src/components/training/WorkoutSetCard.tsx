@@ -26,7 +26,7 @@ export function WorkoutSetCard({ index, children, rest, completion, exIdx, next,
       {resting && <div className="workout-rest-fill absolute inset-0 -z-10 rounded-[inherit] pointer-events-none" style={{ transform: `scaleX(${Math.max(0, Math.min(1, rest.remaining / Math.max(1, rest.total)))})` }} />}
       {children}
       {resting && <div className="flex items-center justify-between gap-2 px-2 pb-2 pt-1" data-testid="inline-rest">
-        <div className="min-w-0"><span className="text-[10px] font-bold text-primary">DESCANSO</span><span role="timer" className="ml-2 text-2xl font-bold text-primary tabular-nums">{formatRestTime(rest.remaining)}</span></div>
+        <div className="min-w-0"><span className="text-[10px] font-bold text-primary">{rest.label ? <>Descanso · {rest.label}</> : 'DESCANSO'}</span><span role="timer" className="ml-2 text-2xl font-bold text-primary tabular-nums">{formatRestTime(rest.remaining)}</span></div>
         <div className="flex shrink-0 gap-1.5">
           <Button variant="outline" className="h-11 rounded-full border-primary/60 bg-background/40 px-3 text-xs text-primary" onClick={() => onAdd?.(15)}>+15s</Button>
           <Button variant="outline" className="h-11 rounded-full border-primary/60 bg-background/40 px-3 text-xs text-primary" onClick={() => onSkip?.()}>Pular</Button>
