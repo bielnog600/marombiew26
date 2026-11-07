@@ -77,33 +77,33 @@ const weights = () => screen.getAllByRole('textbox').filter((el) => (el as HTMLI
 describe('student load prefill — bi-set and variation', () => {
   it('prefills each exercise of a bi-set with its own last work load', async () => {
     render(<TreinoExecucao />);
-    await screen.findByRole('heading', { name: 'SUPINO RETO' });
+    await screen.findByText('SUPINO RETO', { selector: 'h1' });
     await waitFor(() => expect(weights()).toEqual(['40', '40']));
     fireEvent.click(screen.getByRole('tab', { name: /CRUCIFIXO/ }));
-    await screen.findByRole('heading', { name: 'CRUCIFIXO' });
+    await screen.findByText('CRUCIFIXO', { selector: 'h1' });
     await waitFor(() => expect(weights()).toEqual(['14', '14']));
   });
 
   it('variation uses its own history (never the plan target), and the original comes back on return', async () => {
     mock.currentIndex = 2;
     render(<TreinoExecucao />);
-    await screen.findByRole('heading', { name: 'HACK MACHINE' });
+    await screen.findByText('HACK MACHINE', { selector: 'h1' });
     await waitFor(() => expect(weights()).toEqual(['120', '120']));
     fireEvent.click(screen.getByRole('button', { name: 'Variação' }));
-    await screen.findByRole('heading', { name: 'AGACHAMENTO LIVRE' });
+    await screen.findByText('AGACHAMENTO LIVRE', { selector: 'h1' });
     await waitFor(() => expect(weights()).toEqual(['60', '60']));
     fireEvent.click(screen.getByRole('button', { name: 'Original' }));
-    await screen.findByRole('heading', { name: 'HACK MACHINE' });
+    await screen.findByText('HACK MACHINE', { selector: 'h1' });
     await waitFor(() => expect(weights()).toEqual(['120', '120']));
   });
 
   it('variation without history stays empty instead of reusing the original load', async () => {
     mock.currentIndex = 3;
     render(<TreinoExecucao />);
-    await screen.findByRole('heading', { name: 'LEG PRESS' });
+    await screen.findByText('LEG PRESS', { selector: 'h1' });
     await waitFor(() => expect(weights()).toEqual(['200', '200']));
     fireEvent.click(screen.getByRole('button', { name: 'Variação' }));
-    await screen.findByRole('heading', { name: 'LEG PRESS HORIZONTAL' });
+    await screen.findByText('LEG PRESS HORIZONTAL', { selector: 'h1' });
     await waitFor(() => expect(weights()).toEqual(['', '']));
   });
 });
