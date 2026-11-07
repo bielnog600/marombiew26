@@ -11,13 +11,13 @@ import { ProgressionHintCard } from './ProgressionHintCard';
 import MethodBadge from './MethodBadge';
 import { ExerciseStructureEditor } from './ExerciseStructureEditor';
 import type { ExecutionMethodFields } from '@/lib/workoutExecutionMethods';
-import { getRecommendationFor, targetLoadForSet, type ProgressionSnapshot } from '@/lib/sessionProgression';
+import { getRecommendationFor, type ProgressionSnapshot } from '@/lib/sessionProgression';
 import { WorkoutSetCard } from './WorkoutSetCard';
 import type { useInlineWorkoutRest } from '@/hooks/useInlineWorkoutRest';
 import type { MethodSetEntry } from '@/lib/workoutExecutionMethods';
 import { ExerciseMediaFrame } from './ExerciseMediaFrame';
 import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select';
-import { kindToSetType, PLAN_SET_TYPES, SET_TYPE_BADGE_CLASS, SET_TYPE_LABEL, SET_TYPE_TAG, setTypeToKind, type SetPlanKind } from '@/lib/setTypes';
+import { hasTypedSets, typedSetsSummary, kindToSetType, PLAN_SET_TYPES, SET_TYPE_BADGE_CLASS, SET_TYPE_LABEL, SET_TYPE_TAG, setTypeToKind, type SetPlanKind } from '@/lib/setTypes';
 import { setTypeContexts, studentWeightPlaceholder, type PreviousExerciseSet } from '@/lib/studentExerciseLoadPresentation';
 
 interface SetEntry {
@@ -152,7 +152,9 @@ const ExerciseLogCard: React.FC<Props> = ({
                 onChange={onExerciseNameChange}
               />
               <p className="text-[10px] text-muted-foreground">
-                Prescrição: {(() => { const n = parseInt(String(ex.series2 || ex.series || ''), 10); return n > 0 ? n : (st.sets?.length || 3); })()} séries{ex.reps ? ` × ${ex.reps}` : ''}
+                Prescrição: {ex?.setScheme?.mode === 'per_set' && hasTypedSets(ex.setScheme.sets)
+                  ? typedSetsSummary(ex.setScheme.sets)
+                  : <>{(() => { const n = parseInt(String(ex.series2 || ex.series || ''), 10); return n > 0 ? n : (st.sets?.length || 3); })()} séries{ex.reps ? ` × ${ex.reps}` : ''}</>}
                 {ex.rir && ` · RIR ${ex.rir}`}
                 {ex.pause && ` · pausa ${ex.pause}`}
               </p>
@@ -251,7 +253,7 @@ const ExerciseLogCard: React.FC<Props> = ({
                     <SelectTrigger
                       aria-label={`Tipo da série ${setIdx + 1}: ${SET_TYPE_LABEL[sType]}`}
                       title={`${SET_TYPE_LABEL[sType]} — toque para mudar`}
-                      className={`h-auto min-h-7 w-full justify-center gap-0.5 px-1 py-0.5 text-[9px] font-bold rounded [&>svg]:h-2.5 [&>svg]:w-2.5 [&>svg]:shrink-0 ${tagClass}`}
+                      className={`h-auto min-h-7 w-full justify-center gap-0.5 px-1 py-0.5 text-[9px] font-bold rounded [&>svg]:hidden ${tagClass}`}
                     >
                       <span className="flex flex-col items-center leading-tight">
                         {tagText}
