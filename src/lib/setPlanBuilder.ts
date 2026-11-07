@@ -96,13 +96,18 @@ export const buildPlanSummary = (plan: PlannedSet[]): string => {
     .join(' + ');
 };
 
+/** O plano tem aquecimento/preparatória (usa o resumo série a série). */
+export const planHasTypedSets = (plan: PlannedSet[]): boolean =>
+  plan.some((p) => p.type === 'warmup' || p.type === 'preparatory');
+
 /**
  * Resumo para exibição. Com aquecimento/preparatória no plano:
- * "Aquec. 12-15 · Prep. 10 · Trabalho 6-8"; senão mantém o formato atual.
+ * "1 set: 12-15 · 2 set: 10 · 3 set: 6-8" (ou a forma compacta
+ * "1: 12-15 · 2: 10 · 3: 6-8"); senão mantém o formato atual.
  */
-export const buildPlanDisplaySummary = (plan: PlannedSet[], perSet = false): string => {
-  if (plan.some((p) => p.type === 'warmup' || p.type === 'preparatory')) {
-    return typedSetsSummary(plan.map((p) => ({ set_type: p.type, target_reps: p.reps })));
+export const buildPlanDisplaySummary = (plan: PlannedSet[], perSet = false, variant: 'full' | 'compact' = 'full'): string => {
+  if (planHasTypedSets(plan)) {
+    return typedSetsSummary(plan.map((p) => ({ set_type: p.type, target_reps: p.reps })), variant);
   }
   return perSet ? plan.map((set) => set.reps).filter(Boolean).join(' / ') : buildPlanSummary(plan);
 };

@@ -21,7 +21,7 @@ export const SET_TYPE_LABEL: Record<PlanSetType, string> = {
   work: 'Trabalho',
 };
 
-/** Rótulo curto para resumos ("Aquec. 12-15 · Prep. 10 · Trabalho 6-8"). */
+/** Rótulo curto por tipo ("Aquec.", "Prep."). */
 export const SET_TYPE_SHORT: Record<PlanSetType, string> = {
   warmup: 'Aquec.',
   preparatory: 'Prep.',
@@ -152,24 +152,20 @@ export const hasTypedSets = (sets: Array<{ set_type?: unknown }> | null | undefi
   (sets ?? []).some((s) => normalizePlanSetType(s.set_type) !== 'work');
 
 /**
- * Resumo agrupando por tipo e mostrando só as repetições (sem contador de
- * séries, para não cortar em telas estreitas):
- * "Aquec. 12-15 · Prep. 10 · Trabalho 6-8".
- * Só entram os tipos existentes; reps diferentes do mesmo tipo se juntam
- * ("Trabalho 8/6").
+ * Resumo série a série, numa linha: "1 set: 12-15 · 2 set: 10 · 3 set: 6-8".
+ * `compact` é a forma curta para telas estreitas: "1: 12-15 · 2: 10 · 3: 6-8".
+ * A numeração segue a ordem das séries no plano.
  */
-export const typedSetsSummary = (sets: Array<{ set_type?: unknown; target_reps?: unknown }> | null | undefined): string => {
-  const order: PlanSetType[] = [];
-  const repsByType = new Map<PlanSetType, string[]>();
-  for (const s of sets ?? []) {
-    const type = normalizePlanSetType(s.set_type);
-    const reps = String(s.target_reps ?? '').trim() || '?';
-    let list = repsByType.get(type);
-    if (!list) { list = []; repsByType.set(type, list); order.push(type); }
-    if (!list.includes(reps)) list.push(reps);
-  }
-  return order.map((type) => `${SET_TYPE_SHORT[type]} ${repsByType.get(type)!.join('/')}`).join(' · ');
-};
+export const typedSetsSummary = (
+  sets: Array<{ set_type?: unknown; target_reps?: unknown }> | null | undefined,
+  variant: 'full' | 'compact' = 'full',
+): string =>
+  (sets ?? [])
+    .map((s, i) => {
+      const reps = String(s.target_reps ?? '').trim() || '?';
+      return variant === 'compact' ? `${i + 1}: ${reps}` : `${i + 1} set: ${reps}`;
+    })
+    .join(' · ');
 
 /** Séries de trabalho de um esquema por série (volume). */
 export const countWorkSchemeSets = (sets: Array<{ set_type?: unknown }> | null | undefined): number =>
