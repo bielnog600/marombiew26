@@ -12,6 +12,7 @@
  *  - se a 1ª série de TRABALHO receber uma carga digitada, as séries de
  *    trabalho seguintes ainda não confirmadas e com valor do app passam a usar
  *    essa carga;
+ *  - valor do app que perdeu a base (padrão vazio) é limpo, nunca o digitado;
  *  - série confirmada (ou com sub-registros de método) nunca é tocada.
  */
 import { isWorkLogSetType, normalizePlanSetType } from './setTypes';
@@ -91,7 +92,14 @@ export function applyLoadPrefill<T extends PrefillableSet>(
     const untouchedEmpty = !s.weight.trim() && !s.weightAuto;
     if (!auto && !untouchedEmpty) return s;
     const kg = override != null && i > firstWork && typeOf(i) === 'work' ? override : positive(defaults[i]);
-    if (kg == null) return s;
+    if (kg == null) {
+      // Valor do app sem base agora (ex.: trocou para uma variação sem
+      // histórico): o campo volta a ficar vazio. Campo já vazio fica como está.
+      if (!auto) return s;
+      changed = true;
+      const { weightAuto: _auto, ...rest } = s;
+      return { ...rest, weight: '' } as T;
+    }
     const text = formatPrefillKg(kg, format);
     if (s.weight === text && s.weightAuto === text) return s;
     changed = true;
