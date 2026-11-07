@@ -574,7 +574,8 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
             const sessaoDe = (r: any) => r.session_id || String(r.performed_at).slice(0, 10);
             const ultima = sessaoDe(linhas[0]);
             const daSessao = linhas.filter((r) => sessaoDe(r) === ultima);
-            const trabalho = daSessao.filter((r) => r.set_type !== 'recognition' && r.set_type !== 'warmup');
+            // Só séries de TRABALHO (set_type nulo = legado = trabalho).
+            const trabalho = daSessao.filter((r) => isWorkLogSetType(r.set_type));
             const pool = trabalho.length > 0 ? trabalho : daSessao;
             const melhor = pool.reduce((a, b) => (Number(b.weight_kg) || 0) > (Number(a.weight_kg) || 0) ? b : a, pool[0]);
             initial[i].lastWeight = melhor.weight_kg;
@@ -617,7 +618,7 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
     });
     const ex = currentExercises[exIdx];
     if (ex && session.id && (entry.completed || entry.subRecords?.some(part => part.completed))) {
-      void import('@/lib/offlineQueue').then(({ writeWithFallback }) => writeWithFallback({ table: 'exercise_set_logs', op: 'upsert', onConflict: 'session_id,student_id,exercise_name,set_number', payload: { ...methodLogFields(ex, entry), rir: optionalRirValue(entry.rir), student_id: studentId, session_id: session.id, exercise_name: normalizeExName(ex.exercise), set_number: setIdx + 1, weight_kg: Number(entry.weight.replace(',', '.')) || null, reps: Number(entry.reps) || null, set_type: state[exIdx]?.plan[setIdx]?.kind === 'recon' ? 'recognition' : 'work', day_name: day.day, phase: effectivePhase, source: 'admin' } }));
+      void import('@/lib/offlineQueue').then(({ writeWithFallback }) => writeWithFallback({ table: 'exercise_set_logs', op: 'upsert', onConflict: 'session_id,student_id,exercise_name,set_number', payload: { ...methodLogFields(ex, entry), rir: optionalRirValue(entry.rir), student_id: studentId, session_id: session.id, exercise_name: normalizeExName(ex.exercise), set_number: setIdx + 1, weight_kg: Number(entry.weight.replace(',', '.')) || null, reps: Number(entry.reps) || null, set_type: kindToSetType(state[exIdx]?.plan[setIdx]?.kind), day_name: day.day, phase: effectivePhase, source: 'admin' } }));
     }
   };
   const saveMethodSet = async (exIdx: number, setIdx: number, entry: MethodSetEntry) => {
@@ -629,7 +630,7 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
       ...methodLogFields(ex, entry), rir: optionalRirValue(entry.rir), student_id: studentId, session_id: session.id,
       exercise_name: normalizeExName(ex.exercise), set_number: setIdx + 1,
       weight_kg: Number(entry.weight.replace(',', '.')) || null, reps: Number(entry.reps) || null,
-      set_type: state[exIdx]?.plan[setIdx]?.kind === 'recon' ? 'recognition' : 'work',
+      set_type: kindToSetType(state[exIdx]?.plan[setIdx]?.kind),
       day_name: day.day, phase: effectivePhase, source: 'admin', performed_at: new Date().toISOString(),
     } });
     if (result.queued) toast.info('Registro guardado para sincronizar quando a conexão voltar.');
@@ -671,6 +672,26 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
       saveDraft(studentId, day.day, daySignature, next, currentExercises);
       return next;
     });
+  };
+
+  /**
+   * Troca o tipo de uma série durante a sessão (ex.: 1ª vira Aquecimento).
+   * O exercício passa a usar o esquema por série com os tipos atuais, para que
+   * "Salvar no plano do aluno" leve os tipos; série já registrada é regravada
+   * com o set_type novo (mesma chave de upsert, sem duplicar).
+   */
+  const changeSetType = (exIdx: number, setIdx: number, kind: SetPlanKind) => {
+    const cur = state[exIdx];
+    const ex = currentExercises[exIdx];
+    if (!cur || !ex || cur.plan[setIdx]?.kind === kind) return;
+    const plan = cur.plan.map((p, i) => (i === setIdx ? { ...p, kind } : p));
+    const sets = plan.map((p, i) => ({ set_number: i + 1, set_type: kindToSetType(p.kind), target_reps: p.targetReps || ex.setScheme?.sets?.[i]?.target_reps || '' }));
+    updateExerciseMeta(exIdx, { setScheme: { mode: 'per_set', sets }, series: String(sets.length), series2: '' });
+    setStructureDirty(true);
+    const entry = cur.sets[setIdx];
+    if (entry && session.id && (entry.completed || (entry as MethodSetEntry).subRecords?.some((part) => part.completed))) {
+      void import('@/lib/offlineQueue').then(({ writeWithFallback }) => writeWithFallback({ table: 'exercise_set_logs', op: 'upsert', onConflict: 'session_id,student_id,exercise_name,set_number', payload: { ...methodLogFields(ex, entry as MethodSetEntry), rir: optionalRirValue(entry.rir), student_id: studentId, session_id: session.id, exercise_name: normalizeExName(cur.exerciseName || ex.exercise), set_number: setIdx + 1, weight_kg: Number(String(entry.weight).replace(',', '.')) || null, reps: Number(entry.reps) || null, set_type: kindToSetType(kind), day_name: day.day, phase: effectivePhase, source: 'admin' } }));
+    }
   };
 
   const removeSet = (exIdx: number, setIdx: number) => {
@@ -995,7 +1016,7 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
         set_number: s.idx + 1,
         weight_kg: Number.isNaN(s.weight) ? null : s.weight,
         reps: Number.isNaN(s.reps) ? null : s.reps,
-        set_type: p?.kind === 'recon' ? 'recognition' : 'work',
+        set_type: kindToSetType(p?.kind),
         day_name: day.day,
         phase: effectivePhase,
         performed_at: new Date().toISOString(),
@@ -1228,6 +1249,7 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
                         onExerciseNameChange={(name) => updateExerciseName(exIdx, name)}
                         onAddSet={addSet}
                         onRemoveSet={removeSet}
+                        onChangeSetType={changeSetType}
                         onRemoveExercise={removeExercise}
                         onUpdateMeta={(patch) => updateExerciseMeta(exIdx, patch)}
                         ExerciseNamePicker={ExerciseNamePicker}
