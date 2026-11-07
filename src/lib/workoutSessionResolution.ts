@@ -22,6 +22,7 @@ import { subRecordVolume, type MethodSetEntry } from './workoutExecutionMethods'
 import { supabase } from '@/integrations/supabase/client';
 import { countsTowardWorkoutCompletion } from './exerciseLoadType';
 import { normalizeExName } from '@/components/training/TrainerLogSheetUtils';
+import { logSetTypeFor } from './setTypes';
 
 export type WorkoutSessionStatus = 'in_progress' | 'completed' | 'partial' | 'abandoned';
 export type CompletionSource = 'manual' | 'automatic';
@@ -241,7 +242,10 @@ export const buildSessionStateLogRows = (
       const rirNum = rirRaw === '' ? null : Number(rirRaw);
       const plannedType = state?.plannedSetTypes?.[idx]?.[i];
       totalSets += 1;
-      totalVolumeKg += s.subRecords?.length ? subRecordVolume({ ...s, weight: s.weight ?? '', reps: s.reps ?? '' }) : reps * weight;
+      // Volume total: só séries de trabalho (aquecimento/preparatória/reconhecimento não somam).
+      if (logSetTypeFor(plannedType) === 'work') {
+        totalVolumeKg += s.subRecords?.length ? subRecordVolume({ ...s, weight: s.weight ?? '', reps: s.reps ?? '' }) : reps * weight;
+      }
       rows.push({
         ...(s.subRecords?.length ? { sub_records: s.subRecords, training_method: state?.executionMethods?.[idx] ?? null, exercise_slot_id: state?.exerciseSlotIds?.[idx] ?? null } : {}),
         student_id: row.student_id,
