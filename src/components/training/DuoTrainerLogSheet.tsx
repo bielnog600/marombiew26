@@ -39,7 +39,7 @@ import { useSessionProgression } from '@/hooks/useSessionProgression';
 import { readProgressionSnapshot, type ProgressionSnapshot, getRecommendationFor } from '@/lib/sessionProgression';
 import { resolveCurrentTrainingPhase } from '@/lib/currentPhase';
 import { persistSessionDayEditsToPlan } from '@/lib/sessionPlanPersistence';
-import { kindToSetType, SET_TYPE_BADGE_CLASS, SET_TYPE_LABEL, SET_TYPE_TAG } from '@/lib/setTypes';
+import { isWorkLogSetType, kindToSetType, SET_TYPE_BADGE_CLASS, SET_TYPE_LABEL, SET_TYPE_TAG } from '@/lib/setTypes';
 import {
   buildExerciseUids,
   makeExerciseUid,
@@ -317,15 +317,23 @@ export const DuoTrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studen
           if (!ex.exercise) return;
           const { data } = await supabase
             .from('exercise_set_logs')
-            .select('weight_kg, reps, performed_at')
+            .select('weight_kg, reps, performed_at, session_id, set_type')
             .eq('student_id', st.studentId)
             .ilike('exercise_name', normalizeExName(ex.exercise))
             .order('performed_at', { ascending: false })
-            .limit(1);
-          if (data?.[0]) {
-            initial[i].lastWeight = data[0].weight_kg;
-            initial[i].lastReps = data[0].reps;
-            initial[i].lastDate = data[0].performed_at;
+            .limit(30);
+          // Última sessão → maior carga das séries de TRABALHO (nulo = legado = trabalho);
+          // aquecimento/preparatória/reconhecimento nunca viram a "última carga".
+          const linhas = (data as any[]) || [];
+          if (linhas.length > 0) {
+            const sessaoDe = (r: any) => r.session_id || String(r.performed_at).slice(0, 10);
+            const daSessao = linhas.filter((r) => sessaoDe(r) === sessaoDe(linhas[0]));
+            const trabalho = daSessao.filter((r) => isWorkLogSetType(r.set_type));
+            const pool = trabalho.length > 0 ? trabalho : daSessao;
+            const melhor = pool.reduce((a, b) => (Number(b.weight_kg) || 0) > (Number(a.weight_kg) || 0) ? b : a, pool[0]);
+            initial[i].lastWeight = melhor.weight_kg;
+            initial[i].lastReps = melhor.reps;
+            initial[i].lastDate = melhor.performed_at;
           }
         })
       );
