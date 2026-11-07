@@ -27,7 +27,8 @@ import { useDailyTracking } from '@/hooks/useDailyTracking';
 import { useAuth } from '@/contexts/AuthContext';
 import { useActiveWorkoutSession } from '@/hooks/useActiveWorkoutSession';
 import { type ParsedExercise, parseTrainingSections } from '@/lib/trainingResultParser';
-import { buildSetPlan, buildPlanSummary, type PlannedSet } from '@/lib/setPlanBuilder';
+import { buildSetPlan, buildPlanSummary, buildPlanDisplaySummary, type PlannedSet } from '@/lib/setPlanBuilder';
+import { hasTypedSets, logSetTypeFor, SET_TYPE_LABEL, SET_TYPE_TAG, SET_TYPE_TEXT_CLASS } from '@/lib/setTypes';
 import { findBestExerciseMatch } from '@/lib/exerciseMatcher';
 import { PHASE_SHORT_LABELS, getPhaseByMonthDay, type TrainingPhase } from '@/lib/trainingPhase';
 import { resolveCurrentTrainingPhase } from '@/lib/currentPhase';
@@ -47,7 +48,7 @@ import { useRestTimer } from '@/hooks/useRestTimer';
 import { useSessionProgression } from '@/hooks/useSessionProgression';
 import { getRecommendationFor, type ProgressionSnapshot } from '@/lib/sessionProgression';
 import { StudentLoadSummaryCard } from '@/components/training/StudentLoadSummaryCard';
-import { lastWorkSetLine, studentSuggestionLine, studentWeightPlaceholder, type PreviousExerciseSet } from '@/lib/studentExerciseLoadPresentation';
+import { lastWorkSetLine, setTypeContexts, studentSuggestionLine, studentWeightPlaceholder, type PreviousExerciseSet } from '@/lib/studentExerciseLoadPresentation';
 import MethodBadge from '@/components/training/MethodBadge';
 import { variationPrefKey, backendVariationPref } from '@/lib/exerciseVariationPref';
 import { WorkoutViewportDebug } from '@/components/training/WorkoutViewportDebug';
@@ -596,7 +597,7 @@ const TreinoExecucaoInner = () => {
     plannedSets: exercises.map((ex: any) =>
       buildSetPlan(ex?.series, ex?.series2, ex?.reps, ex?.setScheme).length || 3,
     ),
-    /** Tipo estrutural planejado de cada série (recognition | work). */
+    /** Tipo estrutural planejado de cada série (warmup | preparatory | recognition | work). */
     plannedSetTypes: exercises.map((ex: any) =>
       buildSetPlan(ex?.series, ex?.series2, ex?.reps, ex?.setScheme).map((p) => p.type),
     ),
@@ -1055,7 +1056,7 @@ const TreinoExecucaoInner = () => {
   const assumedSetValues = (setIndex: number): { weight: string; reps: string } => {
     const prevRows = lastLogsByExercise[selectedExerciseName.toUpperCase().trim()] ?? [];
     const prev = prevRows.find((row) => row.set_number === setIndex + 1);
-    const weightPh = studentWeightPlaceholder(setIndex + 1, prevRows, { kg: exercise?.targetLoadKg, note: exercise?.targetLoadNote, perSet: exercise?.targetLoadPerSet }, getRecommendationFor(progressionSnapshot, selectedExerciseName));
+    const weightPh = studentWeightPlaceholder(setIndex + 1, prevRows, { kg: exercise?.targetLoadKg, note: exercise?.targetLoadNote, perSet: exercise?.targetLoadPerSet }, getRecommendationFor(progressionSnapshot, selectedExerciseName), setTypeContexts(setPlan.map((p) => p.type), selectedExerciseName)[setIndex]);
     const weight = weightPh !== 'kg' ? weightPh : (prev?.weight_kg != null ? String(prev.weight_kg).replace('.', ',') : '');
     const plannedReps = setPlan[setIndex]?.reps || exercise?.reps || '';
     const reps = plannedReps || (prev?.reps != null ? String(prev.reps) : '');
@@ -1143,6 +1144,9 @@ const TreinoExecucaoInner = () => {
   const recommendation = getRecommendationFor(progressionSnapshot, selectedExerciseName);
   const loadTarget = { kg: exercise?.targetLoadKg, note: exercise?.targetLoadNote, perSet: exercise?.targetLoadPerSet };
   const previousLine = lastWorkSetLine(previousSets, setPlan.map((set) => set.type));
+  // Tipo de cada série: aquecimento ~50% e preparatória ~85% da carga de trabalho sugerida.
+  const setTypeCtx = setTypeContexts(setPlan.map((set) => set.type), selectedExerciseName);
+  const showSetTypes = hasTypedSets(setPlan.map((set) => ({ set_type: set.type })));
   const suggestionLine = studentSuggestionLine(loadTarget, recommendation, exercise?.reps ?? '');
 
   const streamVideoId = extractStreamVideoId(activeExercise?.video_embed);
@@ -1555,9 +1559,7 @@ const TreinoExecucaoInner = () => {
         const repsLabel = !isPerSet && isReal(exercise.reps) ? parseReps(exercise.reps) : null;
         const rirLabel = isReal(exercise.rir) ? parseRir(exercise.rir) : null;
         const isComposed = setPlan.some((p) => p.type === 'recognition') && setPlan.some((p) => p.type === 'work');
-        const summary = isPerSet
-          ? setPlan.map((set) => set.reps).filter(Boolean).join(' / ')
-          : isComposed ? buildPlanSummary(setPlan) : null;
+        const summary = isPerSet || isComposed ? buildPlanDisplaySummary(setPlan, isPerSet) : null;
         const chip = 'inline-flex items-center h-8 px-2.5 rounded text-sm text-foreground bg-secondary/80 whitespace-nowrap shrink-0';
         const pauseSecs = (() => { const m = String(exercise.pause ?? '').match(/(\d+)/); return m ? parseInt(m[1], 10) : null; })();
         return (
@@ -1637,22 +1639,30 @@ const TreinoExecucaoInner = () => {
             const nextPendingIndex = currentSets.findIndex((s) => !s.completed);
             return currentSets.map((set, i) => {
             const planned = setPlan[i];
-            const isRecognition = planned?.type === 'recognition';
+            const plannedType = planned?.type ?? 'work';
+            const isRecognition = plannedType === 'recognition';
+            const isPrepType = plannedType !== 'work';
             const isNextPending = i === nextPendingIndex && (!inlineRest.rest || inlineRest.rest.exIdx !== currentIndex);
             const restProps = groupFlow.indices.length === 2 ? undefined : { exIdx: currentIndex, rest: inlineRest.rest, completion: inlineRest.completion, next: isNextPending, onAdd: inlineRest.adjust, onSkip: () => inlineRest.skip() };
-            if (methodOnSet(exercise, i, currentSets.length, isRecognition)) return <MethodSetRows key={i} exercise={exercise} set={set} index={i} count={currentSets.length} finalWork={i === finalWorkingSetIndex(currentSets.map((_, idx) => setPlan[idx]?.type ?? 'work'))} recognition={isRecognition} restPresentation={restProps} disabled={!!groupFlow.pause || (groupFlow.indices.length === 2 && !set.completed && groupFlow.indices.some(idx => sets[idx]?.slice(0, i).some(prior => !prior.completed)))} targetReps={planned?.reps} weightPlaceholder={studentWeightPlaceholder(i + 1, previousSets, loadTarget, recommendation)} onChange={entry => changeMethodSet(i, entry)} onComplete={entry => completeMethodSet(i, entry)} />;
+            if (methodOnSet(exercise, i, currentSets.length, isPrepType)) return <MethodSetRows key={i} exercise={exercise} set={set} index={i} count={currentSets.length} finalWork={i === finalWorkingSetIndex(currentSets.map((_, idx) => setPlan[idx]?.type ?? 'work'))} recognition={isRecognition} setType={plannedType} restPresentation={restProps} disabled={!!groupFlow.pause || (groupFlow.indices.length === 2 && !set.completed && groupFlow.indices.some(idx => sets[idx]?.slice(0, i).some(prior => !prior.completed)))} targetReps={planned?.reps} weightPlaceholder={studentWeightPlaceholder(i + 1, previousSets, loadTarget, recommendation, setTypeCtx[i])} onChange={entry => changeMethodSet(i, entry)} onComplete={entry => completeMethodSet(i, entry)} />;
             const repsPlaceholder = planned?.reps || String(previousSets.find((row) => row.set_number === i + 1)?.reps ?? '') || '10';
             return (
               <WorkoutSetCard key={i} index={i} exIdx={currentIndex} {...restProps} done={!!set.completed} className={set.completed ? 'bg-secondary/40' : isRecognition ? 'bg-accent/10' : 'bg-secondary/50'}>
+                {showSetTypes && (
+                  <div className={`px-2 pt-1.5 -mb-1 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider ${SET_TYPE_TEXT_CLASS[plannedType]}`} data-testid="set-type-label">
+                    {SET_TYPE_LABEL[plannedType]}
+                    {planned?.reps && <span className="normal-case tracking-normal font-medium text-muted-foreground">· {planned.reps} reps</span>}
+                  </div>
+                )}
                 <div className="grid grid-cols-[32px_1fr_1fr_44px] gap-1.5 items-center p-2">
                   <div className="flex flex-col items-center justify-center">
                     <span className={`text-sm font-bold text-center leading-none ${isNextPending ? 'text-primary' : 'text-foreground'}`}>{i + 1}</span>
                     {isNextPending && groupFlow.indices.length !== 2 && <span className="text-[8px] font-bold text-primary mt-1">AGORA</span>}
-                    {isRecognition && <span className="text-[8px] uppercase tracking-wider text-accent font-semibold mt-0.5">Rec</span>}
+                    {isPrepType && <span className={`text-[8px] uppercase tracking-wider font-semibold mt-0.5 ${SET_TYPE_TEXT_CLASS[plannedType]}`}>{SET_TYPE_TAG[plannedType]}</span>}
                   </div>
                   <div className="flex items-center gap-0.5 min-w-0">
                     <button type="button" aria-label={`Série ${i + 1} diminuir carga`} disabled={set.completed} onClick={() => stepSetValue(i, 'weight', -2.5)} className="h-11 w-6 shrink-0 rounded-md text-muted-foreground hover:text-foreground hover:bg-background/60 disabled:opacity-30 text-xs font-bold touch-manipulation">−</button>
-                    <Input ref={(el) => { setWeightRefs.current[i] = el; }} type="text" inputMode="decimal" value={set.weight} onChange={(e) => updateSet(i, 'weight', e.target.value)} onFocus={(e) => e.currentTarget.scrollIntoView({ block: 'center', behavior: 'smooth' })} placeholder={studentWeightPlaceholder(i + 1, previousSets, loadTarget, recommendation)} className="h-11 text-center bg-background/50 border-border/50 min-w-0 px-1" disabled={set.completed} />
+                    <Input ref={(el) => { setWeightRefs.current[i] = el; }} type="text" inputMode="decimal" value={set.weight} onChange={(e) => updateSet(i, 'weight', e.target.value)} onFocus={(e) => e.currentTarget.scrollIntoView({ block: 'center', behavior: 'smooth' })} placeholder={studentWeightPlaceholder(i + 1, previousSets, loadTarget, recommendation, setTypeCtx[i])} className="h-11 text-center bg-background/50 border-border/50 min-w-0 px-1" disabled={set.completed} />
                     <button type="button" aria-label={`Série ${i + 1} aumentar carga`} disabled={set.completed} onClick={() => stepSetValue(i, 'weight', 2.5)} className="h-11 w-6 shrink-0 rounded-md text-muted-foreground hover:text-foreground hover:bg-background/60 disabled:opacity-30 text-xs font-bold touch-manipulation">+</button>
                   </div>
                   <div className="flex items-center gap-0.5 min-w-0">
