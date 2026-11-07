@@ -214,18 +214,14 @@ export const HistoryPopover: React.FC<{
       .ilike('exercise_name', normalizeExName(exerciseName))
       .order('performed_at', { ascending: false })
       .limit(200);
-    // Histórico: só séries de trabalho (nulo = legado = trabalho).
-    setRows(((data as (HistoryRow & { set_type?: string | null })[]) || []).filter((r) => !isPreparationLogSetType(r.set_type)));
+    // Exibição: TODAS as séries (aquecimento/preparatória/reconhecimento com
+    // rótulo próprio; nulo = legado = trabalho). O resumo do botão (`last`)
+    // segue vindo só das séries de trabalho.
+    setRows((data as HistoryRow[]) || []);
     setLoading(false);
   };
 
-
-  const groups: Record<string, HistoryRow[]> = {};
-  (rows || []).forEach((r) => {
-    const d = format(new Date(r.performed_at), 'dd/MM/yyyy', { locale: ptBR });
-    if (!groups[d]) groups[d] = [];
-    groups[d].push(r);
-  });
+  const groups = historyRowsByDate(rows);
 
   return (
     <Popover onOpenChange={(o) => o && load()}>
