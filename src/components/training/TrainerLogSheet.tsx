@@ -56,6 +56,7 @@ import { isPrefillOnlySet, referenceWorkSetLoad } from '@/lib/setLoadPrefill';
 import { adminPrefillSets } from '@/lib/adminSetLoadPrefill';
 import { toggleSessionVariation } from '@/lib/sessionVariation';
 import { EMPTY_LAST_LOAD, fetchExerciseLastLoad } from './exerciseLastLoad';
+import { formatHistoryKg, historyRowsByDate, historySetDisplay } from '@/lib/setHistoryDisplay';
 import { isPreparationLogSetType, kindToSetType, SET_TYPE_BADGE_CLASS, SET_TYPE_LABEL, SET_TYPE_TAG, type SetPlanKind } from '@/lib/setTypes';
 import {
   buildExerciseUids,
@@ -92,6 +93,7 @@ export interface HistoryRow {
   set_number: number;
   weight_kg: number | null;
   reps: number | null;
+  set_type?: string | null;
 }
 
 export const ExerciseNamePicker: React.FC<{
@@ -253,20 +255,24 @@ export const HistoryPopover: React.FC<{
         )}
         {!loading && rows && rows.length > 0 && (
           <div className="space-y-2">
-            {Object.entries(groups).map(([date, sets]) => (
+            {groups.map(([date, sets]) => (
               <div key={date} className="rounded border border-border/50 p-1.5">
                 <p className="text-[10px] font-semibold text-muted-foreground mb-1">{date}</p>
                 <div className="space-y-0.5">
-                  {sets
-                    .sort((a, b) => a.set_number - b.set_number)
-                    .map((r, i) => (
-                      <div key={i} className="flex justify-between text-[11px]">
-                        <span className="text-muted-foreground">Série {r.set_number}</span>
-                        <span className="font-medium">
-                          {r.weight_kg ?? '—'}kg × {r.reps ?? '—'}
+                  {sets.map((r, i) => {
+                    const tipo = historySetDisplay(r.set_type);
+                    return (
+                      <div key={i} className="flex items-baseline justify-between gap-2 text-[11px]" data-set-type={tipo.type}>
+                        <span className="min-w-0 truncate">
+                          <span className="text-muted-foreground">Série {r.set_number}</span>
+                          <span className={`ml-1.5 font-semibold ${tipo.textClass}`}>{tipo.label}</span>
+                        </span>
+                        <span className="font-medium tabular-nums shrink-0">
+                          {formatHistoryKg(r.weight_kg)} × {r.reps ?? '—'}
                         </span>
                       </div>
-                    ))}
+                    );
+                  })}
                 </div>
               </div>
             ))}
