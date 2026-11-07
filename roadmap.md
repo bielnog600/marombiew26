@@ -1,5 +1,10 @@
 # Roadmap
 
+## Carga em bi-set/superset e variação; botão Variação no Modo Treino
+- [x] Bi-set/superset: pré-preenchimento por exercício no Modo Treino (individual e dupla); aluno já preenchia (teste).
+- [x] Variação: histórico próprio, sem carga alvo do original, vazio sem histórico, volta ao original; registro com o nome da variação.
+- [x] Botão Variação no Modo Treino (individual, dupla e grupos); plano só muda com "Salvar no plano do aluno".
+
 ## Tela do aluno — sem linha de chips abaixo do exercício
 - [x] Removidos o chip de resumo das séries/reps, o de RIR e o de descanso; "Série X de Y", botões Semana/Cargas/Ajuste/Execução, rótulos por série, cargas pré-preenchidas e timer de descanso mantidos. Editor do admin e Modo Treino intactos.
 - [x] Teste novo na tela montada (falha se o chip voltar); suíte 1.583 passaram (falha antiga Anthropic/temperature); compilação OK.

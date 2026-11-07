@@ -19,8 +19,9 @@ import { ExerciseMediaFrame } from './ExerciseMediaFrame';
 import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select';
 import { FitSummaryLine } from '@/components/training/FitSummaryLine';
 import { hasTypedSets, typedSetsSummary, kindToSetType, PLAN_SET_TYPES, SET_TYPE_BADGE_CLASS, SET_TYPE_LABEL, SET_TYPE_TAG, setTypeToKind, type SetPlanKind } from '@/lib/setTypes';
-import { setLoadDefaults, setTypeContexts, studentWeightPlaceholder, type PreviousExerciseSet } from '@/lib/studentExerciseLoadPresentation';
-import { applyLoadPrefill } from '@/lib/setLoadPrefill';
+import { setTypeContexts, studentWeightPlaceholder } from '@/lib/studentExerciseLoadPresentation';
+import { adminPrefillSets, adminSetLoadDefaults, lastWorkRows } from '@/lib/adminSetLoadPrefill';
+import { SessionVariationButton } from './SessionVariationButton';
 
 interface SetEntry {
   weight: string;
@@ -89,6 +90,8 @@ interface Props {
   groupAction?: React.ReactNode;
   /** Pré-preenche cargas vazias: recebe a função pura e aplica no estado mais recente. */
   onPrefillSets?: (exIdx: number, apply: (sets: any[]) => any[] | null) => void;
+  /** Troca original ⇄ variação do plano, só na sessão (Modo Treino admin). */
+  onToggleVariation?: (exIdx: number) => void;
 }
 
 const ExerciseLogCard: React.FC<Props> = ({
@@ -117,6 +120,7 @@ const ExerciseLogCard: React.FC<Props> = ({
   methodBody,
   groupAction,
   onPrefillSets,
+  onToggleVariation,
 }) => {
   const [editOpen, setEditOpen] = useState(false);
 
@@ -124,9 +128,7 @@ const ExerciseLogCard: React.FC<Props> = ({
   // Carga sugerida por tipo: trabalho = sugestão; aquecimento ~50% e preparatória ~85% dela.
   const typeCtx = setTypeContexts((st.plan || []).map((p) => kindToSetType(p.kind)), st.exerciseName || ex.exercise);
   // Base = carga da ÚLTIMA série de trabalho da última sessão (sugestão de progressão vence).
-  const lastWork: PreviousExerciseSet[] = st.lastWorkLoad != null && st.lastWorkLoad > 0
-    ? [{ set_number: 0, weight_kg: st.lastWorkLoad, reps: null, set_type: 'work', performed_at: st.lastDate ?? '' }]
-    : [];
+  const lastWork = lastWorkRows(st.lastWorkLoad, st.lastDate);
   const loadTarget = { kg: ex?.targetLoadKg ?? null, perSet: ex?.targetLoadPerSet ?? null };
   const loadPlaceholder = (setIdx: number) => {
     const v = studentWeightPlaceholder(setIdx + 1, lastWork, loadTarget, recommendation, typeCtx[setIdx] ?? { type: 'work' });
@@ -136,12 +138,11 @@ const ExerciseLogCard: React.FC<Props> = ({
   // Pré-preenche a carga das séries vazias (valor real, editável). Não registra:
   // a série só é gravada ao confirmar/salvar com reps.
   const planTypes = (st.plan || []).map((p) => kindToSetType(p.kind));
-  const exName = st.exerciseName || ex.exercise;
-  const prefillDefaults = setLoadDefaults(planTypes, st.sets.length, lastWork, loadTarget, recommendation, exName);
+  const prefillDefaults = adminSetLoadDefaults(ex, st, st.sets.length, progressionSnapshot);
   const prefillKey = JSON.stringify([prefillDefaults, planTypes, st.sets.map((s) => [s.weight, s.weightAuto ?? null, !!s.completed, !!(s as MethodSetEntry).subRecords?.length])]);
   useEffect(() => {
-    if (!onPrefillSets || !applyLoadPrefill(st.sets, prefillDefaults, planTypes, 'dot')) return;
-    onPrefillSets(exIdx, (sets) => applyLoadPrefill(sets, setLoadDefaults(planTypes, sets.length, lastWork, loadTarget, recommendation, exName), planTypes, 'dot'));
+    if (!onPrefillSets || !adminPrefillSets(ex, st, st.sets, progressionSnapshot)) return;
+    onPrefillSets(exIdx, (sets) => adminPrefillSets(ex, st, sets, progressionSnapshot));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [prefillKey, exIdx, !!onPrefillSets]);
 
@@ -200,6 +201,7 @@ const ExerciseLogCard: React.FC<Props> = ({
                   <MethodBadge method={ex.method} dayExercises={dayExercises} />
                 </div>
               )}
+              {onToggleVariation && <SessionVariationButton ex={ex} onToggle={() => onToggleVariation(exIdx)} className="mt-1.5" />}
             </div>
           </div>
           {st.exerciseName && (
