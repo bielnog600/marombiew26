@@ -53,6 +53,9 @@ import { workoutPlanToMarkdown } from '@/lib/workoutMarkdownSerializer';
 import { useEmptyDaysConfirm } from './EmptyDaysConfirm';
 import { persistSessionDayEditsToPlan } from '@/lib/sessionPlanPersistence';
 import { isPrefillOnlySet, lastWorkSetLoad } from '@/lib/setLoadPrefill';
+import { adminPrefillSets } from '@/lib/adminSetLoadPrefill';
+import { toggleSessionVariation } from '@/lib/sessionVariation';
+import { EMPTY_LAST_LOAD, fetchExerciseLastLoad } from './exerciseLastLoad';
 import { isPreparationLogSetType, kindToSetType, SET_TYPE_BADGE_CLASS, SET_TYPE_LABEL, SET_TYPE_TAG, type SetPlanKind } from '@/lib/setTypes';
 import {
   buildExerciseUids,
@@ -624,6 +627,46 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
     });
   };
 
+  // Bi-set/superset: cada exercício do grupo recebe o mesmo pré-preenchimento
+  // dos exercícios normais (o cartão de grupo não tem o ExerciseLogCard).
+  useEffect(() => {
+    if (loading || !day) return;
+    const grouped = exerciseBlocks(currentExercises).filter((b) => b.indices.length === 2).flatMap((b) => b.indices);
+    for (const idx of grouped) {
+      const st = state[idx], ex = currentExercises[idx];
+      if (st && ex && adminPrefillSets(ex, st, st.sets, snapshot)) {
+        prefillSets(idx, (sets) => adminPrefillSets(ex, st, sets, snapshot));
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state, currentExercises, snapshot, loading]);
+
+  /**
+   * Troca original ⇄ variação do plano só nesta sessão: nome, vídeo, histórico
+   * e registro passam a ser da variação; a carga alvo do plano fica com o
+   * original. Carga sem base volta a ficar vazia até chegar o histórico.
+   */
+  const toggleVariation = (exIdx: number) => {
+    const ex = currentExercises[exIdx];
+    const next = ex ? toggleSessionVariation(ex) : null;
+    if (!next || !day) return;
+    const name = next.exercise;
+    const newExercises = currentExercises.map((e, i) => (i === exIdx ? next : e));
+    setCurrentExercises(newExercises);
+    setState((prev) => {
+      const cur = prev[exIdx];
+      if (!cur) return prev;
+      const ns = { ...prev, [exIdx]: { ...cur, exerciseName: name, ...EMPTY_LAST_LOAD } };
+      saveDraft(studentId, day.day, daySignature, ns, newExercises);
+      return ns;
+    });
+    void fetchExerciseLastLoad(studentId, name).then((info) => setState((prev) => {
+      const cur = prev[exIdx];
+      if (!cur || cur.exerciseName !== name) return prev;
+      return { ...prev, [exIdx]: { ...cur, ...info } };
+    }));
+  };
+
   const changeMethodSet = (exIdx: number, setIdx: number, entry: MethodSetEntry) => {
     setState(prev => {
       const current = prev[exIdx];
@@ -919,6 +962,7 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
         states: state,
         fallbackDays: days,
         studentId,
+        keepSessionVariations: true,
       });
       if (res.success === false) {
         toast.error('Não foi possível salvar no plano: ' + res.error);
@@ -1245,7 +1289,7 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
                     const exIdx = block.indices[0], ex = currentExercises[exIdx];
                     if (!state[exIdx] || !exerciseUids[exIdx]) return null;
                     const sharedMethodProps = { exercises: currentExercises, indices: block.indices, sets: Object.fromEntries(Object.entries(state).map(([i, st]) => [i, st.sets])), onChange: changeMethodSet, onComplete: saveMethodSet, media: exercisesList, snapshot, studentId, inlineRest, savedPause: active?.sessionState?.methodPauses?.[studentId]?.[block.id], onPauseChange: (pause: GroupPause | null) => saveMethodPause(block.id, pause) };
-                    if (block.indices.length === 2) return <MethodExerciseCard key={block.id} {...sharedMethodProps}
+                    if (block.indices.length === 2) return <MethodExerciseCard key={block.id} {...sharedMethodProps} onToggleVariation={toggleVariation}
                       headerActions={<Button size="sm" variant="ghost" className="h-7 gap-1 px-2 text-[10px] text-muted-foreground hover:text-primary" onClick={() => setGroupEditOpen(groupEditOpen === block.id ? null : block.id)}><Settings2 className="h-3 w-3" />{groupEditOpen === block.id ? 'Fechar edição' : 'Editar grupo'}</Button>}
                       editPanel={groupEditOpen === block.id ? <GroupEditPanel exercises={currentExercises} indices={block.indices} planOf={(idx) => state[idx]?.plan ?? []} onPatch={(idx, patch) => updateExerciseMeta(idx, patch)} onUngroup={() => ungroup(block.id)} /> : undefined} />;
                     const methodCard = seriesMethod(ex) !== 'nenhum' ? <MethodExerciseCard key={block.id} embedded {...sharedMethodProps} /> : null;
@@ -1262,6 +1306,7 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
                         onUpdateNotes={updateNotes}
                         onSaveExercise={saveExercise}
                         onPrefillSets={prefillSets}
+                        onToggleVariation={toggleVariation}
                         onStartRestTimer={setRestTimer}
                         inlineRest={inlineRest}
                         onCompleteSet={saveMethodSet}
