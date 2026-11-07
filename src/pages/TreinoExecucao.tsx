@@ -864,9 +864,11 @@ const TreinoExecucaoInner = () => {
 
   // Só vale a variação se a preferência foi carregada para o exercício da aba ativa
   // (matchedVariation já retorna null quando a preferência é de outro exercício).
-  const effectiveShowingVariation = !!matchedVariation;
-  const activeExercise = matchedVariation ?? matchedExercise;
-  const selectedExerciseName = matchedVariation && exercise?.variation ? exercise.variation : exercise?.exercise || '';
+  // A variação vale mesmo sem cadastro no banco de exercícios (aí fica sem vídeo):
+  // nome, histórico e registro são sempre da variação, como no salvamento.
+  const effectiveShowingVariation = !!exercise?.variation && showingVariation && showingVariationFor === variationPrefKey(exercise);
+  const activeExercise = effectiveShowingVariation ? matchedVariation : matchedExercise;
+  const selectedExerciseName = effectiveShowingVariation && exercise?.variation ? exercise.variation : exercise?.exercise || '';
   const currentVariationPref = exercise ? variationPrefs[variationPrefKey(exercise)] : undefined;
 
   // Carrega a preferência de variação salva por exercício ao trocar de exercício
@@ -1057,7 +1059,7 @@ const TreinoExecucaoInner = () => {
   const assumedSetValues = (setIndex: number): { weight: string; reps: string } => {
     const prevRows = lastLogsByExercise[selectedExerciseName.toUpperCase().trim()] ?? [];
     const prev = prevRows.find((row) => row.set_number === setIndex + 1);
-    const weightPh = studentWeightPlaceholder(setIndex + 1, prevRows, { kg: exercise?.targetLoadKg, note: exercise?.targetLoadNote, perSet: exercise?.targetLoadPerSet }, getRecommendationFor(progressionSnapshot, selectedExerciseName), setTypeContexts(setPlan.map((p) => p.type), selectedExerciseName)[setIndex]);
+    const weightPh = studentWeightPlaceholder(setIndex + 1, prevRows, effectiveShowingVariation ? {} : { kg: exercise?.targetLoadKg, note: exercise?.targetLoadNote, perSet: exercise?.targetLoadPerSet }, getRecommendationFor(progressionSnapshot, selectedExerciseName), setTypeContexts(setPlan.map((p) => p.type), selectedExerciseName)[setIndex]);
     const weight = weightPh !== 'kg' ? weightPh : (prev?.weight_kg != null ? String(prev.weight_kg).replace('.', ',') : '');
     const plannedReps = setPlan[setIndex]?.reps || exercise?.reps || '';
     const reps = plannedReps || (prev?.reps != null ? String(prev.reps) : '');
@@ -1143,7 +1145,8 @@ const TreinoExecucaoInner = () => {
   const currentSets = sets[currentIndex] || [];
   const previousSets = lastLogsByExercise[selectedExerciseName.toUpperCase().trim()] ?? [];
   const recommendation = getRecommendationFor(progressionSnapshot, selectedExerciseName);
-  const loadTarget = { kg: exercise?.targetLoadKg, note: exercise?.targetLoadNote, perSet: exercise?.targetLoadPerSet };
+  // Carga alvo do plano é do exercício ORIGINAL; a variação usa só o próprio histórico.
+  const loadTarget = effectiveShowingVariation ? {} : { kg: exercise?.targetLoadKg, note: exercise?.targetLoadNote, perSet: exercise?.targetLoadPerSet };
   const previousLine = lastWorkSetLine(previousSets, setPlan.map((set) => set.type));
   // Tipo de cada série: aquecimento ~50% e preparatória ~85% da carga de trabalho sugerida.
   const setTypeCtx = setTypeContexts(setPlan.map((set) => set.type), selectedExerciseName);
@@ -1166,7 +1169,7 @@ const TreinoExecucaoInner = () => {
       return next;
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentIndex, currentSets, historyLoaded, previousSets, recommendation, setPlan, selectedExerciseName, exercise?.targetLoadKg, exercise?.targetLoadPerSet]);
+  }, [currentIndex, currentSets, historyLoaded, previousSets, recommendation, setPlan, selectedExerciseName, effectiveShowingVariation, exercise?.targetLoadKg, exercise?.targetLoadPerSet]);
   const suggestionLine = studentSuggestionLine(loadTarget, recommendation, exercise?.reps ?? '');
 
   const streamVideoId = extractStreamVideoId(activeExercise?.video_embed);
