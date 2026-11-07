@@ -39,6 +39,7 @@ import { useSessionProgression } from '@/hooks/useSessionProgression';
 import { readProgressionSnapshot, type ProgressionSnapshot, getRecommendationFor } from '@/lib/sessionProgression';
 import { resolveCurrentTrainingPhase } from '@/lib/currentPhase';
 import { persistSessionDayEditsToPlan } from '@/lib/sessionPlanPersistence';
+import { kindToSetType } from '@/lib/setTypes';
 import {
   buildExerciseUids,
   makeExerciseUid,
@@ -375,7 +376,7 @@ export const DuoTrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studen
     const st = slot === 'A' ? studentA : studentB;
     const day = st?.days[st.activeDayIdx], ex = day?.exercises[exIdx];
     if (st && day && ex && sessionId && (entry.completed || entry.subRecords?.some(part => part.completed))) {
-      void import('@/lib/offlineQueue').then(({ writeWithFallback }) => writeWithFallback({ table: 'exercise_set_logs', op: 'upsert', onConflict: 'session_id,student_id,exercise_name,set_number', payload: { ...methodLogFields(ex, entry), rir: optionalRirValue(entry.rir), student_id: st.studentId, session_id: sessionId, exercise_name: normalizeExName(ex.exercise), set_number: setIdx + 1, weight_kg: Number(entry.weight.replace(',', '.')) || null, reps: Number(entry.reps) || null, set_type: st.state[exIdx]?.plan[setIdx]?.kind === 'recon' ? 'recognition' : 'work', day_name: day.day, phase: st.phase ?? null, source: 'admin' } }));
+      void import('@/lib/offlineQueue').then(({ writeWithFallback }) => writeWithFallback({ table: 'exercise_set_logs', op: 'upsert', onConflict: 'session_id,student_id,exercise_name,set_number', payload: { ...methodLogFields(ex, entry), rir: optionalRirValue(entry.rir), student_id: st.studentId, session_id: sessionId, exercise_name: normalizeExName(ex.exercise), set_number: setIdx + 1, weight_kg: Number(entry.weight.replace(',', '.')) || null, reps: Number(entry.reps) || null, set_type: kindToSetType(st.state[exIdx]?.plan[setIdx]?.kind), day_name: day.day, phase: st.phase ?? null, source: 'admin' } }));
     }
   };
   const saveMethodSet = async (slot: 'A' | 'B', exIdx: number, setIdx: number, entry: MethodSetEntry) => {
@@ -388,7 +389,7 @@ export const DuoTrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studen
       ...methodLogFields(ex, entry), rir: optionalRirValue(entry.rir), student_id: st.studentId, session_id: sessionId,
       exercise_name: normalizeExName(ex.exercise), set_number: setIdx + 1,
       weight_kg: Number(entry.weight.replace(',', '.')) || null, reps: Number(entry.reps) || null,
-      set_type: st.state[exIdx]?.plan[setIdx]?.kind === 'recon' ? 'recognition' : 'work', day_name: day.day,
+      set_type: kindToSetType(st.state[exIdx]?.plan[setIdx]?.kind), day_name: day.day,
       phase: st.phase ?? null, source: 'admin', performed_at: new Date().toISOString(),
     } });
     if (result.queued) toast.info('Registro guardado para sincronizar quando a conexão voltar.');
@@ -643,7 +644,7 @@ export const DuoTrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studen
         set_number: s.idx + 1,
         weight_kg: Number.isNaN(s.weight) ? null : s.weight,
         reps: Number.isNaN(s.reps) ? null : s.reps,
-        set_type: p?.kind === 'recon' ? 'recognition' : 'work',
+        set_type: kindToSetType(p?.kind),
         day_name: day.day,
         phase: st.phase || null,
         performed_at: new Date().toISOString(),

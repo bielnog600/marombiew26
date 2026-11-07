@@ -14,7 +14,7 @@ import { ExerciseStructureEditor } from './ExerciseStructureEditor';
 export function GroupEditPanel({ exercises, indices, planOf, onPatch, onUngroup }: {
   exercises: ParsedExercise[];
   indices: number[];
-  planOf: (exIdx: number) => { kind: 'recon' | 'work'; targetReps: string }[];
+  planOf: (exIdx: number) => { kind: import('@/lib/setTypes').SetPlanKind; targetReps: string }[];
   onPatch: (exIdx: number, patch: Partial<ParsedExercise>) => void;
   onUngroup: () => void;
 }) {
