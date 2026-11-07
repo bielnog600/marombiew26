@@ -52,6 +52,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { workoutPlanToMarkdown } from '@/lib/workoutMarkdownSerializer';
 import { useEmptyDaysConfirm } from './EmptyDaysConfirm';
 import { persistSessionDayEditsToPlan } from '@/lib/sessionPlanPersistence';
+import { isPrefillOnlySet, lastWorkSetLoad } from '@/lib/setLoadPrefill';
 import { isPreparationLogSetType, kindToSetType, SET_TYPE_BADGE_CLASS, SET_TYPE_LABEL, SET_TYPE_TAG, type SetPlanKind } from '@/lib/setTypes';
 import {
   buildExerciseUids,
@@ -333,6 +334,8 @@ export interface ExerciseState {
   lastWeight: number | null;
   lastReps: number | null;
   lastDate: string | null;
+  /** Carga da última série de TRABALHO da última sessão (pré-preenchimento). */
+  lastWorkLoad?: number | null;
   savedSets: number;
   exerciseName: string;
 }
@@ -564,7 +567,7 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
           if (!name) return;
           const { data } = await supabase
             .from('exercise_set_logs')
-            .select('weight_kg, reps, performed_at, session_id, set_type')
+            .select('weight_kg, reps, performed_at, session_id, set_type, set_number')
             .eq('student_id', studentId)
             .ilike('exercise_name', normalizeExName(name))
             .order('performed_at', { ascending: false })
@@ -583,6 +586,7 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
             initial[i].lastWeight = melhor.weight_kg;
             initial[i].lastReps = melhor.reps;
             initial[i].lastDate = melhor.performed_at;
+            initial[i].lastWorkLoad = lastWorkSetLoad(daSessao);
           }
         })
       );
@@ -606,6 +610,17 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
       copy[exIdx].sets[setIdx][field] = value;
       saveDraft(studentId, day.day, daySignature, copy, currentExercises);
       return { ...copy };
+    });
+  };
+
+  const prefillSets = (exIdx: number, apply: (sets: SetEntry[]) => SetEntry[] | null) => {
+    setState((prev) => {
+      const cur = prev[exIdx];
+      const sets = cur ? apply(cur.sets) : null;
+      if (!cur || !sets) return prev;
+      const next = { ...prev, [exIdx]: { ...cur, sets } };
+      saveDraft(studentId, day.day, daySignature, next, currentExercises);
+      return next;
     });
   };
 
@@ -996,9 +1011,10 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
     const st = state[exIdx];
     if (!ex || !st) return;
     const exerciseName = (st.exerciseName || ex.exercise || '').trim();
+    // Série só com a carga pré-preenchida (sem reps) não é registro.
     const validSets = st.sets
-      .map((s, idx) => ({ idx, weight: parseFloat(s.weight), reps: parseInt(s.reps, 10) }))
-      .filter((s) => !Number.isNaN(s.weight) || !Number.isNaN(s.reps));
+      .map((s, idx) => ({ idx, weight: parseFloat(s.weight), reps: parseInt(s.reps, 10), prefillOnly: isPrefillOnlySet(s) }))
+      .filter((s) => !s.prefillOnly && (!Number.isNaN(s.weight) || !Number.isNaN(s.reps)));
 
     if (validSets.length === 0) {
       toast.error('Preencha ao menos uma série');
@@ -1245,6 +1261,7 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
                         onUpdateSet={updateSet}
                         onUpdateNotes={updateNotes}
                         onSaveExercise={saveExercise}
+                        onPrefillSets={prefillSets}
                         onStartRestTimer={setRestTimer}
                         inlineRest={inlineRest}
                         onCompleteSet={saveMethodSet}
