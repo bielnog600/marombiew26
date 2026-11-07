@@ -40,6 +40,9 @@ import { readProgressionSnapshot, type ProgressionSnapshot, getRecommendationFor
 import { resolveCurrentTrainingPhase } from '@/lib/currentPhase';
 import { persistSessionDayEditsToPlan } from '@/lib/sessionPlanPersistence';
 import { isPrefillOnlySet, lastWorkSetLoad } from '@/lib/setLoadPrefill';
+import { adminPrefillSets } from '@/lib/adminSetLoadPrefill';
+import { restoreSessionVariation, toggleSessionVariation } from '@/lib/sessionVariation';
+import { EMPTY_LAST_LOAD, fetchExerciseLastLoad } from './exerciseLastLoad';
 import { isPreparationLogSetType, kindToSetType, SET_TYPE_BADGE_CLASS, SET_TYPE_LABEL, SET_TYPE_TAG } from '@/lib/setTypes';
 import {
   buildExerciseUids,
@@ -885,7 +888,7 @@ export const DuoTrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studen
                             {exerciseBlocks(studentA.days[studentA.activeDayIdx].exercises).map(block => {
                               const i = block.indices[0], ex = studentA.days[studentA.activeDayIdx].exercises[i];
                               if (!studentA.uids?.[i]) return null;
-                              const methodCard = (block.indices.length === 2 || seriesMethod(ex) !== 'nenhum') ? <MethodExerciseCard key={block.id} embedded={block.indices.length === 1} exercises={studentA.days[studentA.activeDayIdx].exercises} indices={block.indices} sets={Object.fromEntries(Object.entries(studentA.state).map(([i, st]) => [i, st.sets]))} onChange={(idx, setIdx, entry) => changeMethodSet('A', idx, setIdx, entry)} onComplete={(idx, setIdx, entry) => saveMethodSet('A', idx, setIdx, entry)} media={exercisesList} snapshot={snapshotA} studentId={studentA.studentId} inlineRest={inlineRestA} savedPause={active?.sessionState?.methodPauses?.[studentA.studentId]?.[block.id]} onPauseChange={pause => saveMethodPause(studentA.studentId, block.id, pause)} /> : null;
+                              const methodCard = (block.indices.length === 2 || seriesMethod(ex) !== 'nenhum') ? <MethodExerciseCard key={block.id} embedded={block.indices.length === 1} exercises={studentA.days[studentA.activeDayIdx].exercises} indices={block.indices} sets={Object.fromEntries(Object.entries(studentA.state).map(([i, st]) => [i, st.sets]))} onChange={(idx, setIdx, entry) => changeMethodSet('A', idx, setIdx, entry)} onComplete={(idx, setIdx, entry) => saveMethodSet('A', idx, setIdx, entry)} media={exercisesList} snapshot={snapshotA} studentId={studentA.studentId} inlineRest={inlineRestA} savedPause={active?.sessionState?.methodPauses?.[studentA.studentId]?.[block.id]} onPauseChange={pause => saveMethodPause(studentA.studentId, block.id, pause)} onToggleVariation={block.indices.length === 2 ? (idx) => toggleVariation('A', idx) : undefined} /> : null;
                               if (methodCard && block.indices.length === 2) return methodCard;
                               return (
                               <SortableExerciseRow key={studentA.uids[i]} id={studentA.uids[i]} position={i + 1}>
@@ -899,6 +902,7 @@ export const DuoTrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studen
                                   onUpdateNotes={(idx, v) => updateNotes('A', idx, v)}
                                   onSaveExercise={(idx) => saveExerciseImpl('A', idx)}
                                   onPrefillSets={(idx, apply) => prefillSets('A', idx, apply)}
+                                  onToggleVariation={(idx) => toggleVariation('A', idx)}
                                   onStartRestTimer={startRestFor('A')}
                                   inlineRest={inlineRestA}
                                   onCompleteSet={(idx, setIdx, entry) => saveMethodSet('A', idx, setIdx, entry)}
@@ -994,7 +998,7 @@ export const DuoTrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studen
                             {exerciseBlocks(studentB.days[studentB.activeDayIdx].exercises).map(block => {
                               const i = block.indices[0], ex = studentB.days[studentB.activeDayIdx].exercises[i];
                               if (!studentB.uids?.[i]) return null;
-                              const methodCard = (block.indices.length === 2 || seriesMethod(ex) !== 'nenhum') ? <MethodExerciseCard key={block.id} embedded={block.indices.length === 1} exercises={studentB.days[studentB.activeDayIdx].exercises} indices={block.indices} sets={Object.fromEntries(Object.entries(studentB.state).map(([i, st]) => [i, st.sets]))} onChange={(idx, setIdx, entry) => changeMethodSet('B', idx, setIdx, entry)} onComplete={(idx, setIdx, entry) => saveMethodSet('B', idx, setIdx, entry)} media={exercisesList} snapshot={snapshotB} studentId={studentB.studentId} inlineRest={inlineRestB} savedPause={active?.sessionState?.methodPauses?.[studentB.studentId]?.[block.id]} onPauseChange={pause => saveMethodPause(studentB.studentId, block.id, pause)} /> : null;
+                              const methodCard = (block.indices.length === 2 || seriesMethod(ex) !== 'nenhum') ? <MethodExerciseCard key={block.id} embedded={block.indices.length === 1} exercises={studentB.days[studentB.activeDayIdx].exercises} indices={block.indices} sets={Object.fromEntries(Object.entries(studentB.state).map(([i, st]) => [i, st.sets]))} onChange={(idx, setIdx, entry) => changeMethodSet('B', idx, setIdx, entry)} onComplete={(idx, setIdx, entry) => saveMethodSet('B', idx, setIdx, entry)} media={exercisesList} snapshot={snapshotB} studentId={studentB.studentId} inlineRest={inlineRestB} savedPause={active?.sessionState?.methodPauses?.[studentB.studentId]?.[block.id]} onPauseChange={pause => saveMethodPause(studentB.studentId, block.id, pause)} onToggleVariation={block.indices.length === 2 ? (idx) => toggleVariation('B', idx) : undefined} /> : null;
                               if (methodCard && block.indices.length === 2) return methodCard;
                               return (
                               <SortableExerciseRow key={studentB.uids[i]} id={studentB.uids[i]} position={i + 1}>
@@ -1008,6 +1012,7 @@ export const DuoTrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studen
                                   onUpdateNotes={(idx, v) => updateNotes('B', idx, v)}
                                   onSaveExercise={(idx) => saveExerciseImpl('B', idx)}
                                   onPrefillSets={(idx, apply) => prefillSets('B', idx, apply)}
+                                  onToggleVariation={(idx) => toggleVariation('B', idx)}
                                   onStartRestTimer={startRestFor('B')}
                                   inlineRest={inlineRestB}
                                   onCompleteSet={(idx, setIdx, entry) => saveMethodSet('B', idx, setIdx, entry)}
