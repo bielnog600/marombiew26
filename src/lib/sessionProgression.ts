@@ -34,7 +34,7 @@ import { normalizeExerciseKey, type IncrementSource } from './loadIncrement';
 import type { TrainingPhase } from './trainingPhase';
 import type { ParsedExercise } from './trainingResultParser';
 import { buildSetPlan } from './setPlanBuilder';
-import { normalizePlanSetType } from './setTypes';
+import { normalizePlanSetType, SET_TYPE_LABEL, suggestedLoadForSetType } from './setTypes';
 
 export const buildPrescribedWorkSets = (ex: ParsedExercise) => buildSetPlan(ex.series, ex.series2, ex.reps, ex.setScheme)
   .flatMap((s, i) => s.type === 'work' ? [{ setNumber: i + 1, reps: s.reps.includes('/') ? s.reps.split('/')[i]?.trim() ?? s.reps : s.reps }] : []);
@@ -54,6 +54,8 @@ export interface SessionRecommendation {
   targetReps: number | null;
   workingSetTargets: number[] | null;
   seriesTargets?: QuantitativeRecommendation["seriesTargets"];
+  /** true = pirâmide/metas por série; ausente/false = mesma carga em todas as séries de trabalho. */
+  perSetLoads?: boolean;
   repRange: RepRange | null;
   confidence: RecommendationConfidence;
   incrementKg: number | null;
@@ -452,6 +454,7 @@ export const buildSessionProgressionRecommendations = (
       targetReps: quant.targetReps,
       workingSetTargets: quant.workingSetTargets,
       seriesTargets: quant.seriesTargets,
+      perSetLoads: quant.perSetLoads,
       repRange: quant.repRange,
       confidence: quant.confidence,
       incrementKg: quant.incrementKg,
@@ -570,9 +573,50 @@ export interface SessionHint {
   note?: string;
 }
 
+/** Tipos de série do plano de HOJE (para citar aquecimento/preparatória no texto). */
+export interface SessionHintContext {
+  setTypes?: Array<string | null | undefined>;
+  exerciseName?: string | null;
+}
+
+const positiveKg = (v: number | null | undefined) => (typeof v === 'number' && Number.isFinite(v) && v > 0 ? v : null);
+
+/**
+ * Texto de esquema uniforme: UMA carga para todas as séries de Trabalho, decidida
+ * sobre as séries de referência (maior carga) — nunca série a série por posição.
+ * Snapshots antigos podem trazer a série leve antiga; ela é ignorada aqui.
+ */
+const formatUniformWorkHint = (r: SessionRecommendation, ctx?: SessionHintContext): string | null => {
+  const workKg = positiveKg(r.recommendedLoadKg) ?? positiveKg(r.currentLoadKg);
+  const all = r.seriesTargets ?? [];
+  const ref = r.currentLoadKg != null ? all.filter((s) => s.currentLoadKg === r.currentLoadKg) : all;
+  const list = ref.length ? ref : all;
+  if (!list.length) return null;
+  const min = Math.min(...list.map((s) => s.targetReps));
+  const max = Math.max(...list.map((s) => s.targetReps));
+  const reps = min === max ? String(min) : `${min}–${max}`;
+  const work = workKg == null
+    ? `busca ${reps} reps`
+    : r.action === 'increase_load'
+      ? `sobe para ${kg(workKg)} kg e busca ${reps} reps limpas`
+      : r.action === 'reduce_load'
+        ? `reduz para ${kg(workKg)} kg e tenta ${reps} reps`
+        : `mantém ${kg(workKg)} kg e tenta ${reps} reps`;
+  const extras: string[] = [];
+  const seen = new Set<string>();
+  for (const raw of ctx?.setTypes ?? []) {
+    const t = normalizePlanSetType(raw);
+    if (t === 'work' || seen.has(t)) continue;
+    seen.add(t);
+    const load = suggestedLoadForSetType(workKg, t, ctx?.exerciseName ?? r.exerciseName);
+    if (load != null) extras.push(`${SET_TYPE_LABEL[t]} ${kg(load)} kg`);
+  }
+  return [`Trabalho: ${work}`, ...extras].join(' · ');
+};
+
 /** Texto curto da sugestão. Retorna null quando não há nada útil a mostrar. */
-export const formatSessionHint = (r: SessionRecommendation | null): SessionHint | null => {
-  const hint = formatSessionHintBase(r);
+export const formatSessionHint = (r: SessionRecommendation | null, ctx?: SessionHintContext): SessionHint | null => {
+  const hint = formatSessionHintBase(r, ctx);
   if (!hint || !r) return hint;
   const notas: string[] = [];
   if (r.ignoredOutliersKg && r.ignoredOutliersKg.length > 0) {
@@ -581,7 +625,7 @@ export const formatSessionHint = (r: SessionRecommendation | null): SessionHint 
   return notas.length ? { ...hint, note: notas.join(' ') } : hint;
 };
 
-const formatSessionHintBase = (r: SessionRecommendation | null): SessionHint | null => {
+const formatSessionHintBase = (r: SessionRecommendation | null, ctx?: SessionHintContext): SessionHint | null => {
   if (!r) return null;
   const estimated = r.incrementSource === 'inferred_history';
   const label = SESSION_ACTION_LABEL[r.action] ?? 'Sugestão';
@@ -591,7 +635,10 @@ const formatSessionHintBase = (r: SessionRecommendation | null): SessionHint | n
 
   if (r.action === 'review') return { label: 'Sugestão', estimated: false, text: `Escolha uma carga para fazer ${range ?? 'as'} reps com 2 de reserva.` };
   if (r.basis === 'deload_sem_sobrecarga') return { label, estimated, text: `Mantém ${r.currentLoadKg ?? ''} kg — recuperação, sem subir carga.` };
-  if (r.seriesTargets?.length) return { label, estimated, text: formatQuantitativeRecommendation({ ...r, totalRepsTarget: null, relativeChangePct: null }) };
+  if (r.seriesTargets?.length) {
+    const uniform = !r.perSetLoads ? formatUniformWorkHint(r, ctx) : null;
+    return { label, estimated, text: uniform ?? formatQuantitativeRecommendation({ ...r, totalRepsTarget: null, relativeChangePct: null }) };
+  }
 
   if (r.action === 'manual_increment_required') {
     return {

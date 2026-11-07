@@ -39,7 +39,7 @@ import { useSessionProgression } from '@/hooks/useSessionProgression';
 import { readProgressionSnapshot, type ProgressionSnapshot, getRecommendationFor } from '@/lib/sessionProgression';
 import { resolveCurrentTrainingPhase } from '@/lib/currentPhase';
 import { persistSessionDayEditsToPlan } from '@/lib/sessionPlanPersistence';
-import { isPrefillOnlySet, lastWorkSetLoad } from '@/lib/setLoadPrefill';
+import { isPrefillOnlySet } from '@/lib/setLoadPrefill';
 import { adminPrefillSets } from '@/lib/adminSetLoadPrefill';
 import { restoreSessionVariation, toggleSessionVariation } from '@/lib/sessionVariation';
 import { EMPTY_LAST_LOAD, fetchExerciseLastLoad } from './exerciseLastLoad';

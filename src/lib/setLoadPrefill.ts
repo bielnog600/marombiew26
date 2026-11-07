@@ -55,6 +55,21 @@ export const lastWorkSetLoad = (rows: WorkLogRow[] | null | undefined): number |
   return best ? positive(best.weight_kg) : null;
 };
 
+/**
+ * Carga de TRABALHO de referência da última sessão: a MAIOR carga entre as
+ * séries de trabalho (set_type nulo = legado = trabalho). Uma série leve gravada
+ * como trabalho (rampa) nunca vira a referência, e todas as séries de trabalho
+ * de hoje recebem esta mesma carga — nada é casado por posição.
+ */
+export const referenceWorkSetLoad = (rows: WorkLogRow[] | null | undefined): number | null => {
+  let best: number | null = null;
+  for (const r of rows ?? []) {
+    const kg = isWorkLogSetType(r.set_type) ? positive(r.weight_kg) : null;
+    if (kg != null && (best == null || kg > best)) best = kg;
+  }
+  return best;
+};
+
 /** Aluno digita com vírgula (campo texto); admin usa campo numérico (ponto). */
 export type LoadFormat = 'comma' | 'dot';
 export const formatPrefillKg = (kg: number, format: LoadFormat): string =>

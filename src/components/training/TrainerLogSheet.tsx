@@ -52,7 +52,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { workoutPlanToMarkdown } from '@/lib/workoutMarkdownSerializer';
 import { useEmptyDaysConfirm } from './EmptyDaysConfirm';
 import { persistSessionDayEditsToPlan } from '@/lib/sessionPlanPersistence';
-import { isPrefillOnlySet, lastWorkSetLoad } from '@/lib/setLoadPrefill';
+import { isPrefillOnlySet, referenceWorkSetLoad } from '@/lib/setLoadPrefill';
 import { adminPrefillSets } from '@/lib/adminSetLoadPrefill';
 import { toggleSessionVariation } from '@/lib/sessionVariation';
 import { EMPTY_LAST_LOAD, fetchExerciseLastLoad } from './exerciseLastLoad';
@@ -589,7 +589,7 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
             initial[i].lastWeight = melhor.weight_kg;
             initial[i].lastReps = melhor.reps;
             initial[i].lastDate = melhor.performed_at;
-            initial[i].lastWorkLoad = lastWorkSetLoad(daSessao);
+            initial[i].lastWorkLoad = referenceWorkSetLoad(daSessao);
           }
         })
       );

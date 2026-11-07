@@ -1,6 +1,6 @@
 import { formatSessionHint, formatTargetLoadHint, normalizeTargetLoadPerSet, targetLoadForSet, type SessionRecommendation } from './sessionProgression';
 import { isWorkLogSetType, normalizePlanSetType, suggestedLoadForSetType, type PlanSetType } from './setTypes';
-import { lastWorkSetLoad } from './setLoadPrefill';
+import { referenceWorkSetLoad } from './setLoadPrefill';
 
 export interface PreviousExerciseSet {
   set_number: number;
@@ -34,9 +34,29 @@ export interface SetTypeContext {
 }
 
 /**
+ * Carga da sugestão para uma série de TRABALHO. Esquema uniforme: a mesma carga
+ * (a da recomendação, decidida sobre as séries de referência) em todas as séries
+ * de trabalho — nunca casada por posição com a sessão anterior. Pirâmide/metas
+ * por série (`perSetLoads`): carga da série correspondente.
+ */
+export const workSetRecommendedLoad = (
+  recommendation: SessionRecommendation | null, workOrdinal?: number, setNumber?: number,
+): number | null => {
+  if (!recommendation) return null;
+  if (recommendation.perSetLoads) {
+    const targets = [...(recommendation.seriesTargets ?? [])].sort((a, b) => a.setNumber - b.setNumber);
+    const own = workOrdinal != null ? targets[workOrdinal] : targets.find((s) => s.setNumber === setNumber);
+    return positive(own?.recommendedLoadKg) ?? recommendationLoad(recommendation);
+  }
+  const seriesMax = (recommendation.seriesTargets ?? [])
+    .map((s) => positive(s.recommendedLoadKg)).filter((v): v is number => v != null);
+  return recommendationLoad(recommendation) ?? (seriesMax.length ? Math.max(...seriesMax) : null);
+};
+
+/**
  * Carga de TRABALHO sugerida (base para aquecimento/preparatória): alvo manual
- * global → maior alvo por série do motor → carga da recomendação → carga da
- * ÚLTIMA série de trabalho da última sessão. Nunca usa aquecimento/preparatória.
+ * global → carga de trabalho da recomendação (pirâmide: maior alvo por série) →
+ * MAIOR carga de trabalho da última sessão. Nunca usa aquecimento/preparatória.
  */
 export const suggestedWorkLoad = (
   previous: PreviousExerciseSet[], target: StudentLoadTarget, recommendation: SessionRecommendation | null,
@@ -44,9 +64,9 @@ export const suggestedWorkLoad = (
   const seriesMax = (recommendation?.seriesTargets ?? [])
     .map((s) => positive(s.recommendedLoadKg)).filter((v): v is number => v != null);
   return positive(target.kg)
-    ?? (seriesMax.length ? Math.max(...seriesMax) : null)
-    ?? recommendationLoad(recommendation)
-    ?? lastWorkSetLoad(previous);
+    ?? (recommendation?.perSetLoads && seriesMax.length ? Math.max(...seriesMax) : null)
+    ?? workSetRecommendedLoad(recommendation)
+    ?? referenceWorkSetLoad(previous);
 };
 
 /**
@@ -66,13 +86,9 @@ export const suggestedSetLoadKg = (
     return suggestedLoadForSetType(suggestedWorkLoad(previous, target, recommendation), type, ctx?.exerciseName)
       ?? positive(previous.find((row) => row.set_number === setNumber && normalizePlanSetType(row.set_type) === type)?.weight_kg);
   }
-  const perSetRecommendation = ctx?.workOrdinal != null
-    ? [...(recommendation?.seriesTargets ?? [])].sort((a, b) => a.setNumber - b.setNumber)[ctx.workOrdinal]?.recommendedLoadKg
-    : recommendation?.seriesTargets?.find((s) => s.setNumber === setNumber)?.recommendedLoadKg;
   return positive(target.kg)
-    ?? positive(perSetRecommendation)
-    ?? recommendationLoad(recommendation)
-    ?? lastWorkSetLoad(previous);
+    ?? workSetRecommendedLoad(recommendation, ctx?.workOrdinal, setNumber)
+    ?? referenceWorkSetLoad(previous);
 };
 
 /** Texto do placeholder (quando o campo está vazio). */
@@ -119,10 +135,13 @@ export const lastWorkSetLine = (previous: PreviousExerciseSet[], plannedTypes: s
   return `Última vez: ${kgText(best.weight_kg)} kg × ${best.reps} · ${date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}`;
 };
 
-export const studentSuggestionLine = (target: StudentLoadTarget, recommendation: SessionRecommendation | null, reps: string): string | null => {
+export const studentSuggestionLine = (
+  target: StudentLoadTarget, recommendation: SessionRecommendation | null, reps: string,
+  setTypes?: Array<string | null | undefined>, exerciseName?: string | null,
+): string | null => {
   const manual = formatTargetLoadHint(target.kg, target.note, target.perSet);
   if (manual && normalizeTargetLoadPerSet(target.perSet)) return `Carga alvo: ${manual.text}`;
-  if (!manual && recommendation?.seriesTargets) return `Sugestão: ${formatSessionHint(recommendation)?.text ?? ""}`;
+  if (!manual && recommendation?.seriesTargets) return `Sugestão: ${formatSessionHint(recommendation, { setTypes, exerciseName })?.text ?? ""}`;
   const load = positive(target.kg) ?? recommendationLoad(recommendation);
   const hint = manual ?? formatSessionHint(recommendation);
   if (!hint) return null;
