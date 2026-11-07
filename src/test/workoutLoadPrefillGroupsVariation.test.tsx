@@ -72,14 +72,14 @@ import TreinoExecucao from '@/pages/TreinoExecucao';
 beforeEach(() => { HTMLElement.prototype.scrollIntoView = vi.fn(); });
 afterEach(() => { cleanup(); localStorage.clear(); mock.updates.length = 0; mock.currentIndex = 0; });
 
-const weights = () => screen.getAllByRole('textbox').filter((el) => (el as HTMLInputElement).inputMode === 'decimal').map((el) => (el as HTMLInputElement).value);
+const weights = () => Array.from(document.querySelectorAll<HTMLInputElement>('input[inputmode="decimal"]')).map((el) => el.value);
 
 describe('student load prefill — bi-set and variation', () => {
   it('prefills each exercise of a bi-set with its own last work load', async () => {
     render(<TreinoExecucao />);
     await screen.findByText('SUPINO RETO', { selector: 'h1' });
     await waitFor(() => expect(weights()).toEqual(['40', '40']));
-    fireEvent.click(screen.getByRole('tab', { name: /CRUCIFIXO/ }));
+    fireEvent.click(screen.getAllByText(/CRUCIFIXO/)[0]);
     await screen.findByText('CRUCIFIXO', { selector: 'h1' });
     await waitFor(() => expect(weights()).toEqual(['14', '14']));
   });
@@ -89,10 +89,10 @@ describe('student load prefill — bi-set and variation', () => {
     render(<TreinoExecucao />);
     await screen.findByText('HACK MACHINE', { selector: 'h1' });
     await waitFor(() => expect(weights()).toEqual(['120', '120']));
-    fireEvent.click(screen.getByRole('button', { name: 'Variação' }));
+    fireEvent.click(screen.getByText('Variação', { selector: 'button' }));
     await screen.findByText('AGACHAMENTO LIVRE', { selector: 'h1' });
     await waitFor(() => expect(weights()).toEqual(['60', '60']));
-    fireEvent.click(screen.getByRole('button', { name: 'Original' }));
+    fireEvent.click(screen.getByText('Original', { selector: 'button' }));
     await screen.findByText('HACK MACHINE', { selector: 'h1' });
     await waitFor(() => expect(weights()).toEqual(['120', '120']));
   });
@@ -102,7 +102,7 @@ describe('student load prefill — bi-set and variation', () => {
     render(<TreinoExecucao />);
     await screen.findByText('LEG PRESS', { selector: 'h1' });
     await waitFor(() => expect(weights()).toEqual(['200', '200']));
-    fireEvent.click(screen.getByRole('button', { name: 'Variação' }));
+    fireEvent.click(screen.getByText('Variação', { selector: 'button' }));
     await screen.findByText('LEG PRESS HORIZONTAL', { selector: 'h1' });
     await waitFor(() => expect(weights()).toEqual(['', '']));
   });
