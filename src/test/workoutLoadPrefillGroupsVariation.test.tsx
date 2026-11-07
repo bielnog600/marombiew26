@@ -120,13 +120,13 @@ describe('student rest by set type', () => {
     await screen.findByText('AGACHAMENTO SMITH', { selector: 'h1' });
     fireEvent.click(screen.getByLabelText('Confirmar série 1'));
     await screen.findByText(/Descanso · Aquecimento 1 min/);
-    expect(screen.getByRole('timer').textContent).toBe('1:00');
+    expect(document.querySelector('[data-testid="inline-rest"] [role="timer"]')?.textContent).toBe('1:00');
     fireEvent.click(screen.getByLabelText('Confirmar série 2'));
     await screen.findByText(/Descanso · Preparatória 2 min/);
-    expect(screen.getByRole('timer').textContent).toBe('2:00');
+    expect(document.querySelector('[data-testid="inline-rest"] [role="timer"]')?.textContent).toBe('2:00');
     fireEvent.click(screen.getByLabelText('Confirmar série 3'));
     await screen.findByText(/Descanso · Trabalho 3 min/);
-    expect(screen.getByRole('timer').textContent).toBe('3:00');
+    expect(document.querySelector('[data-testid="inline-rest"] [role="timer"]')?.textContent).toBe('3:00');
   });
 
   it('exercise without set types keeps the plan pause, with no type label', async () => {
@@ -135,7 +135,7 @@ describe('student rest by set type', () => {
     await screen.findByText('LEG PRESS', { selector: 'h1' });
     fireEvent.click(screen.getByLabelText('Confirmar série 1'));
     await screen.findByText('DESCANSO');
-    expect(screen.getByRole('timer').textContent).toBe('1:00');
+    expect(document.querySelector('[data-testid="inline-rest"] [role="timer"]')?.textContent).toBe('1:00');
     expect(screen.queryByText(/Descanso · /)).toBeNull();
   });
 });
