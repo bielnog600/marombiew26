@@ -9,6 +9,7 @@ import {
 } from '@/lib/workoutSchema';
 import { workoutPlanToMarkdown } from '@/lib/workoutMarkdownSerializer';
 import { kindToSetType, normalizePlanSetType, type SetPlanKind } from '@/lib/setTypes';
+import { planViewOfExercise, type SessionExercise } from '@/lib/sessionVariation';
 import {
   recordWorkoutPrescriptionEdit,
   type PrescriptionContextInput,
@@ -67,6 +68,12 @@ export interface PersistDayEditsInput {
   studentId?: string | null;
   /** Contexto adicional congelado no momento do save. */
   editContext?: PrescriptionContextInput;
+  /**
+   * Troca para a variação feita na sessão: por padrão o plano mantém o
+   * original (finalizar/salvar sequência). Só "Salvar no plano do aluno" passa
+   * `true` e grava a variação como exercício (o original vira a variação).
+   */
+  keepSessionVariations?: boolean;
 }
 
 
@@ -78,7 +85,16 @@ export type PersistDayEditsResult =
 export const persistSessionDayEditsToPlan = async (
   input: PersistDayEditsInput,
 ): Promise<PersistDayEditsResult> => {
-  const { planId, dayName, dayIndex, exercises, states = {}, fallbackDays = [], studentId, editContext } = input;
+  const { planId, dayName, dayIndex, states = {}, fallbackDays = [], studentId, editContext, keepSessionVariations = false } = input;
+  // Troca de variação só da sessão volta ao original (nome registrado também).
+  const restored = new Set<number>();
+  const exercises = input.exercises.map((ex, i) => {
+    const swapped = ex as SessionExercise;
+    if (!swapped.sessionVariation) return ex;
+    if (keepSessionVariations) return ex;
+    restored.add(i);
+    return planViewOfExercise(swapped);
+  });
   if (!planId) return { success: true, updated: false, reason: 'sem_plano' };
   if (!dayName) return { success: true, updated: false, reason: 'sem_dia' };
 
@@ -132,7 +148,9 @@ export const persistSessionDayEditsToPlan = async (
       : null;
     const series = typedScheme ? String(setPlan.length) : reconCount > 0 ? String(reconCount) : String(totalCount || ex.series || '');
     const series2 = typedScheme ? '' : reconCount > 0 ? String(workCount) : ex.series2 || '';
-    const name = (st?.exerciseName || ex.exercise || '').trim();
+    const name = ((restored.has(i) ? ex.exercise : st?.exerciseName || ex.exercise) || '').trim();
+    // Variação gravada no plano por escolha do admin: a carga alvo era do original.
+    const keptVariation = !!(ex as SessionExercise).sessionVariation;
 
     // Identidade: casa pelo `id` do slot quando disponível (plano v2).
     // Só cai para nome/índice em planos legacy sem id.
@@ -165,9 +183,9 @@ export const persistSessionDayEditsToPlan = async (
       setScheme: typedScheme ?? ex.setScheme ?? (sameName ? prevEx?.setScheme : undefined),
       method: ex.method, metodo: ex.metodo, metodo_params: ex.metodo_params,
       grupo_id: ex.grupo_id, tipo_grupo: ex.tipo_grupo, ordem_grupo: ex.ordem_grupo, pausa_grupo_s: ex.pausa_grupo_s,
-      targetLoadKg: ex.targetLoadKg ?? prevEx?.targetLoadKg,
-      targetLoadNote: ex.targetLoadNote ?? prevEx?.targetLoadNote,
-      targetLoadPerSet: ex.targetLoadPerSet ?? prevEx?.targetLoadPerSet,
+      targetLoadKg: keptVariation ? undefined : ex.targetLoadKg ?? prevEx?.targetLoadKg,
+      targetLoadNote: keptVariation ? undefined : ex.targetLoadNote ?? prevEx?.targetLoadNote,
+      targetLoadPerSet: keptVariation ? undefined : ex.targetLoadPerSet ?? prevEx?.targetLoadPerSet,
     };
   }).filter((e) => e.exercise.length > 0);
 
