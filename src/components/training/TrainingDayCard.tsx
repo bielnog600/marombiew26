@@ -26,7 +26,24 @@ import { useParams } from 'react-router-dom';
 // ===== Quick-pick options for structured editing (compartilhadas com o escritório) =====
 import { REC_SERIES_OPTS, REC_REPS_OPTS, WORK_SERIES_OPTS, WORK_REPS_OPTS, RIR_OPTS, PAUSE_OPTS } from '@/lib/workoutEditorOptions';
 
-type StructureMode = 'standard' | 'recognition' | 'per_set';
+import {
+  buildWarmupPrepWorkSets, hasTypedSets, normalizePlanSetType, PLAN_SET_TYPES, SET_TYPE_LABEL, SET_TYPE_TEXT_CLASS,
+  typedSetsSummary, type PlanSetType,
+} from '@/lib/setTypes';
+import { seriesDeTrabalho } from '@/lib/officeWizard/treinoAnalysis';
+
+/** `warmup_prep_work` é um atalho: cria as linhas por série (aquecimento + preparatória + trabalho). */
+type StructureMode = 'standard' | 'recognition' | 'per_set' | 'warmup_prep_work';
+
+/** Séries de trabalho atuais do exercício (para montar o atalho). */
+const currentWorkSetCount = (ex: ParsedExercise): number => {
+  if (ex.setScheme?.mode === 'per_set' && ex.setScheme.sets.length) {
+    return ex.setScheme.sets.filter((s) => normalizePlanSetType(s.set_type) === 'work').length || 1;
+  }
+  const s1 = parseInt(ex.series || '0', 10) || 0;
+  const s2 = parseInt(ex.series2 || '0', 10) || 0;
+  return (s1 > 0 && s2 > 0 ? s2 : s1 || s2) || 2;
+};
 
 const isCompositeReps = (reps: string) => reps.includes('+');
 
@@ -380,17 +397,21 @@ const TrainingDayCard: React.FC<TrainingDayCardProps> = ({ day, index, onCopy, e
           alert(`Defina as repetições das ${ex.setScheme.sets.length} séries de "${ex.exercise || 'exercício sem nome'}".`);
           return;
         }
-        const expected = parseInt(ex.series || '0', 10) || ex.setScheme.sets.length;
-        if (expected !== ex.setScheme.sets.length) {
-          // eslint-disable-next-line no-alert
-          alert(`Número de séries (${expected}) diferente do número de metas (${ex.setScheme.sets.length}) em "${ex.exercise || 'exercício'}".`);
-          return;
-        }
       }
     }
+    // Séries = todas as linhas por série (qualquer tipo). Divergência é corrigida
+    // automaticamente e apenas avisada — nunca bloqueia o salvamento.
+    const mismatched = localExercises.filter((ex) => ex.setScheme?.mode === 'per_set'
+      && (parseInt(ex.series || '0', 10) || ex.setScheme.sets.length) !== ex.setScheme.sets.length);
+    if (mismatched.length) {
+      toast.warning(`Número de séries ajustado ao número de metas em ${mismatched.map((ex) => `"${ex.exercise || 'exercício'}"`).join(', ')}.`);
+    }
+    const committed = localExercises.map((ex) => ex.setScheme?.mode === 'per_set' && ex.setScheme.sets.length
+      ? { ...ex, series: String(ex.setScheme.sets.length) }
+      : ex);
     setEditing(false);
     if (onDayChange) {
-      onDayChange({ ...day, exercises: localExercises });
+      onDayChange({ ...day, exercises: committed });
     }
   };
 
@@ -473,7 +494,13 @@ const TrainingDayCard: React.FC<TrainingDayCardProps> = ({ day, index, onCopy, e
     setLocalExercises((prev) => {
       const copy = [...prev];
       const ex = { ...copy[exIndex] };
-      if (mode === 'per_set') {
+      if (mode === 'warmup_prep_work') {
+        const sets = buildWarmupPrepWorkSets({ warmup: true, workSets: currentWorkSetCount(ex) });
+        ex.setScheme = { mode: 'per_set', sets };
+        ex.series = String(sets.length);
+        ex.series2 = '';
+        ex.reps = sets.map((x) => x.target_reps).join(' / ');
+      } else if (mode === 'per_set') {
         // Initialize per-set from current series count / reps if not already set
         const currentPerSet = ex.setScheme?.mode === 'per_set' ? ex.setScheme.sets : null;
         if (!currentPerSet) {
@@ -536,6 +563,33 @@ const TrainingDayCard: React.FC<TrainingDayCardProps> = ({ day, index, onCopy, e
       ex.setScheme = { mode: 'per_set', sets };
       ex.series = String(sets.length);
       ex.reps = sets.map((s) => s.target_reps).join(' / ');
+      copy[exIndex] = ex;
+      return copy;
+    });
+  };
+
+  const updatePerSetType = (exIndex: number, setIdx: number, type: PlanSetType) => {
+    setLocalExercises((prev) => {
+      const copy = [...prev];
+      const ex = { ...copy[exIndex] };
+      if (ex.setScheme?.mode !== 'per_set') return copy;
+      const sets = ex.setScheme.sets.map((s, i) => (i === setIdx ? { ...s, set_type: type } : s));
+      ex.setScheme = { mode: 'per_set', sets };
+      copy[exIndex] = ex;
+      return copy;
+    });
+  };
+
+  /** Atalho dentro do modo por série: com ou sem a linha de aquecimento. */
+  const applyWarmupTemplate = (exIndex: number, warmup: boolean) => {
+    setLocalExercises((prev) => {
+      const copy = [...prev];
+      const ex = { ...copy[exIndex] };
+      const sets = buildWarmupPrepWorkSets({ warmup, workSets: currentWorkSetCount(ex) });
+      ex.setScheme = { mode: 'per_set', sets };
+      ex.series = String(sets.length);
+      ex.series2 = '';
+      ex.reps = sets.map((x) => x.target_reps).join(' / ');
       copy[exIndex] = ex;
       return copy;
     });
@@ -740,6 +794,7 @@ const TrainingDayCard: React.FC<TrainingDayCardProps> = ({ day, index, onCopy, e
                             <SelectItem value="standard" className="text-xs">Padrão</SelectItem>
                             <SelectItem value="recognition" className="text-xs">Reconhecimento + trabalho</SelectItem>
                             <SelectItem value="per_set" className="text-xs">Repetições por série</SelectItem>
+                            <SelectItem value="warmup_prep_work" className="text-xs">Aquecimento + preparatória + trabalho</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
@@ -747,10 +802,25 @@ const TrainingDayCard: React.FC<TrainingDayCardProps> = ({ day, index, onCopy, e
 
                       {mode === 'per_set' ? (
                         <div className="space-y-2">
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <span className="text-[10px] text-muted-foreground uppercase tracking-wide">Atalho:</span>
+                            <Button type="button" variant="outline" size="sm" className="h-6 px-2 text-[11px]" onClick={() => applyWarmupTemplate(exIndex, true)}>Aquec. + prep. + trabalho</Button>
+                            <Button type="button" variant="outline" size="sm" className="h-6 px-2 text-[11px]" onClick={() => applyWarmupTemplate(exIndex, false)}>Prep. + trabalho</Button>
+                          </div>
                           <div className="space-y-1.5">
                             {(ex.setScheme?.sets ?? []).map((s, sIdx) => (
                               <div key={sIdx} className="flex items-center gap-2">
-                                <span className="text-[10px] font-bold uppercase text-muted-foreground w-14 shrink-0">Série {sIdx + 1}</span>
+                                <span className="text-[10px] font-bold uppercase text-muted-foreground w-12 shrink-0">Série {sIdx + 1}</span>
+                                <Select value={normalizePlanSetType(s.set_type)} onValueChange={(v) => updatePerSetType(exIndex, sIdx, v as PlanSetType)}>
+                                  <SelectTrigger aria-label={`Tipo da série ${sIdx + 1}`} className={`h-7 text-xs w-[124px] px-2 shrink-0 font-semibold ${SET_TYPE_TEXT_CLASS[normalizePlanSetType(s.set_type)]}`}>
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {PLAN_SET_TYPES.map((t) => (
+                                      <SelectItem key={t} value={t} className={`text-xs ${SET_TYPE_TEXT_CLASS[t]}`}>{SET_TYPE_LABEL[t]}</SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
                                 <Textarea
                                   value={s.target_reps}
                                   onChange={(e) => updatePerSetReps(exIndex, sIdx, e.target.value)}
@@ -785,7 +855,9 @@ const TrainingDayCard: React.FC<TrainingDayCardProps> = ({ day, index, onCopy, e
                             </div>
                           </div>
                           <p className="text-[10px] text-muted-foreground">
-                            Markdown: <span className="font-mono text-foreground">{(ex.setScheme?.sets.length ?? 0)} × ({(ex.setScheme?.sets ?? []).map((s) => s.target_reps || '?').join(' / ')})</span>
+                            {hasTypedSets(ex.setScheme?.sets)
+                              ? <>Resumo: <span className="font-mono text-foreground">{typedSetsSummary(ex.setScheme?.sets)}</span></>
+                              : <>Markdown: <span className="font-mono text-foreground">{(ex.setScheme?.sets.length ?? 0)} × ({(ex.setScheme?.sets ?? []).map((s) => s.target_reps || '?').join(' / ')})</span></>}
                           </p>
                         </div>
                       ) : mode === 'standard' ? (
@@ -909,7 +981,7 @@ const TrainingDayCard: React.FC<TrainingDayCardProps> = ({ day, index, onCopy, e
                     <TableCell className="px-2 py-2 align-middle">
                       <ExerciseThumb name={ex.exercise} catalog={exerciseCatalog} />
                     </TableCell>
-                    <TableCell className="px-3 py-2 font-medium align-top">{ex.exercise}{executionSummary(ex) && <p className="mt-1 text-[10px] text-primary">{executionSummary(ex)}</p>}</TableCell>
+                    <TableCell className="px-3 py-2 font-medium align-top">{ex.exercise}{executionSummary(ex) && <p className="mt-1 text-[10px] text-primary">{executionSummary(ex)}</p>}{ex.setScheme?.mode === 'per_set' && hasTypedSets(ex.setScheme.sets) && <p className="mt-1 text-[10px] text-muted-foreground" data-testid="typed-sets-summary">{typedSetsSummary(ex.setScheme.sets)}</p>}</TableCell>
                     <TableCell className="px-3 py-2 text-center align-top">{ex.series || '—'}</TableCell>
                     <TableCell className="px-3 py-2 text-center align-top">{ex.series2 || '—'}</TableCell>
                     <TableCell className="px-3 py-2 text-center align-top">{ex.reps || '—'}</TableCell>
@@ -928,7 +1000,7 @@ const TrainingDayCard: React.FC<TrainingDayCardProps> = ({ day, index, onCopy, e
 
         <div className="flex items-center justify-between border-t border-border/60 bg-background/60 px-4 py-3">
           <span className="text-xs font-semibold tracking-wide text-foreground">
-            Total: {day.exercises.length} exercícios
+            Total: {day.exercises.length} exercícios · {day.exercises.reduce((n, ex) => n + seriesDeTrabalho(ex as never), 0)} séries de trabalho
           </span>
         </div>
       </CardContent>
