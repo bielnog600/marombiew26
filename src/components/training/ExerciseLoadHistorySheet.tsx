@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { isPreparationLogSetType } from '@/lib/setTypes';
+import { buildLoadHistorySessions, formatHistoryKg, historySetDisplay } from '@/lib/setHistoryDisplay';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import { supabase } from '@/integrations/supabase/client';
 import { TrendingUp, TrendingDown, Minus, Dumbbell } from 'lucide-react';
@@ -18,6 +18,7 @@ interface SetLog {
   weight_kg: number | null;
   rpe: number | null;
   phase: string | null;
+  set_type?: string | null;
   sub_records?: SubRecord[] | null;
 }
 
@@ -35,6 +36,7 @@ interface SessionGroup {
   sets: SetLog[];
   topWeight: number;
   totalVolume: number;
+  hasWork: boolean;
 }
 
 export const ExerciseLoadHistorySheet: React.FC<Props> = ({ open, onOpenChange, studentId, exerciseName }) => {
@@ -53,31 +55,12 @@ export const ExerciseLoadHistorySheet: React.FC<Props> = ({ open, onOpenChange, 
         .order('performed_at', { ascending: false })
         .limit(200);
 
-      const map = new Map<string, SessionGroup>();
-      // Histórico/recordes/volume: só séries de trabalho (nulo = legado = trabalho).
-      (data || []).filter((row) => !isPreparationLogSetType((row as { set_type?: string | null }).set_type)).forEach((row) => {
-        const key = row.session_id || row.performed_at;
-        if (!map.has(key)) {
-          map.set(key, {
-            sessionId: key,
-            date: row.performed_at,
-            phase: row.phase,
-            sets: [],
-            topWeight: 0,
-            totalVolume: 0,
-          });
-        }
-        const g = map.get(key);
-        if (!g) return;
-        g.sets.push(row as unknown as SetLog);
-        const w = Number(row.weight_kg) || 0;
-        const r = Number(row.reps) || 0;
-        if (w > g.topWeight) g.topWeight = w;
-        g.totalVolume += w * r;
-      });
-
-      const arr = Array.from(map.values()).sort((a, b) => +new Date(b.date) - +new Date(a.date));
-      arr.forEach((g) => g.sets.sort((a, b) => a.set_number - b.set_number));
+      // Exibição: TODAS as séries da sessão, com o tipo. Top/volume/recordes
+      // seguem só das séries de trabalho (nulo = legado = trabalho).
+      const arr: SessionGroup[] = buildLoadHistorySessions((data || []) as unknown as SetLog[]).map((g) => ({
+        ...g,
+        phase: g.sets[0]?.phase ?? null,
+      }));
       setGroups(arr);
       setLoading(false);
     })();
@@ -102,10 +85,11 @@ export const ExerciseLoadHistorySheet: React.FC<Props> = ({ open, onOpenChange, 
         </SheetHeader>
 
         {(() => {
-          if (loading || groups.length === 0) return null;
-          const lastTop = groups[0]?.topWeight ?? 0;
-          const bestTop = groups.reduce((m, g) => Math.max(m, g.topWeight), 0);
-          const recent = groups.slice(0, 5);
+          const workGroups = groups.filter((g) => g.hasWork);
+          if (loading || workGroups.length === 0) return null;
+          const lastTop = workGroups[0]?.topWeight ?? 0;
+          const bestTop = workGroups.reduce((m, g) => Math.max(m, g.topWeight), 0);
+          const recent = workGroups.slice(0, 5);
           const avgTop = recent.length
             ? recent.reduce((s, g) => s + g.topWeight, 0) / recent.length
             : 0;
@@ -133,7 +117,8 @@ export const ExerciseLoadHistorySheet: React.FC<Props> = ({ open, onOpenChange, 
             <p className="text-sm text-muted-foreground text-center py-8">Nenhum registro anterior encontrado.</p>
           )}
           {!loading && groups.map((g, idx) => {
-            const prev = groups[idx + 1];
+            // Tendência compara com a sessão anterior que teve séries de trabalho.
+            const prev = groups.slice(idx + 1).find((p) => p.hasWork);
             return (
               <div key={g.sessionId} className="rounded-lg border border-border/60 bg-secondary/30 p-3">
                 <div className="flex items-center justify-between mb-2">
@@ -143,7 +128,7 @@ export const ExerciseLoadHistorySheet: React.FC<Props> = ({ open, onOpenChange, 
                     </p>
                     {g.phase && <p className="text-[10px] uppercase tracking-wider text-primary">{g.phase}</p>}
                   </div>
-                  <div className="flex items-center gap-3 text-xs">
+                  {g.hasWork && <div className="flex items-center gap-3 text-xs">
                     <div className="flex items-center gap-1">
                       {renderTrend(g.topWeight, prev?.topWeight)}
                       <span className="font-bold text-foreground">{g.topWeight}kg</span>
@@ -152,23 +137,29 @@ export const ExerciseLoadHistorySheet: React.FC<Props> = ({ open, onOpenChange, 
                     <div className="text-muted-foreground">
                       Vol: <span className="font-semibold text-foreground">{Math.round(g.totalVolume)}kg</span>
                     </div>
-                  </div>
+                  </div>}
                 </div>
-                <div className="grid grid-cols-[28px_1fr_1fr_44px] gap-1 text-[10px] uppercase text-muted-foreground font-semibold px-1">
-                  <span>#</span><span className="text-center">Reps</span><span className="text-center">Carga</span><span className="text-center">RPE</span>
+                <div className="grid grid-cols-[minmax(0,1fr)_48px_64px_40px] gap-1 text-[10px] uppercase text-muted-foreground font-semibold px-1">
+                  <span>Série</span><span className="text-center">Reps</span><span className="text-center">Carga</span><span className="text-center">RPE</span>
                 </div>
                 <div className="space-y-1 mt-1">
-                  {g.sets.map((s) => (
-                    <div key={s.id}>
-                    <div className="grid grid-cols-[28px_1fr_1fr_44px] gap-1 items-center bg-background/50 rounded px-1 py-1.5 text-xs tabular-nums">
-                      <span className="font-bold text-center">{s.set_number}</span>
+                  {g.sets.map((s) => {
+                    const tipo = historySetDisplay(s.set_type);
+                    return (
+                    <div key={s.id} data-set-type={tipo.type}>
+                    <div className="grid grid-cols-[minmax(0,1fr)_48px_64px_40px] gap-1 items-center bg-background/50 rounded px-1 py-1.5 text-xs tabular-nums">
+                      <span className="min-w-0 truncate">
+                        <span className="font-bold">{s.set_number}</span>
+                        <span className={`ml-1.5 font-semibold ${tipo.textClass}`}>{tipo.label}</span>
+                      </span>
                       <span className="text-center">{s.reps ?? '—'}</span>
-                      <span className="text-center font-semibold">{s.weight_kg != null ? `${s.weight_kg}kg` : '—'}</span>
+                      <span className="text-center font-semibold">{formatHistoryKg(s.weight_kg)}</span>
                       <span className="text-center text-muted-foreground">{s.rpe ?? '—'}</span>
                     </div>
                     {s.sub_records?.filter(part => part.completed).map((part, i) => <p key={i} className="pl-8 py-1 text-xs text-muted-foreground">{part.label} · {part.weight || '—'} kg × {part.reps || '—'}</p>)}
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             );
