@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { isPreparationLogSetType } from '@/lib/setTypes';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -21,7 +22,7 @@ interface Props {
 interface Data {
   events: { event_type: string; created_at: string; metadata: any }[];
   sessions: { id: string; status: string; completed_at: string; started_at: string | null; day_name: string | null; duration_minutes: number; total_volume_kg: number | null; avg_rpe: number | null; total_sets: number | null; exercises_completed: number; total_exercises: number }[];
-  setLogs: { exercise_name: string; weight_kg: number | null; reps: number | null; performed_at: string; rpe: number | null }[];
+  setLogs: { exercise_name: string; weight_kg: number | null; reps: number | null; performed_at: string; rpe: number | null; set_type?: string | null }[];
   tracking: { date: string; water_glasses: number; meals_completed: any; workout_completed: boolean }[];
   alerts: { id: string; title: string; description: string | null; priority: string; status: string; created_at: string; category: string }[];
   adminNotifs: { id: string; title: string; created_at: string; viewed_at: string | null; priority: string; active: boolean }[];
@@ -63,7 +64,7 @@ const StudentBehavior360: React.FC<Props> = ({ studentId, studentName }) => {
     const [evRes, sesRes, logsRes, trkRes, alertsRes, notifRes] = await Promise.all([
       supabase.from('student_events').select('event_type, created_at, metadata').eq('student_id', studentId).gte('created_at', since).order('created_at', { ascending: false }).limit(500),
       supabase.from('workout_sessions').select('id, status, completed_at, started_at, day_name, duration_minutes, total_volume_kg, avg_rpe, total_sets, exercises_completed, total_exercises').eq('student_id', studentId).order('completed_at', { ascending: false }).limit(50),
-      supabase.from('exercise_set_logs').select('exercise_name, weight_kg, reps, performed_at, rpe').eq('student_id', studentId).gte('performed_at', since).order('performed_at', { ascending: false }).limit(500),
+      supabase.from('exercise_set_logs').select('exercise_name, weight_kg, reps, performed_at, rpe, set_type').eq('student_id', studentId).gte('performed_at', since).order('performed_at', { ascending: false }).limit(500),
       supabase.from('daily_tracking').select('date, water_glasses, meals_completed, workout_completed').eq('student_id', studentId).gte('date', trackingSince).order('date', { ascending: false }),
       supabase.from('behavioral_alerts').select('id, title, description, priority, status, created_at, category').eq('student_id', studentId).order('created_at', { ascending: false }).limit(20),
       supabase.from('admin_notifications').select('id, title, created_at, viewed_at, priority, active').eq('student_id', studentId).order('created_at', { ascending: false }).limit(10),
@@ -171,6 +172,8 @@ const StudentBehavior360: React.FC<Props> = ({ studentId, studentName }) => {
     // Progressão por exercício (top 5 mais frequentes)
     const byExercise = new Map<string, { weight_kg: number | null; reps: number | null; performed_at: string }[]>();
     for (const log of data.setLogs) {
+      // Progressão: só séries de trabalho (aquecimento/preparatória/reconhecimento fora).
+      if (isPreparationLogSetType(log.set_type)) continue;
       if (!byExercise.has(log.exercise_name)) byExercise.set(log.exercise_name, []);
       byExercise.get(log.exercise_name)!.push(log);
     }

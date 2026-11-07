@@ -34,6 +34,7 @@ import { normalizeExerciseKey, type IncrementSource } from './loadIncrement';
 import type { TrainingPhase } from './trainingPhase';
 import type { ParsedExercise } from './trainingResultParser';
 import { buildSetPlan } from './setPlanBuilder';
+import { normalizePlanSetType } from './setTypes';
 
 export const buildPrescribedWorkSets = (ex: ParsedExercise) => buildSetPlan(ex.series, ex.series2, ex.reps, ex.setScheme)
   .flatMap((s, i) => s.type === 'work' ? [{ setNumber: i + 1, reps: s.reps.includes('/') ? s.reps.split('/')[i]?.trim() ?? s.reps : s.reps }] : []);
@@ -247,7 +248,7 @@ export const isTimeBasedReps = (txt: string): boolean =>
 export const workRepTargetsOf = (ex: ParsedExercise): string[] => {
   const sets = (ex.setScheme?.sets ?? []) as Array<{ target_reps?: string | null; set_type?: string | null }>;
   const work = sets
-    .filter((s) => String(s?.set_type ?? '') !== 'recognition')
+    .filter((s) => normalizePlanSetType(s?.set_type) === 'work')
     .map((s) => String(s?.target_reps ?? '').trim())
     .filter(Boolean);
   if (work.length > 0) return [...new Set(work)];

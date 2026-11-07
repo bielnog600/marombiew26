@@ -68,6 +68,12 @@ export default {
           "4": "hsl(var(--chart-4))",
           "5": "hsl(var(--chart-5))",
         },
+        set: {
+          warmup: "hsl(var(--set-warmup))",
+          preparatory: "hsl(var(--set-preparatory))",
+          recognition: "hsl(var(--set-recognition))",
+          work: "hsl(var(--set-work))",
+        },
       },
       borderRadius: {
         lg: "var(--radius)",

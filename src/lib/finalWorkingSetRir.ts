@@ -1,7 +1,7 @@
 /** Eligibility is based on prescribed work rows, never completion or method parts. */
 export const finalWorkingSetIndex = (types: string[]): number => {
   for (let i = types.length - 1; i >= 0; i -= 1) {
-    if (!['recognition', 'warmup', 'recon'].includes(types[i])) return i;
+    if (!['recognition', 'warmup', 'recon', 'preparatory'].includes(types[i])) return i;
   }
   return -1;
 };

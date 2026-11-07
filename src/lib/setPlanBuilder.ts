@@ -8,7 +8,9 @@
  *
  * Output: a flat array of planned sets, each with type and reps label.
  */
-export type PlannedSetType = 'recognition' | 'work';
+import { normalizePlanSetType, typedSetsSummary, type PlanSetType } from './setTypes';
+
+export type PlannedSetType = PlanSetType;
 
 export interface PlannedSet {
   type: PlannedSetType;
@@ -17,7 +19,7 @@ export interface PlannedSet {
 
 export interface SetSchemeInput {
   mode: 'uniform' | 'recognition_work' | 'per_set';
-  sets: Array<{ set_number: number; set_type: 'work' | 'recognition'; target_reps: string }>;
+  sets: Array<{ set_number: number; set_type: 'work' | 'recognition' | 'warmup' | 'preparatory'; target_reps: string }>;
 }
 
 const toInt = (v?: string | null): number => {
@@ -52,7 +54,7 @@ export const buildSetPlan = (
     return [...setScheme.sets]
       .sort((a, b) => (a.set_number || 0) - (b.set_number || 0))
       .map((s) => ({
-        type: (s.set_type === 'recognition' ? 'recognition' : 'work') as PlannedSetType,
+        type: normalizePlanSetType(s.set_type),
         reps: String(s.target_reps || '').trim(),
       }));
   }
@@ -92,4 +94,15 @@ export const buildPlanSummary = (plan: PlannedSet[]): string => {
   return blocks
     .map((b) => `${b.count}x${(b.reps || '?').replace('-', '–')}`)
     .join(' + ');
+};
+
+/**
+ * Resumo para exibição. Com aquecimento/preparatória no plano:
+ * "Aquec. 1×12-15 · Prep. 1×10 · Trabalho 2×6-8"; senão mantém o formato atual.
+ */
+export const buildPlanDisplaySummary = (plan: PlannedSet[], perSet = false): string => {
+  if (plan.some((p) => p.type === 'warmup' || p.type === 'preparatory')) {
+    return typedSetsSummary(plan.map((p) => ({ set_type: p.type, target_reps: p.reps })));
+  }
+  return perSet ? plan.map((set) => set.reps).filter(Boolean).join(' / ') : buildPlanSummary(plan);
 };

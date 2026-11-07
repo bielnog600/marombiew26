@@ -49,6 +49,7 @@ export interface ExerciseLog {
 /** Tipos de série reconhecidos (espelham o CHECK de exercise_set_logs.set_type). */
 export type SetType =
   | 'warmup'
+  | 'preparatory'
   | 'recognition'
   | 'work'
   | 'top'
@@ -69,6 +70,7 @@ export type SetRole = 'primary' | 'auxiliary' | 'preparation';
 
 const SET_ROLE_BY_TYPE: Record<SetType, SetRole> = {
   warmup: 'preparation',
+  preparatory: 'preparation',
   recognition: 'preparation',
   work: 'primary',
   top: 'primary',
@@ -336,7 +338,10 @@ export const lastExerciseSessions = (logs: ExerciseLog[]): { current: ExerciseLo
 /** Untyped legacy preparation is identified by prescription without rewriting logs. */
 export const withPlannedSetTypes = (logs: ExerciseLog[], ex: ParsedExercise): ExerciseLog[] => {
   const plan = buildSetPlan(ex.series, ex.series2, ex.reps, ex.setScheme);
-  return logs.map(l => ({ ...l, set_type: l.set_type || plan[(l.set_number ?? 1) - 1]?.type || 'work' }));
+  // Log sem tipo (legado) só herda RECONHECIMENTO do plano, como antes; os tipos
+  // novos (aquecimento/preparatória) nunca reclassificam logs antigos — set_type
+  // NULL continua contando como trabalho.
+  return logs.map(l => ({ ...l, set_type: l.set_type || (plan[(l.set_number ?? 1) - 1]?.type === 'recognition' ? 'recognition' : 'work') }));
 };
 
 // ============================================================

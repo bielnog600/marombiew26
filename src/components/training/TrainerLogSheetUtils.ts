@@ -2,6 +2,7 @@ import type { MethodSetEntry } from '@/lib/workoutExecutionMethods';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import type { ParsedTrainingDay, ParsedExercise } from '@/lib/trainingResultParser';
+import { setTypeToKind, type SetPlanKind } from '@/lib/setTypes';
 
 // Normalize exercise name for consistent DB lookups
 export const normalizeExName = (name: string) => name.trim().replace(/\s+/g, ' ').toUpperCase();
@@ -12,13 +13,14 @@ export interface SetEntry extends MethodSetEntry {
 }
 
 export interface SetPlan {
-  kind: 'recon' | 'work';
+  /** `recon` = reconhecimento (nome legado); aquecimento/preparatória são novos. */
+  kind: SetPlanKind;
   targetReps: string;
 }
 
 export interface SetSchemeInput {
   mode: 'uniform' | 'recognition_work' | 'per_set';
-  sets: Array<{ set_number: number; set_type: 'work' | 'recognition'; target_reps: string }>;
+  sets: Array<{ set_number: number; set_type: 'work' | 'recognition' | 'warmup' | 'preparatory'; target_reps: string }>;
 }
 
 export const splitComposed = (reps: string): [string, string] => {
@@ -36,7 +38,7 @@ export const buildSetPlan = (
     return [...setScheme.sets]
       .sort((a, b) => (a.set_number || 0) - (b.set_number || 0))
       .map((s) => ({
-        kind: (s.set_type === 'recognition' ? 'recon' : 'work') as 'recon' | 'work',
+        kind: setTypeToKind(s.set_type),
         targetReps: String(s.target_reps || '').trim(),
       }));
   }

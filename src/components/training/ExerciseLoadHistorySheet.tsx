@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { isPreparationLogSetType } from '@/lib/setTypes';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import { supabase } from '@/integrations/supabase/client';
 import { TrendingUp, TrendingDown, Minus, Dumbbell } from 'lucide-react';
@@ -46,14 +47,15 @@ export const ExerciseLoadHistorySheet: React.FC<Props> = ({ open, onOpenChange, 
     (async () => {
       const { data } = await supabase
         .from('exercise_set_logs')
-        .select('id, performed_at, session_id, set_number, reps, weight_kg, rpe, phase, sub_records')
+        .select('id, performed_at, session_id, set_number, reps, weight_kg, rpe, phase, sub_records, set_type')
         .eq('student_id', studentId)
         .ilike('exercise_name', normalizeExName(exerciseName))
         .order('performed_at', { ascending: false })
         .limit(200);
 
       const map = new Map<string, SessionGroup>();
-      (data || []).forEach((row) => {
+      // Histórico/recordes/volume: só séries de trabalho (nulo = legado = trabalho).
+      (data || []).filter((row) => !isPreparationLogSetType((row as { set_type?: string | null }).set_type)).forEach((row) => {
         const key = row.session_id || row.performed_at;
         if (!map.has(key)) {
           map.set(key, {

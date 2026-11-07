@@ -62,6 +62,11 @@
     --chart-3: 150 60% 45%;
     --chart-4: 280 65% 55%;
     --chart-5: 15 80% 55%;
+    /* Tipos de série do treino */
+    --set-warmup: 200 80% 58%;
+    --set-preparatory: 28 92% 58%;
+    --set-recognition: 280 65% 66%;
+    --set-work: 45 100% 50%;
     --workout-rest-gradient: linear-gradient(90deg, hsl(var(--primary) / 0.28), hsl(var(--primary) / 0.12));
     --workout-rest-glow: 0 0 0 2px hsl(var(--primary) / 0.5), 0 0 16px hsl(var(--primary) / 0.4);
   }

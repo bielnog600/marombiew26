@@ -1,5 +1,7 @@
 import { finalWorkingSetIndex } from '@/lib/finalWorkingSetRir';
 import { buildSetPlan } from '@/lib/setPlanBuilder';
+import { normalizePlanSetType } from '@/lib/setTypes';
+import { setTypeContexts, studentWeightPlaceholder } from '@/lib/studentExerciseLoadPresentation';
 import { useCallback, useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import type { ParsedExercise } from '@/lib/trainingResultParser';
@@ -108,11 +110,18 @@ export function MethodExerciseCard({ exercises, indices, sets, onChange, onCompl
     })()}
     {flow.finished && <GroupFinishedOverlay label={flow.finished} />}
     {rows.map((row, index) => {
+      const plannedTypes = buildSetPlan(ex.series, ex.series2, ex.reps, ex.setScheme).map((p) => p.type);
+      const setType = normalizePlanSetType(plannedTypes[index]);
       const isRecognition = ex.setScheme?.sets[index]?.set_type === 'recognition' || (Number(ex.series2) > 0 && index < Number(ex.series));
+      // Trabalho mantém a sugestão atual; aquecimento/preparatória/reconhecimento recebem a % da carga de trabalho.
+      const workPlaceholder = String(targetLoadForSet(ex.targetLoadPerSet, index + 1) ?? ex.targetLoadKg ?? recommendation?.seriesTargets?.find(s => s.setNumber === index + 1)?.recommendedLoadKg ?? recommendation?.recommendedLoadKg ?? 'kg');
+      const weightPlaceholder = setType === 'work' && !isRecognition
+        ? workPlaceholder
+        : studentWeightPlaceholder(index + 1, [], { kg: ex.targetLoadKg, perSet: ex.targetLoadPerSet }, recommendation ?? null, setTypeContexts(plannedTypes, ex.exercise)[index] ?? { type: 'recognition', exerciseName: ex.exercise });
       const split = splitRecognitionReps(ex.reps);
       const schemeReps = ex.setScheme?.sets[index]?.target_reps;
       const targetReps = schemeReps && !schemeReps.includes('+') ? schemeReps : (isRecognition ? split.recognition : split.work);
-      return <MethodSetRows key={index} exercise={ex} set={row} index={index} count={rows.length} finalWork={index === finalWorkingSetIndex(rows.map((_, i) => buildSetPlan(ex.series, ex.series2, ex.reps, ex.setScheme)[i]?.type ?? 'work'))} restPresentation={indices.length === 2 ? undefined : { exIdx: current, rest: inlineRest.rest, completion: inlineRest.completion, next: !inlineRest.rest && index === rows.findIndex(r => !r.completed), onAdd: inlineRest.adjust, onSkip: () => inlineRest.skip() }} disabled={!!displayedPause || (indices.length === 2 && !row.completed && indices.some(idx => sets[idx]?.slice(0, index).some(prior => !prior.completed)))} targetReps={targetReps} recognition={isRecognition} weightPlaceholder={String(targetLoadForSet(ex.targetLoadPerSet, index + 1) ?? ex.targetLoadKg ?? recommendation?.seriesTargets?.find(s => s.setNumber === index + 1)?.recommendedLoadKg ?? recommendation?.recommendedLoadKg ?? 'kg')} onChange={entry => onChange(current, index, entry)} onComplete={entry => complete(index, entry)} />;
+      return <MethodSetRows key={index} exercise={ex} set={row} index={index} count={rows.length} finalWork={index === finalWorkingSetIndex(rows.map((_, i) => buildSetPlan(ex.series, ex.series2, ex.reps, ex.setScheme)[i]?.type ?? 'work'))} restPresentation={indices.length === 2 ? undefined : { exIdx: current, rest: inlineRest.rest, completion: inlineRest.completion, next: !inlineRest.rest && index === rows.findIndex(r => !r.completed), onAdd: inlineRest.adjust, onSkip: () => inlineRest.skip() }} disabled={!!displayedPause || (indices.length === 2 && !row.completed && indices.some(idx => sets[idx]?.slice(0, index).some(prior => !prior.completed)))} targetReps={targetReps} recognition={isRecognition} setType={isRecognition ? 'recognition' : setType} weightPlaceholder={weightPlaceholder} onChange={entry => onChange(current, index, entry)} onComplete={entry => complete(index, entry)} />;
     })}
     {!sharedRest && <RestOffscreenIndicator rest={inlineRest.rest} />}
     <ExerciseLoadHistorySheet open={historyOpen} onOpenChange={setHistoryOpen} studentId={studentId} exerciseName={ex.exercise} />

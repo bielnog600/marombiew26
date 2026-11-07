@@ -1,5 +1,9 @@
 # Roadmap
 
+## Tipos de série — aquecimento, preparatória, trabalho
+- [x] Banco aceita `preparatory`; plano/editor/aluno/Modo Treino com tipos, cores, atalho e carga sugerida por tipo; histórico/recordes/volume só trabalho (nulo = trabalho). Nenhum plano existente alterado.
+- [x] 12 testes novos; suíte 1.566 passaram (falha antiga do teste Anthropic/temperature segue). Telas não conferidas com aluno real.
+
 ## Dieta do aluno — semana local
 - [x] Carregar registros seg–dom, selecionar data real e gravar refeições/água no dia selecionado; preservar histórico e bloquear futuro.
 - [x] Resumo/indicadores por meta prescrita ±50 kcal, calendário local e compatibilidade da Home/treinos semanais; resumo compartilhável usa a mesma semana.

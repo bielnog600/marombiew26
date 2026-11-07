@@ -28,7 +28,7 @@ export interface ParsedExercise extends ExecutionMethodFields {
   /** Optional structured per-set prescription. When present, source of truth for the set list. */
   setScheme?: {
     mode: 'uniform' | 'recognition_work' | 'per_set';
-    sets: Array<{ set_number: number; set_type: 'work' | 'recognition'; target_reps: string }>;
+    sets: Array<{ set_number: number; set_type: 'work' | 'recognition' | 'warmup' | 'preparatory'; target_reps: string }>;
   };
   /** Método de treino aplicado (slug de `training_methods` + params opcionais). */
   method?: { slug: string; params?: Record<string, string | number> };

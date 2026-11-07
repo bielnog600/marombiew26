@@ -71,7 +71,7 @@ export const assessExerciseRegression = (input: {
   const bySession = new Map<string, RawSetLog[]>();
   for (const l of input.logs) {
     const t = (l.set_type || '').toLowerCase();
-    if (t === 'recognition' || t === 'warmup') continue;
+    if (t === 'recognition' || t === 'warmup' || t === 'preparatory') continue;
     const w = Number(l.weight_kg);
     const r = Number(l.reps);
     if (!w || w <= 0 || !r || r <= 0) continue;
