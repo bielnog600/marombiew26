@@ -20,8 +20,9 @@ import { useInlineWorkoutRest } from '@/hooks/useInlineWorkoutRest';
 import { RestOffscreenIndicator } from './WorkoutSetCard';
 import { splitRecognitionReps } from '@/lib/exerciseVideoSrc';
 import { ExerciseMediaFrame } from './ExerciseMediaFrame';
+import { SessionVariationButton } from './SessionVariationButton';
 
-export function MethodExerciseCard({ exercises, indices, sets, onChange, onComplete, media, snapshot, studentId, savedPause, onPauseChange, inlineRest: sharedRest, embedded, headerActions, editPanel }: {
+export function MethodExerciseCard({ exercises, indices, sets, onChange, onComplete, media, snapshot, studentId, savedPause, onPauseChange, inlineRest: sharedRest, embedded, headerActions, editPanel, onToggleVariation }: {
   exercises: ParsedExercise[]; indices: number[]; sets: Record<number, MethodSetEntry[]>;
   onChange: (exIndex: number, setIndex: number, entry: MethodSetEntry) => void;
   onComplete: (exIndex: number, setIndex: number, entry: MethodSetEntry) => void;
@@ -35,6 +36,8 @@ export function MethodExerciseCard({ exercises, indices, sets, onChange, onCompl
   headerActions?: React.ReactNode;
   /** Só no Modo Treino admin: painel de edição do grupo, abaixo do cabeçalho. */
   editPanel?: React.ReactNode;
+  /** Só no Modo Treino admin: troca o exercício atual do grupo pela variação do plano (só na sessão). */
+  onToggleVariation?: (exIndex: number) => void;
 }) {
   const [current, setCurrent] = useState(() => {
     const pending = indices.flatMap(idx => (sets[idx] ?? []).flatMap((row, i) => !row.completed ? [i] : [])).sort((a, b) => a - b)[0];
@@ -81,6 +84,7 @@ export function MethodExerciseCard({ exercises, indices, sets, onChange, onCompl
       <Button size="sm" variant="outline" onClick={() => setHistoryOpen(true)}>Cargas</Button>
       {headerActions}
     </div>
+    {onToggleVariation && <SessionVariationButton ex={ex} onToggle={() => onToggleVariation(current)} />}
     {editPanel}
     <ExerciseMediaFrame embed={matched?.video_embed} imageUrl={matched?.imagem_url} alt={ex.exercise} />
     {(recommendation || ex.targetLoadKg || ex.targetLoadPerSet) && <ProgressionHintCard recommendation={recommendation} targetLoad={{ kg: ex.targetLoadKg, perSet: ex.targetLoadPerSet, note: ex.targetLoadNote }} variant="compact" />}
