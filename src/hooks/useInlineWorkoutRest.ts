@@ -70,6 +70,6 @@ export function useInlineWorkoutRest(storageKey?: string) {
   // Deadline-only snapshot keeps session autosaves independent of countdown ticks.
   const snapshot = useMemo(() => activeRef.current, [timer.restTimer?.endTime, timer.restTimer?.exIdx, timer.restTimer?.setIndex]);
   const label = activeRef.current?.label ?? null;
-  const rest = timer.restTimer?.setIndex != null ? { ...(timer.restTimer as InlineRestState), label } : null;
+  const rest = useMemo(() => timer.restTimer?.setIndex != null ? { ...(timer.restTimer as InlineRestState), label } : null, [timer.restTimer, label]);
   return { rest, snapshot, completion, start, adjust, skip: finish, restore, cancel, reindex };
 }
