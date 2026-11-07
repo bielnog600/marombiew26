@@ -286,8 +286,11 @@ export const DuoTrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studen
       
       const daySignature = makeDaySignature(day);
       const initial: Record<number, any> = {};
-      
-      day.exercises.forEach((ex, i) => {
+      const draft = active?.sessionState?.methodExecution?.[st.studentId]?.[day.day] ?? loadDraft(st.studentId, day.day, daySignature);
+      // Troca para a variação feita nesta sessão sobrevive a fechar/reabrir.
+      const dayExercises = day.exercises.map((ex, i) => restoreSessionVariation(ex, draft?.exercises?.[i], draft?.exerciseNames?.[i]));
+
+      dayExercises.forEach((ex, i) => {
         const setPlan = buildSetPlan(ex.series, ex.series2, ex.reps, ex.setScheme);
         initial[i] = {
           sets: setPlan.map(() => ({ weight: '', reps: '' })),
@@ -302,7 +305,6 @@ export const DuoTrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studen
         };
       });
 
-      const draft = active?.sessionState?.methodExecution?.[st.studentId]?.[day.day] ?? loadDraft(st.studentId, day.day, daySignature);
       if (draft) {
         Object.keys(initial).forEach((k) => {
           const idx = Number(k);
@@ -314,29 +316,13 @@ export const DuoTrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studen
       }
 
       await Promise.all(
-        day.exercises.map(async (ex, i) => {
+        dayExercises.map(async (ex, i) => {
           if (!ex.exercise) return;
-          const { data } = await supabase
-            .from('exercise_set_logs')
-            .select('weight_kg, reps, performed_at, session_id, set_type, set_number')
-            .eq('student_id', st.studentId)
-            .ilike('exercise_name', normalizeExName(ex.exercise))
-            .order('performed_at', { ascending: false })
-            .limit(30);
           // Última sessão → maior carga das séries de TRABALHO (nulo = legado = trabalho);
           // aquecimento/preparatória/reconhecimento nunca viram a "última carga".
-          const linhas = (data as any[]) || [];
-          if (linhas.length > 0) {
-            const sessaoDe = (r: any) => r.session_id || String(r.performed_at).slice(0, 10);
-            const daSessao = linhas.filter((r) => sessaoDe(r) === sessaoDe(linhas[0]));
-            const trabalho = daSessao.filter((r) => !isPreparationLogSetType(r.set_type));
-            const pool = trabalho.length > 0 ? trabalho : daSessao;
-            const melhor = pool.reduce((a, b) => (Number(b.weight_kg) || 0) > (Number(a.weight_kg) || 0) ? b : a, pool[0]);
-            initial[i].lastWeight = melhor.weight_kg;
-            initial[i].lastReps = melhor.reps;
-            initial[i].lastDate = melhor.performed_at;
-            initial[i].lastWorkLoad = lastWorkSetLoad(daSessao);
-          }
+          // Variação ativa: histórico da própria variação.
+          const info = await fetchExerciseLastLoad(st.studentId, ex.exercise);
+          if (info.lastDate != null) Object.assign(initial[i], info);
         })
       );
 
@@ -344,6 +330,7 @@ export const DuoTrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studen
         prev
           ? {
               ...prev,
+              days: prev.days.map((d, di) => (di === prev.activeDayIdx ? { ...d, exercises: dayExercises } : d)),
               state: initial,
               uids: buildExerciseUids(day.exercises.length),
               orderDirty: false,
