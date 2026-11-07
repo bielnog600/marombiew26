@@ -3,6 +3,7 @@ import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import type { ParsedTrainingDay, ParsedExercise } from '@/lib/trainingResultParser';
 import { setTypeToKind, type SetPlanKind } from '@/lib/setTypes';
+import { planViewOfExercise } from '@/lib/sessionVariation';
 
 // Normalize exercise name for consistent DB lookups
 export const normalizeExName = (name: string) => name.trim().replace(/\s+/g, ' ').toUpperCase();
@@ -57,7 +58,9 @@ export const buildSetPlan = (
 };
 
 export const makeDaySignature = (day?: ParsedTrainingDay | null) => {
+  // Assinatura do PLANO: a troca para a variação na sessão não muda a chave do rascunho.
   const raw = (day?.exercises || [])
+    .map((ex) => planViewOfExercise(ex))
     .map((ex) => [ex.exercise, ex.series, ex.series2, ex.reps, ex.rir, ex.pause, ex.description, ex.variation].join('§'))
     .join('¶');
   let hash = 0;
