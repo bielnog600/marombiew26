@@ -13,7 +13,7 @@ export const chooseSummaryFit = (
   compactWidthAtBase: number,
   basePx: number,
   minPx = 11,
-  floorPx = 9,
+  floorPx = 7,
 ): SummaryFit => {
   const sizeFor = (width: number) => {
     if (!(availablePx > 0) || !(width > 0)) return basePx;
