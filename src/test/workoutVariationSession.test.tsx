@@ -108,4 +108,15 @@ describe('active variation session identity', () => {
     expect(mock.updates[0].session_state.sets).toEqual(mock.sets);
     await screen.findByRole('heading', { name: 'HACK MACHINE' });
   });
+
+  it('shows no prescription chip row (set summary, RIR or rest) under the exercise name', async () => {
+    render(<TreinoExecucao />);
+    await screen.findByRole('heading', { name: 'HACK MACHINE' });
+    expect(document.querySelector('[data-testid="prescription-chips"]')).toBeNull();
+    expect(document.querySelector('[data-testid="typed-sets-chip"]')).toBeNull();
+    // O "8-12" do HACK MACHINE aparecia antes como chip "8–12 reps" abaixo do nome.
+    expect(screen.queryByText('8–12 reps')).toBeNull();
+    expect(screen.queryByText(/^RIR /)).toBeNull();
+    expect(screen.getByTestId('set-indicator')).toHaveTextContent('Série');
+  });
 });
