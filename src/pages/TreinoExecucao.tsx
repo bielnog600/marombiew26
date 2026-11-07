@@ -27,7 +27,8 @@ import { useDailyTracking } from '@/hooks/useDailyTracking';
 import { useAuth } from '@/contexts/AuthContext';
 import { useActiveWorkoutSession } from '@/hooks/useActiveWorkoutSession';
 import { type ParsedExercise, parseTrainingSections } from '@/lib/trainingResultParser';
-import { buildSetPlan, buildPlanDisplaySummary, type PlannedSet } from '@/lib/setPlanBuilder';
+import { buildSetPlan, buildPlanDisplaySummary, planHasTypedSets, type PlannedSet } from '@/lib/setPlanBuilder';
+import { FitSummaryLine } from '@/components/training/FitSummaryLine';
 import { hasTypedSets, logSetTypeFor, SET_TYPE_LABEL, SET_TYPE_TAG, SET_TYPE_TEXT_CLASS } from '@/lib/setTypes';
 import { findBestExerciseMatch } from '@/lib/exerciseMatcher';
 import { PHASE_SHORT_LABELS, getPhaseByMonthDay, type TrainingPhase } from '@/lib/trainingPhase';
@@ -1584,7 +1585,15 @@ const TreinoExecucaoInner = () => {
         const pauseSecs = (() => { const m = String(exercise.pause ?? '').match(/(\d+)/); return m ? parseInt(m[1], 10) : null; })();
         return (
           <div className="shrink-0 px-4 pt-0.5 flex flex-wrap items-center justify-center gap-1.5" data-testid="prescription-chips">
-            {summary
+            {summary && planHasTypedSets(setPlan)
+              ? <FitSummaryLine
+                  full={summary}
+                  compact={buildPlanDisplaySummary(setPlan, isPerSet, 'compact')}
+                  basePx={14}
+                  className="basis-full h-8 leading-8 px-2.5 rounded text-center text-foreground bg-secondary/80 font-semibold"
+                  testId="typed-sets-chip"
+                />
+              : summary
               ? <span className={`${chip} font-semibold`}>{summary}</span>
               : isReal(exercise.series) && <span className={chip}>{exercise.series} séries</span>}
             {!summary && repsLabel && <span className={chip}>{repsLabel}</span>}

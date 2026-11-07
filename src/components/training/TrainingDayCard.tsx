@@ -26,6 +26,7 @@ import { useParams } from 'react-router-dom';
 // ===== Quick-pick options for structured editing (compartilhadas com o escritório) =====
 import { REC_SERIES_OPTS, REC_REPS_OPTS, WORK_SERIES_OPTS, WORK_REPS_OPTS, RIR_OPTS, PAUSE_OPTS } from '@/lib/workoutEditorOptions';
 
+import { FitSummaryLine } from '@/components/training/FitSummaryLine';
 import {
   buildWarmupPrepWorkSets, hasTypedSets, normalizePlanSetType, PLAN_SET_TYPES, SET_TYPE_LABEL, SET_TYPE_TEXT_CLASS,
   typedSetsSummary, type PlanSetType,
@@ -854,11 +855,21 @@ const TrainingDayCard: React.FC<TrainingDayCardProps> = ({ day, index, onCopy, e
                               <QuickSelect value={ex.pause} options={PAUSE_OPTS} onChange={(v) => handleFieldChange(exIndex, 'pause', v)} width="w-full" />
                             </div>
                           </div>
+                          {hasTypedSets(ex.setScheme?.sets) ? (
+                            <div className="flex min-w-0 items-center gap-1 text-muted-foreground">
+                              <span className="shrink-0 text-[10px]">Resumo:</span>
+                              <FitSummaryLine
+                                full={typedSetsSummary(ex.setScheme?.sets)}
+                                compact={typedSetsSummary(ex.setScheme?.sets, 'compact')}
+                                basePx={12}
+                                className="flex-1 font-mono text-foreground"
+                              />
+                            </div>
+                          ) : (
                           <p className="text-[10px] text-muted-foreground">
-                            {hasTypedSets(ex.setScheme?.sets)
-                              ? <>Resumo: <span className="font-mono text-foreground">{typedSetsSummary(ex.setScheme?.sets)}</span></>
-                              : <>Markdown: <span className="font-mono text-foreground">{(ex.setScheme?.sets.length ?? 0)} × ({(ex.setScheme?.sets ?? []).map((s) => s.target_reps || '?').join(' / ')})</span></>}
+                            <>Markdown: <span className="font-mono text-foreground">{(ex.setScheme?.sets.length ?? 0)} × ({(ex.setScheme?.sets ?? []).map((s) => s.target_reps || '?').join(' / ')})</span></>
                           </p>
+                          )}
                         </div>
                       ) : mode === 'standard' ? (
                         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
@@ -981,7 +992,7 @@ const TrainingDayCard: React.FC<TrainingDayCardProps> = ({ day, index, onCopy, e
                     <TableCell className="px-2 py-2 align-middle">
                       <ExerciseThumb name={ex.exercise} catalog={exerciseCatalog} />
                     </TableCell>
-                    <TableCell className="px-3 py-2 font-medium align-top">{ex.exercise}{executionSummary(ex) && <p className="mt-1 text-[10px] text-primary">{executionSummary(ex)}</p>}{ex.setScheme?.mode === 'per_set' && hasTypedSets(ex.setScheme.sets) && <p className="mt-1 text-[10px] text-muted-foreground" data-testid="typed-sets-summary">{typedSetsSummary(ex.setScheme.sets)}</p>}</TableCell>
+                    <TableCell className="px-3 py-2 font-medium align-top">{ex.exercise}{executionSummary(ex) && <p className="mt-1 text-[10px] text-primary">{executionSummary(ex)}</p>}{ex.setScheme?.mode === 'per_set' && hasTypedSets(ex.setScheme.sets) && <FitSummaryLine full={typedSetsSummary(ex.setScheme.sets)} compact={typedSetsSummary(ex.setScheme.sets, 'compact')} basePx={11} className="mt-1 text-muted-foreground" testId="typed-sets-summary" />}</TableCell>
                     <TableCell className="px-3 py-2 text-center align-top">{ex.series || '—'}</TableCell>
                     <TableCell className="px-3 py-2 text-center align-top">{ex.series2 || '—'}</TableCell>
                     <TableCell className="px-3 py-2 text-center align-top">{ex.reps || '—'}</TableCell>
