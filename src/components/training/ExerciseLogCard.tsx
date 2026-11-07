@@ -1,6 +1,6 @@
 import { FinalSetRir } from './FinalSetRir';
 import { finalWorkingSetIndex } from '@/lib/finalWorkingSetRir';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -18,13 +18,15 @@ import type { MethodSetEntry } from '@/lib/workoutExecutionMethods';
 import { ExerciseMediaFrame } from './ExerciseMediaFrame';
 import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select';
 import { hasTypedSets, typedSetsSummary, kindToSetType, PLAN_SET_TYPES, SET_TYPE_BADGE_CLASS, SET_TYPE_LABEL, SET_TYPE_TAG, setTypeToKind, type SetPlanKind } from '@/lib/setTypes';
-import { setTypeContexts, studentWeightPlaceholder, type PreviousExerciseSet } from '@/lib/studentExerciseLoadPresentation';
+import { setLoadDefaults, setTypeContexts, studentWeightPlaceholder, type PreviousExerciseSet } from '@/lib/studentExerciseLoadPresentation';
+import { applyLoadPrefill } from '@/lib/setLoadPrefill';
 
 interface SetEntry {
   weight: string;
   reps: string;
   completed?: boolean;
   rir?: string;
+  weightAuto?: string;
 }
 
 interface SetPlan {
@@ -40,6 +42,8 @@ interface ExerciseState {
   lastWeight: number | null;
   lastReps: number | null;
   lastDate: string | null;
+  /** Carga da última série de TRABALHO da última sessão (base do pré-preenchimento). */
+  lastWorkLoad?: number | null;
   savedSets: number;
   exerciseName: string;
 }
@@ -82,6 +86,8 @@ interface Props {
   methodBody?: React.ReactNode;
   /** Ação extra no painel Editar (ex.: "Agrupar com…" no Modo Treino admin). */
   groupAction?: React.ReactNode;
+  /** Pré-preenche cargas vazias: recebe a função pura e aplica no estado mais recente. */
+  onPrefillSets?: (exIdx: number, apply: (sets: any[]) => any[] | null) => void;
 }
 
 const ExerciseLogCard: React.FC<Props> = ({
@@ -109,19 +115,34 @@ const ExerciseLogCard: React.FC<Props> = ({
   onCompleteSet,
   methodBody,
   groupAction,
+  onPrefillSets,
 }) => {
   const [editOpen, setEditOpen] = useState(false);
 
   const recommendation = getRecommendationFor(progressionSnapshot ?? null, st.exerciseName || ex.exercise);
   // Carga sugerida por tipo: trabalho = sugestão; aquecimento ~50% e preparatória ~85% dela.
   const typeCtx = setTypeContexts((st.plan || []).map((p) => kindToSetType(p.kind)), st.exerciseName || ex.exercise);
-  const lastWork: PreviousExerciseSet[] = st.lastWeight != null && st.lastWeight > 0
-    ? [{ set_number: 0, weight_kg: st.lastWeight, reps: st.lastReps, set_type: 'work', performed_at: st.lastDate ?? '' }]
+  // Base = carga da ÚLTIMA série de trabalho da última sessão (sugestão de progressão vence).
+  const lastWork: PreviousExerciseSet[] = st.lastWorkLoad != null && st.lastWorkLoad > 0
+    ? [{ set_number: 0, weight_kg: st.lastWorkLoad, reps: null, set_type: 'work', performed_at: st.lastDate ?? '' }]
     : [];
+  const loadTarget = { kg: ex?.targetLoadKg ?? null, perSet: ex?.targetLoadPerSet ?? null };
   const loadPlaceholder = (setIdx: number) => {
-    const v = studentWeightPlaceholder(setIdx + 1, lastWork, { kg: ex?.targetLoadKg ?? null, perSet: ex?.targetLoadPerSet ?? null }, recommendation, typeCtx[setIdx] ?? { type: 'work' });
+    const v = studentWeightPlaceholder(setIdx + 1, lastWork, loadTarget, recommendation, typeCtx[setIdx] ?? { type: 'work' });
     return v === 'kg' ? 'kg' : `${v} kg`;
   };
+
+  // Pré-preenche a carga das séries vazias (valor real, editável). Não registra:
+  // a série só é gravada ao confirmar/salvar com reps.
+  const planTypes = (st.plan || []).map((p) => kindToSetType(p.kind));
+  const exName = st.exerciseName || ex.exercise;
+  const prefillDefaults = setLoadDefaults(planTypes, st.sets.length, lastWork, loadTarget, recommendation, exName);
+  const prefillKey = JSON.stringify([prefillDefaults, planTypes, st.sets.map((s) => [s.weight, s.weightAuto ?? null, !!s.completed, !!(s as MethodSetEntry).subRecords?.length])]);
+  useEffect(() => {
+    if (!onPrefillSets || !applyLoadPrefill(st.sets, prefillDefaults, planTypes, 'dot')) return;
+    onPrefillSets(exIdx, (sets) => applyLoadPrefill(sets, setLoadDefaults(planTypes, sets.length, lastWork, loadTarget, recommendation, exName), planTypes, 'dot'));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prefillKey, exIdx, !!onPrefillSets]);
 
   return (
     <Card className="border-border/60">

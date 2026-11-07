@@ -1,5 +1,9 @@
 # Roadmap
 
+## Carga pré-preenchida por série
+- [x] Campo de carga já vem preenchido (aluno e Modo Treino admin, inclusive dois alunos): trabalho = sugestão ou última série de trabalho; prep 85%, aquec. 50%, rec. 85%; só campo vazio, sem registrar; 1ª de trabalho alterada recalcula as seguintes.
+- [x] 10 testes novos; suíte 1.577 passaram (falha antiga Anthropic/temperature). Telas não conferidas com aluno real.
+
 ## Tipos de série — aquecimento, preparatória, trabalho
 - [x] Banco aceita `preparatory`; plano/editor/aluno/Modo Treino com tipos, cores, atalho e carga sugerida por tipo; histórico/recordes/volume só trabalho (nulo = trabalho). Nenhum plano existente alterado.
 - [x] 12 testes novos; suíte 1.566 passaram (falha antiga do teste Anthropic/temperature segue). Telas não conferidas com aluno real.

@@ -1,5 +1,6 @@
 import { formatSessionHint, formatTargetLoadHint, normalizeTargetLoadPerSet, targetLoadForSet, type SessionRecommendation } from './sessionProgression';
 import { isWorkLogSetType, normalizePlanSetType, suggestedLoadForSetType, type PlanSetType } from './setTypes';
+import { lastWorkSetLoad } from './setLoadPrefill';
 
 export interface PreviousExerciseSet {
   set_number: number;
@@ -34,8 +35,8 @@ export interface SetTypeContext {
 
 /**
  * Carga de TRABALHO sugerida (base para aquecimento/preparatória): alvo manual
- * global → maior alvo por série do motor → carga da recomendação → maior carga
- * das séries de trabalho da última sessão. Nunca usa aquecimento/preparatória.
+ * global → maior alvo por série do motor → carga da recomendação → carga da
+ * ÚLTIMA série de trabalho da última sessão. Nunca usa aquecimento/preparatória.
  */
 export const suggestedWorkLoad = (
   previous: PreviousExerciseSet[], target: StudentLoadTarget, recommendation: SessionRecommendation | null,
@@ -45,41 +46,54 @@ export const suggestedWorkLoad = (
   return positive(target.kg)
     ?? (seriesMax.length ? Math.max(...seriesMax) : null)
     ?? recommendationLoad(recommendation)
-    ?? (() => {
-      const work = previous.filter((r) => isWorkLogSetType(r.set_type)).map((r) => positive(r.weight_kg)).filter((v): v is number => v != null);
-      return work.length ? Math.max(...work) : null;
-    })();
+    ?? lastWorkSetLoad(previous);
 };
 
-/** Display only: these values must never populate the student's draft. */
+/**
+ * Carga sugerida (kg) para UMA série — mesma conta do placeholder e do
+ * pré-preenchimento. Trabalho: alvo da série → alvo geral → sugestão de
+ * progressão → carga da última série de trabalho. Aquecimento 50%,
+ * preparatória/reconhecimento 85% da carga de trabalho (arredondadas).
+ */
+export const suggestedSetLoadKg = (
+  setNumber: number, previous: PreviousExerciseSet[], target: StudentLoadTarget,
+  recommendation: SessionRecommendation | null, ctx?: SetTypeContext,
+): number | null => {
+  const manualForSet = positive(targetLoadForSet(target.perSet, setNumber));
+  if (manualForSet != null) return manualForSet;
+  const type = ctx?.type != null ? normalizePlanSetType(ctx.type) : 'work';
+  if (type !== 'work') {
+    return suggestedLoadForSetType(suggestedWorkLoad(previous, target, recommendation), type, ctx?.exerciseName)
+      ?? positive(previous.find((row) => row.set_number === setNumber && normalizePlanSetType(row.set_type) === type)?.weight_kg);
+  }
+  const perSetRecommendation = ctx?.workOrdinal != null
+    ? [...(recommendation?.seriesTargets ?? [])].sort((a, b) => a.setNumber - b.setNumber)[ctx.workOrdinal]?.recommendedLoadKg
+    : recommendation?.seriesTargets?.find((s) => s.setNumber === setNumber)?.recommendedLoadKg;
+  return positive(target.kg)
+    ?? positive(perSetRecommendation)
+    ?? recommendationLoad(recommendation)
+    ?? lastWorkSetLoad(previous);
+};
+
+/** Texto do placeholder (quando o campo está vazio). */
 export const studentWeightPlaceholder = (
   setNumber: number, previous: PreviousExerciseSet[], target: StudentLoadTarget,
   recommendation: SessionRecommendation | null, ctx?: SetTypeContext,
 ): string => {
-  const manualForSet = targetLoadForSet(target.perSet, setNumber);
-  if (ctx?.type != null) {
-    const type = normalizePlanSetType(ctx.type);
-    if (type !== 'work') {
-      // Aquecimento ~50%, preparatória/reconhecimento ~85% da carga de trabalho.
-      const value = manualForSet
-        ?? suggestedLoadForSetType(suggestedWorkLoad(previous, target, recommendation), type, ctx.exerciseName)
-        ?? positive(previous.find((row) => row.set_number === setNumber && normalizePlanSetType(row.set_type) === type)?.weight_kg);
-      return value == null ? 'kg' : kgText(value);
-    }
-    if (ctx.workOrdinal != null) {
-      const ordered = [...(recommendation?.seriesTargets ?? [])].sort((a, b) => a.setNumber - b.setNumber);
-      const value = manualForSet ?? positive(target.kg)
-        ?? positive(ordered[ctx.workOrdinal]?.recommendedLoadKg)
-        ?? recommendationLoad(recommendation)
-        ?? positive(previous.find((row) => row.set_number === setNumber && isWorkLogSetType(row.set_type))?.weight_kg);
-      return value == null ? 'kg' : kgText(value);
-    }
-  }
-  const value = manualForSet ?? positive(target.kg)
-    ?? positive(recommendation?.seriesTargets?.find(s => s.setNumber === setNumber)?.recommendedLoadKg)
-    ?? recommendationLoad(recommendation)
-    ?? positive(previous.find((row) => row.set_number === setNumber)?.weight_kg);
+  const value = suggestedSetLoadKg(setNumber, previous, target, recommendation, ctx);
   return value == null ? 'kg' : kgText(value);
+};
+
+/**
+ * Cargas a pré-preencher em cada série (null = deixa vazio). Sem plano por
+ * tipo, todas as séries são de trabalho.
+ */
+export const setLoadDefaults = (
+  types: Array<string | null | undefined>, count: number, previous: PreviousExerciseSet[],
+  target: StudentLoadTarget, recommendation: SessionRecommendation | null, exerciseName?: string | null,
+): Array<number | null> => {
+  const ctx = types.length ? setTypeContexts(types, exerciseName) : [];
+  return Array.from({ length: count }, (_, i) => suggestedSetLoadKg(i + 1, previous, target, recommendation, ctx[i]));
 };
 
 /** Contexto de tipo para cada série do plano (tipo + ordinal entre as de trabalho). */

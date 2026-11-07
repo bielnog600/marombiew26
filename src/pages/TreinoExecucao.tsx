@@ -48,7 +48,8 @@ import { useRestTimer } from '@/hooks/useRestTimer';
 import { useSessionProgression } from '@/hooks/useSessionProgression';
 import { getRecommendationFor, type ProgressionSnapshot } from '@/lib/sessionProgression';
 import { StudentLoadSummaryCard } from '@/components/training/StudentLoadSummaryCard';
-import { lastWorkSetLine, setTypeContexts, studentSuggestionLine, studentWeightPlaceholder, type PreviousExerciseSet } from '@/lib/studentExerciseLoadPresentation';
+import { lastWorkSetLine, setLoadDefaults, setTypeContexts, studentSuggestionLine, studentWeightPlaceholder, type PreviousExerciseSet } from '@/lib/studentExerciseLoadPresentation';
+import { applyLoadPrefill } from '@/lib/setLoadPrefill';
 import MethodBadge from '@/components/training/MethodBadge';
 import { variationPrefKey, backendVariationPref } from '@/lib/exerciseVariationPref';
 import { WorkoutViewportDebug } from '@/components/training/WorkoutViewportDebug';
@@ -1147,6 +1148,25 @@ const TreinoExecucaoInner = () => {
   // Tipo de cada série: aquecimento ~50% e preparatória ~85% da carga de trabalho sugerida.
   const setTypeCtx = setTypeContexts(setPlan.map((set) => set.type), selectedExerciseName);
   const showSetTypes = hasTypedSets(setPlan.map((set) => ({ set_type: set.type })));
+
+  // Pré-preenche a carga das séries vazias (valor real no campo, editável).
+  // Não registra nada: a série só é gravada ao ser confirmada.
+  const historyLoaded = selectedExerciseName.toUpperCase().trim() in lastLogsByExercise;
+  useEffect(() => {
+    if (!exercise || !historyLoaded) return;
+    setSets((prev) => {
+      const cur = prev[currentIndex];
+      if (!cur?.length) return prev;
+      const types = setPlan.length ? setPlan.map((p) => p.type) : [];
+      const defaults = setLoadDefaults(types, cur.length, previousSets, loadTarget, recommendation, selectedExerciseName);
+      const filled = applyLoadPrefill(cur, defaults, types, 'comma');
+      if (!filled) return prev;
+      const next = { ...prev, [currentIndex]: filled };
+      syncLocalActiveSession(next, currentIndex);
+      return next;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentIndex, currentSets, historyLoaded, previousSets, recommendation, setPlan, selectedExerciseName, exercise?.targetLoadKg, exercise?.targetLoadPerSet]);
   const suggestionLine = studentSuggestionLine(loadTarget, recommendation, exercise?.reps ?? '');
 
   const streamVideoId = extractStreamVideoId(activeExercise?.video_embed);
