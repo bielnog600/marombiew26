@@ -6,7 +6,8 @@ import { Button } from '@/components/ui/button';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Play, Target, Repeat, Timer, Activity, Dumbbell, BarChart3 } from 'lucide-react';
 import type { ParsedExercise } from '@/lib/trainingResultParser';
-import { buildSetPlan, buildPlanDisplaySummary } from '@/lib/setPlanBuilder';
+import { buildSetPlan, buildPlanDisplaySummary, planHasTypedSets } from '@/lib/setPlanBuilder';
+import { FitSummaryLine } from '@/components/training/FitSummaryLine';
 import { hasTypedSets, SET_TYPE_BADGE_CLASS, SET_TYPE_LABEL } from '@/lib/setTypes';
 import type { TrainingPhase } from '@/lib/trainingPhase';
 import { ExerciseLoadHistorySheet } from '@/components/training/ExerciseLoadHistorySheet';
@@ -163,7 +164,12 @@ const TreinoPreview = () => {
                         </p>
                       )}
                       <div className="flex flex-wrap gap-x-3 gap-y-1 mt-1.5 ml-5 text-[11px] text-muted-foreground">
-                        {summary && (
+                        {summary && planHasTypedSets(plan) ? (
+                          <span className="flex basis-full min-w-0 items-center gap-1">
+                            <Repeat className="h-3 w-3 shrink-0" />
+                            <FitSummaryLine full={summary} compact={buildPlanDisplaySummary(plan, true, 'compact')} basePx={12} className="flex-1" />
+                          </span>
+                        ) : summary && (
                           <span className="flex items-center gap-1">
                             <Repeat className="h-3 w-3" />
                             {summary}
