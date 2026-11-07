@@ -27,7 +27,7 @@ import { useDailyTracking } from '@/hooks/useDailyTracking';
 import { useAuth } from '@/contexts/AuthContext';
 import { useActiveWorkoutSession } from '@/hooks/useActiveWorkoutSession';
 import { type ParsedExercise, parseTrainingSections } from '@/lib/trainingResultParser';
-import { buildSetPlan, buildPlanSummary, buildPlanDisplaySummary, type PlannedSet } from '@/lib/setPlanBuilder';
+import { buildSetPlan, buildPlanDisplaySummary, type PlannedSet } from '@/lib/setPlanBuilder';
 import { hasTypedSets, logSetTypeFor, SET_TYPE_LABEL, SET_TYPE_TAG, SET_TYPE_TEXT_CLASS } from '@/lib/setTypes';
 import { findBestExerciseMatch } from '@/lib/exerciseMatcher';
 import { PHASE_SHORT_LABELS, getPhaseByMonthDay, type TrainingPhase } from '@/lib/trainingPhase';
