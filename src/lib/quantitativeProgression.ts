@@ -81,6 +81,8 @@ export interface EquipmentIncrement {
 
 export interface QuantitativeRecommendation {
   seriesTargets?: SeriesLoadTarget[];
+  /** true = pirâmide/metas diferentes por série (uma carga por série); ausente/false = mesma carga em todas as séries de trabalho. */
+  perSetLoads?: boolean;
   exerciseName: string;
   /** Ação de origem (weeklyProgression) — nunca contrariada. */
   sourceAction: NextAction;
@@ -221,11 +223,15 @@ export const formatQuantitativeRecommendation = (r: QuantitativeRecommendation):
   if (r.basis === 'retomar_referencia') return 'Retomar com carga de referência';
   if (r.seriesTargets?.length) {
     const targets = r.seriesTargets;
-    const same = targets.every(s => s.recommendedLoadKg === targets[0].recommendedLoadKg && s.targetReps === targets[0].targetReps && s.action === targets[0].action);
-    const describe = (s: SeriesLoadTarget) => s.recommendedLoadKg == null
-      ? `Busca ${s.targetReps} reps`
-      : `${s.action === 'increase_load' ? 'Sobe para' : s.action === 'reduce_load' ? 'Reduz para' : 'Mantém'} ${kg(s.recommendedLoadKg)} kg e ${s.action === 'increase_load' ? 'busca' : 'tenta'} ${s.targetReps} reps${s.action === 'increase_load' ? ' limpas' : ''}`;
-    return same ? `${describe(targets[0])} no ${r.exerciseName}.` : targets.map(s => `Série ${s.setNumber}: ${describe(s)}`).join(' · ');
+    const same = targets.every(s => s.recommendedLoadKg === targets[0].recommendedLoadKg && s.action === targets[0].action);
+    const repsText = (list: SeriesLoadTarget[]) => {
+      const min = Math.min(...list.map(s => s.targetReps)), max = Math.max(...list.map(s => s.targetReps));
+      return min === max ? String(min) : `${min}–${max}`;
+    };
+    const describe = (s: SeriesLoadTarget, reps = String(s.targetReps)) => s.recommendedLoadKg == null
+      ? `Busca ${reps} reps`
+      : `${s.action === 'increase_load' ? 'Sobe para' : s.action === 'reduce_load' ? 'Reduz para' : 'Mantém'} ${kg(s.recommendedLoadKg)} kg e ${s.action === 'increase_load' ? 'busca' : 'tenta'} ${reps} reps${s.action === 'increase_load' ? ' limpas' : ''}`;
+    return same ? `${describe(targets[0], repsText(targets))} no ${r.exerciseName}.` : targets.map(s => `Série ${s.setNumber}: ${describe(s)}`).join(' · ');
   }
   if (r.qualitative) {
     if (r.basis === 'sem_base_quantificavel') return `Escolha uma carga para fazer ${r.repRange ? `${r.repRange.min}–${r.repRange.max}` : 'as'} reps com 2 de reserva.`;
