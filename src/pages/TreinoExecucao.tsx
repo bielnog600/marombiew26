@@ -1788,7 +1788,8 @@ const TreinoExecucaoInner = () => {
                 const rirRaw = (s.rir ?? '').trim();
                 const rirNum = rirRaw === '' ? null : Number(rirRaw);
                 totalSets += 1;
-                totalVolumeKg += s.subRecords?.length ? subRecordVolume(s) : reps * weight;
+                // Volume total só soma séries de trabalho.
+                if (logSetTypeFor(plannedTypes[i]) === 'work') totalVolumeKg += s.subRecords?.length ? subRecordVolume(s) : reps * weight;
                 setLogRows.push({
                   ...methodLogFields(ex, s),
                   student_id: user.id,
@@ -1800,7 +1801,7 @@ const TreinoExecucaoInner = () => {
                   rpe: null,
                   // RIR é opcional: ausência grava null (desconhecido), nunca 0.
                   rir: rirNum != null && Number.isFinite(rirNum) ? rirNum : null,
-                  set_type: plannedTypes[i] === 'recognition' ? 'recognition' : 'work',
+                  set_type: logSetTypeFor(plannedTypes[i]),
                   phase: phase ?? null,
                   day_name: dayName,
                 });
