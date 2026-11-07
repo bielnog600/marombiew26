@@ -16,6 +16,9 @@ import { WorkoutSetCard } from './WorkoutSetCard';
 import type { useInlineWorkoutRest } from '@/hooks/useInlineWorkoutRest';
 import type { MethodSetEntry } from '@/lib/workoutExecutionMethods';
 import { ExerciseMediaFrame } from './ExerciseMediaFrame';
+import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select';
+import { kindToSetType, PLAN_SET_TYPES, SET_TYPE_BADGE_CLASS, SET_TYPE_LABEL, SET_TYPE_TAG, setTypeToKind, type SetPlanKind } from '@/lib/setTypes';
+import { setTypeContexts, studentWeightPlaceholder, type PreviousExerciseSet } from '@/lib/studentExerciseLoadPresentation';
 
 interface SetEntry {
   weight: string;
@@ -25,7 +28,7 @@ interface SetEntry {
 }
 
 interface SetPlan {
-  kind: 'recon' | 'work';
+  kind: SetPlanKind;
   targetReps: string;
 }
 
@@ -54,6 +57,8 @@ interface Props {
   onExerciseNameChange: (name: string) => void;
   onAddSet?: (exIdx: number) => void;
   onRemoveSet?: (exIdx: number, setIdx: number) => void;
+  /** Troca o tipo da série na sessão (Aquecimento/Preparatória/Reconhecimento/Trabalho). */
+  onChangeSetType?: (exIdx: number, setIdx: number, kind: SetPlanKind) => void;
   onRemoveExercise?: (exIdx: number) => void;
   onUpdateMeta?: (patch: ExecutionMethodFields & {
     method?: import('@/lib/trainingResultParser').ParsedExercise['method'];
@@ -92,6 +97,7 @@ const ExerciseLogCard: React.FC<Props> = ({
   onExerciseNameChange,
   onAddSet,
   onRemoveSet,
+  onChangeSetType,
   onRemoveExercise,
   onUpdateMeta,
   ExerciseNamePicker,
@@ -107,6 +113,15 @@ const ExerciseLogCard: React.FC<Props> = ({
   const [editOpen, setEditOpen] = useState(false);
 
   const recommendation = getRecommendationFor(progressionSnapshot ?? null, st.exerciseName || ex.exercise);
+  // Carga sugerida por tipo: trabalho = sugestão; aquecimento ~50% e preparatória ~85% dela.
+  const typeCtx = setTypeContexts((st.plan || []).map((p) => kindToSetType(p.kind)), st.exerciseName || ex.exercise);
+  const lastWork: PreviousExerciseSet[] = st.lastWeight != null && st.lastWeight > 0
+    ? [{ set_number: 0, weight_kg: st.lastWeight, reps: st.lastReps, set_type: 'work', performed_at: st.lastDate ?? '' }]
+    : [];
+  const loadPlaceholder = (setIdx: number) => {
+    const v = studentWeightPlaceholder(setIdx + 1, lastWork, { kg: ex?.targetLoadKg ?? null, perSet: ex?.targetLoadPerSet ?? null }, recommendation, typeCtx[setIdx] ?? { type: 'work' });
+    return v === 'kg' ? 'kg' : `${v} kg`;
+  };
 
   return (
     <Card className="border-border/60">
@@ -225,28 +240,41 @@ const ExerciseLogCard: React.FC<Props> = ({
         {methodBody ? methodBody : <div className="space-y-1.5">
           {st.sets.map((s, setIdx) => {
             const p = st.plan?.[setIdx] ?? { kind: 'work' as const, targetReps: '' };
-            const isRecon = p?.kind === 'recon';
+            const sType = kindToSetType(p?.kind);
+            const tagClass = sType !== 'work' ? SET_TYPE_BADGE_CLASS[sType] : 'bg-secondary text-foreground';
+            const tagText = sType !== 'work' ? `${SET_TYPE_TAG[sType]} #${setIdx + 1}` : `#${setIdx + 1}`;
             return (
               <WorkoutSetCard key={setIdx} index={setIdx} exIdx={exIdx} rest={inlineRest?.rest} completion={inlineRest?.completion} next={!!inlineRest && !inlineRest.rest && setIdx === st.sets.findIndex(s => !s.completed)} onAdd={inlineRest?.adjust} onSkip={() => inlineRest?.skip()} done={!!s.completed} className="bg-secondary/30">
               <div className={`grid ${inlineRest ? 'grid-cols-[48px_1fr_1fr_44px_28px]' : 'grid-cols-[68px_1fr_1fr_28px]'} items-center gap-1.5 p-2`}>
+                {onChangeSetType ? (
+                  <Select value={sType} onValueChange={(v) => onChangeSetType(exIdx, setIdx, setTypeToKind(v))}>
+                    <SelectTrigger
+                      aria-label={`Tipo da série ${setIdx + 1}: ${SET_TYPE_LABEL[sType]}`}
+                      title={`${SET_TYPE_LABEL[sType]} — toque para mudar`}
+                      className={`h-auto min-h-7 w-full justify-center gap-0.5 px-1 py-0.5 text-[9px] font-bold rounded [&>svg]:h-2.5 [&>svg]:w-2.5 [&>svg]:shrink-0 ${tagClass}`}
+                    >
+                      <span className="flex flex-col items-center leading-tight">
+                        {tagText}
+                        {inlineRest && !inlineRest.rest && setIdx === st.sets.findIndex(s => !s.completed) && <span className="block text-primary text-[8px]">AGORA</span>}
+                      </span>
+                    </SelectTrigger>
+                    <SelectContent>
+                      {PLAN_SET_TYPES.map((t) => <SelectItem key={t} value={t} className="text-xs">{SET_TYPE_LABEL[t]}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                ) : (
                 <span
-                  className={`text-[9px] font-bold text-center px-1 py-0.5 rounded ${
-                    isRecon
-                      ? 'bg-primary/15 text-primary border border-primary/30'
-                      : 'bg-secondary text-foreground'
-                  }`}
-                  title={isRecon ? 'Reconhecimento' : 'Trabalho'}
+                  className={`text-[9px] font-bold text-center px-1 py-0.5 rounded ${tagClass}`}
+                  title={SET_TYPE_LABEL[sType]}
                 >
-                  {isRecon ? `REC #${setIdx + 1}` : `#${setIdx + 1}`}
+                  {tagText}
                   {inlineRest && !inlineRest.rest && setIdx === st.sets.findIndex(s => !s.completed) && <span className="block text-primary text-[8px]">AGORA</span>}
                 </span>
+                )}
                 <Input
                   type="number"
                   inputMode="decimal"
-                  placeholder={(() => {
-                    const t = targetLoadForSet(ex?.targetLoadPerSet, setIdx + 1);
-                    return t != null ? `${t} kg` : 'kg';
-                  })()}
+                  placeholder={loadPlaceholder(setIdx)}
                   value={s.weight}
                   onChange={(e) => onUpdateSet(exIdx, setIdx, 'weight', e.target.value)}
                   disabled={!!inlineRest && s.completed}
