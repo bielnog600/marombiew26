@@ -13,7 +13,7 @@ const now = new Date('2026-11-07T12:00:00Z');
 // Plano de hoje: 1 Preparatória + 2 Trabalho, sem carga alvo.
 const legPress = (extra: Partial<ParsedExercise> = {}): ParsedExercise => ({
   exercise: NAME, series: '3', series2: '', reps: '6-8', rir: '1-2', pause: '120', description: '', variation: '',
-  setScheme: { mode: 'uniform', sets: [
+  setScheme: { mode: 'per_set', sets: [
     { set_number: 1, set_type: 'preparatory', target_reps: '10' },
     { set_number: 2, set_type: 'work', target_reps: '6-8' },
     { set_number: 3, set_type: 'work', target_reps: '6-8' },
