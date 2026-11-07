@@ -5302,6 +5302,15 @@ function executionFields(raw) {
   };
 }
 
+// src/lib/setTypes.ts
+var normalizePlanSetType = (raw) => {
+  const t = String(raw ?? "").trim().toLowerCase();
+  if (t === "warmup" || t === "aquecimento") return "warmup";
+  if (t === "preparatory" || t === "preparatoria" || t === "preparat\xF3ria") return "preparatory";
+  if (t === "recognition" || t === "recon" || t === "reconhecimento") return "recognition";
+  return "work";
+};
+
 // src/lib/setPlanBuilder.ts
 var toInt = (v) => {
   if (!v) return 0;
@@ -5320,7 +5329,7 @@ var splitComposedReps = (reps) => {
 var buildSetPlan = (series, series2, reps, setScheme) => {
   if (setScheme && setScheme.mode === "per_set" && Array.isArray(setScheme.sets) && setScheme.sets.length > 0) {
     return [...setScheme.sets].sort((a, b) => (a.set_number || 0) - (b.set_number || 0)).map((s) => ({
-      type: s.set_type === "recognition" ? "recognition" : "work",
+      type: normalizePlanSetType(s.set_type),
       reps: String(s.target_reps || "").trim()
     }));
   }
@@ -5447,7 +5456,7 @@ var normalizeTargetLoadPerSetValue = (raw) => {
 var optionalString = external_exports.union([external_exports.string(), external_exports.null(), external_exports.undefined()]).transform((v) => v == null ? "" : String(v).trim());
 var SetSchemeSetSchema = external_exports.object({
   set_number: external_exports.number().int().positive(),
-  set_type: external_exports.enum(["work", "recognition"]),
+  set_type: external_exports.enum(["work", "recognition", "warmup", "preparatory"]),
   target_reps: external_exports.string().min(1)
 });
 var SetSchemeSchema = external_exports.object({
@@ -5556,7 +5565,7 @@ var normalizeSetScheme = (raw) => {
     const so = s;
     const target = String(so.target_reps ?? so.reps ?? "").trim();
     if (!target) return;
-    const setType2 = so.set_type === "recognition" ? "recognition" : "work";
+    const setType2 = normalizePlanSetType(so.set_type);
     const setNumber = Number(so.set_number);
     sets.push({
       set_number: Number.isFinite(setNumber) && setNumber > 0 ? Math.trunc(setNumber) : i + 1,
