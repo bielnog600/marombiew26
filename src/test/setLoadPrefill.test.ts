@@ -7,7 +7,7 @@ import type { SessionRecommendation } from '@/lib/sessionProgression';
 vi.mock('@/integrations/supabase/client', () => ({ supabase: {} }));
 
 const at = '2026-11-01T10:00:00Z';
-// Última sessão: aquecimento 50, preparatória 90, trabalho 110 e 105 (última de trabalho = 105).
+// Última sessão: aquecimento 50, preparatória 90, trabalho 110 e 105 (referência = maior de trabalho = 110).
 const lastSession: PreviousExerciseSet[] = [
   { set_number: 1, weight_kg: 50, reps: 15, set_type: 'warmup', performed_at: at },
   { set_number: 2, weight_kg: 90, reps: 10, set_type: 'preparatory', performed_at: at },
@@ -29,8 +29,8 @@ describe('carga pré-preenchida por série', () => {
     expect(lastWorkSetLoad([{ set_number: 1, weight_kg: 80, set_type: null, performed_at: at }, { set_number: 2, weight_kg: 60, set_type: 'warmup', performed_at: at }])).toBe(80);
   });
 
-  it('preenche trabalho 105, preparatória 85% (90) e aquecimento 50% (52,5)', () => {
-    expect(fill(empty()).map((s) => s.weight)).toEqual(['52,5', '90', '105', '105']);
+  it('preenche trabalho 110 (maior carga de trabalho), preparatória 85% (92,5) e aquecimento 50% (55)', () => {
+    expect(fill(empty()).map((s) => s.weight)).toEqual(['55', '92,5', '110', '110']);
   });
 
   it('com sugestão de progressão, usa a sugestão', () => {
@@ -57,9 +57,9 @@ describe('carga pré-preenchida por série', () => {
     const filled = fill([...empty(), { weight: '', reps: '', completed: false }]);
     // 5 séries: AQ, PREP, T1, T2, T3 (tipo extra cai como trabalho)
     filled[2] = { ...filled[2], weight: '115' };            // digitou na 1ª de trabalho
-    filled[3] = { ...filled[3], completed: true };          // T2 já registrada com 105
+    filled[3] = { ...filled[3], completed: true };          // T2 já registrada com 110
     const out = applyLoadPrefill(filled, setLoadDefaults(typed, 5, lastSession, {}, null, 'Leg press'), typed, 'comma') ?? filled;
-    expect(out.map((s) => s.weight)).toEqual(['52,5', '90', '115', '105', '115']);
+    expect(out.map((s) => s.weight)).toEqual(['55', '92,5', '115', '110', '115']);
   });
 
   it('apagar o valor preenchido deixa o campo vazio', () => {

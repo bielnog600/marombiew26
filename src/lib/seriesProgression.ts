@@ -66,8 +66,9 @@ export function computeSeriesProgression(input: QuantitativeInput): Quantitative
   const allTop = relevant.length > 0 && relevant.every(s => {
     const i = sets.indexOf(s), r = rangeFor(s.set_number ?? i + 1, i);
     return r != null && Number(s.reps) >= r.max;
-  }) && (input.recentLogs != null || sets.length >= p.totalWorkingSets)
-    && (!input.prescribedSets?.length || sets.length >= input.prescribedSets.length);
+  }) && (input.recentLogs != null || rawSets.length >= p.totalWorkingSets)
+    // Completeness counts every logged working set (ramp sets were still executed).
+    && (!input.prescribedSets?.length || rawSets.length >= input.prescribedSets.length);
   const repeatedTop = allTop && relevant.every(s => {
     const i = sets.indexOf(s), r = rangeFor(s.set_number ?? i + 1, i);
     const old = previous.find(l => l.set_number === s.set_number);
