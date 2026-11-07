@@ -159,7 +159,7 @@ describe('snapshot de progressão da sessão', () => {
     ];
     const r = build(logs).recommendations['SUPINO RETO'];
     expect(r.action).toBe('maintain');
-    expect(formatSessionHint(r)!.text).toContain('Mantém 80 kg');
+    expect(formatSessionHint(r)!.text).toContain('Trabalho: mantém 80 kg');
   });
 
   it('13. reduce_load mostra redução quando é segura', () => {

@@ -12,6 +12,9 @@ export interface SeriesLoadTarget {
   action: 'increase_load' | 'increase_reps' | 'maintain' | 'reduce_load';
 }
 
+/** Previous sets at or below this share of the heaviest load count as ramp-up, not work. */
+export const RAMP_SET_MAX_PCT = 0.8;
+
 /** Pure advice only: actual latest working loads, never weekly best-set projections. */
 export function computeSeriesProgression(input: QuantitativeInput): QuantitativeRecommendation {
   const p = input.performance;
@@ -31,12 +34,26 @@ export function computeSeriesProgression(input: QuantitativeInput): Quantitative
   });
   // Legacy callers may supply only a real best set, but cannot prove all prescribed sets reached the top.
   const unweighted = pair.current.filter(l => setRoleOf(l) === 'primary' && Number(l.reps) > 0);
-  const sets: ExerciseLog[] = recent.length ? recent : unweighted.length ? unweighted : !input.recentLogs && p.bestSet ? [{
+  const rawSets: ExerciseLog[] = recent.length ? recent : unweighted.length ? unweighted : !input.recentLogs && p.bestSet ? [{
     exercise_name: p.exerciseName,
     weight_kg: p.bestSet.weightKg, reps: p.bestSet.reps, set_number: p.bestSet.setNumber ?? 1,
     performed_at: p.bestSet.performedAt, rir: p.bestSet.rir,
   }] : [];
-  const maxLoad = Math.max(0, ...sets.map(s => Number(s.weight_kg)));
+  const rangeFor = (number: number, index: number) => parseRepRange(
+    input.prescribedSets?.find(s => s.setNumber === number)?.reps
+    ?? input.setSchemeTargets?.[index]
+    ?? input.plannedRepsText?.split('+').pop()?.split('/')[index]
+    ?? input.plannedRepsText?.split('+').pop()
+  ) ?? p.repRange ?? null;
+  // Pyramids and per-set rep schemes keep one load per set; uniform schemes share one working load.
+  const individual = new Set(rawSets.map((s, i) => {
+    const r = rangeFor(s.set_number ?? i + 1, i);
+    return r ? `${r.min}-${r.max}` : '';
+  })).size > 1 || /pyramid/.test(input.setSchemeMode ?? '');
+  const maxLoad = Math.max(0, ...rawSets.map(s => Number(s.weight_kg)));
+  // Uniform schemes: sets at ≤80% of the heaviest load were ramp-up (warm-up/preparation) even if logged as work.
+  const sets = individual || maxLoad <= 0 ? rawSets
+    : rawSets.filter(s => Number(s.weight_kg) > maxLoad * RAMP_SET_MAX_PCT);
   const baseSets = sets.filter(s => Number(s.weight_kg) === maxLoad);
   const last = recent[recent.length - 1];
   const rir = last?.rir ?? p.finalWorkingRir ?? (!input.recentLogs ? p.bestSet?.rir : null) ?? null;
@@ -45,22 +62,13 @@ export function computeSeriesProgression(input: QuantitativeInput): Quantitative
   const noLoad = isNoLoadExercise(p.exerciseName) || maxLoad <= 0;
   const at = sets.length ? Math.max(...sets.map(s => Date.parse(s.performed_at))) : null;
   const expired = at != null && isExerciseReferenceExpired(at, now.getTime());
-  const rangeFor = (number: number, index: number) => parseRepRange(
-    input.prescribedSets?.find(s => s.setNumber === number)?.reps
-    ?? input.setSchemeTargets?.[index]
-    ?? input.plannedRepsText?.split('+').pop()?.split('/')[index]
-    ?? input.plannedRepsText?.split('+').pop()
-  ) ?? p.repRange ?? null;
-  const individual = new Set(sets.map((s, i) => {
-    const r = rangeFor(s.set_number ?? i + 1, i);
-    return r ? `${r.min}-${r.max}` : '';
-  })).size > 1 || /pyramid/.test(input.setSchemeMode ?? '');
   const relevant = individual ? sets : baseSets;
   const allTop = relevant.length > 0 && relevant.every(s => {
     const i = sets.indexOf(s), r = rangeFor(s.set_number ?? i + 1, i);
     return r != null && Number(s.reps) >= r.max;
-  }) && (input.recentLogs != null || sets.length >= p.totalWorkingSets)
-    && (!input.prescribedSets?.length || sets.length >= input.prescribedSets.length);
+  }) && (input.recentLogs != null || rawSets.length >= p.totalWorkingSets)
+    // Completeness counts every logged working set (ramp sets were still executed).
+    && (!input.prescribedSets?.length || rawSets.length >= input.prescribedSets.length);
   const repeatedTop = allTop && relevant.every(s => {
     const i = sets.indexOf(s), r = rangeFor(s.set_number ?? i + 1, i);
     const old = previous.find(l => l.set_number === s.set_number);
@@ -99,15 +107,26 @@ export function computeSeriesProgression(input: QuantitativeInput): Quantitative
     ?? baseSeries.find(s => s.action === 'increase_load')
     ?? baseSeries.find(s => s.action === 'increase_reps') ?? baseSeries[0] ?? series[0];
   const currentReps = baseSets.length ? Math.min(...baseSets.map(s => Number(s.reps))) : null;
+  // Uniform schemes: every working set today gets the SAME load and action, decided on the
+  // reference (heaviest) sets — never matched by position with last session's sets.
+  const targets: SeriesLoadTarget[] = individual || maxLoad <= 0 || !representative || !series.length ? series : (() => {
+    const ordered = [...baseSeries].sort((a, b) => a.setNumber - b.setNumber);
+    const numbers = input.prescribedSets?.length ? input.prescribedSets.map(s => s.setNumber) : ordered.map(s => s.setNumber);
+    const shared = representative.action === 'increase_load' || representative.action === 'reduce_load';
+    return numbers.map((setNumber, i): SeriesLoadTarget => ({
+      setNumber, currentLoadKg: maxLoad, recommendedLoadKg: representative.recommendedLoadKg, action: representative.action,
+      targetReps: shared ? representative.targetReps : (ordered[i] ?? ordered[ordered.length - 1] ?? representative).targetReps,
+    }));
+  })();
   return {
     exerciseName: p.exerciseName, sourceAction: p.nextAction,
     action: expired ? 'maintain' : representative?.action ?? 'review',
     currentLoadKg: expired ? null : maxLoad || null,
     recommendedLoadKg: representative?.recommendedLoadKg ?? null,
     currentReps: expired ? null : currentReps, targetReps: representative?.targetReps ?? null,
-    workingSetTargets: series.length > 1 ? series.map(s => s.targetReps) : null,
-    totalRepsTarget: series.length ? series.reduce((sum, s) => sum + s.targetReps, 0) : null,
-    seriesTargets: series, repRange: p.repRange ?? null,
+    workingSetTargets: targets.length > 1 ? targets.map(s => s.targetReps) : null,
+    totalRepsTarget: targets.length ? targets.reduce((sum, s) => sum + s.targetReps, 0) : null,
+    seriesTargets: targets, perSetLoads: individual, repRange: p.repRange ?? null,
     incrementKg: increment.incrementKg, incrementSource: increment.source, incrementConfidence: increment.confidence,
     relativeChangePct: representative?.currentLoadKg && representative.recommendedLoadKg ? (representative.recommendedLoadKg - representative.currentLoadKg) / representative.currentLoadKg : null,
     confidence: representative ? increment.confidence : 'low', qualitative: !representative,

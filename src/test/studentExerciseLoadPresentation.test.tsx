@@ -21,11 +21,11 @@ const recommendation = {
 } as unknown as SessionRecommendation;
 
 describe('carga na execução do aluno', () => {
-  it('placeholder usa a carga da última série de trabalho registrada', () => {
+  it('placeholder usa a MAIOR carga de trabalho da última sessão (60, não a última série de 55)', () => {
     render(<StudentWeightInput setNumber={2} value="" placeholder={studentWeightPlaceholder(2, history, {}, null)} disabled={false} onChange={() => {}} />);
     const input = screen.getByRole('textbox');
     expect(input).toHaveValue('');
-    expect(input).toHaveAttribute('placeholder', '55');
+    expect(input).toHaveAttribute('placeholder', '60');
     expect(input).toHaveAttribute('inputmode', 'decimal');
   });
   it('focar e confirmar sem digitar mantém vazio e salva null, nunca 0 ou o placeholder', () => {

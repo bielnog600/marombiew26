@@ -1170,7 +1170,7 @@ const TreinoExecucaoInner = () => {
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentIndex, currentSets, historyLoaded, previousSets, recommendation, setPlan, selectedExerciseName, effectiveShowingVariation, exercise?.targetLoadKg, exercise?.targetLoadPerSet]);
-  const suggestionLine = studentSuggestionLine(loadTarget, recommendation, exercise?.reps ?? '');
+  const suggestionLine = studentSuggestionLine(loadTarget, recommendation, exercise?.reps ?? '', setPlan.map((set) => set.type), selectedExerciseName);
 
   const streamVideoId = extractStreamVideoId(activeExercise?.video_embed);
   const imageUrl = activeExercise?.imagem_url;

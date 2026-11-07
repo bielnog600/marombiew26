@@ -1,13 +1,13 @@
 import { supabase } from '@/integrations/supabase/client';
 import { isPreparationLogSetType } from '@/lib/setTypes';
-import { lastWorkSetLoad } from '@/lib/setLoadPrefill';
+import { referenceWorkSetLoad } from '@/lib/setLoadPrefill';
 import { normalizeExName } from './TrainerLogSheetUtils';
 
 export interface ExerciseLastLoad {
   lastWeight: number | null;
   lastReps: number | null;
   lastDate: string | null;
-  /** Carga da última série de TRABALHO da última sessão (pré-preenchimento). */
+  /** MAIOR carga de TRABALHO da última sessão (referência do pré-preenchimento). */
   lastWorkLoad: number | null;
 }
 
@@ -32,7 +32,7 @@ export const summarizeLastSession = (rows: Row[] | null | undefined): ExerciseLa
     lastWeight: melhor.weight_kg,
     lastReps: melhor.reps,
     lastDate: melhor.performed_at,
-    lastWorkLoad: lastWorkSetLoad(daSessao),
+    lastWorkLoad: referenceWorkSetLoad(daSessao),
   };
 };
 

@@ -181,7 +181,7 @@ describe('comparabilidade das sessões usadas pelo sessionProgression', () => {
     expect(r.singlePerformance).toBe(true);
     expect(r.action).toBe('maintain');
     expect(r.recommendedLoadKg).toBe(80);
-    expect(formatSessionHint(r)!.text).toContain('Mantém 80 kg');
+    expect(formatSessionHint(r)!.text).toContain('Trabalho: mantém 80 kg');
   });
 
   it('9/14. nenhum histórico gera snapshot VAZIO (mas versionado)', () => {
