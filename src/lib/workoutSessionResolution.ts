@@ -254,7 +254,7 @@ export const buildSessionStateLogRows = (
         rpe: null,
         // RIR opcional: ausência = desconhecido (null), nunca preenchido.
         rir: rirNum != null && Number.isFinite(rirNum) ? rirNum : null,
-        set_type: plannedType === 'recognition' ? 'recognition' : 'work',
+        set_type: logSetTypeFor(plannedType),
         phase: row.phase ?? null,
         day_name: row.day_name ?? null,
         performed_at: performedAtIso,

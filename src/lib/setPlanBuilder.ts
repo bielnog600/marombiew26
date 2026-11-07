@@ -8,7 +8,7 @@
  *
  * Output: a flat array of planned sets, each with type and reps label.
  */
-import { normalizePlanSetType, type PlanSetType } from './setTypes';
+import { normalizePlanSetType, typedSetsSummary, type PlanSetType } from './setTypes';
 
 export type PlannedSetType = PlanSetType;
 
@@ -94,4 +94,15 @@ export const buildPlanSummary = (plan: PlannedSet[]): string => {
   return blocks
     .map((b) => `${b.count}x${(b.reps || '?').replace('-', '–')}`)
     .join(' + ');
+};
+
+/**
+ * Resumo para exibição. Com aquecimento/preparatória no plano:
+ * "Aquec. 1×12-15 · Prep. 1×10 · Trabalho 2×6-8"; senão mantém o formato atual.
+ */
+export const buildPlanDisplaySummary = (plan: PlannedSet[], perSet = false): string => {
+  if (plan.some((p) => p.type === 'warmup' || p.type === 'preparatory')) {
+    return typedSetsSummary(plan.map((p) => ({ set_type: p.type, target_reps: p.reps })));
+  }
+  return perSet ? plan.map((set) => set.reps).filter(Boolean).join(' / ') : buildPlanSummary(plan);
 };
