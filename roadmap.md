@@ -175,3 +175,8 @@ Fora do escopo desta entrega (Fases 3-6): LOW/MEDIUM/HIGH, novo carb cycling, aj
 ## Escritório de IA — office-alunos (só leitura)
 - [x] `cadastro` (profiles.created_at), `acesso` (students_profile.access_status) e `planos` (treino/dieta/cardio + data publicada mais recente) por aluno; só ai_plans publicados, rascunhos do escritório fora. Lógica pura em `office-alunos/planos.ts` com 8 testes; campos existentes intactos.
 - [ ] Conferir a resposta real pelo escritório (a função exige a senha do escritório, que eu não tenho).
+
+## Carga de trabalho única (sem casar séries por posição)
+- [x] Todas as séries de Trabalho recebem a mesma carga; série leve antiga (≤80%) ignorada
+- [x] Texto "Trabalho: … · Preparatória …" no card de sugestão (aluno e Modo Treino)
+- [x] Referência sem sugestão = maior carga de trabalho (variação, bi-set/superset, admin)
