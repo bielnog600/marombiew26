@@ -182,5 +182,6 @@ Fora do escopo desta entrega (Fases 3-6): LOW/MEDIUM/HIGH, novo carb cycling, aj
 - [x] Referência sem sugestão = maior carga de trabalho (variação, bi-set/superset, admin)
 
 ## Descanso por tipo de série e registro do Modo Treino
-- [ ] Descanso automático pelo tipo da série confirmada (Aquecimento 60s, Preparatória 120s, Trabalho 180s, Reconhecimento 90s); sem tipos = pausa do plano; bi-set/superset inalterado; aluno + Modo Treino (individual e dupla); rótulo "Descanso · Tipo X"
-- [ ] Modo Treino admin: exercícios normais com o mesmo registro por série dos grupos (individual e dupla), mantendo Variação, Histórico, alvo, cronômetro, Observações e Salvar no plano
+- [x] Descanso automático pelo tipo da série confirmada (Aquecimento 60s, Preparatória 120s, Trabalho 180s, Reconhecimento 90s); sem tipos = pausa do plano; bi-set/superset inalterado; aluno + Modo Treino (individual e dupla); rótulo "Descanso · Tipo X"
+- [x] Modo Treino admin: exercícios normais com o mesmo registro por série dos grupos (individual e dupla), mantendo Variação, Histórico, alvo, cronômetro, Observações e Salvar no plano
+- [ ] Conferir na tela o novo registro do Modo Treino com um aluno real (não abri a sessão de treino do admin)
