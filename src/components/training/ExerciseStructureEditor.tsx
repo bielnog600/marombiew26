@@ -6,8 +6,13 @@ import { Plus, X } from 'lucide-react';
 import { ExercisePicker } from '@/components/tabata/ExercisePicker';
 import { WorkoutMethodEditor } from './WorkoutMethodEditor';
 import type { ParsedExercise } from '@/lib/trainingResultParser';
+import {
+  buildWarmupPrepWorkSets, kindToSetType, normalizePlanSetType, PLAN_SET_TYPES, SET_TYPE_BADGE_CLASS, SET_TYPE_LABEL, SET_TYPE_TAG,
+  type PlanSetType, type SetPlanKind,
+} from '@/lib/setTypes';
 
-type StructureMode = 'standard' | 'recognition' | 'per_set';
+/** `warmup_prep_work` é atalho: cria as linhas por série com os tipos. */
+type StructureMode = 'standard' | 'recognition' | 'per_set' | 'warmup_prep_work';
 
 const detectMode = (ex: any): StructureMode => {
   if (ex?.setScheme?.mode === 'per_set') return 'per_set';
@@ -25,19 +30,20 @@ const detectMode = (ex: any): StructureMode => {
  */
 export function ExerciseStructureEditor({ ex, plan, onUpdateMeta }: {
   ex: ParsedExercise;
-  plan: { kind: 'recon' | 'work'; targetReps: string }[];
+  plan: { kind: SetPlanKind; targetReps: string }[];
   onUpdateMeta: (patch: any) => void;
 }) {
   const mode: StructureMode = detectMode(ex);
 
-  const perSetSets: Array<{ set_number: number; set_type: 'work' | 'recognition'; target_reps: string }> =
+  const perSetSets: Array<{ set_number: number; set_type: PlanSetType; target_reps: string }> =
     mode === 'per_set' && ex?.setScheme?.sets
-      ? ex.setScheme.sets
+      ? ex.setScheme.sets.map((s) => ({ ...s, set_type: normalizePlanSetType(s.set_type) }))
       : (plan || []).map((p, i) => ({
           set_number: i + 1,
-          set_type: p.kind === 'recon' ? 'recognition' : 'work',
+          set_type: kindToSetType(p.kind),
           target_reps: p.targetReps || '',
         }));
+  const workCount = Math.max(1, perSetSets.filter((s) => s.set_type === 'work').length || plan.length || 2);
 
   const commitPerSet = (next: typeof perSetSets) => {
     const renumbered = next.map((s, i) => ({ ...s, set_number: i + 1 }));
@@ -46,6 +52,10 @@ export function ExerciseStructureEditor({ ex, plan, onUpdateMeta }: {
 
   const changeMode = (next: StructureMode) => {
     if (next === mode) return;
+    if (next === 'warmup_prep_work') {
+      commitPerSet(buildWarmupPrepWorkSets({ warmup: true, workSets: workCount }));
+      return;
+    }
     if (next === 'standard') {
       const [a] = String(ex.reps || '').split('+').map((p) => p.trim());
       onUpdateMeta({
@@ -73,9 +83,8 @@ export function ExerciseStructureEditor({ ex, plan, onUpdateMeta }: {
   const updatePerSetReps = (idx: number, value: string) => {
     commitPerSet(perSetSets.map((s, i) => (i === idx ? { ...s, target_reps: value } : s)));
   };
-  const togglePerSetType = (idx: number) => {
-    commitPerSet(perSetSets.map((s, i) =>
-      i === idx ? { ...s, set_type: (s.set_type === 'work' ? 'recognition' : 'work') as 'work' | 'recognition' } : s));
+  const changePerSetType = (idx: number, type: PlanSetType) => {
+    commitPerSet(perSetSets.map((s, i) => (i === idx ? { ...s, set_type: type } : s)));
   };
   const addPerSetSlot = () => {
     const last = perSetSets[perSetSets.length - 1];
@@ -98,6 +107,7 @@ export function ExerciseStructureEditor({ ex, plan, onUpdateMeta }: {
             <SelectItem value="standard" className="text-xs">Padrão</SelectItem>
             <SelectItem value="recognition" className="text-xs">Reconhecimento + trabalho</SelectItem>
             <SelectItem value="per_set" className="text-xs">Repetições por série</SelectItem>
+            <SelectItem value="warmup_prep_work" className="text-xs">Aquecimento + preparatória + trabalho</SelectItem>
           </SelectContent>
         </Select>
       </div>
@@ -106,22 +116,26 @@ export function ExerciseStructureEditor({ ex, plan, onUpdateMeta }: {
       {mode === 'per_set' ? (
         <div className="space-y-1.5">
           <label className="text-[9px] uppercase text-muted-foreground font-semibold">
-            Reps por série
+            Tipo e reps por série
           </label>
+          <div className="flex flex-wrap gap-1">
+            <Button type="button" size="sm" variant="outline" className="h-6 px-2 text-[10px]" onClick={() => commitPerSet(buildWarmupPrepWorkSets({ warmup: true, workSets: workCount }))}>Aquec. + prep. + trabalho</Button>
+            <Button type="button" size="sm" variant="outline" className="h-6 px-2 text-[10px]" onClick={() => commitPerSet(buildWarmupPrepWorkSets({ warmup: false, workSets: workCount }))}>Prep. + trabalho</Button>
+          </div>
           {perSetSets.map((s, i) => (
-            <div key={i} className="grid grid-cols-[56px_1fr_28px_28px] items-center gap-1.5">
-              <button
-                type="button"
-                onClick={() => togglePerSetType(i)}
-                className={`text-[9px] font-bold text-center px-1 py-1 rounded ${
-                  s.set_type === 'recognition'
-                    ? 'bg-primary/15 text-primary border border-primary/30'
-                    : 'bg-secondary text-foreground border border-border/50'
-                }`}
-                title={s.set_type === 'recognition' ? 'Reconhecimento' : 'Trabalho'}
-              >
-                {s.set_type === 'recognition' ? `REC #${i + 1}` : `#${i + 1}`}
-              </button>
+            <div key={i} className="grid grid-cols-[84px_1fr_28px_28px] items-center gap-1.5">
+              <Select value={s.set_type} onValueChange={(v) => changePerSetType(i, v as PlanSetType)}>
+                <SelectTrigger
+                  aria-label={`Tipo da série ${i + 1}`}
+                  title={SET_TYPE_LABEL[s.set_type]}
+                  className={`h-7 px-1.5 text-[9px] font-bold ${s.set_type !== 'work' ? SET_TYPE_BADGE_CLASS[s.set_type] : 'bg-secondary text-foreground border border-border/50'}`}
+                >
+                  <span>{s.set_type !== 'work' ? `${SET_TYPE_TAG[s.set_type]} #${i + 1}` : `TRAB #${i + 1}`}</span>
+                </SelectTrigger>
+                <SelectContent>
+                  {PLAN_SET_TYPES.map((t) => <SelectItem key={t} value={t} className="text-xs">{SET_TYPE_LABEL[t]}</SelectItem>)}
+                </SelectContent>
+              </Select>
               <Input
                 key={`${i}-${s.target_reps}`}
                 defaultValue={s.target_reps}
