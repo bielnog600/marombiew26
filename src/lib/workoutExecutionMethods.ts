@@ -33,6 +33,8 @@ export interface MethodSetEntry {
   rir?: string;
   subRecords?: SubRecord[];
   pauseUntil?: number;
+  /** Carga que o app pré-preencheu (setLoadPrefill); não é registro. */
+  weightAuto?: string;
 }
 const slugs: Record<string, SeriesMethod> = { drop_set: 'dropset', rest_pause: 'restpause', cluster_set: 'cluster' };
 export const methodSlug = (method: SeriesMethod): string | undefined =>
