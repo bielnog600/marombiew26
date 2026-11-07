@@ -39,7 +39,7 @@ import { useSessionProgression } from '@/hooks/useSessionProgression';
 import { readProgressionSnapshot, type ProgressionSnapshot, getRecommendationFor } from '@/lib/sessionProgression';
 import { resolveCurrentTrainingPhase } from '@/lib/currentPhase';
 import { persistSessionDayEditsToPlan } from '@/lib/sessionPlanPersistence';
-import { isWorkLogSetType, kindToSetType, SET_TYPE_BADGE_CLASS, SET_TYPE_LABEL, SET_TYPE_TAG } from '@/lib/setTypes';
+import { isPreparationLogSetType, kindToSetType, SET_TYPE_BADGE_CLASS, SET_TYPE_LABEL, SET_TYPE_TAG } from '@/lib/setTypes';
 import {
   buildExerciseUids,
   makeExerciseUid,
@@ -328,7 +328,7 @@ export const DuoTrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studen
           if (linhas.length > 0) {
             const sessaoDe = (r: any) => r.session_id || String(r.performed_at).slice(0, 10);
             const daSessao = linhas.filter((r) => sessaoDe(r) === sessaoDe(linhas[0]));
-            const trabalho = daSessao.filter((r) => isWorkLogSetType(r.set_type));
+            const trabalho = daSessao.filter((r) => !isPreparationLogSetType(r.set_type));
             const pool = trabalho.length > 0 ? trabalho : daSessao;
             const melhor = pool.reduce((a, b) => (Number(b.weight_kg) || 0) > (Number(a.weight_kg) || 0) ? b : a, pool[0]);
             initial[i].lastWeight = melhor.weight_kg;

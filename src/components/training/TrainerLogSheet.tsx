@@ -52,7 +52,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { workoutPlanToMarkdown } from '@/lib/workoutMarkdownSerializer';
 import { useEmptyDaysConfirm } from './EmptyDaysConfirm';
 import { persistSessionDayEditsToPlan } from '@/lib/sessionPlanPersistence';
-import { isWorkLogSetType, kindToSetType, SET_TYPE_BADGE_CLASS, SET_TYPE_LABEL, SET_TYPE_TAG, type SetPlanKind } from '@/lib/setTypes';
+import { isPreparationLogSetType, kindToSetType, SET_TYPE_BADGE_CLASS, SET_TYPE_LABEL, SET_TYPE_TAG, type SetPlanKind } from '@/lib/setTypes';
 import {
   buildExerciseUids,
   makeExerciseUid,
@@ -209,7 +209,7 @@ export const HistoryPopover: React.FC<{
       .order('performed_at', { ascending: false })
       .limit(200);
     // Histórico: só séries de trabalho (nulo = legado = trabalho).
-    setRows(((data as (HistoryRow & { set_type?: string | null })[]) || []).filter((r) => isWorkLogSetType(r.set_type)));
+    setRows(((data as (HistoryRow & { set_type?: string | null })[]) || []).filter((r) => !isPreparationLogSetType(r.set_type)));
     setLoading(false);
   };
 
@@ -577,7 +577,7 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
             const ultima = sessaoDe(linhas[0]);
             const daSessao = linhas.filter((r) => sessaoDe(r) === ultima);
             // Só séries de TRABALHO (set_type nulo = legado = trabalho).
-            const trabalho = daSessao.filter((r) => isWorkLogSetType(r.set_type));
+            const trabalho = daSessao.filter((r) => !isPreparationLogSetType(r.set_type));
             const pool = trabalho.length > 0 ? trabalho : daSessao;
             const melhor = pool.reduce((a, b) => (Number(b.weight_kg) || 0) > (Number(a.weight_kg) || 0) ? b : a, pool[0]);
             initial[i].lastWeight = melhor.weight_kg;

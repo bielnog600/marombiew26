@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { isWorkLogSetType } from '@/lib/setTypes';
+import { isPreparationLogSetType } from '@/lib/setTypes';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import { supabase } from '@/integrations/supabase/client';
 import { TrendingUp, TrendingDown, Minus, Dumbbell } from 'lucide-react';
@@ -55,7 +55,7 @@ export const ExerciseLoadHistorySheet: React.FC<Props> = ({ open, onOpenChange, 
 
       const map = new Map<string, SessionGroup>();
       // Histórico/recordes/volume: só séries de trabalho (nulo = legado = trabalho).
-      (data || []).filter((row) => isWorkLogSetType((row as { set_type?: string | null }).set_type)).forEach((row) => {
+      (data || []).filter((row) => !isPreparationLogSetType((row as { set_type?: string | null }).set_type)).forEach((row) => {
         const key = row.session_id || row.performed_at;
         if (!map.has(key)) {
           map.set(key, {

@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { isWorkLogSetType } from '@/lib/setTypes';
+import { isPreparationLogSetType } from '@/lib/setTypes';
 import AppLayout from '@/components/AppLayout';
 import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -155,7 +155,7 @@ const MeuProgresso: React.FC = () => {
   const filteredLogs = useMemo(() => {
     return logs.filter((l) => {
       // Cargas, volume e recordes: só séries de trabalho (nulo = legado = trabalho).
-      if (!isWorkLogSetType(l.set_type)) return false;
+      if (isPreparationLogSetType(l.set_type)) return false;
       if (exerciseFilter !== 'all' && l.exercise_name !== exerciseFilter) return false;
       if (muscleFilter !== 'all' && l.muscle_group !== muscleFilter) return false;
       return true;

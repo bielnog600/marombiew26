@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { isWorkLogSetType } from '@/lib/setTypes';
+import { isPreparationLogSetType } from '@/lib/setTypes';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -173,7 +173,7 @@ const StudentBehavior360: React.FC<Props> = ({ studentId, studentName }) => {
     const byExercise = new Map<string, { weight_kg: number | null; reps: number | null; performed_at: string }[]>();
     for (const log of data.setLogs) {
       // Progressão: só séries de trabalho (aquecimento/preparatória/reconhecimento fora).
-      if (!isWorkLogSetType(log.set_type)) continue;
+      if (isPreparationLogSetType(log.set_type)) continue;
       if (!byExercise.has(log.exercise_name)) byExercise.set(log.exercise_name, []);
       byExercise.get(log.exercise_name)!.push(log);
     }
