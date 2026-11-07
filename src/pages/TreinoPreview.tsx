@@ -6,7 +6,8 @@ import { Button } from '@/components/ui/button';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Play, Target, Repeat, Timer, Activity, Dumbbell, BarChart3 } from 'lucide-react';
 import type { ParsedExercise } from '@/lib/trainingResultParser';
-import { buildSetPlan, buildPlanSummary } from '@/lib/setPlanBuilder';
+import { buildSetPlan, buildPlanDisplaySummary } from '@/lib/setPlanBuilder';
+import { hasTypedSets, SET_TYPE_BADGE_CLASS, SET_TYPE_LABEL } from '@/lib/setTypes';
 import type { TrainingPhase } from '@/lib/trainingPhase';
 import { ExerciseLoadHistorySheet } from '@/components/training/ExerciseLoadHistorySheet';
 import { useAuth } from '@/contexts/AuthContext';
@@ -122,9 +123,8 @@ const TreinoPreview = () => {
             const key = String(ex?.exercise || '').toUpperCase().trim();
             const media = exerciseMedia[key];
             const plan = buildSetPlan(ex.series, ex.series2, ex.reps, ex.setScheme);
-            const summary = ex.setScheme?.mode === 'per_set'
-              ? plan.map((set) => set.reps).filter(Boolean).join(' / ')
-              : buildPlanSummary(plan);
+            const summary = buildPlanDisplaySummary(plan, ex.setScheme?.mode === 'per_set');
+            const typed = hasTypedSets(plan.map((set) => ({ set_type: set.type })));
 
             return (
               <Card key={ex.exercise + i} className="glass-card-solid overflow-hidden">
@@ -182,6 +182,15 @@ const TreinoPreview = () => {
                           </span>
                         )}
                       </div>
+                      {typed && (
+                        <div className="flex flex-wrap gap-1 mt-1.5 ml-5" data-testid="preview-set-types">
+                          {plan.map((set, si) => (
+                            <span key={si} className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${SET_TYPE_BADGE_CLASS[set.type]}`}>
+                              {SET_TYPE_LABEL[set.type]}{set.reps ? ` · ${set.reps}` : ''}
+                            </span>
+                          ))}
+                        </div>
+                      )}
                     </div>
 
                     {/* Botão de histórico de cargas */}
