@@ -1,5 +1,10 @@
 # Roadmap
 
+## Aba Treinos do aluno (admin) — layout
+- [x] Periodização como faixa dentro do card (texto longo só expandido); selo e faixa pela mesma semana resolvida pela data de início.
+- [x] Treino atual com selo ATUAL e borda; histórico recolhível com linhas compactas (Treinar/lixeira), expandindo o editor completo.
+- [ ] Conferir na tela com conta real — sem conta de administrador liberada para o preview.
+
 ## Carga em bi-set/superset e variação; botão Variação no Modo Treino
 - [x] Bi-set/superset: pré-preenchimento por exercício no Modo Treino (individual e dupla); aluno já preenchia (teste).
 - [x] Variação: histórico próprio, sem carga alvo do original, vazio sem histórico, volta ao original; registro com o nome da variação.
