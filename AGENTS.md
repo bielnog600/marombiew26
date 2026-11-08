@@ -44,4 +44,4 @@
 - The `office-alunos` feed stays read-only and its published-plan summary (cadastro/acesso/planos) resolves in the pure `supabase/functions/office-alunos/planos.ts`: only `is_draft = false` rows of tipo treino/dieta/cardio count, the date is `published_at ?? created_at` rendered as a Lisbon day, so office drafts (`office_plan_drafts` or diet `is_draft=true`) can never reach the assistant.
 - Carb cycle: `dietCarbCycle`; day targets also in weekly_day_targets.
 - Set types live in `setTypes` (labels, %, logs); null log = work, so legacy history keeps counting.
-- Routes and heavy libs (3D, charts, PDF, barcode, HLS) load lazily into named manualChunks; shared helpers (commonjs/preload, babel runtime, clsx) stay in vendor so lazy chunks never join the initial load.
+- Lazy routes/heavy libs; tiny shared helpers stay in vendor chunk.
