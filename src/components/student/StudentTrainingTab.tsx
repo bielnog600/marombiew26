@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState, useMemo } from 'react';
-import PeriodizationCard from '@/components/training/PeriodizationCard';
+import { PeriodizationStrip, PeriodizationDetails } from '@/components/training/PeriodizationCard';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -81,6 +81,7 @@ const StudentTrainingTab: React.FC<StudentTrainingTabProps> = ({ studentId }) =>
   const [incrementsFor, setIncrementsFor] = useState<string[] | null>(null);
   const editedMarkdownsRef = useRef<Record<string, string>>({});
   const [starting, setStarting] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
 
   /**
    * Etapa 2C — edição JSON-first na aba do aluno.
@@ -384,310 +385,407 @@ const StudentTrainingTab: React.FC<StudentTrainingTabProps> = ({ studentId }) =>
     );
   }
 
+  const [currentPlan, ...historyPlans] = plans;
+
+  /** Valores derivados de um treino (inclui edições ainda não salvas). */
+  const getPlanView = (plan: any) => {
+    const currentPhase = (editedPhases[plan.id] ?? plan.fase ?? 'semana_1') as TrainingPhase;
+    const currentStartDate = editedStartDates[plan.id] ?? plan.fase_inicio_data ?? '';
+    // Fonte única da semana: o mesmo cálculo do aluno e do PlanAdherence.
+    const resolvedPhase = resolveCurrentTrainingPhase({
+      id: plan.id,
+      fase: editedPhases[plan.id] ?? plan.fase ?? null,
+      fase_inicio_data: currentStartDate || null,
+      cycle_days: plan.cycle_days ?? null,
+    }).phase;
+    const planV2 = getCurrentPlanV2(plan);
+    const hasChanges =
+      editedPlans[plan.id] !== undefined ||
+      editedMarkdowns[plan.id] !== undefined ||
+      editedPhases[plan.id] !== undefined ||
+      editedStartDates[plan.id] !== undefined;
+    const currentMarkdown = editedPlans[plan.id]
+      ? workoutPlanToMarkdown(editedPlans[plan.id])
+      : editedMarkdowns[plan.id] !== undefined
+        ? editedMarkdowns[plan.id]
+        : plan.conteudo;
+    const currentDays: ParsedTrainingDay[] = planV2
+      ? workoutPlanToParsedDays(planV2)
+      : sortTrainingDays(parseTrainingSections(currentMarkdown || '').flatMap(s => s.days || []));
+    return { currentPhase, currentStartDate, resolvedPhase, planV2, hasChanges, currentMarkdown, currentDays };
+  };
+
+  const formatPlanDate = (plan: any) =>
+    new Date(plan.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+
+  const renderPhaseBadge = (phase: TrainingPhase) => (
+    <span className={`text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border whitespace-nowrap ${PHASE_BADGE_CLASS[phase]}`}>
+      {PHASE_SHORT_LABELS[phase]}
+    </span>
+  );
+
+  const renderTrainButton = (plan: any) => (
+    <Button
+      variant="ghost"
+      size="sm"
+      className="h-7 gap-1 px-2 text-xs"
+      title="Treinar aluno"
+      onClick={(e) => {
+        e.stopPropagation();
+        setTrainModeChoice(getEffectivePlan(plan));
+      }}
+    >
+      <ClipboardList className="h-3 w-3" /> Treinar
+    </Button>
+  );
+
+  const renderDeleteButton = (plan: any) => (
+    <AlertDialog>
+      <AlertDialogTrigger asChild>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-7 w-7 text-muted-foreground hover:text-destructive"
+          aria-label="Deletar treino"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <Trash2 className="h-3.5 w-3.5" />
+        </Button>
+      </AlertDialogTrigger>
+      <AlertDialogContent onClick={(e) => e.stopPropagation()}>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Deletar treino?</AlertDialogTitle>
+          <AlertDialogDescription>Esta ação não pode ser desfeita.</AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancelar</AlertDialogCancel>
+          <AlertDialogAction
+            onClick={() => handleDelete(plan.id)}
+            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+          >
+            Deletar
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+
+  const renderSaveButton = (plan: any, hasChanges: boolean) =>
+    hasChanges ? (
+      <Button
+        size="sm"
+        className="h-7 gap-1 px-3 text-xs"
+        disabled={saving === plan.id}
+        onClick={(e) => { e.stopPropagation(); handleSave(plan.id); }}
+      >
+        {saving === plan.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
+        Salvar
+      </Button>
+    ) : null;
+
+  /** Card completo (treino atual ou treino do histórico expandido). */
+  const renderFullCard = (plan: any, isCurrent: boolean) => {
+    const isExpanded = expandedId === plan.id;
+    const { currentPhase, currentStartDate, resolvedPhase, planV2, hasChanges, currentMarkdown, currentDays } = getPlanView(plan);
+
+    return (
+      <Card
+        key={plan.id}
+        data-testid={isCurrent ? 'training-plan-current' : 'training-plan-card'}
+        className={`glass-card ${isCurrent ? 'border-primary ring-1 ring-primary/30' : ''}`}
+      >
+        <CardContent className="p-4">
+          <div
+            className="cursor-pointer space-y-2"
+            onClick={() => setExpandedId(isExpanded ? null : plan.id)}
+          >
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-center gap-3 min-w-0">
+                <Dumbbell className="h-5 w-5 text-primary shrink-0" />
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <p className="font-medium text-sm truncate">{plan.titulo}</p>
+                    {plan.migration_status === 'completed' && (
+                      <Badge variant="outline" className="h-4 px-1 text-[8px] uppercase text-emerald-500 border-emerald-500/30">JSON</Badge>
+                    )}
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2 mt-0.5">
+                    {isCurrent && (
+                      <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-primary text-primary-foreground">
+                        Atual
+                      </span>
+                    )}
+                    {renderPhaseBadge(resolvedPhase)}
+                    <p className="text-xs text-muted-foreground">{formatPlanDate(plan)}</p>
+                  </div>
+                </div>
+              </div>
+              <div className="flex flex-wrap items-center justify-end gap-2 shrink-0">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 text-muted-foreground"
+                  title="Incremento de carga"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setIncrementsFor(currentDays.flatMap((d) => (d.exercises || []).map((ex: any) => ex.exercise)).filter(Boolean));
+                  }}
+                >
+                  <Weight className="h-3.5 w-3.5" />
+                </Button>
+                {renderTrainButton(plan)}
+                <WhatsAppNotifyPlanButton
+                  plan={plan}
+                  studentId={studentId}
+                  onNotified={(planId, notifiedAt, count) =>
+                    setPlans(prev => prev.map(p =>
+                      p.id === planId ? { ...p, whatsapp_notified_at: notifiedAt, whatsapp_notified_count: count } : p
+                    ))
+                  }
+                />
+                {renderDeleteButton(plan)}
+                {renderSaveButton(plan, hasChanges)}
+                {isExpanded ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+              </div>
+            </div>
+            <PeriodizationStrip plan={plan} phase={resolvedPhase} />
+          </div>
+
+          {isExpanded && (
+            <div className="mt-4 pt-4 border-t border-border space-y-4">
+              <PeriodizationDetails plan={plan} phase={resolvedPhase} />
+
+              <PlanAdherence
+                planId={plan.id}
+                studentId={studentId}
+                conteudo={currentMarkdown}
+                fase={(editedPhases[plan.id] ?? plan.fase) as TrainingPhase}
+                faseInicioData={currentStartDate || null}
+                cycleDays={plan.cycle_days ?? null}
+              />
+
+              {/* Ações Híbridas - Central de Ação Individual */}
+              <div className="flex flex-wrap gap-2 pb-2">
+                <Button 
+                  size="sm" 
+                  variant="outline" 
+                  className="h-8 gap-1.5 text-xs rounded-xl bg-violet-600/10 border-violet-600/20 text-violet-700 hover:bg-violet-600/20"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setAiAllDaysOpen(plan.id);
+                  }}
+                >
+                  <Sparkles className="h-3.5 w-3.5" />
+                  IA: Ajuste Geral
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-8 gap-1.5 text-xs rounded-xl bg-blue-500/5 border-blue-500/20 text-blue-600"
+                  onClick={async (e) => {
+                    e.stopPropagation();
+                    try {
+                      const header = `Treino atual${studentName ? ` de ${studentName}` : ''}${plan.titulo ? ` — ${plan.titulo}` : ''}\n\n`;
+                      await navigator.clipboard.writeText(header + (currentMarkdown || ''));
+                      toast.success('Treino copiado. Cole no ChatGPT para analisar.');
+                    } catch {
+                      toast.error('Não foi possível copiar.');
+                    }
+                  }}
+                  title="Copiar treino completo para colar no ChatGPT"
+                >
+                  <Copy className="h-3.5 w-3.5" />
+                  Copiar treino
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-8 gap-1.5 text-xs rounded-xl bg-emerald-500/5 border-emerald-500/20 text-emerald-600"
+                  disabled={duplicatingId === plan.id}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleDuplicate(plan);
+                  }}
+                >
+                  {duplicatingId === plan.id ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Copy className="h-3.5 w-3.5" />
+                  )}
+                  Duplicar
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-8 gap-1.5 text-xs rounded-xl bg-amber-500/5 border-amber-500/20 text-amber-600"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setTemplatesFor(getEffectivePlan(plan));
+                  }}
+                >
+                  <BookMarked className="h-3.5 w-3.5" />
+                  Templates
+                </Button>
+              </div>
+
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Fase semanal</Label>
+                  <Select value={currentPhase} onValueChange={(v) => handlePhaseChange(plan.id, v as TrainingPhase)}>
+                    <SelectTrigger className="h-9 text-sm">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {TRAINING_PHASES.map(p => (
+                        <SelectItem key={p} value={p}>
+                          <div className="flex flex-col">
+                            <span className="font-medium">{PHASE_LABELS[p]}</span>
+                            <span className="text-[10px] text-muted-foreground">{PHASE_DESCRIPTIONS[p]}</span>
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs flex items-center gap-1">
+                    <Calendar className="h-3 w-3" />
+                    Início do ciclo (auto)
+                  </Label>
+                  <Input
+                    type="date"
+                    value={currentStartDate}
+                    onChange={(e) => handleStartDateChange(plan.id, e.target.value)}
+                    className="h-9 text-sm"
+                  />
+                </div>
+              </div>
+
+              <TrainingResultCards
+                markdown={currentMarkdown}
+                editable={true}
+                trainingOnly={true}
+                workoutPlan={planV2}
+                onWorkoutPlanChange={planV2 ? (next) => handleWorkoutPlanChange(plan.id, next) : undefined}
+                onAiAssistedEdit={() => markAiAssisted(plan.id)}
+                onMarkdownChange={(newMd) => handleMarkdownChange(plan.id, newMd)}
+              />
+
+              <div className="flex flex-wrap gap-2 pt-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 gap-1.5 text-xs rounded-xl"
+                  onClick={() => {
+                    const existingDays = currentDays;
+                    const allDayNames = ['SEGUNDA-FEIRA','TERÇA-FEIRA','QUARTA-FEIRA','QUINTA-FEIRA','SEXTA-FEIRA','SÁBADO','DOMINGO'];
+                    const usedDays = existingDays.map(d => normalizeDayName(d.day));
+                    const nextDay = allDayNames.find(d => !usedDays.includes(normalizeDayName(d))) || `TREINO ${String.fromCharCode(65 + existingDays.length)}`;
+                    if (planV2) {
+                      handleWorkoutPlanChange(plan.id, {
+                        ...planV2,
+                        days: [
+                          ...planV2.days,
+                          {
+                            id: newId('day'),
+                            day: nextDay,
+                            exercises: [{
+                              id: newId('ex'),
+                              exercise: 'Novo exercício',
+                              series: '3',
+                              series2: '',
+                              reps: '8-12',
+                              rir: '',
+                              pause: '60s',
+                              restSeconds: 60,
+                              description: '',
+                              variation: '',
+                            }],
+                          },
+                        ],
+                      });
+                      toast.success(`${nextDay} adicionado.`);
+                      return;
+                    }
+                    const updatedDays = [...existingDays, {
+                      day: nextDay,
+                      exercises: [{ exercise: 'Novo exercício', series: '3', series2: '', reps: '8-12', rir: '', pause: '60s', description: '', variation: '' }],
+                    }];
+                    handleMarkdownChange(plan.id, rebuildTrainingMarkdown(currentMarkdown, updatedDays));
+                    toast.success(`${nextDay} adicionado.`);
+                  }}
+                >
+                  <Plus className="h-3.5 w-3.5" /> Adicionar dia
+                </Button>
+              </div>
+
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    );
+  };
+
+  /** Linha compacta de um treino anterior (recolhido). */
+  const renderHistoryRow = (plan: any) => {
+    const { resolvedPhase, hasChanges } = getPlanView(plan);
+    return (
+      <div
+        key={plan.id}
+        data-testid="training-plan-history-row"
+        className="flex flex-col gap-1.5 rounded-xl border border-border bg-card/40 px-3 py-2 sm:flex-row sm:items-center sm:justify-between"
+      >
+        <button
+          type="button"
+          className="flex min-w-0 flex-1 items-center gap-2 text-left"
+          onClick={() => setExpandedId(plan.id)}
+        >
+          <Dumbbell className="h-4 w-4 text-muted-foreground shrink-0" />
+          <span className="min-w-0">
+            <span className="block text-sm font-medium truncate">{plan.titulo}</span>
+            <span className="flex flex-wrap items-center gap-2 mt-0.5">
+              {renderPhaseBadge(resolvedPhase)}
+              <span className="text-xs text-muted-foreground">{formatPlanDate(plan)}</span>
+            </span>
+          </span>
+        </button>
+        <div className="flex items-center justify-end gap-1 shrink-0">
+          {renderTrainButton(plan)}
+          {renderDeleteButton(plan)}
+          {renderSaveButton(plan, hasChanges)}
+        </div>
+      </div>
+    );
+  };
+
   return (
     <>
       {emptyDaysDialog}
       <div className="space-y-3">
         <ProgressionAnalyticsCard studentId={studentId} />
-        {plans.map(plan => {
-          const isExpanded = expandedId === plan.id;
-          const currentPhase = (editedPhases[plan.id] ?? plan.fase ?? 'semana_1') as TrainingPhase;
-          const currentStartDate = editedStartDates[plan.id] ?? plan.fase_inicio_data ?? '';
-          const planV2 = getCurrentPlanV2(plan);
-          const hasChanges =
-            editedPlans[plan.id] !== undefined ||
-            editedMarkdowns[plan.id] !== undefined ||
-            editedPhases[plan.id] !== undefined ||
-            editedStartDates[plan.id] !== undefined;
-          const currentMarkdown = editedPlans[plan.id]
-            ? workoutPlanToMarkdown(editedPlans[plan.id])
-            : editedMarkdowns[plan.id] !== undefined
-              ? editedMarkdowns[plan.id]
-              : plan.conteudo;
+        {currentPlan && renderFullCard(currentPlan, true)}
 
-          const currentDays: ParsedTrainingDay[] = planV2
-            ? workoutPlanToParsedDays(planV2)
-            : sortTrainingDays(parseTrainingSections(currentMarkdown || '').flatMap(s => s.days || []));
-
-
-          return (
-            <React.Fragment key={plan.id}>
-            <PeriodizationCard plan={plan} variant="admin" />
-            <Card className="glass-card">
-              <CardContent className="p-4">
-                <div
-                  className="flex items-center justify-between cursor-pointer"
-                  onClick={() => setExpandedId(isExpanded ? null : plan.id)}
-                >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <Dumbbell className="h-5 w-5 text-primary shrink-0" />
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <p className="font-medium text-sm truncate">{plan.titulo}</p>
-                        {plan.migration_status === 'completed' && (
-                          <Badge variant="outline" className="h-4 px-1 text-[8px] uppercase text-emerald-500 border-emerald-500/30">JSON</Badge>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-2 mt-0.5">
-                        <span className={`text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border ${PHASE_BADGE_CLASS[currentPhase]}`}>
-                          {PHASE_SHORT_LABELS[currentPhase]}
-                        </span>
-                        <p className="text-xs text-muted-foreground">
-                          {new Date(plan.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7 text-muted-foreground"
-                      title="Incremento de carga"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setIncrementsFor(currentDays.flatMap((d) => (d.exercises || []).map((ex: any) => ex.exercise)).filter(Boolean));
-                      }}
-                    >
-                      <Weight className="h-3.5 w-3.5" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-7 gap-1 px-2 text-xs"
-                      title="Treinar aluno"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setTrainModeChoice(getEffectivePlan(plan));
-                      }}
-                    >
-                      <ClipboardList className="h-3 w-3" /> Treinar
-                    </Button>
-                    <WhatsAppNotifyPlanButton
-                      plan={plan}
-                      studentId={studentId}
-                      onNotified={(planId, notifiedAt, count) =>
-                        setPlans(prev => prev.map(p =>
-                          p.id === planId ? { ...p, whatsapp_notified_at: notifiedAt, whatsapp_notified_count: count } : p
-                        ))
-                      }
-                    />
-                    <AlertDialog>
-                      <AlertDialogTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7 text-muted-foreground hover:text-destructive"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
-                      </AlertDialogTrigger>
-                      <AlertDialogContent onClick={(e) => e.stopPropagation()}>
-                        <AlertDialogHeader>
-                          <AlertDialogTitle>Deletar treino?</AlertDialogTitle>
-                          <AlertDialogDescription>Esta ação não pode ser desfeita.</AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                          <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                          <AlertDialogAction
-                            onClick={() => handleDelete(plan.id)}
-                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                          >
-                            Deletar
-                          </AlertDialogAction>
-                        </AlertDialogFooter>
-                      </AlertDialogContent>
-                    </AlertDialog>
-                    {hasChanges && (
-                      <Button
-                        size="sm"
-                        className="h-7 gap-1 px-3 text-xs"
-                        disabled={saving === plan.id}
-                        onClick={(e) => { e.stopPropagation(); handleSave(plan.id); }}
-                      >
-                        {saving === plan.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
-                        Salvar
-                      </Button>
-                    )}
-                    {isExpanded ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
-                  </div>
-                </div>
-
-                {isExpanded && (
-                  <div className="mt-4 pt-4 border-t border-border space-y-4">
-                    <PlanAdherence
-                      planId={plan.id}
-                      studentId={studentId}
-                      conteudo={currentMarkdown}
-                      fase={(editedPhases[plan.id] ?? plan.fase) as TrainingPhase}
-                      faseInicioData={currentStartDate || null}
-                      cycleDays={plan.cycle_days ?? null}
-                    />
-
-                    {/* Ações Híbridas - Central de Ação Individual */}
-                    <div className="flex flex-wrap gap-2 pb-2">
-                      <Button 
-                        size="sm" 
-                        variant="outline" 
-                        className="h-8 gap-1.5 text-xs rounded-xl bg-violet-600/10 border-violet-600/20 text-violet-700 hover:bg-violet-600/20"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setAiAllDaysOpen(plan.id);
-                        }}
-                      >
-                        <Sparkles className="h-3.5 w-3.5" />
-                        IA: Ajuste Geral
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-8 gap-1.5 text-xs rounded-xl bg-blue-500/5 border-blue-500/20 text-blue-600"
-                        onClick={async (e) => {
-                          e.stopPropagation();
-                          try {
-                            const header = `Treino atual${studentName ? ` de ${studentName}` : ''}${plan.titulo ? ` — ${plan.titulo}` : ''}\n\n`;
-                            await navigator.clipboard.writeText(header + (currentMarkdown || ''));
-                            toast.success('Treino copiado. Cole no ChatGPT para analisar.');
-                          } catch {
-                            toast.error('Não foi possível copiar.');
-                          }
-                        }}
-                        title="Copiar treino completo para colar no ChatGPT"
-                      >
-                        <Copy className="h-3.5 w-3.5" />
-                        Copiar treino
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-8 gap-1.5 text-xs rounded-xl bg-emerald-500/5 border-emerald-500/20 text-emerald-600"
-                        disabled={duplicatingId === plan.id}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDuplicate(plan);
-                        }}
-                      >
-                        {duplicatingId === plan.id ? (
-                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                        ) : (
-                          <Copy className="h-3.5 w-3.5" />
-                        )}
-                        Duplicar
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-8 gap-1.5 text-xs rounded-xl bg-amber-500/5 border-amber-500/20 text-amber-600"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setTemplatesFor(getEffectivePlan(plan));
-                        }}
-                      >
-                        <BookMarked className="h-3.5 w-3.5" />
-                        Templates
-                      </Button>
-                    </div>
-
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <div className="space-y-1.5">
-                        <Label className="text-xs">Fase semanal</Label>
-                        <Select value={currentPhase} onValueChange={(v) => handlePhaseChange(plan.id, v as TrainingPhase)}>
-                          <SelectTrigger className="h-9 text-sm">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {TRAINING_PHASES.map(p => (
-                              <SelectItem key={p} value={p}>
-                                <div className="flex flex-col">
-                                  <span className="font-medium">{PHASE_LABELS[p]}</span>
-                                  <span className="text-[10px] text-muted-foreground">{PHASE_DESCRIPTIONS[p]}</span>
-                                </div>
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="space-y-1.5">
-                        <Label className="text-xs flex items-center gap-1">
-                          <Calendar className="h-3 w-3" />
-                          Início do ciclo (auto)
-                        </Label>
-                        <Input
-                          type="date"
-                          value={currentStartDate}
-                          onChange={(e) => handleStartDateChange(plan.id, e.target.value)}
-                          className="h-9 text-sm"
-                        />
-                      </div>
-                    </div>
-
-                    <TrainingResultCards
-                      markdown={currentMarkdown}
-                      editable={true}
-                      trainingOnly={true}
-                      workoutPlan={planV2}
-                      onWorkoutPlanChange={planV2 ? (next) => handleWorkoutPlanChange(plan.id, next) : undefined}
-                      onAiAssistedEdit={() => markAiAssisted(plan.id)}
-                      onMarkdownChange={(newMd) => handleMarkdownChange(plan.id, newMd)}
-                    />
-
-                    <div className="flex flex-wrap gap-2 pt-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="h-8 gap-1.5 text-xs rounded-xl"
-                        onClick={() => {
-                          const existingDays = currentDays;
-                          const allDayNames = ['SEGUNDA-FEIRA','TERÇA-FEIRA','QUARTA-FEIRA','QUINTA-FEIRA','SEXTA-FEIRA','SÁBADO','DOMINGO'];
-                          const usedDays = existingDays.map(d => normalizeDayName(d.day));
-                          const nextDay = allDayNames.find(d => !usedDays.includes(normalizeDayName(d))) || `TREINO ${String.fromCharCode(65 + existingDays.length)}`;
-                          if (planV2) {
-                            handleWorkoutPlanChange(plan.id, {
-                              ...planV2,
-                              days: [
-                                ...planV2.days,
-                                {
-                                  id: newId('day'),
-                                  day: nextDay,
-                                  exercises: [{
-                                    id: newId('ex'),
-                                    exercise: 'Novo exercício',
-                                    series: '3',
-                                    series2: '',
-                                    reps: '8-12',
-                                    rir: '',
-                                    pause: '60s',
-                                    restSeconds: 60,
-                                    description: '',
-                                    variation: '',
-                                  }],
-                                },
-                              ],
-                            });
-                            toast.success(`${nextDay} adicionado.`);
-                            return;
-                          }
-                          const updatedDays = [...existingDays, {
-                            day: nextDay,
-                            exercises: [{ exercise: 'Novo exercício', series: '3', series2: '', reps: '8-12', rir: '', pause: '60s', description: '', variation: '' }],
-                          }];
-                          handleMarkdownChange(plan.id, rebuildTrainingMarkdown(currentMarkdown, updatedDays));
-                          toast.success(`${nextDay} adicionado.`);
-                        }}
-                      >
-                        <Plus className="h-3.5 w-3.5" /> Adicionar dia
-                      </Button>
-                    </div>
-
-                  </div>
+        {historyPlans.length > 0 && (
+          <div className="space-y-2" data-testid="training-history">
+            <button
+              type="button"
+              aria-expanded={historyOpen}
+              className="flex w-full items-center justify-between rounded-xl px-1 py-2 text-left text-sm font-semibold text-muted-foreground hover:text-foreground"
+              onClick={() => setHistoryOpen((v) => !v)}
+            >
+              <span>Histórico ({historyPlans.length} {historyPlans.length === 1 ? 'treino' : 'treinos'})</span>
+              {historyOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+            </button>
+            {historyOpen && (
+              <div className="space-y-2">
+                {historyPlans.map((plan) =>
+                  expandedId === plan.id ? renderFullCard(plan, false) : renderHistoryRow(plan),
                 )}
-              </CardContent>
-            </Card>
-            </React.Fragment>
-          );
-        })}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {incrementsFor && (
