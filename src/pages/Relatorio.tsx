@@ -6,7 +6,8 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { supabase } from '@/integrations/supabase/client';
 import { ArrowLeft, Download, Eye, AlertTriangle, Loader2, Maximize2 } from 'lucide-react';
-import { generatePDF } from '@/lib/generatePDF';
+const generatePDF = async (...args: Parameters<typeof import('@/lib/generatePDF').generatePDF>) =>
+  (await import('@/lib/generatePDF')).generatePDF(...args);
 import KarvonenZones from '@/components/KarvonenZones';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
 import { analyzePostureConditions, type PoseKeypoint, type RegionScore, type PostureCondition, type PostureAngles } from '@/lib/postureUtils';

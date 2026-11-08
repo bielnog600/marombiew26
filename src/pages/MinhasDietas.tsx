@@ -26,7 +26,7 @@ import { fetchWithCache } from '@/lib/offlineCache';
 import ProtocolsDialog from '@/components/diet/ProtocolsDialog';
 import { protocolsToKeys, type SavedProtocols, type ProtocolKey } from '@/lib/dietProtocols';
 import { ListChecks, ScanBarcode } from 'lucide-react';
-import FoodScanner from '@/components/diet/FoodScanner';
+const FoodScanner = React.lazy(() => import('@/components/diet/FoodScanner'));
 import { buildCarbCycleDays } from '@/lib/dietAiActions';
 import { parseDietPlanLoose } from '@/lib/dietSchema';
 import {
@@ -867,7 +867,9 @@ const MinhasDietas = () => {
 
   return (
     <AppLayout title="Plano Alimentar">
-      <FoodScanner open={showScanner} onOpenChange={setShowScanner} dailyKcal={dailyTarget?.kcal || null} />
+      <React.Suspense fallback={null}>
+        <FoodScanner open={showScanner} onOpenChange={setShowScanner} dailyKcal={dailyTarget?.kcal || null} />
+      </React.Suspense>
       <div className="space-y-4 animate-fade-in">
         {/* Protocolos */}
         <div className="flex items-center justify-end gap-2">

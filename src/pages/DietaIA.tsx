@@ -73,7 +73,8 @@ import NewFoodsFromPlanCard from '@/components/diet/NewFoodsFromPlanCard';
 import DietValidationBadge from '@/components/diet/DietValidationBadge';
 import ReactMarkdown from 'react-markdown';
 import DietResultCards from '@/components/DietResultCards';
-import { generateDietPDF } from '@/lib/generateDietPDF';
+const generateDietPDF = async (...args: Parameters<typeof import('@/lib/generateDietPDF').generateDietPDF>) =>
+  (await import('@/lib/generateDietPDF')).generateDietPDF(...args);
 import AiWizard from '@/components/AiWizard';
 import DietDraftComparisonDialog from '@/components/consultoria/DietDraftComparisonDialog';
 import { formatDietMacroLine, validateDietMacros, type DietMacroTargets, type DietMacroValidationReport, type FoodMacroRecord } from '@/lib/dietMacroValidation';

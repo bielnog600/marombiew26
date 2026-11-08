@@ -10,7 +10,8 @@ import {
   BarChart, Bar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, LabelList,
 } from 'recharts';
 import { TrendingUp, TrendingDown, Minus } from 'lucide-react';
-import { generateComparisonPDF } from '@/lib/generateComparisonPDF';
+const generateComparisonPDF = async (...args: Parameters<typeof import('@/lib/generateComparisonPDF').generateComparisonPDF>) =>
+  (await import('@/lib/generateComparisonPDF')).generateComparisonPDF(...args);
 import { generateComparisonImage } from '@/lib/generateComparisonImage';
 import { SignedImage } from '@/components/SignedImage';
 
