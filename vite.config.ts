@@ -128,11 +128,12 @@ export default defineConfig(({ mode }) => ({
     rollupOptions: {
       output: {
         manualChunks(id: string) {
-          // Shared CommonJS interop helpers must load with React, otherwise a lazy library
-          // chunk (e.g. recharts) becomes a dependency of the initial vendor chunk.
-          if (id.includes("commonjsHelpers")) return "vendor";
+          // Small shared helpers must load with React; otherwise the first heavy chunk that
+          // uses them (recharts, jspdf) gets pulled into the initial load.
+          if (id.includes("commonjsHelpers") || id.includes("vite/preload-helper")) return "vendor";
           if (!id.includes("node_modules")) return undefined;
           const has = (...pkgs: string[]) => pkgs.some((pkg) => id.includes(`/node_modules/${pkg}/`));
+          if (has("@babel/runtime", "clsx", "use-sync-external-store")) return "vendor";
           if (has("three", "@react-three/fiber", "@react-three/drei")) return "three";
           if (has("recharts")) return "recharts";
           if (has("jspdf", "jspdf-autotable")) return "jspdf";
