@@ -128,6 +128,9 @@ export default defineConfig(({ mode }) => ({
     rollupOptions: {
       output: {
         manualChunks(id: string) {
+          // Shared CommonJS interop helpers must load with React, otherwise a lazy library
+          // chunk (e.g. recharts) becomes a dependency of the initial vendor chunk.
+          if (id.includes("commonjsHelpers")) return "vendor";
           if (!id.includes("node_modules")) return undefined;
           const has = (...pkgs: string[]) => pkgs.some((pkg) => id.includes(`/node_modules/${pkg}/`));
           if (has("three", "@react-three/fiber", "@react-three/drei")) return "three";
