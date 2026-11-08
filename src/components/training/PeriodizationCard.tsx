@@ -10,6 +10,7 @@ import {
   type PeriodizationModel,
   type PeriodizationSnapshot,
   type WeekPhase,
+  type WeekStrategy,
 } from '@/lib/periodization';
 
 interface PlanLike {
@@ -93,3 +94,87 @@ export const PeriodizationCard: React.FC<Props> = ({ plan, variant = 'admin' }) 
 };
 
 export default PeriodizationCard;
+
+// ------------------------------------------------------------------
+// Variante "inline" (admin, dentro do card do treino)
+// ------------------------------------------------------------------
+
+/**
+ * Estratégia da semana para a fase informada (a fase atual resolvida pelo
+ * chamador). O snapshot só é reaproveitado quando congela a MESMA semana;
+ * caso contrário recalcula pelo resolver, para o selo e a faixa nunca
+ * mostrarem semanas diferentes.
+ */
+export const resolvePlanWeekStrategy = (
+  plan: PlanLike | null | undefined,
+  phase: WeekPhase,
+): WeekStrategy | null => {
+  if (!plan?.periodization_model) return null;
+  const snap = (plan.periodization_snapshot as PeriodizationSnapshot | null) ?? null;
+  if (snap?.week && snap.week.phase === phase) return snap.week;
+  return resolveWeekStrategy({
+    model: plan.periodization_model as PeriodizationModel,
+    blockType: (plan.block_type as BlockType) || 'acumulacao',
+    phase,
+  });
+};
+
+const humanize = (value: string) => value.replace(/_/g, ' ');
+
+interface InlineProps {
+  plan: PlanLike | null | undefined;
+  /** Fase atual já resolvida (resolveCurrentTrainingPhase, incluindo edições não salvas). */
+  phase: WeekPhase;
+}
+
+/** Faixa compacta: modelo · bloco · semana · volume · intensidade · RIR. */
+export const PeriodizationStrip: React.FC<InlineProps> = ({ plan, phase }) => {
+  const week = resolvePlanWeekStrategy(plan, phase);
+  if (!plan?.periodization_model || !week) return null;
+  const model = plan.periodization_model as PeriodizationModel;
+  const blockType = (plan.block_type as BlockType) || 'acumulacao';
+  const items = [
+    `${BLOCK_LABELS[blockType] ?? blockType} ${plan.block_number ?? 1}/${plan.block_total ?? 1}`,
+    `Semana ${week.weekNumber} de 4`,
+    `Volume ${humanize(week.volumeTarget)}`,
+    `Intensidade ${humanize(week.intensityTarget)}`,
+    `RIR ${week.effortTarget}`,
+  ];
+  return (
+    <div
+      data-testid="periodization-strip"
+      className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[11px] leading-tight text-muted-foreground"
+    >
+      <CalendarRange className="h-3 w-3 shrink-0 text-primary" />
+      <span className="font-semibold text-primary">{MODEL_LABELS[model] ?? model}</span>
+      {items.map((item) => (
+        <React.Fragment key={item}>
+          <span aria-hidden className="text-muted-foreground/50">·</span>
+          <span className="whitespace-nowrap">{item}</span>
+        </React.Fragment>
+      ))}
+    </div>
+  );
+};
+
+/** Texto longo da semana (só com o treino expandido). */
+export const PeriodizationDetails: React.FC<InlineProps> = ({ plan, phase }) => {
+  const week = resolvePlanWeekStrategy(plan, phase);
+  if (!plan?.periodization_model || !week) return null;
+  return (
+    <div data-testid="periodization-details" className="rounded-xl bg-muted/40 p-3 space-y-1.5">
+      <p className="text-sm text-foreground/90 leading-relaxed">{week.label}</p>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1 text-xs text-muted-foreground">
+        <span className="sm:col-span-2">Reps: <span className="text-foreground">{week.repStrategy}</span></span>
+        {plan.next_block_type && (
+          <span className="sm:col-span-2">
+            Próximo bloco: <span className="text-foreground">{BLOCK_LABELS[plan.next_block_type as BlockType]}</span>
+          </span>
+        )}
+        {plan.periodization_reason && (
+          <span className="sm:col-span-2 italic">{plan.periodization_reason}</span>
+        )}
+      </div>
+    </div>
+  );
+};
