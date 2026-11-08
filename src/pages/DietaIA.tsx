@@ -73,7 +73,8 @@ import NewFoodsFromPlanCard from '@/components/diet/NewFoodsFromPlanCard';
 import DietValidationBadge from '@/components/diet/DietValidationBadge';
 import ReactMarkdown from 'react-markdown';
 import DietResultCards from '@/components/DietResultCards';
-import { generateDietPDF } from '@/lib/generateDietPDF';
+const generateDietPDF = async (...args: Parameters<typeof import('@/lib/generateDietPDF').generateDietPDF>) =>
+  (await import('@/lib/generateDietPDF')).generateDietPDF(...args);
 import AiWizard from '@/components/AiWizard';
 import DietDraftComparisonDialog from '@/components/consultoria/DietDraftComparisonDialog';
 import { formatDietMacroLine, validateDietMacros, type DietMacroTargets, type DietMacroValidationReport, type FoodMacroRecord } from '@/lib/dietMacroValidation';
@@ -2686,7 +2687,7 @@ ${generated}`;
                 >
                   <RotateCcw className="h-3 w-3 mr-1" /> Regenerar
                 </Button>
-                <Button variant="outline" size="sm" onClick={() => generateDietPDF(result, studentName)}>
+                <Button variant="outline" size="sm" onClick={() => { generateDietPDF(result, studentName).catch((err) => console.error(err)); }}>
                   <FileDown className="h-3 w-3 mr-1" /> PDF
                 </Button>
                 {lastDietPlan && !editPlanId && (

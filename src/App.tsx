@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, lazy, Suspense } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -18,41 +18,41 @@ import StudentAppOpenTracker from "@/components/StudentAppOpenTracker";
 import { LanguageProvider } from "@/i18n";
 import AutoTranslate from "@/i18n/AutoTranslate";
 import Login from "./pages/Login";
-import Dashboard from "./pages/Dashboard";
-import Alunos from "./pages/Alunos";
-import AlunoDetail from "./pages/AlunoDetail";
-import NovaAvaliacao from "./pages/NovaAvaliacao";
-import Relatorio from "./pages/Relatorio";
-import MinhaArea from "./pages/MinhaArea";
-import MinhasAvaliacoes from "./pages/MinhasAvaliacoes";
-import TreinoExecucao from "./pages/TreinoExecucao";
-import PostureAnalysis from "./pages/PostureAnalysis";
-import TreinoIA from "./pages/TreinoIA";
-import DietaIA from "./pages/DietaIA";
-import TabataIA from "./pages/TabataIA";
-import TabataExecucao from "./pages/TabataExecucao";
-import CardioIA from "./pages/CardioIA";
-import CardioExecucao from "./pages/CardioExecucao";
-import Alimentos from "./pages/Alimentos";
-import Exercicios from "./pages/Exercicios";
-import ExerciseMetadataReview from "./pages/ExerciseMetadataReview";
-import HumanFirstReview from "./pages/HumanFirstReview";
-import HumanFirstReviewPreflight from "./pages/HumanFirstReviewPreflight";
-import DietQuestionnaire from "./pages/DietQuestionnaire";
-import Notificacoes from "./pages/Notificacoes";
-import Consultoria from "./pages/Consultoria";
-import Perfil from "./pages/Perfil";
-import MinhasDietas from "./pages/MinhasDietas";
-import MeusTreinos from "./pages/MeusTreinos";
-import TreinoPreview from "./pages/TreinoPreview";
-import Evolucao from "./pages/Evolucao";
-import MeuProgresso from "./pages/MeuProgresso";
+const Dashboard = lazy(() => import("./pages/Dashboard"));
+const Alunos = lazy(() => import("./pages/Alunos"));
+const AlunoDetail = lazy(() => import("./pages/AlunoDetail"));
+const NovaAvaliacao = lazy(() => import("./pages/NovaAvaliacao"));
+const Relatorio = lazy(() => import("./pages/Relatorio"));
+const MinhaArea = lazy(() => import("./pages/MinhaArea"));
+const MinhasAvaliacoes = lazy(() => import("./pages/MinhasAvaliacoes"));
+const TreinoExecucao = lazy(() => import("./pages/TreinoExecucao"));
+const PostureAnalysis = lazy(() => import("./pages/PostureAnalysis"));
+const TreinoIA = lazy(() => import("./pages/TreinoIA"));
+const DietaIA = lazy(() => import("./pages/DietaIA"));
+const TabataIA = lazy(() => import("./pages/TabataIA"));
+const TabataExecucao = lazy(() => import("./pages/TabataExecucao"));
+const CardioIA = lazy(() => import("./pages/CardioIA"));
+const CardioExecucao = lazy(() => import("./pages/CardioExecucao"));
+const Alimentos = lazy(() => import("./pages/Alimentos"));
+const Exercicios = lazy(() => import("./pages/Exercicios"));
+const ExerciseMetadataReview = lazy(() => import("./pages/ExerciseMetadataReview"));
+const HumanFirstReview = lazy(() => import("./pages/HumanFirstReview"));
+const HumanFirstReviewPreflight = lazy(() => import("./pages/HumanFirstReviewPreflight"));
+const DietQuestionnaire = lazy(() => import("./pages/DietQuestionnaire"));
+const Notificacoes = lazy(() => import("./pages/Notificacoes"));
+const Consultoria = lazy(() => import("./pages/Consultoria"));
+const Perfil = lazy(() => import("./pages/Perfil"));
+const MinhasDietas = lazy(() => import("./pages/MinhasDietas"));
+const MeusTreinos = lazy(() => import("./pages/MeusTreinos"));
+const TreinoPreview = lazy(() => import("./pages/TreinoPreview"));
+const Evolucao = lazy(() => import("./pages/Evolucao"));
+const MeuProgresso = lazy(() => import("./pages/MeuProgresso"));
 
-import NotFound from "./pages/NotFound";
-import Agenda from "./pages/Agenda";
-import MinhaAgenda from "./pages/MinhaAgenda";
-import Financeiro from "./pages/Financeiro";
-import RedeSocial from "./pages/RedeSocial";
+const NotFound = lazy(() => import("./pages/NotFound"));
+const Agenda = lazy(() => import("./pages/Agenda"));
+const MinhaAgenda = lazy(() => import("./pages/MinhaAgenda"));
+const Financeiro = lazy(() => import("./pages/Financeiro"));
+const RedeSocial = lazy(() => import("./pages/RedeSocial"));
 import StudentErrorBoundary from "./components/StudentErrorBoundary";
 
 const queryClient = new QueryClient();
@@ -96,6 +96,7 @@ const App = () => {
             <StudentAppOpenTracker />
             <AdminTrainerSessionMount />
             <StudentErrorBoundary>
+            <Suspense fallback={<div role="status" className="min-h-screen flex items-center justify-center text-sm text-muted-foreground">Carregando…</div>}>
             <Routes>
               <Route path="/" element={<RootRedirect />} />
               <Route path="/login" element={<Login />} />
@@ -137,6 +138,7 @@ const App = () => {
               <Route path="/minha-agenda" element={<ProtectedRoute requiredRole="aluno"><MinhaAgenda /></ProtectedRoute>} />
               <Route path="*" element={<NotFound />} />
             </Routes>
+            </Suspense>
             </StudentErrorBoundary>
             </AdminTrainerSessionProvider>
             </TabSwipeProvider>

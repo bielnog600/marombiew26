@@ -44,7 +44,7 @@ export default defineConfig(({ mode }) => ({
         enabled: false,
       },
       workbox: {
-        maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
+        maximumFileSizeToCacheInBytes: 10 * 1024 * 1024,
         navigateFallback: 'index.html',
         navigateFallbackDenylist: [/^\/~oauth/, /^\/rest\//, /^\/auth\//, /^\/functions\//, /^\/onesignal\//],
         globPatterns: ["**/*.{js,css,html,ico,png,svg,woff,woff2,jpg,jpeg,webp,webmanifest}"],
@@ -124,7 +124,30 @@ export default defineConfig(({ mode }) => ({
   build: {
     modulePreload: {
       polyfill: false
-    }
+    },
+    rollupOptions: {
+      output: {
+        manualChunks(id: string) {
+          // Small shared helpers must load with React; otherwise the first heavy chunk that
+          // uses them (recharts, jspdf) gets pulled into the initial load.
+          if (id.includes("commonjsHelpers") || id.includes("vite/preload-helper")) return "vendor";
+          if (!id.includes("node_modules")) return undefined;
+          const has = (...pkgs: string[]) => pkgs.some((pkg) => id.includes(`/node_modules/${pkg}/`));
+          if (has("@babel/runtime", "clsx", "use-sync-external-store")) return "vendor";
+          if (has("three", "@react-three/fiber", "@react-three/drei")) return "three";
+          if (has("recharts")) return "recharts";
+          if (has("jspdf", "jspdf-autotable")) return "jspdf";
+          if (has("@zxing/browser", "@zxing/library")) return "zxing";
+          if (has("hls.js")) return "hls";
+          if (has("framer-motion")) return "framer-motion";
+          if (
+            has("react", "react-dom", "react-router", "react-router-dom", "scheduler", "@supabase", "@tanstack") ||
+            id.includes("/node_modules/@radix-ui/")
+          ) return "vendor";
+          return undefined;
+        },
+      },
+    },
   },
   resolve: {
     alias: {

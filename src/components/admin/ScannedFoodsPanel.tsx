@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Search, Plus, EyeOff, AlertTriangle } from 'lucide-react';
-import FoodScanner from '@/components/diet/FoodScanner';
+const FoodScanner = React.lazy(() => import('@/components/diet/FoodScanner'));
 import type { ScanRecord } from '@/components/diet/FoodScanResult';
 import { toast } from 'sonner';
 import {
@@ -271,7 +271,9 @@ const ScannedFoodsPanel: React.FC<ScannedFoodsPanelProps> = ({ scannerOpen, onSc
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      <FoodScanner open={scannerOpen} onOpenChange={onScannerOpenChange} mode="admin" onAdminScanned={onAdminScanned} />
+      <React.Suspense fallback={null}>
+        <FoodScanner open={scannerOpen} onOpenChange={onScannerOpenChange} mode="admin" onAdminScanned={onAdminScanned} />
+      </React.Suspense>
     </>
   );
 };
