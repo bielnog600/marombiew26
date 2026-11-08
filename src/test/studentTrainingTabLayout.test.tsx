@@ -40,6 +40,9 @@ vi.mock('@/hooks/useWeeklyTraining', () => ({
 }));
 
 import StudentTrainingTab from '@/components/student/StudentTrainingTab';
+import { MemoryRouter } from 'react-router-dom';
+
+const renderTab = () => render(<MemoryRouter><StudentTrainingTab studentId="s1" /></MemoryRouter>);
 
 const isoDaysAgo = (days: number) => {
   const d = new Date();
@@ -96,7 +99,7 @@ describe('resolvePlanWeekStrategy', () => {
 
 describe('StudentTrainingTab — layout dos treinos', () => {
   it('selo e faixa mostram a mesma semana da timeline; sem card separado', async () => {
-    render(<StudentTrainingTab studentId="s1" />);
+    renderTab();
     const current = await screen.findByTestId('training-plan-current');
     expect(within(current).getByText('Atual')).toBeTruthy();
     expect(within(current).getByText('Semana 3')).toBeTruthy();
@@ -110,7 +113,7 @@ describe('StudentTrainingTab — layout dos treinos', () => {
   });
 
   it('data de início editada (não salva) muda selo e faixa juntos', async () => {
-    render(<StudentTrainingTab studentId="s1" />);
+    renderTab();
     const current = await screen.findByTestId('training-plan-current');
     fireEvent.click(within(current).getByText('Treino Novembro'));
     const dateInput = current.querySelector('input[type="date"]') as HTMLInputElement;
@@ -120,7 +123,7 @@ describe('StudentTrainingTab — layout dos treinos', () => {
   });
 
   it('histórico começa fechado, lista linhas compactas e expande o editor sem fechar a seção', async () => {
-    render(<StudentTrainingTab studentId="s1" />);
+    renderTab();
     const toggle = await screen.findByRole('button', { name: /Histórico \(2 treinos\)/ });
     expect(toggle.getAttribute('aria-expanded')).toBe('false');
     expect(screen.queryByText('Treino Outubro')).toBeNull();
