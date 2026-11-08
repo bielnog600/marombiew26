@@ -2687,7 +2687,7 @@ ${generated}`;
                 >
                   <RotateCcw className="h-3 w-3 mr-1" /> Regenerar
                 </Button>
-                <Button variant="outline" size="sm" onClick={() => generateDietPDF(result, studentName)}>
+                <Button variant="outline" size="sm" onClick={() => { generateDietPDF(result, studentName).catch((err) => console.error(err)); }}>
                   <FileDown className="h-3 w-3 mr-1" /> PDF
                 </Button>
                 {lastDietPlan && !editPlanId && (
