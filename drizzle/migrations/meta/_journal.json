@@ -141,6 +141,13 @@
       "when": 1794043809745,
       "tag": "0019_exercise_set_logs_preparatory_set_type",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1794351335401,
+      "tag": "0020_premium_camera_live_correction",
+      "breakpoints": true
     }
   ]
 }

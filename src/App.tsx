@@ -19,6 +19,7 @@ import { LanguageProvider } from "@/i18n";
 import AutoTranslate from "@/i18n/AutoTranslate";
 import Login from "./pages/Login";
 const Dashboard = lazy(() => import("./pages/Dashboard"));
+const CorrecaoAoVivoTeste = lazy(() => import("./pages/CorrecaoAoVivoTeste"));
 const Alunos = lazy(() => import("./pages/Alunos"));
 const AlunoDetail = lazy(() => import("./pages/AlunoDetail"));
 const NovaAvaliacao = lazy(() => import("./pages/NovaAvaliacao"));
@@ -101,6 +102,7 @@ const App = () => {
               <Route path="/" element={<RootRedirect />} />
               <Route path="/login" element={<Login />} />
               <Route path="/dashboard" element={<ProtectedRoute requiredRole="admin"><Dashboard /></ProtectedRoute>} />
+              <Route path="/correcao-ao-vivo-teste" element={<ProtectedRoute requiredRole="admin"><CorrecaoAoVivoTeste /></ProtectedRoute>} />
               <Route path="/alunos" element={<ProtectedRoute requiredRole="admin"><Alunos /></ProtectedRoute>} />
               <Route path="/alunos/:id" element={<ProtectedRoute requiredRole="admin"><AlunoDetail /></ProtectedRoute>} />
               <Route path="/nova-avaliacao/:studentId" element={<ProtectedRoute requiredRole="admin"><NovaAvaliacao /></ProtectedRoute>} />

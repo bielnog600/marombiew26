@@ -12,7 +12,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
-import { Sparkles } from 'lucide-react';
+import { Sparkles, ScanEye } from 'lucide-react';
 import { toast } from 'sonner';
 
 const Alunos = () => {
@@ -215,6 +215,7 @@ const Alunos = () => {
     const matchSearch = s.nome?.toLowerCase().includes(search.toLowerCase()) || s.email?.toLowerCase().includes(search.toLowerCase());
     if (filterAtivo === 'all') return matchSearch;
     const sp = Array.isArray(s.students_profile) ? s.students_profile[0] : s.students_profile;
+    if (filterAtivo === 'premium_camera') return matchSearch && sp?.premium_camera === true;
     const isAtivo = sp?.ativo !== false;
     return matchSearch && (filterAtivo === 'ativo' ? isAtivo : !isAtivo);
   });
@@ -234,13 +235,14 @@ const Alunos = () => {
               />
             </div>
             <Select value={filterAtivo} onValueChange={setFilterAtivo}>
-              <SelectTrigger className="w-32">
+              <SelectTrigger className="w-40">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Todos</SelectItem>
                 <SelectItem value="ativo">Ativos</SelectItem>
                 <SelectItem value="inativo">Inativos</SelectItem>
+                <SelectItem value="premium_camera">Correção ao vivo</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -356,6 +358,11 @@ const Alunos = () => {
                       {s.students_profile?.low_cost && (
                         <Badge variant="secondary" className="mt-1.5 gap-1 text-[10px] py-0 px-1.5">
                           <Sparkles className="h-2.5 w-2.5" /> Low Cost
+                        </Badge>
+                      )}
+                      {s.students_profile?.premium_camera && (
+                        <Badge className="mt-1.5 ml-1 gap-1 text-[10px] py-0 px-1.5">
+                          <ScanEye className="h-2.5 w-2.5" /> Correção ao vivo
                         </Badge>
                       )}
                     </div>

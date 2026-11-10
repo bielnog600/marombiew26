@@ -19,6 +19,7 @@ const mock = vi.hoisted(() => ({
     'SUPINO RETO': 40, CRUCIFIXO: 14, 'HACK MACHINE': 100, 'AGACHAMENTO LIVRE': 60, 'LEG PRESS': 200, 'AGACHAMENTO SMITH': 100,
   } as Record<string, number>,
   currentIndex: 0,
+  premiumCamera: false,
   updates: [] as any[],
   noop: vi.fn(),
 }));
@@ -50,6 +51,7 @@ vi.mock('@/integrations/supabase/client', () => ({ supabase: {
       if (table === 'exercises') return { data: mock.exercises.flatMap(ex => [ex.exercise, ex.variation].filter(Boolean).map((nome: string) => ({
         id: nome, nome, imagem_url: null, video_embed: null, grupo_muscular: 'GERAL',
       }))), error: null };
+      if (table === 'students_profile') return { data: { premium_camera: mock.premiumCamera }, error: null };
       if (table === 'exercise_set_logs') {
         const kg = mock.history[name];
         if (kg == null) return { data: [], error: null };
@@ -75,7 +77,7 @@ vi.mock('@/integrations/supabase/client', () => ({ supabase: {
 
 import TreinoExecucao from '@/pages/TreinoExecucao';
 beforeEach(() => { HTMLElement.prototype.scrollIntoView = vi.fn(); });
-afterEach(() => { cleanup(); localStorage.clear(); mock.updates.length = 0; mock.currentIndex = 0; });
+afterEach(() => { cleanup(); localStorage.clear(); mock.updates.length = 0; mock.currentIndex = 0; mock.premiumCamera = false; });
 
 const weights = () => Array.from(document.querySelectorAll<HTMLInputElement>('input[inputmode="decimal"]')).map((el) => el.value);
 
@@ -137,5 +139,37 @@ describe('student rest by set type', () => {
     await screen.findByText('DESCANSO');
     expect(document.querySelector('[data-testid="inline-rest"] [role="timer"]')?.textContent).toBe('1:00');
     expect(screen.queryByText(/Descanso · /)).toBeNull();
+  });
+});
+
+describe('Correção ao vivo (Premium) button', () => {
+  it('hidden on a squat when premium_camera is off', async () => {
+    mock.currentIndex = 4;
+    render(<TreinoExecucao />);
+    await screen.findByText('AGACHAMENTO SMITH', { selector: 'h1' });
+    await new Promise((r) => setTimeout(r, 50));
+    expect(screen.queryByTestId('live-correction-button')).toBeNull();
+  });
+
+  it('shown on squats only when premium_camera is on, following the active variation', async () => {
+    mock.premiumCamera = true;
+    mock.currentIndex = 4;
+    render(<TreinoExecucao />);
+    await screen.findByText('AGACHAMENTO SMITH', { selector: 'h1' });
+    expect(await screen.findByTestId('live-correction-button')).toHaveTextContent('Correção ao vivo');
+    cleanup();
+    mock.currentIndex = 3;
+    render(<TreinoExecucao />);
+    await screen.findByText('LEG PRESS', { selector: 'h1' });
+    await new Promise((r) => setTimeout(r, 50));
+    expect(screen.queryByTestId('live-correction-button')).toBeNull();
+    cleanup();
+    mock.currentIndex = 2;
+    render(<TreinoExecucao />);
+    await screen.findByText('HACK MACHINE', { selector: 'h1' });
+    expect(screen.queryByTestId('live-correction-button')).toBeNull();
+    fireEvent.click(screen.getByText('Variação', { selector: 'button' }));
+    await screen.findByText('AGACHAMENTO LIVRE', { selector: 'h1' });
+    expect(await screen.findByTestId('live-correction-button')).toBeInTheDocument();
   });
 });

@@ -1,5 +1,11 @@
 # Roadmap
 
+## Correção ao vivo (Premium)
+- [x] Coluna premium_camera (só admin altera), interruptor e sessões na ficha do aluno, filtro e selo na lista de alunos; ativado para Fabiew Aires.
+- [x] Botão nos agachamentos do treino do aluno; tela cheia com câmera, esqueleto, contador, correções, voz e resumo salvo em camera_sessions.
+- [x] Acesso "Testar Correção ao vivo" no Dashboard do admin.
+- [ ] Testar com uma pessoa real no iPhone/Android — o navegador de teste só tem câmera simulada.
+
 ## Aba Treinos do aluno (admin) — layout
 - [x] Periodização como faixa dentro do card (texto longo só expandido); selo e faixa pela mesma semana resolvida pela data de início.
 - [x] Treino atual com selo ATUAL e borda; histórico recolhível com linhas compactas (Treinar/lixeira), expandindo o editor completo.

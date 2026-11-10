@@ -39,7 +39,10 @@ import { MachineAdjustSheet } from '@/components/training/MachineAdjustSheet';
 import { ExerciseLoadHistorySheet } from '@/components/training/ExerciseLoadHistorySheet';
 import { SessionRpeDialog } from '@/components/training/SessionRpeDialog';
 import ExerciseVideoCapture from '@/components/training/ExerciseVideoCapture';
-import { Settings2, Info, BarChart3, Camera, Maximize2 } from 'lucide-react';
+import { Settings2, Info, BarChart3, Camera, Maximize2, ScanEye } from 'lucide-react';
+import { usePremiumCamera } from '@/hooks/usePremiumCamera';
+import { isSquatExercise } from '@/lib/liveCorrection/squatAnalysis';
+const LiveCorrectionScreen = React.lazy(() => import('@/components/liveCorrection/LiveCorrectionScreen'));
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { methodExplanation } from '@/lib/workoutExecutionMethods';
@@ -249,6 +252,8 @@ const TreinoExecucaoInner = () => {
   const [showPhaseInfo, setShowPhaseInfo] = useState(false);
   const [showAdjust, setShowAdjust] = useState(false);
   const [showVideoCapture, setShowVideoCapture] = useState(false);
+  const [liveCorrectionName, setLiveCorrectionName] = useState<string | null>(null);
+  const premiumCamera = usePremiumCamera(user?.id);
   const [showLoadHistory, setShowLoadHistory] = useState(false);
   // Snapshot consultivo de progressão restaurado do session_state (retomada).
   const [restoredSnapshot, setRestoredSnapshot] = useState<ProgressionSnapshot | null>(null);
@@ -1609,6 +1614,17 @@ const TreinoExecucaoInner = () => {
               Execução
             </button>
           )}
+          {user && premiumCamera && exercise && isSquatExercise(effectiveNameFor(exercise)) && (
+            <button
+              type="button"
+              onClick={() => setLiveCorrectionName(effectiveNameFor(exercise))}
+              className="inline-flex items-center gap-1 rounded-full bg-primary text-primary-foreground border border-primary px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wider hover:bg-primary/90 transition-colors whitespace-nowrap"
+              data-testid="live-correction-button"
+            >
+              <ScanEye className="h-3 w-3" />
+              Correção ao vivo
+            </button>
+          )}
         </div>
 
       </div>
@@ -1684,6 +1700,15 @@ const TreinoExecucaoInner = () => {
         </SheetContent>
       </Sheet>
 
+      {liveCorrectionName && user && (
+        <React.Suspense fallback={null}>
+          <LiveCorrectionScreen
+            studentId={user.id}
+            exerciseName={liveCorrectionName}
+            onClose={() => setLiveCorrectionName(null)}
+          />
+        </React.Suspense>
+      )}
       <Dialog open={showVideoCapture} onOpenChange={setShowVideoCapture}>
         <DialogContent className="max-w-md">
           <DialogHeader>

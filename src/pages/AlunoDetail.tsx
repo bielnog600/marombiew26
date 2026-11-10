@@ -29,6 +29,8 @@ import AdminWeightTrackingDialog from '@/components/admin/AdminWeightTrackingDia
 import AiBodyCompositionDialog from '@/components/admin/AiBodyCompositionDialog';
 import { Scale } from 'lucide-react';
 import SyncFailuresCard from '@/components/admin/SyncFailuresCard';
+import LiveCorrectionPremiumCard from '@/components/admin/LiveCorrectionPremiumCard';
+import { ScanEye } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -171,6 +173,11 @@ const AlunoDetail = () => {
                       <Sparkles className="h-3 w-3" /> Low Cost
                     </Badge>
                   )}
+                  {studentProfile?.premium_camera && (
+                    <Badge className="gap-1">
+                      <ScanEye className="h-3 w-3" /> Correção ao vivo
+                    </Badge>
+                  )}
                 </div>
                 <p className="text-muted-foreground">{profile.email}</p>
                 {profile.telefone && <p className="text-sm text-muted-foreground">{profile.telefone}</p>}
@@ -225,6 +232,11 @@ const AlunoDetail = () => {
                 )}
               </CardContent>
             </Card>
+            <LiveCorrectionPremiumCard
+              studentId={id!}
+              studentProfile={studentProfile}
+              onChanged={(v) => setStudentProfile((prev: any) => (prev ? { ...prev, premium_camera: v } : prev))}
+            />
           </TabsContent>
 
           <TabsContent value="comportamento">

@@ -1,0 +1,129 @@
+import React, { useEffect, useState } from 'react';
+import { Card, CardContent } from '@/components/ui/card';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
+import { Skeleton } from '@/components/ui/skeleton';
+import { ScanEye } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
+import { ERROR_MESSAGES, type SquatError } from '@/lib/liveCorrection/squatAnalysis';
+import { toast } from 'sonner';
+
+interface CameraSession {
+  id: string;
+  exercise_name: string;
+  started_at: string;
+  duration_seconds: number;
+  total_reps: number;
+  complete_reps: number;
+  incomplete_reps: number;
+  errors: Record<string, number> | null;
+}
+
+interface Props {
+  studentId: string;
+  /** students_profile do aluno; null = sem perfil de aluno. */
+  studentProfile: { premium_camera?: boolean | null } | null;
+  onChanged?: (value: boolean) => void;
+}
+
+const errorLabel = (key: string) => ERROR_MESSAGES[key as SquatError] ?? key;
+
+const LiveCorrectionPremiumCard: React.FC<Props> = ({ studentId, studentProfile, onChanged }) => {
+  const [enabled, setEnabled] = useState(!!studentProfile?.premium_camera);
+  const [saving, setSaving] = useState(false);
+  const [sessions, setSessions] = useState<CameraSession[] | null>(null);
+
+  useEffect(() => { setEnabled(!!studentProfile?.premium_camera); }, [studentProfile?.premium_camera]);
+
+  useEffect(() => {
+    let cancelled = false;
+    supabase
+      .from('camera_sessions')
+      .select('id, exercise_name, started_at, duration_seconds, total_reps, complete_reps, incomplete_reps, errors')
+      .eq('student_id', studentId)
+      .order('started_at', { ascending: false })
+      .limit(50)
+      .then(({ data }) => { if (!cancelled) setSessions((data as CameraSession[] | null) ?? []); });
+    return () => { cancelled = true; };
+  }, [studentId]);
+
+  const toggle = async (value: boolean) => {
+    setSaving(true);
+    setEnabled(value);
+    const { error } = await supabase.from('students_profile').update({ premium_camera: value }).eq('user_id', studentId);
+    setSaving(false);
+    if (error) {
+      setEnabled(!value);
+      toast.error('Não foi possível alterar: ' + error.message);
+      return;
+    }
+    toast.success(value ? 'Correção ao vivo ativada' : 'Correção ao vivo desativada');
+    onChanged?.(value);
+  };
+
+  return (
+    <Card className="glass-card border-primary/30 mt-4" data-testid="live-correction-premium-card">
+      <CardContent className="p-5 space-y-4">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="h-10 w-10 shrink-0 rounded-xl bg-primary/15 flex items-center justify-center">
+              <ScanEye className="h-5 w-5 text-primary" />
+            </div>
+            <div className="min-w-0">
+              <Label htmlFor="premium-camera-toggle" className="font-semibold">Correção ao vivo (Premium)</Label>
+              <p className="text-xs text-muted-foreground">Câmera corrige o agachamento durante o treino.</p>
+            </div>
+          </div>
+          <Switch
+            id="premium-camera-toggle"
+            checked={enabled}
+            disabled={saving || !studentProfile}
+            onCheckedChange={toggle}
+          />
+        </div>
+        {!studentProfile && (
+          <p className="text-xs text-muted-foreground">Este aluno ainda não tem perfil detalhado, então o recurso não pode ser ativado.</p>
+        )}
+
+        <div>
+          <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-2">Sessões com câmera</p>
+          {sessions === null ? (
+            <div className="space-y-2"><Skeleton className="h-14 w-full" /><Skeleton className="h-14 w-full" /></div>
+          ) : sessions.length === 0 ? (
+            <p className="text-sm text-muted-foreground">Nenhuma sessão registrada.</p>
+          ) : (
+            <ul className="space-y-2">
+              {sessions.map((s) => {
+                const errs = Object.entries(s.errors ?? {}).filter(([, n]) => n > 0).sort((a, b) => b[1] - a[1]);
+                return (
+                  <li key={s.id} className="rounded-xl border border-border bg-secondary/40 p-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold truncate">{s.exercise_name}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {new Date(s.started_at).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                          {s.duration_seconds > 0 && ` · ${Math.max(1, Math.round(s.duration_seconds / 60))} min`}
+                        </p>
+                      </div>
+                      <div className="text-right shrink-0 text-xs tabular-nums">
+                        <p><span className="font-bold">{s.total_reps}</span> reps</p>
+                        <p><span className="text-primary font-semibold">{s.complete_reps}</span> · <span className="text-destructive font-semibold">{s.incomplete_reps}</span></p>
+                      </div>
+                    </div>
+                    {errs.length > 0 && (
+                      <p className="mt-1.5 text-xs text-muted-foreground">
+                        {errs.map(([k, n]) => `${errorLabel(k)} ${n}×`).join(' · ')}
+                      </p>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
+};
+
+export default LiveCorrectionPremiumCard;

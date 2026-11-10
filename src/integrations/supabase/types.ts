@@ -755,6 +755,51 @@ export type Database = {
         }
         Relationships: []
       }
+      camera_sessions: {
+        Row: {
+          camera_side: string | null
+          complete_reps: number
+          created_at: string
+          duration_seconds: number
+          ended_at: string
+          errors: Json
+          exercise_name: string
+          id: string
+          incomplete_reps: number
+          started_at: string
+          student_id: string
+          total_reps: number
+        }
+        Insert: {
+          camera_side?: string | null
+          complete_reps?: number
+          created_at?: string
+          duration_seconds?: number
+          ended_at?: string
+          errors?: Json
+          exercise_name: string
+          id?: string
+          incomplete_reps?: number
+          started_at?: string
+          student_id: string
+          total_reps?: number
+        }
+        Update: {
+          camera_side?: string | null
+          complete_reps?: number
+          created_at?: string
+          duration_seconds?: number
+          ended_at?: string
+          errors?: Json
+          exercise_name?: string
+          id?: string
+          incomplete_reps?: number
+          started_at?: string
+          student_id?: string
+          total_reps?: number
+        }
+        Relationships: []
+      }
       cardio_sessions: {
         Row: {
           average_heart_rate: number | null
@@ -3261,6 +3306,7 @@ export type Database = {
           low_cost: boolean
           objetivo: string | null
           observacoes: string | null
+          premium_camera: boolean
           presencial: boolean
           raca: string | null
           restricoes: string | null
@@ -3284,6 +3330,7 @@ export type Database = {
           low_cost?: boolean
           objetivo?: string | null
           observacoes?: string | null
+          premium_camera?: boolean
           presencial?: boolean
           raca?: string | null
           restricoes?: string | null
@@ -3307,6 +3354,7 @@ export type Database = {
           low_cost?: boolean
           objetivo?: string | null
           observacoes?: string | null
+          premium_camera?: boolean
           presencial?: boolean
           raca?: string | null
           restricoes?: string | null
@@ -4092,6 +4140,7 @@ export type Database = {
         Args: { _reference_month: string }
         Returns: number
       }
+      has_premium_camera: { Args: { _user_id: string }; Returns: boolean }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -4149,6 +4198,7 @@ export type Database = {
           low_cost: boolean
           objetivo: string | null
           observacoes: string | null
+          premium_camera: boolean
           presencial: boolean
           raca: string | null
           restricoes: string | null
@@ -4253,6 +4303,7 @@ export type Database = {
           low_cost: boolean
           objetivo: string | null
           observacoes: string | null
+          premium_camera: boolean
           presencial: boolean
           raca: string | null
           restricoes: string | null
