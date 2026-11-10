@@ -17,6 +17,8 @@ interface CameraSession {
   complete_reps: number;
   incomplete_reps: number;
   errors: Record<string, number> | null;
+  tempo_medio_descida: number | null;
+  reps_descida_rapida: number | null;
 }
 
 interface Props {
@@ -39,7 +41,7 @@ const LiveCorrectionPremiumCard: React.FC<Props> = ({ studentId, studentProfile,
     let cancelled = false;
     supabase
       .from('camera_sessions')
-      .select('id, exercise_name, started_at, duration_seconds, total_reps, complete_reps, incomplete_reps, errors')
+      .select('id, exercise_name, started_at, duration_seconds, total_reps, complete_reps, incomplete_reps, errors, tempo_medio_descida, reps_descida_rapida')
       .eq('student_id', studentId)
       .order('started_at', { ascending: false })
       .limit(50)
@@ -110,6 +112,12 @@ const LiveCorrectionPremiumCard: React.FC<Props> = ({ studentId, studentProfile,
                         <p><span className="text-primary font-semibold">{s.complete_reps}</span> · <span className="text-destructive font-semibold">{s.incomplete_reps}</span></p>
                       </div>
                     </div>
+                    {s.tempo_medio_descida != null && (
+                      <p className="mt-1.5 text-xs text-muted-foreground">
+                        Descida média {Number(s.tempo_medio_descida).toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} s
+                        {(s.reps_descida_rapida ?? 0) > 0 && ` · ${s.reps_descida_rapida} rápida${s.reps_descida_rapida === 1 ? '' : 's'} demais`}
+                      </p>
+                    )}
                     {errs.length > 0 && (
                       <p className="mt-1.5 text-xs text-muted-foreground">
                         {errs.map(([k, n]) => `${errorLabel(k)} ${n}×`).join(' · ')}

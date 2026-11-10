@@ -1,14 +1,14 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { PoseLandmarker } from '@mediapipe/tasks-vision';
-import { X, Volume2, VolumeX, SwitchCamera, Loader2, Camera, CheckCircle2, AlertTriangle } from 'lucide-react';
+import { X, Volume2, VolumeX, SwitchCamera, Loader2, Camera, CheckCircle2, AlertTriangle, Timer } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { cn } from '@/lib/utils';
 import {
-  FULL_BODY_HOLD_MS, SKELETON_COLOR, SIDE_POINTS, ERROR_MESSAGES,
+  FULL_BODY_HOLD_MS, SKELETON_COLOR, SIDE_POINTS, ERROR_MESSAGES, MIN_DESCENT_SECONDS,
   LandmarkSmoother, SquatRepCounter, canSpeak, errorsToJson, frameMetrics,
-  isFullBodyVisible, pickSide, summarizeReps,
+  isFullBodyVisible, pickSide, planRepSpeech, summarizeReps,
   type Landmark, type RepResult, type SessionSummary, type Side,
 } from '@/lib/liveCorrection/squatAnalysis';
 
@@ -108,23 +108,33 @@ const LiveCorrectionScreen: React.FC<Props> = ({ studentId, exerciseName, onClos
   useEffect(() => { phaseRef.current = phase; }, [phase]);
   useEffect(() => { voiceOnRef.current = voiceOn; }, [voiceOn]);
 
-  const speak = useCallback((text: string, force = false) => {
-    if (!voiceOnRef.current || typeof window === 'undefined' || !('speechSynthesis' in window)) return;
-    const now = Date.now();
-    if (!force && !canSpeak(lastSpokeRef.current, now)) return;
-    lastSpokeRef.current = now;
+  const voiceAvailable = () => voiceOnRef.current && typeof window !== 'undefined' && 'speechSynthesis' in window;
+
+  /** Fala os textos em sequência (interrompe a fala anterior). */
+  const speakSequence = useCallback((texts: string[]) => {
+    if (!voiceAvailable() || !texts.length) return;
     try {
       const synth = window.speechSynthesis;
       synth.cancel();
-      const u = new SpeechSynthesisUtterance(text);
-      u.lang = 'pt-BR';
-      u.rate = 1.05;
       const voices = synth.getVoices();
       const voice = voices.find((v) => v.lang?.toLowerCase() === 'pt-br') ?? voices.find((v) => v.lang?.toLowerCase().startsWith('pt'));
-      if (voice) u.voice = voice;
-      synth.speak(u);
+      for (const text of texts) {
+        const u = new SpeechSynthesisUtterance(text);
+        u.lang = 'pt-BR';
+        u.rate = 1.05;
+        if (voice) u.voice = voice;
+        synth.speak(u);
+      }
     } catch { /* voz indisponível */ }
   }, []);
+
+  const speak = useCallback((text: string, force = false) => {
+    if (!voiceAvailable()) return;
+    const now = Date.now();
+    if (!force && !canSpeak(lastSpokeRef.current, now)) return;
+    lastSpokeRef.current = now;
+    speakSequence([text]);
+  }, [speakSequence]);
 
   const showFeedback = useCallback((fb: Feedback, ms = 2500) => {
     setFeedback(fb);
@@ -201,17 +211,24 @@ const LiveCorrectionScreen: React.FC<Props> = ({ studentId, exerciseName, onClos
       return;
     }
     lostSinceRef.current = null;
-    const rep = counter.update(frameMetrics(lms, video.videoWidth || 1, video.videoHeight || 1, side));
+    const rep = counter.update(frameMetrics(lms, video.videoWidth || 1, video.videoHeight || 1, side), now);
     if (!rep) return;
     setReps([...counter.reps]);
     if (rep.errors.length) {
       const text = rep.errors.map((e) => ERROR_MESSAGES[e]).join(' · ');
       showFeedback({ text, tone: 'error' });
-      speak(rep.errors.map((e) => ERROR_MESSAGES[e]).join('. '));
     } else {
       showFeedback({ text: 'Boa!', tone: 'ok' }, 1200);
     }
-  }, [showFeedback, speak]);
+    // Número da rep completa sempre fala (fora do limite de 3 s); depois a correção, se couber no limite.
+    if (voiceAvailable()) {
+      const speechNow = Date.now();
+      const completeCount = counter.reps.filter((r) => r.complete).length;
+      const plan = planRepSpeech(rep, completeCount, lastSpokeRef.current, speechNow);
+      if (plan.correctionSpoken) lastSpokeRef.current = speechNow;
+      speakSequence(plan.texts);
+    }
+  }, [showFeedback, speakSequence]);
 
   const loop = useCallback(() => {
     rafRef.current = requestAnimationFrame(loop);
@@ -307,6 +324,8 @@ const LiveCorrectionScreen: React.FC<Props> = ({ studentId, exerciseName, onClos
       incomplete_reps: s.incomplete,
       errors: errorsToJson(s),
       camera_side: sideRef.current,
+      tempo_medio_descida: s.avgDescentSeconds,
+      reps_descida_rapida: s.fastDescentReps,
     });
     if (error) setSaveError('Não foi possível salvar a sessão. Tente de novo.');
     setPhase('summary');
@@ -497,6 +516,25 @@ const LiveCorrectionScreen: React.FC<Props> = ({ studentId, exerciseName, onClos
               <div className="glass-card rounded-2xl p-3 text-center">
                 <p className="text-3xl font-black tabular-nums text-destructive">{summary.incomplete}</p>
                 <p className="text-[11px] uppercase tracking-wider text-muted-foreground">Incompletas</p>
+              </div>
+            </div>
+            <div className="glass-card rounded-2xl p-4" data-testid="live-summary-descent">
+              <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-2 flex items-center gap-1.5">
+                <Timer className="h-3.5 w-3.5" /> Descida
+              </p>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <p className="text-2xl font-black tabular-nums">
+                    {summary.avgDescentSeconds == null ? '—' : `${summary.avgDescentSeconds.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} s`}
+                  </p>
+                  <p className="text-[11px] uppercase tracking-wider text-muted-foreground">Tempo médio</p>
+                </div>
+                <div>
+                  <p className={cn('text-2xl font-black tabular-nums', summary.fastDescentReps > 0 && 'text-destructive')}>{summary.fastDescentReps}</p>
+                  <p className="text-[11px] uppercase tracking-wider text-muted-foreground">
+                    Rápida{summary.fastDescentReps === 1 ? '' : 's'} demais (&lt; {MIN_DESCENT_SECONDS.toLocaleString('pt-BR')} s)
+                  </p>
+                </div>
               </div>
             </div>
             <div className="glass-card rounded-2xl p-4">
