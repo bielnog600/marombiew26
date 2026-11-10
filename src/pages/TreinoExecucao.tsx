@@ -253,6 +253,8 @@ const TreinoExecucaoInner = () => {
   const [showAdjust, setShowAdjust] = useState(false);
   const [showVideoCapture, setShowVideoCapture] = useState(false);
   const [liveCorrectionName, setLiveCorrectionName] = useState<string | null>(null);
+  /** Série que estava ativa quando a câmera abriu (destino do "Salvar na série"). */
+  const [liveCorrectionTarget, setLiveCorrectionTarget] = useState<{ exIdx: number; setIdx: number } | null>(null);
   const premiumCamera = usePremiumCamera(user?.id);
   const [showLoadHistory, setShowLoadHistory] = useState(false);
   // Snapshot consultivo de progressão restaurado do session_state (retomada).
@@ -1617,7 +1619,11 @@ const TreinoExecucaoInner = () => {
           {user && premiumCamera && exercise && isSquatExercise(effectiveNameFor(exercise)) && (
             <button
               type="button"
-              onClick={() => setLiveCorrectionName(effectiveNameFor(exercise))}
+              onClick={() => {
+                const setIdx = currentSets.findIndex((s) => !s.completed);
+                setLiveCorrectionTarget(setIdx >= 0 ? { exIdx: currentIndex, setIdx } : null);
+                setLiveCorrectionName(effectiveNameFor(exercise));
+              }}
               className="inline-flex items-center gap-1 rounded-full bg-primary text-primary-foreground border border-primary px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wider hover:bg-primary/90 transition-colors whitespace-nowrap"
               data-testid="live-correction-button"
             >
@@ -1705,7 +1711,19 @@ const TreinoExecucaoInner = () => {
           <LiveCorrectionScreen
             studentId={user.id}
             exerciseName={liveCorrectionName}
-            onClose={() => setLiveCorrectionName(null)}
+            onClose={() => { setLiveCorrectionName(null); setLiveCorrectionTarget(null); }}
+            targetSetLabel={liveCorrectionTarget ? `Série ${liveCorrectionTarget.setIdx + 1}` : undefined}
+            onSaveToSet={liveCorrectionTarget ? (completeReps) => {
+              const { exIdx, setIdx } = liveCorrectionTarget;
+              setSets((prev) => {
+                const current = [...(prev[exIdx] || [])];
+                if (!current[setIdx]) return prev;
+                current[setIdx] = { ...current[setIdx], reps: String(completeReps) };
+                const next = { ...prev, [exIdx]: current };
+                syncLocalActiveSession(next, currentIndex);
+                return next;
+              });
+            } : undefined}
           />
         </React.Suspense>
       )}
