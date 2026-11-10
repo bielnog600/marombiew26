@@ -10,6 +10,8 @@ export const REP_START_KNEE_ANGLE = 150;
 export const REP_END_KNEE_ANGLE = 165;
 /** Tronco mais inclinado que isto (graus da vertical) no fundo = "Peito pra cima". */
 export const MAX_TRUNK_ANGLE = 50;
+/** Descida (de 165° até o ponto mais baixo) mais rápida que isto, em segundos = "Controla a descida". */
+export const MIN_DESCENT_SECONDS = 1.5;
 /**
  * Folga da profundidade, em fração do comprimento da coxa: o quadril precisa
  * chegar até (altura do joelho − folga). 0 = exatamente na altura do joelho.
@@ -44,10 +46,11 @@ export const SIDE_POINTS: Record<Side, { shoulder: number; hip: number; knee: nu
 export interface Landmark { x: number; y: number; z?: number; visibility?: number }
 export interface Point { x: number; y: number }
 
-export type SquatError = 'depth' | 'trunk';
+export type SquatError = 'depth' | 'trunk' | 'descent';
 export const ERROR_MESSAGES: Record<SquatError, string> = {
   depth: 'Desce mais',
   trunk: 'Peito pra cima',
+  descent: 'Controla a descida',
 };
 
 /** Média móvel dos últimos N frames, ponto a ponto. */
@@ -142,6 +145,10 @@ export interface RepResult {
   minKneeAngle: number;
   bottomTrunkAngle: number;
   maxHipDepth: number;
+  /** Segundos do joelho passar de 165° para baixo até o ponto mais baixo; null = não deu para medir. */
+  descentSeconds: number | null;
+  /** Descida mais rápida que MIN_DESCENT_SECONDS (não deixa a rep incompleta). */
+  fastDescent: boolean;
 }
 
 /** Contador de reps: começa < 150°, termina > 165°. */
@@ -150,6 +157,12 @@ export class SquatRepCounter {
   private minKnee = 180;
   private bottomTrunk = 0;
   private maxDepth = -Infinity;
+  /** Último ângulo do joelho visto (para detectar a passagem por 165°). */
+  private lastKnee: number | null = null;
+  /** Momento em que o joelho passou de 165° para baixo. */
+  private descentStartAt: number | null = null;
+  /** Momento do ponto mais baixo da rep atual. */
+  private bottomAt: number | null = null;
   readonly reps: RepResult[] = [];
 
   get inRep() { return this.phase === 'down'; }
@@ -159,6 +172,9 @@ export class SquatRepCounter {
     this.minKnee = 180;
     this.bottomTrunk = 0;
     this.maxDepth = -Infinity;
+    this.lastKnee = null;
+    this.descentStartAt = null;
+    this.bottomAt = null;
     this.reps.length = 0;
   }
 
@@ -167,22 +183,37 @@ export class SquatRepCounter {
     this.phase = 'up';
     this.minKnee = 180;
     this.maxDepth = -Infinity;
+    this.lastKnee = null;
+    this.descentStartAt = null;
+    this.bottomAt = null;
   }
 
-  /** Alimenta um frame; devolve a rep quando ela termina. */
-  update(m: FrameMetrics): RepResult | null {
+  /**
+   * Alimenta um frame; devolve a rep quando ela termina.
+   * `t` = horário do frame em ms (necessário para medir a descida).
+   */
+  update(m: FrameMetrics, t?: number): RepResult | null {
+    const prevKnee = this.lastKnee;
+    this.lastKnee = m.kneeAngle;
     if (this.phase === 'up') {
+      if (m.kneeAngle > REP_END_KNEE_ANGLE) {
+        this.descentStartAt = null; // em pé: a descida ainda não começou
+      } else if (t != null && prevKnee != null && prevKnee > REP_END_KNEE_ANGLE) {
+        this.descentStartAt = t; // passou de 165° para baixo
+      }
       if (m.kneeAngle < REP_START_KNEE_ANGLE) {
         this.phase = 'down';
         this.minKnee = m.kneeAngle;
         this.bottomTrunk = m.trunkAngle;
         this.maxDepth = m.hipDepth;
+        this.bottomAt = t ?? null;
       }
       return null;
     }
     if (m.kneeAngle < this.minKnee) {
       this.minKnee = m.kneeAngle;
       this.bottomTrunk = m.trunkAngle; // tronco medido no ponto mais baixo
+      this.bottomAt = t ?? null;
     }
     if (m.hipDepth > this.maxDepth) this.maxDepth = m.hipDepth;
     if (m.kneeAngle <= REP_END_KNEE_ANGLE) return null;
@@ -191,6 +222,11 @@ export class SquatRepCounter {
     const deepEnough = this.maxDepth >= -DEPTH_TOLERANCE;
     if (!deepEnough) errors.push('depth');
     if (this.bottomTrunk > MAX_TRUNK_ANGLE) errors.push('trunk');
+    const descentSeconds = this.descentStartAt != null && this.bottomAt != null && this.bottomAt >= this.descentStartAt
+      ? Math.round((this.bottomAt - this.descentStartAt) / 10) / 100
+      : null;
+    const fastDescent = descentSeconds != null && descentSeconds < MIN_DESCENT_SECONDS;
+    if (fastDescent) errors.push('descent');
     const rep: RepResult = {
       index: this.reps.length + 1,
       complete: deepEnough,
@@ -198,11 +234,15 @@ export class SquatRepCounter {
       minKneeAngle: Math.round(this.minKnee),
       bottomTrunkAngle: Math.round(this.bottomTrunk),
       maxHipDepth: Math.round(this.maxDepth * 100) / 100,
+      descentSeconds,
+      fastDescent,
     };
     this.reps.push(rep);
     this.phase = 'up';
     this.minKnee = 180;
     this.maxDepth = -Infinity;
+    this.descentStartAt = null;
+    this.bottomAt = null;
     return rep;
   }
 }
@@ -213,12 +253,20 @@ export interface SessionSummary {
   incomplete: number;
   /** Contagem por erro, maior primeiro. */
   errors: { key: SquatError; label: string; count: number }[];
+  /** Média, em segundos, das descidas medidas; null se nenhuma foi medida. */
+  avgDescentSeconds: number | null;
+  /** Reps com descida mais rápida que MIN_DESCENT_SECONDS. */
+  fastDescentReps: number;
 }
 
 export function summarizeReps(reps: RepResult[]): SessionSummary {
   const counts = new Map<SquatError, number>();
   for (const r of reps) for (const e of r.errors) counts.set(e, (counts.get(e) ?? 0) + 1);
   const complete = reps.filter((r) => r.complete).length;
+  const descents = reps.map((r) => r.descentSeconds).filter((d): d is number => d != null);
+  const avgDescentSeconds = descents.length
+    ? Math.round((descents.reduce((a, b) => a + b, 0) / descents.length) * 100) / 100
+    : null;
   return {
     total: reps.length,
     complete,
@@ -226,6 +274,8 @@ export function summarizeReps(reps: RepResult[]): SessionSummary {
     errors: [...counts.entries()]
       .map(([key, count]) => ({ key, label: ERROR_MESSAGES[key], count }))
       .sort((a, b) => b.count - a.count),
+    avgDescentSeconds,
+    fastDescentReps: reps.filter((r) => r.fastDescent).length,
   };
 }
 
@@ -242,4 +292,47 @@ export function isSquatExercise(name: string | null | undefined): boolean {
 /** Limita falas a uma a cada VOICE_COOLDOWN_MS. */
 export function canSpeak(lastSpokeAt: number | null, now: number): boolean {
   return lastSpokeAt == null || now - lastSpokeAt >= VOICE_COOLDOWN_MS;
+}
+
+const UNITS = ['', 'um', 'dois', 'três', 'quatro', 'cinco', 'seis', 'sete', 'oito', 'nove'];
+const TEENS = ['dez', 'onze', 'doze', 'treze', 'catorze', 'quinze', 'dezesseis', 'dezessete', 'dezoito', 'dezenove'];
+const TENS = ['', '', 'vinte', 'trinta', 'quarenta', 'cinquenta', 'sessenta', 'setenta', 'oitenta', 'noventa'];
+const HUNDREDS = ['', 'cento', 'duzentos', 'trezentos', 'quatrocentos', 'quinhentos', 'seiscentos', 'setecentos', 'oitocentos', 'novecentos'];
+
+/** Número por extenso em português (1–999): 1 → "um", 21 → "vinte e um". */
+export function repNumberWord(n: number): string {
+  if (!Number.isInteger(n) || n < 1 || n > 999) return String(n);
+  if (n === 100) return 'cem';
+  const parts: string[] = [];
+  const h = Math.floor(n / 100), rest = n % 100;
+  if (h) parts.push(HUNDREDS[h]);
+  if (rest >= 10 && rest < 20) parts.push(TEENS[rest - 10]);
+  else {
+    const t = Math.floor(rest / 10), u = rest % 10;
+    if (t) parts.push(TENS[t]);
+    if (u) parts.push(UNITS[u]);
+  }
+  return parts.join(' e ');
+}
+
+export interface RepSpeech {
+  /** Falas na ordem: número primeiro, depois a correção. */
+  texts: string[];
+  /** A correção entrou (reinicia o intervalo de 3 s das correções). */
+  correctionSpoken: boolean;
+}
+
+/**
+ * O que falar ao fim de uma rep. O número (só reps completas) sempre fala e não
+ * entra no limite; a correção respeita uma fala a cada VOICE_COOLDOWN_MS.
+ */
+export function planRepSpeech(rep: RepResult, completeCount: number, lastCorrectionAt: number | null, now: number): RepSpeech {
+  const texts: string[] = [];
+  if (rep.complete) texts.push(repNumberWord(completeCount));
+  let correctionSpoken = false;
+  if (rep.errors.length && canSpeak(lastCorrectionAt, now)) {
+    texts.push(rep.errors.map((e) => ERROR_MESSAGES[e]).join('. '));
+    correctionSpoken = true;
+  }
+  return { texts, correctionSpoken };
 }
