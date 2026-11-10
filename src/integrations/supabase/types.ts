@@ -766,8 +766,10 @@ export type Database = {
           exercise_name: string
           id: string
           incomplete_reps: number
+          reps_descida_rapida: number
           started_at: string
           student_id: string
+          tempo_medio_descida: number | null
           total_reps: number
         }
         Insert: {
@@ -780,8 +782,10 @@ export type Database = {
           exercise_name: string
           id?: string
           incomplete_reps?: number
+          reps_descida_rapida?: number
           started_at?: string
           student_id: string
+          tempo_medio_descida?: number | null
           total_reps?: number
         }
         Update: {
@@ -794,8 +798,10 @@ export type Database = {
           exercise_name?: string
           id?: string
           incomplete_reps?: number
+          reps_descida_rapida?: number
           started_at?: string
           student_id?: string
+          tempo_medio_descida?: number | null
           total_reps?: number
         }
         Relationships: []
