@@ -28,6 +28,27 @@ export const VOICE_COOLDOWN_MS = 3000;
 /** Cor do esqueleto. */
 export const SKELETON_COLOR = '#FACC15';
 
+/** Janela (ms) usada para medir se a pessoa está parada. */
+export const STILL_WINDOW_MS = 500;
+/**
+ * Movimento máximo de quadril/ombro/tornozelo dentro da janela, em fração da
+ * altura do corpo (ombro→tornozelo), para considerar a pessoa PARADA.
+ */
+export const STILL_MAX_MOVEMENT = 0.05;
+/**
+ * Vista de frente: (largura ombro-ombro + largura quadril-quadril) / 2, dividida
+ * pela altura do tronco (meio dos ombros → meio dos quadris). Acima disto = de frente.
+ */
+export const FRONTAL_WIDTH_RATIO = 0.4;
+/** Tempo que a vista (de frente/de lado) precisa se manter para mudar o estado. */
+export const FRONTAL_HOLD_MS = 400;
+/** Contagem regressiva antes de liberar as reps ("3, 2, 1"). */
+export const COUNTDOWN_SECONDS = 3;
+/** Depois da primeira rep: tempo em pé sem rep nova que encerra a série sozinha. */
+export const AUTO_FINISH_IDLE_MS = 5000;
+/** Depois da primeira rep: tempo com o corpo fora do quadro (saiu/aproximou) que encerra a série. */
+export const AUTO_FINISH_LOST_MS = 1000;
+
 /** Índices do MediaPipe Pose. */
 export const LM = {
   nose: 0,
@@ -163,11 +184,19 @@ export class SquatRepCounter {
   private descentStartAt: number | null = null;
   /** Momento do ponto mais baixo da rep atual. */
   private bottomAt: number | null = null;
+  /** false = precisa ver a pessoa em pé (> 165°) antes de aceitar uma nova descida. */
+  private armed = true;
   readonly reps: RepResult[] = [];
 
   get inRep() { return this.phase === 'down'; }
 
+  /** Só aceita a próxima rep depois de ver a pessoa em pé (início da série, volta de lado). */
+  waitForStanding() {
+    this.abortRep();
+  }
+
   reset() {
+    this.armed = true;
     this.phase = 'up';
     this.minKnee = 180;
     this.bottomTrunk = 0;
@@ -180,6 +209,7 @@ export class SquatRepCounter {
 
   /** Cancela uma rep em andamento (ex.: corpo saiu do quadro). */
   abortRep() {
+    this.armed = false;
     this.phase = 'up';
     this.minKnee = 180;
     this.maxDepth = -Infinity;
@@ -196,6 +226,10 @@ export class SquatRepCounter {
     const prevKnee = this.lastKnee;
     this.lastKnee = m.kneeAngle;
     if (this.phase === 'up') {
+      if (!this.armed) {
+        if (m.kneeAngle <= REP_END_KNEE_ANGLE) return null;
+        this.armed = true;
+      }
       if (m.kneeAngle > REP_END_KNEE_ANGLE) {
         this.descentStartAt = null; // em pé: a descida ainda não começou
       } else if (t != null && prevKnee != null && prevKnee > REP_END_KNEE_ANGLE) {
@@ -335,4 +369,124 @@ export function planRepSpeech(rep: RepResult, completeCount: number, lastCorrect
     correctionSpoken = true;
   }
   return { texts, correctionSpoken };
+}
+
+// ---------------------------------------------------------------------------
+// Posicionamento, vista de frente e fim automático
+// ---------------------------------------------------------------------------
+
+const STILL_POINTS = [LM.leftShoulder, LM.rightShoulder, LM.leftHip, LM.rightHip, LM.leftAnkle, LM.rightAnkle];
+
+/** Mede quanto quadril/ombro/tornozelo se mexeram nos últimos STILL_WINDOW_MS. */
+export class StillnessDetector {
+  private frames: { t: number; pts: Point[]; bodyHeight: number }[] = [];
+  constructor(private readonly windowMs = STILL_WINDOW_MS) {}
+  reset() { this.frames = []; }
+
+  /** Devolve o movimento (fração da altura do corpo) ou null se a janela ainda não encheu. */
+  push(lms: Landmark[], t: number, width = 1, height = 1, side: Side = pickSide(lms)): number | null {
+    const p = SIDE_POINTS[side];
+    const sh = toPx(lms[p.shoulder], width, height), an = toPx(lms[p.ankle], width, height);
+    const bodyHeight = Math.hypot(sh.x - an.x, sh.y - an.y) || 1;
+    this.frames.push({ t, pts: STILL_POINTS.map((i) => toPx(lms[i], width, height)), bodyHeight });
+    while (this.frames.length > 1 && t - this.frames[1].t >= this.windowMs) this.frames.shift();
+    if (t - this.frames[0].t < this.windowMs * 0.8) return null;
+    let max = 0;
+    for (let k = 0; k < STILL_POINTS.length; k++) {
+      let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+      for (const f of this.frames) {
+        const q = f.pts[k];
+        if (q.x < minX) minX = q.x; if (q.x > maxX) maxX = q.x;
+        if (q.y < minY) minY = q.y; if (q.y > maxY) maxY = q.y;
+      }
+      max = Math.max(max, Math.hypot(maxX - minX, maxY - minY));
+    }
+    return max / bodyHeight;
+  }
+}
+
+export function isStillMovement(movement: number | null): boolean {
+  return movement != null && movement <= STILL_MAX_MOVEMENT;
+}
+
+/** Largura média ombros/quadris ÷ altura do tronco. Grande = pessoa de frente para a câmera. */
+export function frontalRatio(lms: Landmark[], width = 1, height = 1): number {
+  const P = (i: number) => toPx(lms[i], width, height);
+  const ls = P(LM.leftShoulder), rs = P(LM.rightShoulder), lh = P(LM.leftHip), rh = P(LM.rightHip);
+  const shoulderW = Math.abs(ls.x - rs.x), hipW = Math.abs(lh.x - rh.x);
+  const midSh = { x: (ls.x + rs.x) / 2, y: (ls.y + rs.y) / 2 };
+  const midHip = { x: (lh.x + rh.x) / 2, y: (lh.y + rh.y) / 2 };
+  const trunk = Math.hypot(midSh.x - midHip.x, midSh.y - midHip.y);
+  if (trunk === 0) return Infinity;
+  return (shoulderW + hipW) / 2 / trunk;
+}
+
+export function isFacingCamera(lms: Landmark[] | null | undefined, width = 1, height = 1): boolean {
+  if (!lms || lms.length < 29) return false;
+  return frontalRatio(lms, width, height) > FRONTAL_WIDTH_RATIO;
+}
+
+/** Só troca entre "de frente" e "de lado" depois que a vista se mantém FRONTAL_HOLD_MS (evita piscar). */
+export class FacingGate {
+  private state = false;
+  private pending: boolean | null = null;
+  private pendingSince = 0;
+  get frontal() { return this.state; }
+  reset() { this.state = false; this.pending = null; }
+  update(rawFrontal: boolean, t: number): boolean {
+    if (rawFrontal === this.state) { this.pending = null; return this.state; }
+    if (this.pending !== rawFrontal) { this.pending = rawFrontal; this.pendingSince = t; }
+    if (t - this.pendingSince >= FRONTAL_HOLD_MS) { this.state = rawFrontal; this.pending = null; }
+    return this.state;
+  }
+}
+
+export type PositionIssue = 'no_body' | 'cut' | 'frontal' | 'moving' | 'ok';
+export const POSITION_MESSAGES: Record<Exclude<PositionIssue, 'ok'>, string> = {
+  no_body: 'Coloca o celular no chão, de lado pra você, com o corpo inteiro aparecendo',
+  cut: 'Afasta um pouco',
+  frontal: 'Fica de lado',
+  moving: 'Fica parado',
+};
+export const TURN_SIDEWAYS_MESSAGE = 'Vira de lado';
+export const AUTO_FINISH_MESSAGE = 'Fechou a série';
+
+/** O que impede de liberar a contagem (na ordem: sem corpo → cortado → de frente → mexendo). */
+export function diagnosePositioning(input: { hasBody: boolean; fullBody: boolean; frontal: boolean; still: boolean }): PositionIssue {
+  if (!input.hasBody) return 'no_body';
+  if (!input.fullBody) return 'cut';
+  if (input.frontal) return 'frontal';
+  if (!input.still) return 'moving';
+  return 'ok';
+}
+
+/** Número da contagem regressiva (3, 2, 1) ou 0 quando acabou. */
+export function countdownValue(startAt: number, now: number, seconds = COUNTDOWN_SECONDS): number {
+  const elapsed = Math.max(0, now - startAt);
+  return Math.max(0, seconds - Math.floor(elapsed / 1000));
+}
+
+export type AutoFinishReason = 'idle' | 'left';
+
+/**
+ * Encerra a série sozinha depois da primeira rep: AUTO_FINISH_IDLE_MS em pé sem rep nova,
+ * ou AUTO_FINISH_LOST_MS com o corpo fora do quadro (saiu ou chegou perto da câmera).
+ */
+export class AutoFinishDetector {
+  private standingSince: number | null = null;
+  private lostSince: number | null = null;
+  reset() { this.standingSince = null; this.lostSince = null; }
+  update(input: { t: number; repCount: number; fullBody: boolean; inRep: boolean; kneeAngle: number | null }): AutoFinishReason | null {
+    const { t, repCount, fullBody, inRep, kneeAngle } = input;
+    if (!fullBody) {
+      this.standingSince = null;
+      if (this.lostSince == null) this.lostSince = t;
+      return repCount > 0 && t - this.lostSince >= AUTO_FINISH_LOST_MS ? 'left' : null;
+    }
+    this.lostSince = null;
+    const standing = !inRep && kneeAngle != null && kneeAngle > REP_END_KNEE_ANGLE;
+    if (!standing) { this.standingSince = null; return null; }
+    if (this.standingSince == null) this.standingSince = t;
+    return repCount > 0 && t - this.standingSince >= AUTO_FINISH_IDLE_MS ? 'idle' : null;
+  }
 }
