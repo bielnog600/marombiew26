@@ -11,8 +11,8 @@ const runRep = (c: SquatRepCounter, bottom: FrameMetrics) => {
   c.update(f(175));
   c.update(f(140, bottom.trunkAngle, -0.5));
   c.update(bottom);
-  c.update(f(155));
-  return c.update(f(170));
+  c.update(f(155, 20, -0.5));
+  return c.update(f(170, 10, -1));
 };
 
 describe('Correção ao vivo — agachamento', () => {
