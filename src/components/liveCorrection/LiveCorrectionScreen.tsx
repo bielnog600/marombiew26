@@ -1,15 +1,17 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { PoseLandmarker } from '@mediapipe/tasks-vision';
-import { X, Volume2, VolumeX, SwitchCamera, Loader2, Camera, CheckCircle2, AlertTriangle, Timer } from 'lucide-react';
+import { X, Volume2, VolumeX, SwitchCamera, Loader2, Camera, CheckCircle2, AlertTriangle, Timer, RotateCcw, ClipboardCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { cn } from '@/lib/utils';
 import {
   FULL_BODY_HOLD_MS, SKELETON_COLOR, SIDE_POINTS, ERROR_MESSAGES, MIN_DESCENT_SECONDS,
-  LandmarkSmoother, SquatRepCounter, canSpeak, errorsToJson, frameMetrics,
-  isFullBodyVisible, pickSide, planRepSpeech, summarizeReps,
-  type Landmark, type RepResult, type SessionSummary, type Side,
+  POSITION_MESSAGES, TURN_SIDEWAYS_MESSAGE, AUTO_FINISH_MESSAGE,
+  LandmarkSmoother, SquatRepCounter, StillnessDetector, FacingGate, AutoFinishDetector,
+  canSpeak, errorsToJson, frameMetrics, isFullBodyVisible, isFacingCamera, isStillMovement,
+  diagnosePositioning, countdownValue, pickSide, planRepSpeech, repNumberWord, summarizeReps,
+  type Landmark, type PositionIssue, type RepResult, type SessionSummary, type Side,
 } from '@/lib/liveCorrection/squatAnalysis';
 
 const MP_VERSION = '0.10.17';
@@ -17,15 +19,44 @@ const WASM_URL = `https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@${MP_VERS
 const MODEL_URL = 'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task';
 /** Corpo fora do quadro por mais que isto cancela a rep em andamento. */
 const BODY_LOST_MS = 600;
+/** Aviso de posicionamento só fala depois de se manter por este tempo. */
+const HINT_STABLE_MS = 700;
+/** O mesmo aviso de posicionamento só se repete depois deste tempo. */
+const HINT_REPEAT_MS = 6000;
 
-type Phase = 'intro' | 'loading' | 'positioning' | 'tracking' | 'saving' | 'summary' | 'error';
+type Phase = 'intro' | 'loading' | 'positioning' | 'countdown' | 'tracking' | 'saving' | 'summary' | 'error';
 type Facing = 'user' | 'environment';
 
 interface Props {
   studentId: string;
   exerciseName: string;
   onClose: () => void;
+  /** Preenche as reps completas na série que estava ativa ao abrir a câmera. Sem isto, o botão não aparece. */
+  onSaveToSet?: (completeReps: number) => void;
+  /** Nome da série de destino, ex.: "Série 2". */
+  targetSetLabel?: string;
 }
+
+/** Contorno de uma pessoa de lado, para guiar o posicionamento. */
+const GuideSilhouette: React.FC<{ active: boolean }> = ({ active }) => (
+  <svg
+    viewBox="0 0 100 260"
+    className={cn('h-[68%] max-h-[560px] text-primary transition-opacity duration-300', active ? 'opacity-70' : 'opacity-40')}
+    fill="none"
+    aria-hidden="true"
+    data-testid="live-guide-silhouette"
+  >
+    <g stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" strokeDasharray="6 5">
+      <circle cx="52" cy="22" r="15" fill="currentColor" fillOpacity="0.15" />
+      <path
+        d="M46 38 C40 46 37 56 37 68 L35 118 C34 130 36 140 40 147 L40 200 C40 214 39 228 38 240 L36 252 L62 252 L58 244 C56 230 56 214 56 200 L58 147 C63 138 65 128 64 118 L65 68 C65 56 62 46 58 38 Z"
+        fill="currentColor"
+        fillOpacity="0.12"
+      />
+      <path d="M51 62 C53 82 55 100 55 122" />
+    </g>
+  </svg>
+);
 
 interface Feedback { text: string; tone: 'ok' | 'error' | 'info' }
 
@@ -76,7 +107,7 @@ function drawSkeleton(canvas: HTMLCanvasElement, video: HTMLVideoElement, lms: L
   ctx.shadowBlur = 0;
 }
 
-const LiveCorrectionScreen: React.FC<Props> = ({ studentId, exerciseName, onClose }) => {
+const LiveCorrectionScreen: React.FC<Props> = ({ studentId, exerciseName, onClose, onSaveToSet, targetSetLabel }) => {
   const [phase, setPhase] = useState<Phase>('intro');
   const [errorText, setErrorText] = useState<string | null>(null);
   const [facing, setFacing] = useState<Facing>('user');
@@ -86,6 +117,10 @@ const LiveCorrectionScreen: React.FC<Props> = ({ studentId, exerciseName, onClos
   const [feedback, setFeedback] = useState<Feedback | null>(null);
   const [summary, setSummary] = useState<SessionSummary | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [issue, setIssue] = useState<PositionIssue>('no_body');
+  const [countdown, setCountdown] = useState(0);
+  const [paused, setPaused] = useState(false);
+  const [autoFinished, setAutoFinished] = useState(false);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -104,6 +139,22 @@ const LiveCorrectionScreen: React.FC<Props> = ({ studentId, exerciseName, onClos
   const feedbackTimerRef = useRef<number | null>(null);
   const startedAtRef = useRef<Date | null>(null);
   const wakeLockRef = useRef<any>(null);
+  const stillRef = useRef(new StillnessDetector());
+  const facingGateRef = useRef(new FacingGate());
+  const autoFinishRef = useRef(new AutoFinishDetector());
+  const issueRef = useRef<PositionIssue>('no_body');
+  const issueSinceRef = useRef(0);
+  const lastHintRef = useRef<{ issue: PositionIssue; at: number } | null>(null);
+  const countdownStartRef = useRef(0);
+  const countdownShownRef = useRef<number | null>(null);
+  const pausedRef = useRef(false);
+  const finishRef = useRef<(auto: boolean) => void>(() => undefined);
+
+  /** Muda a fase já no ref, para o próximo frame não repetir a transição. */
+  const goPhase = useCallback((next: Phase) => {
+    phaseRef.current = next;
+    setPhase(next);
+  }, []);
 
   useEffect(() => { phaseRef.current = phase; }, [phase]);
   useEffect(() => { voiceOnRef.current = voiceOn; }, [voiceOn]);
@@ -172,6 +223,7 @@ const LiveCorrectionScreen: React.FC<Props> = ({ studentId, exerciseName, onClos
   const processFrame = useCallback((raw: Landmark[] | undefined, now: number) => {
     const video = videoRef.current, canvas = canvasRef.current;
     if (!video || !canvas) return;
+    const w = video.videoWidth || 1, h = video.videoHeight || 1;
     const lms = raw && raw.length ? smootherRef.current.push(raw) : null;
     if (!raw) smootherRef.current.reset();
     const counter = counterRef.current;
@@ -179,20 +231,34 @@ const LiveCorrectionScreen: React.FC<Props> = ({ studentId, exerciseName, onClos
     const side = sideRef.current;
     drawSkeleton(canvas, video, lms, side);
     const full = isFullBodyVisible(lms, side);
+    const frontal = facingGateRef.current.update(!!lms && isFacingCamera(lms, w, h), now);
     const p = phaseRef.current;
 
     if (p === 'positioning') {
-      if (full) {
+      let movement: number | null = null;
+      if (lms) movement = stillRef.current.push(lms, now, w, h, side); else stillRef.current.reset();
+      const next = diagnosePositioning({ hasBody: !!lms, fullBody: full, frontal, still: isStillMovement(movement) });
+      if (next !== issueRef.current) {
+        issueRef.current = next;
+        issueSinceRef.current = now;
+        setIssue(next);
+      }
+      // Fala o que está errado (aviso estável, sem repetir o mesmo antes de HINT_REPEAT_MS, limite de 3 s).
+      if (next !== 'ok' && next !== 'no_body' && now - issueSinceRef.current >= HINT_STABLE_MS) {
+        const last = lastHintRef.current;
+        if ((!last || last.issue !== next || now - last.at >= HINT_REPEAT_MS) && canSpeak(lastSpokeRef.current, Date.now())) {
+          lastHintRef.current = { issue: next, at: now };
+          speak(POSITION_MESSAGES[next]);
+        }
+      }
+      if (next === 'ok') {
         if (holdStartRef.current == null) holdStartRef.current = now;
         const prog = Math.min(1, (now - holdStartRef.current) / FULL_BODY_HOLD_MS);
         setHoldProgress(Math.round(prog * 20) / 20);
         if (prog >= 1) {
-          counter.reset();
-          setReps([]);
-          startedAtRef.current = new Date();
-          setPhase('tracking');
-          showFeedback({ text: 'Pode começar!', tone: 'ok' }, 2000);
-          speak('Pode começar', true);
+          countdownStartRef.current = now;
+          countdownShownRef.current = null;
+          goPhase('countdown');
         }
       } else {
         holdStartRef.current = null;
@@ -201,34 +267,90 @@ const LiveCorrectionScreen: React.FC<Props> = ({ studentId, exerciseName, onClos
       return;
     }
 
+    if (p === 'countdown') {
+      if (!full) {
+        // Saiu do quadro durante a contagem: volta a posicionar.
+        holdStartRef.current = null;
+        setHoldProgress(0);
+        stillRef.current.reset();
+        goPhase('positioning');
+        return;
+      }
+      const v = countdownValue(countdownStartRef.current, now);
+      if (v !== countdownShownRef.current) {
+        countdownShownRef.current = v;
+        setCountdown(v);
+        if (v > 0) { lastSpokeRef.current = Date.now(); speakSequence([repNumberWord(v)]); }
+      }
+      if (v === 0) {
+        counter.reset();
+        counter.waitForStanding();
+        autoFinishRef.current.reset();
+        lostSinceRef.current = null;
+        pausedRef.current = false;
+        setPaused(false);
+        setReps([]);
+        startedAtRef.current = new Date();
+        goPhase('tracking');
+        showFeedback({ text: 'Pode começar!', tone: 'ok' }, 2000);
+        speak('Pode começar', true);
+      }
+      return;
+    }
+
     if (p !== 'tracking') return;
+    const autoFinish = autoFinishRef.current;
     if (!full || !lms) {
       if (lostSinceRef.current == null) lostSinceRef.current = now;
       if (now - lostSinceRef.current > BODY_LOST_MS) {
         if (counter.inRep) counter.abortRep();
         showFeedback({ text: 'Corpo inteiro na câmera', tone: 'info' }, 1500);
       }
+      if (autoFinish.update({ t: now, repCount: counter.reps.length, fullBody: false, inRep: counter.inRep, kneeAngle: null })) finishRef.current(true);
       return;
     }
     lostSinceRef.current = null;
-    const rep = counter.update(frameMetrics(lms, video.videoWidth || 1, video.videoHeight || 1, side), now);
-    if (!rep) return;
-    setReps([...counter.reps]);
-    if (rep.errors.length) {
-      const text = rep.errors.map((e) => ERROR_MESSAGES[e]).join(' · ');
-      showFeedback({ text, tone: 'error' });
-    } else {
-      showFeedback({ text: 'Boa!', tone: 'ok' }, 1200);
+
+    // De frente: pausa a contagem e as correções até voltar de lado.
+    if (frontal) {
+      if (!pausedRef.current) {
+        pausedRef.current = true;
+        setPaused(true);
+        counter.waitForStanding();
+      }
+      speak(TURN_SIDEWAYS_MESSAGE);
+      autoFinish.update({ t: now, repCount: counter.reps.length, fullBody: true, inRep: false, kneeAngle: null });
+      return;
     }
-    // Número da rep completa sempre fala (fora do limite de 3 s); depois a correção, se couber no limite.
-    if (voiceAvailable()) {
-      const speechNow = Date.now();
-      const completeCount = counter.reps.filter((r) => r.complete).length;
-      const plan = planRepSpeech(rep, completeCount, lastSpokeRef.current, speechNow);
-      if (plan.correctionSpoken) lastSpokeRef.current = speechNow;
-      speakSequence(plan.texts);
+    if (pausedRef.current) {
+      pausedRef.current = false;
+      setPaused(false);
+      showFeedback({ text: 'Pode continuar', tone: 'ok' }, 1200);
     }
-  }, [showFeedback, speakSequence]);
+
+    const metrics = frameMetrics(lms, w, h, side);
+    const rep = counter.update(metrics, now);
+    if (rep) {
+      setReps([...counter.reps]);
+      if (rep.errors.length) {
+        const text = rep.errors.map((e) => ERROR_MESSAGES[e]).join(' · ');
+        showFeedback({ text, tone: 'error' });
+      } else {
+        showFeedback({ text: 'Boa!', tone: 'ok' }, 1200);
+      }
+      // Número da rep completa sempre fala (fora do limite de 3 s); depois a correção, se couber no limite.
+      if (voiceAvailable()) {
+        const speechNow = Date.now();
+        const completeCount = counter.reps.filter((r) => r.complete).length;
+        const plan = planRepSpeech(rep, completeCount, lastSpokeRef.current, speechNow);
+        if (plan.correctionSpoken) lastSpokeRef.current = speechNow;
+        speakSequence(plan.texts);
+      }
+    }
+    if (autoFinish.update({ t: now, repCount: counter.reps.length, fullBody: true, inRep: counter.inRep, kneeAngle: metrics.kneeAngle })) {
+      finishRef.current(true);
+    }
+  }, [goPhase, showFeedback, speak, speakSequence]);
 
   const loop = useCallback(() => {
     rafRef.current = requestAnimationFrame(loop);
@@ -273,8 +395,17 @@ const LiveCorrectionScreen: React.FC<Props> = ({ studentId, exerciseName, onClos
       await cameraPromise;
       try { wakeLockRef.current = await (navigator as any).wakeLock?.request?.('screen'); } catch { /* opcional */ }
       holdStartRef.current = null;
+      setHoldProgress(0);
       smootherRef.current.reset();
-      setPhase('positioning');
+      stillRef.current.reset();
+      facingGateRef.current.reset();
+      autoFinishRef.current.reset();
+      issueRef.current = 'no_body';
+      setIssue('no_body');
+      lastHintRef.current = null;
+      pausedRef.current = false;
+      setPaused(false);
+      goPhase('positioning');
       stopLoop();
       rafRef.current = requestAnimationFrame(loop);
     } catch (e: any) {
@@ -288,14 +419,15 @@ const LiveCorrectionScreen: React.FC<Props> = ({ studentId, exerciseName, onClos
       );
       setPhase('error');
     }
-  }, [facing, loop, startCamera, stopLoop, stopStream]);
+  }, [facing, goPhase, loop, startCamera, stopLoop, stopStream]);
 
   const switchCamera = useCallback(async () => {
     const next: Facing = facing === 'user' ? 'environment' : 'user';
     setFacing(next);
-    if (phaseRef.current === 'positioning' || phaseRef.current === 'tracking') {
+    if (phaseRef.current === 'positioning' || phaseRef.current === 'countdown' || phaseRef.current === 'tracking') {
       counterRef.current.abortRep();
       smootherRef.current.reset();
+      stillRef.current.reset();
       try { await startCamera(next); } catch { showFeedback({ text: 'Não foi possível trocar a câmera', tone: 'info' }); }
     }
   }, [facing, startCamera, showFeedback]);
@@ -331,12 +463,39 @@ const LiveCorrectionScreen: React.FC<Props> = ({ studentId, exerciseName, onClos
     setPhase('summary');
   }, [exerciseName, studentId]);
 
-  const finish = useCallback(() => {
+  const finish = useCallback((auto = false) => {
+    const p = phaseRef.current;
+    if (p === 'saving' || p === 'summary') return;
+    // A partir daqui nenhum movimento conta (ex.: ir pegar o celular).
+    phaseRef.current = 'saving';
     releaseAll();
-    const s = summarizeReps(counterRef.current.reps);
+    const repsDone = [...counterRef.current.reps];
+    const s = summarizeReps(repsDone);
+    setReps(repsDone);
     setSummary(s);
-    if (s.total > 0) void save(s); else setPhase('summary');
-  }, [releaseAll, save]);
+    setAutoFinished(auto);
+    if (auto) speakSequence([AUTO_FINISH_MESSAGE]);
+    if (s.total > 0) void save(s); else goPhase('summary');
+  }, [goPhase, releaseAll, save, speakSequence]);
+  useEffect(() => { finishRef.current = finish; }, [finish]);
+
+  /** "Fazer outra série": reabre a câmera direto, com a mesma câmera e voz. */
+  const again = useCallback(() => {
+    counterRef.current.reset();
+    setReps([]);
+    setSummary(null);
+    setSaveError(null);
+    setFeedback(null);
+    setAutoFinished(false);
+    setCountdown(0);
+    void begin();
+  }, [begin]);
+
+  const saveToSet = () => {
+    if (!summary || !onSaveToSet) return;
+    onSaveToSet(summary.complete);
+    close();
+  };
 
   useEffect(() => () => {
     releaseAll();
@@ -349,7 +508,7 @@ const LiveCorrectionScreen: React.FC<Props> = ({ studentId, exerciseName, onClos
 
   const complete = reps.filter((r) => r.complete).length;
   const incomplete = reps.length - complete;
-  const live = phase === 'loading' || phase === 'positioning' || phase === 'tracking';
+  const live = phase === 'loading' || phase === 'positioning' || phase === 'countdown' || phase === 'tracking';
   const mirrored = facing === 'user';
 
   const content = (
@@ -382,6 +541,7 @@ const LiveCorrectionScreen: React.FC<Props> = ({ studentId, exerciseName, onClos
 
         {phase === 'tracking' ? (
           <div className="flex flex-col items-center min-w-0" aria-live="polite">
+            {paused && <span className="mb-1 text-[11px] font-bold uppercase tracking-widest text-destructive">Pausado</span>}
             <span className="text-7xl font-black leading-none text-primary tabular-nums drop-shadow" data-testid="live-rep-count">{complete}</span>
             <span className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground mt-1">reps completas</span>
             {incomplete > 0 && (
@@ -454,20 +614,47 @@ const LiveCorrectionScreen: React.FC<Props> = ({ studentId, exerciseName, onClos
       )}
 
       {phase === 'positioning' && (
+        <div className="absolute inset-0 z-[5] flex items-center justify-center pointer-events-none">
+          <GuideSilhouette active={issue === 'ok'} />
+        </div>
+      )}
+
+      {phase === 'positioning' && (
         <div className="absolute inset-x-0 bottom-0 z-10 px-5 pt-10 bg-gradient-to-t from-background/90 to-transparent" style={{ paddingBottom: 'max(24px, env(safe-area-inset-bottom))' }}>
-          <p className="text-center text-lg font-bold leading-snug">
-            {holdProgress > 0 ? 'Fica assim…' : 'Coloca o celular no chão, de lado pra você, com o corpo inteiro aparecendo'}
-          </p>
+          <div className="min-h-[56px] flex items-center justify-center mb-2" aria-live="assertive">
+            {issue === 'ok' ? (
+              <span className="rounded-2xl px-5 py-2.5 text-xl font-black bg-primary text-primary-foreground border border-primary">Fica assim…</span>
+            ) : issue !== 'no_body' ? (
+              <span className="rounded-2xl px-5 py-2.5 text-xl font-black bg-destructive text-destructive-foreground border border-destructive" data-testid="live-position-hint">
+                {POSITION_MESSAGES[issue]}
+              </span>
+            ) : null}
+          </div>
+          <p className="text-center text-base font-bold leading-snug">{POSITION_MESSAGES.no_body}</p>
+          <p className="mt-1 text-center text-xs text-muted-foreground">Encaixa o corpo na silhueta e fica parado</p>
           <div className="mt-3 h-2 rounded-full bg-secondary overflow-hidden">
             <div className="h-full bg-primary transition-[width] duration-150" style={{ width: `${holdProgress * 100}%` }} />
           </div>
         </div>
       )}
 
+      {phase === 'countdown' && countdown > 0 && (
+        <div className="absolute inset-0 z-10 flex flex-col items-center justify-center pointer-events-none" aria-live="assertive">
+          <span key={countdown} className="text-[10rem] font-black leading-none text-primary tabular-nums drop-shadow-lg animate-in zoom-in-50 fade-in duration-300" data-testid="live-countdown">
+            {countdown}
+          </span>
+          <span className="mt-2 text-sm font-bold uppercase tracking-widest text-foreground">Prepara…</span>
+        </div>
+      )}
+
       {phase === 'tracking' && (
         <div className="absolute inset-x-0 bottom-0 z-10 px-4 pt-10 bg-gradient-to-t from-background/90 to-transparent" style={{ paddingBottom: 'max(16px, env(safe-area-inset-bottom))' }}>
           <div className="min-h-[64px] flex items-center justify-center mb-3" aria-live="assertive">
-            {feedback && (
+            {paused ? (
+              <span className="rounded-2xl px-5 py-3 text-2xl font-black text-center border bg-destructive text-destructive-foreground border-destructive" data-testid="live-feedback">
+                {TURN_SIDEWAYS_MESSAGE}
+              </span>
+            ) : feedback && (
               <span
                 className={cn(
                   'rounded-2xl px-5 py-3 text-2xl font-black text-center border',
@@ -481,7 +668,7 @@ const LiveCorrectionScreen: React.FC<Props> = ({ studentId, exerciseName, onClos
               </span>
             )}
           </div>
-          <Button size="lg" className="w-full h-12 font-bold" onClick={finish}>Finalizar</Button>
+          <Button size="lg" className="w-full h-12 font-bold" onClick={() => finish(false)}>Finalizar</Button>
         </div>
       )}
 
@@ -504,6 +691,7 @@ const LiveCorrectionScreen: React.FC<Props> = ({ studentId, exerciseName, onClos
         <div className="absolute inset-0 overflow-y-auto px-5 pt-24" style={{ paddingBottom: 'max(24px, env(safe-area-inset-bottom))' }} data-testid="live-summary">
           <div className="max-w-md mx-auto space-y-4">
             <h2 className="text-2xl font-black text-center">Resumo</h2>
+            {autoFinished && <p className="-mt-2 text-sm text-center text-muted-foreground">Fechou a série</p>}
             <div className="grid grid-cols-3 gap-2">
               <div className="glass-card rounded-2xl p-3 text-center">
                 <p className="text-3xl font-black tabular-nums">{summary.total}</p>
@@ -537,6 +725,31 @@ const LiveCorrectionScreen: React.FC<Props> = ({ studentId, exerciseName, onClos
                 </div>
               </div>
             </div>
+            {reps.length > 0 && (
+              <div className="glass-card rounded-2xl p-4" data-testid="live-summary-reps">
+                <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-2">Rep por rep</p>
+                <ul className="divide-y divide-border">
+                  {reps.map((r) => (
+                    <li key={r.index} className="py-2 flex items-start gap-3 text-sm">
+                      <span className={cn('h-7 w-7 shrink-0 rounded-full flex items-center justify-center text-xs font-black tabular-nums', r.complete ? 'bg-primary text-primary-foreground' : 'bg-destructive text-destructive-foreground')}>
+                        {r.index}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className={cn('font-bold', r.complete ? 'text-foreground' : 'text-destructive')}>{r.complete ? 'Completa' : 'Incompleta'}</span>
+                          <span className={cn('tabular-nums text-xs', r.fastDescent ? 'text-destructive font-bold' : 'text-muted-foreground')}>
+                            Descida {r.descentSeconds == null ? '—' : `${r.descentSeconds.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} s`}
+                          </span>
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          {r.errors.length ? r.errors.map((e) => ERROR_MESSAGES[e]).join(' · ') : 'Sem erros'}
+                        </p>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
             <div className="glass-card rounded-2xl p-4">
               <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-2">Erros mais comuns</p>
               {summary.errors.length === 0 ? (
@@ -564,7 +777,17 @@ const LiveCorrectionScreen: React.FC<Props> = ({ studentId, exerciseName, onClos
             {summary.total > 0 && !saveError && (
               <p className="text-xs text-center text-muted-foreground">Sessão salva.</p>
             )}
-            <Button size="lg" className="w-full h-12 font-bold" onClick={onClose}>Fechar</Button>
+            {onSaveToSet && summary.total > 0 && (
+              <Button size="lg" className="w-full h-12 font-bold" onClick={saveToSet} data-testid="live-save-to-set">
+                <ClipboardCheck className="h-5 w-5 mr-2" />
+                Salvar na série{targetSetLabel ? ` (${targetSetLabel})` : ''} · {summary.complete} rep{summary.complete === 1 ? '' : 's'}
+              </Button>
+            )}
+            <Button size="lg" variant="outline" className="w-full h-12 font-bold border-primary text-primary hover:bg-primary/10" onClick={again} data-testid="live-again">
+              <RotateCcw className="h-5 w-5 mr-2" />
+              Fazer outra série
+            </Button>
+            <Button size="lg" variant="ghost" className="w-full h-12 font-bold" onClick={close}>Fechar</Button>
           </div>
         </div>
       )}
