@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import AppLayout from '@/components/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Users, ClipboardList, TrendingUp, UserPlus, AlertTriangle, RefreshCw } from 'lucide-react';
+import { Users, ClipboardList, TrendingUp, UserPlus, AlertTriangle, RefreshCw, ScanEye, ChevronRight } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import AdminTodayOverview from '@/components/admin/AdminTodayOverview';
@@ -162,6 +163,21 @@ const Dashboard = () => {
             </CardContent>
           </Card>
         )}
+
+        <Link
+          to="/correcao-ao-vivo-teste"
+          className="glass-card flex items-center gap-3 rounded-2xl border border-primary/30 px-4 py-3 hover:border-primary/60 transition-colors"
+          data-testid="live-correction-test-link"
+        >
+          <span className="h-9 w-9 shrink-0 rounded-xl bg-primary/15 flex items-center justify-center">
+            <ScanEye className="h-5 w-5 text-primary" />
+          </span>
+          <span className="flex-1 min-w-0">
+            <span className="block text-sm font-semibold">Testar Correção ao vivo</span>
+            <span className="block text-xs text-muted-foreground">Agachamento com a câmera (Premium)</span>
+          </span>
+          <ChevronRight className="h-4 w-4 text-muted-foreground" />
+        </Link>
 
         {/* Student activity overview — online, today's accesses, today's workouts */}
         <div className="space-y-2">
