@@ -148,6 +148,13 @@
       "when": 1794351335401,
       "tag": "0020_premium_camera_live_correction",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1794352401257,
+      "tag": "0021_camera_sessions_descent",
+      "breakpoints": true
     }
   ]
 }
