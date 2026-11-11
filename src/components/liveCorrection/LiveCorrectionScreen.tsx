@@ -19,7 +19,9 @@ import {
   EXERCISE_RULE_ORDER, DEFAULT_EXERCISE_RULE, LEG_LABELS, getExerciseRule, matchExerciseRule,
   summarizeLiveReps, summarizeByLeg, autoFinishRepCount, ARM_POINTS,
   FACE_CAMERA_MESSAGE, isWrongView, wrongViewMessage, speakableErrors, markSpokenOnce,
+  PLANK_FINISH_MESSAGE, timedToSessionSummary, formatClock,
   type ExerciseRule, type ExerciseRuleId, type LiveRep, type LiveRepCounter, type LiveSessionSummary, type SilhouetteKind,
+  type TimedCounter, type TimedSummary,
 } from '@/lib/liveCorrection/exercises';
 
 const MP_VERSION = '0.10.17';
@@ -241,6 +243,8 @@ const GuideSilhouette: React.FC<{ active: boolean; kind?: SilhouetteKind }> = ({
   );
 
 interface Feedback { text: string; tone: 'ok' | 'error' | 'info' }
+/** O que a tela mostra num exercício de tempo (só muda quando algo visível muda). */
+interface TimedView { goodSec: number; totalSec: number; fault: string | null; inPosition: boolean; outText: string | null }
 
 function drawSkeleton(canvas: HTMLCanvasElement, video: HTMLVideoElement, lms: Landmark[] | null, side: Side, kind: 'legs' | 'arms' | 'arm_side' = 'legs') {
   const ctx = canvas.getContext('2d');
@@ -304,6 +308,11 @@ const LiveCorrectionScreen: React.FC<Props> = ({
   const [reps, setReps] = useState<LiveRep[]>([]);
   const [feedback, setFeedback] = useState<Feedback | null>(null);
   const [summary, setSummary] = useState<LiveSessionSummary | null>(null);
+  /** Exercício de tempo (prancha): cronômetro na tela e resumo próprio. */
+  const [timedView, setTimedView] = useState<TimedView | null>(null);
+  const [timedSummary, setTimedSummary] = useState<TimedSummary | null>(null);
+  /** Aviso próprio da regra no posicionamento (ex.: "Fica na posição de prancha"). */
+  const [issueText, setIssueText] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [issue, setIssue] = useState<PositionIssue>('no_body');
   const [countdown, setCountdown] = useState(0);
@@ -364,6 +373,8 @@ const LiveCorrectionScreen: React.FC<Props> = ({
   const countdownShownRef = useRef<number | null>(null);
   const pausedRef = useRef(false);
   const finishRef = useRef<(auto: boolean) => void>(() => undefined);
+  const timedViewRef = useRef<TimedView | null>(null);
+  const issueTextRef = useRef<string | null>(null);
 
   /** Muda a fase já no ref, para o próximo frame não repetir a transição. */
   const goPhase = useCallback((next: Phase) => {
@@ -472,7 +483,14 @@ const LiveCorrectionScreen: React.FC<Props> = ({
     if (p === 'positioning') {
       let movement: number | null = null;
       if (lms) movement = stillRef.current.push(lms, now, w, h, side); else stillRef.current.reset();
-      const next = diagnosePositioning({ hasBody: !!lms, fullBody: full, frontal, still: isStillMovement(movement) });
+      // Regra com condição própria (prancha na horizontal): conta como "ainda não encaixou".
+      const readyText = lms && full && currentRule.notReadyMessage ? currentRule.notReadyMessage(lms, side, w, h) : null;
+      const next = diagnosePositioning({ hasBody: !!lms, fullBody: full && readyText == null, frontal, still: isStillMovement(movement) });
+      const nextText = next === 'cut' ? readyText : null;
+      if (nextText !== issueTextRef.current) {
+        issueTextRef.current = nextText;
+        setIssueText(nextText);
+      }
       if (next !== issueRef.current) {
         issueRef.current = next;
         issueSinceRef.current = now;
@@ -483,7 +501,7 @@ const LiveCorrectionScreen: React.FC<Props> = ({
         const last = lastHintRef.current;
         if ((!last || last.issue !== next || now - last.at >= HINT_REPEAT_MS) && canSpeak(lastSpokeRef.current, Date.now())) {
           lastHintRef.current = { issue: next, at: now };
-          speak(positionMessage(currentRule, next));
+          speak(issueTextRef.current ?? positionMessage(currentRule, next));
         }
       }
       if (next === 'ok') {
@@ -530,6 +548,8 @@ const LiveCorrectionScreen: React.FC<Props> = ({
         }
         counter.waitForStanding();
         autoFinishRef.current.reset();
+        timedViewRef.current = null;
+        setTimedView(null);
         lostSinceRef.current = null;
         pausedRef.current = false;
         setPaused(false);
@@ -541,6 +561,30 @@ const LiveCorrectionScreen: React.FC<Props> = ({
     }
 
     if (p !== 'tracking') return;
+
+    // Exercício de tempo (prancha): cronômetro só em boa posição, sem reps.
+    if (currentRule.timed) {
+      const timer = counter as TimedCounter;
+      const visible = full && !!lms && !frontal;
+      const fr = timer.track(visible ? lms : null, w, h, side, now);
+      const outText = fr.inPosition ? null
+        : lms && frontal ? turnMessage(currentRule)
+        : !full || !lms ? currentRule.lostMessage ?? 'Corpo inteiro na câmera'
+        : currentRule.notReadyMessage?.(lms, side, w, h) ?? null;
+      const view: TimedView = { goodSec: Math.floor(fr.goodMs / 1000), totalSec: Math.floor(fr.totalMs / 1000), fault: fr.fault, inPosition: fr.inPosition, outText };
+      const prev = timedViewRef.current;
+      if (!prev || prev.goodSec !== view.goodSec || prev.totalSec !== view.totalSec || prev.fault !== view.fault || prev.inPosition !== view.inPosition || prev.outText !== view.outText) {
+        timedViewRef.current = view;
+        setTimedView(view);
+      }
+      // A cada 10 s em boa posição fala o tempo (fora do limite); correções no máximo 1 a cada 3 s.
+      if (fr.tenMark != null) { if (voiceAvailable()) speakSequence([repNumberWord(fr.tenMark)]); }
+      else if (fr.fault) speak(currentRule.messages[fr.fault] ?? fr.fault);
+      else if (lms && frontal) speak(turnMessage(currentRule));
+      if (fr.autoFinish) finishRef.current(true);
+      return;
+    }
+
     const autoFinish = autoFinishRef.current;
     if (!full || !lms) {
       if (lostSinceRef.current == null) lostSinceRef.current = now;
@@ -723,12 +767,15 @@ const LiveCorrectionScreen: React.FC<Props> = ({
     // Rep ainda segurando em cima (elevação pélvica) fecha com o que já foi medido.
     if (p === 'tracking') counterRef.current?.flush?.();
     const repsDone = [...(counterRef.current?.reps ?? [])];
-    const s = summarizeLiveReps(repsDone, ruleRef.current.messages);
+    // Prancha: segundos no lugar das reps (total = na posição, completas = em boa posição).
+    const timed = ruleRef.current.timed ? (counterRef.current as TimedCounter).summary() : null;
+    const s = timed ? timedToSessionSummary(timed, ruleRef.current.messages) : summarizeLiveReps(repsDone, ruleRef.current.messages);
     setReps(repsDone);
     setSummaryRuleId(ruleRef.current.id);
+    setTimedSummary(timed);
     setSummary(s);
     setAutoFinished(auto);
-    if (auto) speakSequence([AUTO_FINISH_MESSAGE]);
+    if (auto) speakSequence([timed ? PLANK_FINISH_MESSAGE : AUTO_FINISH_MESSAGE]);
     if (s.total > 0) void save(s); else goPhase('summary');
   }, [goPhase, releaseAll, save, speakSequence]);
   useEffect(() => { finishRef.current = finish; }, [finish]);
@@ -739,6 +786,7 @@ const LiveCorrectionScreen: React.FC<Props> = ({
     spokenOnceRef.current.clear();
     setReps([]);
     setSummary(null);
+    setTimedSummary(null);
     setSaveError(null);
     setFeedback(null);
     setAutoFinished(false);
@@ -910,7 +958,7 @@ const LiveCorrectionScreen: React.FC<Props> = ({
               <span className="rounded-2xl px-5 py-2.5 text-xl font-black bg-primary text-primary-foreground border border-primary">Fica assim…</span>
             ) : issue !== 'no_body' ? (
               <span className="rounded-2xl px-5 py-2.5 text-xl font-black bg-destructive text-destructive-foreground border border-destructive" data-testid="live-position-hint">
-                {positionMessage(rule, issue)}
+                {issueText ?? positionMessage(rule, issue)}
               </span>
             ) : null}
           </div>
