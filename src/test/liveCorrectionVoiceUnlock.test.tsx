@@ -13,7 +13,7 @@ const voice = vi.hoisted(() => ({
   say: vi.fn(),
   cancel: vi.fn(),
   readyCount: 0,
-  getStatus: vi.fn(() => ({ listed: true, approved: 77, ready: 76, loadErrors: 0, contextState: 'running', unlocked: true, lastPlayFailed: false })),
+  getStatus: vi.fn(() => ({ listed: true, approved: 77, ready: 76, loadErrors: 0, contextState: 'running', unlocked: true, lastPlayFailed: false, mode: 'audio', playedMode: 'audio' })),
   subscribe: vi.fn(() => () => undefined),
   outputs: {},
 }));
@@ -70,6 +70,6 @@ describe('Correção ao vivo — liberar o som do iPhone', () => {
     expect(screen.queryByTestId('live-voice-badge')).toBeNull();
     unmount();
     render(<LiveCorrectionScreen studentId="u1" exerciseName="AGACHAMENTO LIVRE" voiceDiagnostic onClose={() => undefined} />);
-    expect(screen.getByTestId('live-voice-badge')).toHaveTextContent(/^Voz: Fabiew \(76\/\d+\)$/);
+    expect(screen.getByTestId('live-voice-badge')).toHaveTextContent(/^Voz: Fabiew · audio \(76\/\d+\)$/);
   });
 });
