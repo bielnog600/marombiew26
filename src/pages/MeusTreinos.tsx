@@ -16,7 +16,8 @@ import { isSameWorkoutDay } from '@/lib/activeWorkoutSession';
 import { cancelWorkoutSession } from '@/lib/workoutSessionResolution';
 import { parseTrainingSections, type ParsedTrainingDay } from '@/lib/trainingResultParser';
 import { useLanguage } from '@/i18n';
-import { translatePlanMarkdown } from '@/lib/planTranslation';
+import { getCachedPlanTranslation, translatePlanMarkdown } from '@/lib/planTranslation';
+import { buildPlanTextDictionary, translateDisplayText } from '@/lib/planTranslationDisplay';
 import { getSafeWorkoutDays, trackPlanAccess } from '@/lib/planMigrationUtils';
 import { findBestExerciseMatch } from '@/lib/exerciseMatcher';
 import { fetchWithCache } from '@/lib/offlineCache';
@@ -120,79 +121,78 @@ const MeusTreinos = () => {
     return () => { supabase.removeChannel(channel); };
   }, [user]);
 
+  // O carregamento nunca espera a tradução (ela vem depois, em segundo plano).
   const loadTraining = async () => {
-    const { data } = await fetchWithCache(`plans:treino:all:${user!.id}`, async () => {
-      const { data } = await supabase.from('ai_plans').select('id, conteudo, conteudo_json, migration_status, fase, fase_inicio_data, periodization_model, periodization_reason, block_type, block_number, block_total, next_block_type, periodization_snapshot').eq('student_id', user!.id).eq('tipo', 'treino').order('created_at', { ascending: false });
-      return data;
-    });
-
-    const rawPlans = (data ?? []) as PlanRow[];
-    const allPlans =
-      language === 'en'
-        ? await Promise.all(
-            rawPlans.map(async (p) => ({
-              ...p,
-              conteudo: await translatePlanMarkdown(p.conteudo, language),
-            })),
-          )
-        : rawPlans;
-    setPlans(allPlans);
-
-    // Fase atual: fonte ÚNICA (timeline de fase_inicio_data; fallback plan.fase).
-    if (!autoPhaseSet && allPlans.length > 0) {
-      const planned = resolveCurrentTrainingPhaseFromPlans(allPlans).phase;
-      // A avaliação semanal usa SEMPRE a fase resolvida (identidade com admin).
-      setPlannedPhase(planned);
-      // Regra de exibição: quando o plano MAIS RECENTE está numa fase diferente
-      // da fase calculada pelo calendário, mostra o plano mais recente (é o que
-      // o personal acabou de gerar). As abas de fase continuam disponíveis.
-      const newestFase = allPlans[0]?.fase;
-      const newestPhase = (TRAINING_PHASES as string[]).includes(newestFase)
-        ? (newestFase as TrainingPhase)
-        : null;
-      const available = allPlans.some(p => p.fase === planned);
-      const initial =
-        newestPhase && newestPhase !== planned
-          ? newestPhase
-          : available
-            ? planned
-            : (newestPhase ?? planned);
-      setActivePhase(initial);
-      setAutoPhaseSet(true);
-    }
-
-
-    // Carrega media de TODOS os planos (para todas as fases)
-    const allMd = allPlans.map(p => p.conteudo).join('\n');
-    const sections = parseTrainingSections(allMd);
-    const allDays = sections.flatMap(s => s.days ?? []);
-    const exerciseNames = allDays.flatMap(d => d.exercises.map(e => e.exercise.toUpperCase().trim()));
-    const uniqueNames = [...new Set(exerciseNames)];
-
-    if (uniqueNames.length > 0) {
-      const { data: dbExercises } = await fetchWithCache('exercises:all', async () => {
-        const { data } = await supabase.from('exercises').select('id, nome, imagem_url, video_embed, grupo_muscular, ajustes');
+    try {
+      const { data } = await fetchWithCache(`plans:treino:all:${user!.id}`, async () => {
+        const { data } = await supabase.from('ai_plans').select('id, conteudo, conteudo_json, migration_status, fase, fase_inicio_data, periodization_model, periodization_reason, block_type, block_number, block_total, next_block_type, periodization_snapshot').eq('student_id', user!.id).eq('tipo', 'treino').order('created_at', { ascending: false });
         return data;
       });
 
-      if (dbExercises) {
-        const mediaMap: Record<string, { id?: string; imageUrl?: string; videoEmbed?: string; muscleGroup?: string; ajustes?: string[] | null }> = {};
-        for (const name of uniqueNames) {
-          const match = findBestExerciseMatch(name, dbExercises);
-          if (match) {
-            mediaMap[name] = {
-              id: match.id,
-              imageUrl: match.imagem_url || undefined,
-              videoEmbed: match.video_embed || undefined,
-              muscleGroup: match.grupo_muscular || undefined,
-              ajustes: match.ajustes ?? null,
-            };
-          }
-        }
-        setExerciseMedia(mediaMap);
+      // Sempre o original em português: fase, mídia, aderência e o player
+      // (que grava o histórico) dependem dos nomes reais. Tradução é só exibição.
+      const allPlans = (data ?? []) as PlanRow[];
+      setPlans(allPlans);
+
+      // Fase atual: fonte ÚNICA (timeline de fase_inicio_data; fallback plan.fase).
+      if (!autoPhaseSet && allPlans.length > 0) {
+        const planned = resolveCurrentTrainingPhaseFromPlans(allPlans).phase;
+        // A avaliação semanal usa SEMPRE a fase resolvida (identidade com admin).
+        setPlannedPhase(planned);
+        // Regra de exibição: quando o plano MAIS RECENTE está numa fase diferente
+        // da fase calculada pelo calendário, mostra o plano mais recente (é o que
+        // o personal acabou de gerar). As abas de fase continuam disponíveis.
+        const newestFase = allPlans[0]?.fase;
+        const newestPhase = (TRAINING_PHASES as string[]).includes(newestFase)
+          ? (newestFase as TrainingPhase)
+          : null;
+        const available = allPlans.some(p => p.fase === planned);
+        const initial =
+          newestPhase && newestPhase !== planned
+            ? newestPhase
+            : available
+              ? planned
+              : (newestPhase ?? planned);
+        setActivePhase(initial);
+        setAutoPhaseSet(true);
       }
+
+
+      // Carrega media de TODOS os planos (para todas as fases)
+      const allMd = allPlans.map(p => p.conteudo).join('\n');
+      const sections = parseTrainingSections(allMd);
+      const allDays = sections.flatMap(s => s.days ?? []);
+      const exerciseNames = allDays.flatMap(d => d.exercises.map(e => e.exercise.toUpperCase().trim()));
+      const uniqueNames = [...new Set(exerciseNames)];
+
+      if (uniqueNames.length > 0) {
+        const { data: dbExercises } = await fetchWithCache('exercises:all', async () => {
+          const { data } = await supabase.from('exercises').select('id, nome, imagem_url, video_embed, grupo_muscular, ajustes');
+          return data;
+        });
+
+        if (dbExercises) {
+          const mediaMap: Record<string, { id?: string; imageUrl?: string; videoEmbed?: string; muscleGroup?: string; ajustes?: string[] | null }> = {};
+          for (const name of uniqueNames) {
+            const match = findBestExerciseMatch(name, dbExercises);
+            if (match) {
+              mediaMap[name] = {
+                id: match.id,
+                imageUrl: match.imagem_url || undefined,
+                videoEmbed: match.video_embed || undefined,
+                muscleGroup: match.grupo_muscular || undefined,
+                ajustes: match.ajustes ?? null,
+              };
+            }
+          }
+          setExerciseMedia(mediaMap);
+        }
+      }
+    } catch (error) {
+      console.error('[MeusTreinos] falha ao carregar os treinos', error);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   // Fases que possuem ao menos um plano
@@ -221,6 +221,32 @@ const MeusTreinos = () => {
     }
     return merged;
   }, [plans, activePhase]);
+
+  // Tradução em segundo plano do plano exibido; só troca texto mostrado.
+  const displayedContent = (plans.find(p => p.fase === activePhase) ?? plans[0])?.conteudo ?? '';
+  const [translation, setTranslation] = useState<{ source: string; language: string; text: string } | null>(null);
+  useEffect(() => {
+    if (language === 'pt' || !displayedContent.trim()) return;
+    let cancelled = false;
+    translatePlanMarkdown(displayedContent, language)
+      .then((text) => { if (!cancelled) setTranslation({ source: displayedContent, language, text }); })
+      .catch(() => { /* mantém o original */ });
+    return () => { cancelled = true; };
+  }, [displayedContent, language]);
+  const cachedTranslation = useMemo(
+    () => (language === 'pt' ? null : getCachedPlanTranslation(displayedContent, language)),
+    [displayedContent, language],
+  );
+  const translatedContent = language === 'pt'
+    ? null
+    : translation && translation.source === displayedContent && translation.language === language
+      ? translation.text
+      : cachedTranslation;
+  const displayDictionary = useMemo(
+    () => buildPlanTextDictionary(displayedContent, translatedContent),
+    [displayedContent, translatedContent],
+  );
+  const showText = (text: string) => translateDisplayText(displayDictionary, text);
 
   const activePlanForAdherence = useMemo(() => {
     // Aderência é sempre avaliada sobre a *semana planejada* pelo calendário,
@@ -385,7 +411,7 @@ const MeusTreinos = () => {
                   <div className="relative h-32 overflow-hidden">
                     <img
                       src={heroImage}
-                      alt={day.day}
+                      alt={showText(day.day)}
                       className="w-full h-full object-cover"
                       loading="lazy"
                       decoding="async"
@@ -436,7 +462,7 @@ const MeusTreinos = () => {
                   )}
 
                   <div>
-                    <p className="text-[10px] uppercase tracking-widest text-primary font-semibold">{day.day}</p>
+                    <p className="text-[10px] uppercase tracking-widest text-primary font-semibold">{showText(day.day)}</p>
                     {muscles && <p className="text-xs text-muted-foreground mt-0.5">{muscles}</p>}
                   </div>
 
