@@ -48,6 +48,7 @@ const LiveCorrectionScreen = lazyWithRetry(() => import('@/components/liveCorrec
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { methodExplanation } from '@/lib/workoutExecutionMethods';
+import { canSeeVoiceDiagnostic } from '@/lib/liveCorrection/voice/status';
 import { fetchWithCache, getCached, setCache } from '@/lib/offlineCache';
 import { useRestTimer } from '@/hooks/useRestTimer';
 import { useSessionProgression } from '@/hooks/useSessionProgression';
@@ -185,7 +186,7 @@ const TreinoExecucaoInner = () => {
   useHoldAppUpdate(true);
   const location = useLocation();
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, isAdmin } = useAuth();
   const { completeWorkout } = useDailyTracking();
   const { session: activeSession, refresh: refreshActiveSession, clear: clearActiveSession, setLocal: setLocalActiveSession } = useActiveWorkoutSession();
   const stateData = location.state as {
@@ -1715,6 +1716,7 @@ const TreinoExecucaoInner = () => {
           <LiveCorrectionScreen
             studentId={user.id}
             exerciseName={liveCorrectionName}
+            voiceDiagnostic={canSeeVoiceDiagnostic(user.id, isAdmin)}
             onClose={() => { setLiveCorrectionName(null); setLiveCorrectionTarget(null); }}
             targetSetLabel={liveCorrectionTarget ? `Série ${liveCorrectionTarget.setIdx + 1}` : undefined}
             onSaveToSet={liveCorrectionTarget ? (completeReps) => {

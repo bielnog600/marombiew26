@@ -17,6 +17,7 @@ const CorrecaoAoVivoTeste = () => {
         exerciseName="Agachamento (teste)"
         depthLevelPicker
         exercisePicker
+        voiceDiagnostic
         onClose={() => navigate('/dashboard')}
       />
     </Suspense>
