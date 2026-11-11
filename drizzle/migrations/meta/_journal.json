@@ -190,6 +190,13 @@
       "when": 1794402231066,
       "tag": "0026_camera_sessions_exercise_rule_arms",
       "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1794403026547,
+      "tag": "0027_camera_sessions_exercise_rule_bench_legpress_plank",
+      "breakpoints": true
     }
   ]
 }
