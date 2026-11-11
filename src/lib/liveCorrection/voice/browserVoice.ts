@@ -186,9 +186,11 @@ export function createCoachVoice(overrides: Partial<CoachVoiceDeps> = {}): Coach
     } catch (e) {
       deps.log(`resume falhou (estava ${before})`, e);
     }
-    update({ contextState: ctx.state });
-    if (ctx.state !== 'running') deps.log(`AudioContext continua ${ctx.state} depois do resume (estava ${before})`, ctx.state);
-    return (ctx.state as string) === 'running';
+    // resume() muda o estado por fora: lê de novo sem o estreitamento do TypeScript.
+    const after = (ctx as AudioContext).state as string;
+    update({ contextState: after });
+    if (after !== 'running') deps.log(`AudioContext continua ${after} depois do resume (estava ${before})`, after);
+    return after === 'running';
   };
 
   const playBuffer = (ctx: AudioContext, buf: AudioBuffer) => new Promise<void>((resolve, reject) => {
