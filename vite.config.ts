@@ -38,7 +38,7 @@ export default defineConfig(({ mode }) => ({
     mode === "development" && componentTagger(),
     VitePWA({
       filename: "sw.js",
-      registerType: "autoUpdate",
+      registerType: "prompt",
       includeAssets: ["favicon.ico", "pwa-192.png", "pwa-512.png"],
       devOptions: {
         enabled: false,
@@ -49,7 +49,6 @@ export default defineConfig(({ mode }) => ({
         navigateFallbackDenylist: [/^\/~oauth/, /^\/rest\//, /^\/auth\//, /^\/functions\//, /^\/onesignal\//],
         globPatterns: ["**/*.{js,css,html,ico,png,svg,woff,woff2,jpg,jpeg,webp,webmanifest}"],
         cleanupOutdatedCaches: true,
-        skipWaiting: true,
         clientsClaim: true,
         runtimeCaching: [
           {
