@@ -12,7 +12,8 @@
  * de ir para segundo plano, então a Web Audio tenta `resume()` antes de desistir.
  */
 import { supabase } from '@/integrations/supabase/client';
-import { VoiceQueue, type VoiceOutputs } from './queue';
+import { VoiceQueue, type VoiceItem, type VoiceOutputs } from './queue';
+import { motivationClipFromRow, type MotivationClip } from './motivation';
 import { orderByPriority } from './phrases';
 import { INITIAL_COACH_VOICE_STATUS, type CoachVoicePlaybackMode, type CoachVoiceStatus } from './status';
 
@@ -21,7 +22,15 @@ const LOG_PREFIX = '[coach-voice]';
 /** WAV mudo de 1 amostra, usado para liberar o <audio> no toque. */
 const SILENT_WAV = 'data:audio/wav;base64,UklGRiYAAABXQVZFZm10IBAAAAABAAEAESsAACJWAAACABAAZGF0YQIAAAAAAA==';
 
-export interface ApprovedClipRow { phrase_key: string; file_path: string }
+export interface ApprovedClipRow {
+  phrase_key: string;
+  file_path: string;
+  /** 'sistema' | 'personalizada' | 'nome' (ausente = sistema). */
+  tipo?: string | null;
+  momento?: string | null;
+  frequencia?: string | null;
+  texto?: string | null;
+}
 export interface LoadedClip {
   blob: Blob;
   buffer: AudioBuffer | null;
@@ -42,6 +51,8 @@ export function isAppleMobile(): boolean {
 export interface CoachVoiceDeps {
   getContext(): AudioContext | null;
   fetchApproved(): Promise<ApprovedClipRow[]>;
+  /** Falas de motivação ligadas (chave geral do admin + a do aluno). */
+  fetchMotivationEnabled(): Promise<boolean>;
   download(path: string): Promise<Blob>;
   createAudioElement(): HTMLAudioElement | null;
   createObjectURL(blob: Blob): string;
@@ -67,12 +78,18 @@ function defaultContext(): AudioContext | null {
   return sharedCtx;
 }
 
-export const defaultCoachVoiceDeps = (): CoachVoiceDeps => ({
+/** `studentId`: aluno da câmera (o servidor só devolve as falas com o nome dele). */
+export const defaultCoachVoiceDeps = (studentId?: string | null): CoachVoiceDeps => ({
   getContext: defaultContext,
   fetchApproved: async () => {
-    const { data, error } = await supabase.rpc('coach_voice_approved');
+    const { data, error } = await supabase.rpc('coach_voice_clips', studentId ? { _student_id: studentId } : {});
     if (error) throw error;
     return Array.isArray(data) ? (data as ApprovedClipRow[]) : [];
+  },
+  fetchMotivationEnabled: async () => {
+    const { data, error } = await supabase.rpc('coach_voice_motivation_enabled', studentId ? { _student_id: studentId } : {});
+    if (error) throw error;
+    return data === true;
   },
   download: async (path) => {
     const { data, error } = await supabase.storage.from(COACH_VOICE_BUCKET).download(path);
@@ -162,20 +179,27 @@ export interface CoachVoice {
   preload(priorityKeys?: readonly string[]): Promise<void>;
   /** Sem toque (ex.: 3-2-1 automático, voltar do segundo plano): tenta reativar o áudio. */
   prepare(): Promise<void>;
-  say(texts: readonly string[]): void;
+  say(texts: readonly VoiceItem[]): void;
   cancel(): void;
-  /** Quantas falas têm áudio pronto para tocar. */
+  /** Quantas falas do sistema têm áudio pronto para tocar. */
   readonly readyCount: number;
+  /** Falas de motivação com áudio pronto (vazio se desligadas para o aluno). */
+  motivationClips(): MotivationClip[];
   getStatus(): CoachVoiceStatus;
   subscribe(listener: (s: CoachVoiceStatus) => void): () => void;
   /** Só testes: saídas usadas pela fila. */
   readonly outputs: VoiceOutputs;
 }
 
-export function createCoachVoice(overrides: Partial<CoachVoiceDeps> = {}): CoachVoice {
-  const deps: CoachVoiceDeps = { ...defaultCoachVoiceDeps(), ...overrides };
+export function createCoachVoice(overrides: Partial<CoachVoiceDeps> & { studentId?: string | null } = {}): CoachVoice {
+  const { studentId, ...rest } = overrides;
+  const deps: CoachVoiceDeps = { ...defaultCoachVoiceDeps(studentId), ...rest };
   const mode: CoachVoicePlaybackMode = deps.preferMediaElement ? 'audio' : 'webaudio';
   const clips = new Map<string, LoadedClip>();
+  /** Falas de motivação aprovadas (o áudio pode ainda estar baixando). */
+  const motivationRows = new Map<string, MotivationClip>();
+  let motivationEnabled = false;
+  let systemReady = 0;
   const pathByKey = new Map<string, string>();
   const urlByKey = new Map<string, string>();
   let status: CoachVoiceStatus = { ...INITIAL_COACH_VOICE_STATUS, mode };
@@ -426,6 +450,10 @@ export function createCoachVoice(overrides: Partial<CoachVoiceDeps> = {}): Coach
         // Elementos prontos antes do primeiro toque (o toque só precisa liberá-los).
         ensurePool();
         let rows: ApprovedClipRow[];
+        const motivationJob = deps.fetchMotivationEnabled().then(
+          (v) => { motivationEnabled = v; },
+          (e) => { motivationEnabled = false; deps.log('chave das falas de motivação falhou', e); },
+        );
         try {
           rows = await deps.fetchApproved();
         } catch (e) {
@@ -434,9 +462,15 @@ export function createCoachVoice(overrides: Partial<CoachVoiceDeps> = {}): Coach
           preloadJob = null;
           return;
         }
-        deps.log(`${rows.length} falas aprovadas (modo ${mode})`);
-        update({ listed: true, approved: rows.length });
-        const ordered = orderByPriority(rows, priorityKeys);
+        // Selo e contagem só das falas do sistema; motivação vem depois no download.
+        const systemRows = rows.filter((r) => !r.tipo || r.tipo === 'sistema');
+        for (const r of rows) {
+          const m = motivationClipFromRow(r);
+          if (m) motivationRows.set(m.key, m);
+        }
+        deps.log(`${systemRows.length} falas aprovadas + ${motivationRows.size} de motivação (modo ${mode})`);
+        update({ listed: true, approved: systemRows.length });
+        const ordered = orderByPriority([...systemRows, ...rows.filter((r) => motivationRows.has(r.phrase_key))], priorityKeys);
         // Poucos por vez para não disputar a rede com o modelo da câmera.
         let i = 0;
         let decoded = 0;
@@ -450,13 +484,14 @@ export function createCoachVoice(overrides: Partial<CoachVoiceDeps> = {}): Coach
               // Modo 'audio': o Blob URL já fica pronto, o toque só troca o src.
               if (mode === 'audio') urlFor(row.phrase_key, clip);
               if (clip.buffer) decoded++;
-              update({ ready: clips.size });
+              if (!motivationRows.has(row.phrase_key)) systemReady++;
+              update({ ready: systemReady });
             } else {
               update({ loadErrors: status.loadErrors + 1 });
             }
           }
         };
-        await Promise.all([worker(), worker(), worker()]);
+        await Promise.all([worker(), worker(), worker(), motivationJob]);
         deps.log(`áudios prontos ${clips.size}/${rows.length} (modo ${mode}, ${decoded} decodificados), AudioContext ${watchedCtx?.state ?? 'nenhum'}`);
       })();
       return preloadJob;
@@ -467,7 +502,8 @@ export function createCoachVoice(overrides: Partial<CoachVoiceDeps> = {}): Coach
     },
     say: (texts) => { void queue.say(texts); },
     cancel: () => queue.cancel(),
-    get readyCount() { return clips.size; },
+    get readyCount() { return systemReady; },
+    motivationClips: () => (motivationEnabled ? [...motivationRows.values()].filter((m) => clips.has(m.key)) : []),
     getStatus: () => status,
     subscribe(listener) {
       listeners.add(listener);

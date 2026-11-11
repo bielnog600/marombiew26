@@ -3,7 +3,10 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
-import { ScanEye } from 'lucide-react';
+import { ScanEye, Mic } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Input } from '@/components/ui/input';
+import { defaultVoiceName, spokenName } from '@/lib/liveCorrection/voice/motivation';
 import { supabase } from '@/integrations/supabase/client';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
@@ -30,14 +33,43 @@ interface CameraSession {
 interface Props {
   studentId: string;
   /** students_profile do aluno; null = sem perfil de aluno. */
-  studentProfile: { premium_camera?: boolean | null; camera_depth_level?: string | null } | null;
+  studentProfile: {
+    premium_camera?: boolean | null; camera_depth_level?: string | null;
+    voice_name?: string | null; voice_motivation_enabled?: boolean | null;
+  } | null;
+  /** Nome do perfil (o primeiro nome é o padrão de "Como falar o nome"). */
+  studentName?: string | null;
+  onVoiceChanged?: (patch: { voice_name?: string | null; voice_motivation_enabled?: boolean }) => void;
   onChanged?: (value: boolean) => void;
   onDepthLevelChanged?: (value: DepthLevel) => void;
 }
 
 const errorLabel = (key: string) => ALL_ERROR_MESSAGES[key] ?? key;
 
-const LiveCorrectionPremiumCard: React.FC<Props> = ({ studentId, studentProfile, onChanged, onDepthLevelChanged }) => {
+const LiveCorrectionPremiumCard: React.FC<Props> = ({ studentId, studentProfile, studentName, onChanged, onDepthLevelChanged, onVoiceChanged }) => {
+  const [motivation, setMotivation] = useState(studentProfile?.voice_motivation_enabled !== false);
+  const [voiceName, setVoiceName] = useState(spokenName(studentProfile?.voice_name, studentName));
+  useEffect(() => { setMotivation(studentProfile?.voice_motivation_enabled !== false); }, [studentProfile?.voice_motivation_enabled]);
+  useEffect(() => { setVoiceName(spokenName(studentProfile?.voice_name, studentName)); }, [studentProfile?.voice_name, studentName]);
+
+  const toggleMotivation = async (value: boolean) => {
+    setMotivation(value);
+    const { error } = await supabase.from('students_profile').update({ voice_motivation_enabled: value }).eq('user_id', studentId);
+    if (error) { setMotivation(!value); toast.error('Não foi possível alterar: ' + error.message); return; }
+    toast.success(value ? 'Falas de motivação ligadas' : 'Falas de motivação desligadas');
+    onVoiceChanged?.({ voice_motivation_enabled: value });
+  };
+
+  const saveVoiceName = async () => {
+    const clean = voiceName.trim();
+    const stored = clean && clean !== defaultVoiceName(studentName) ? clean : null;
+    if (stored === (studentProfile?.voice_name ?? null)) return;
+    const { error } = await supabase.from('students_profile').update({ voice_name: stored }).eq('user_id', studentId);
+    if (error) { toast.error('Não foi possível salvar o nome: ' + error.message); return; }
+    toast.success('Nome salvo. Gere as falas com nome de novo na tela de voz.');
+    onVoiceChanged?.({ voice_name: stored });
+  };
+
   const [enabled, setEnabled] = useState(!!studentProfile?.premium_camera);
   const [saving, setSaving] = useState(false);
   const [sessions, setSessions] = useState<CameraSession[] | null>(null);
@@ -131,6 +163,40 @@ const LiveCorrectionPremiumCard: React.FC<Props> = ({ studentId, studentProfile,
               ))}
             </SelectContent>
           </Select>
+        </div>
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <Label htmlFor="voice-motivation-toggle" className="font-semibold">Falas de motivação</Label>
+            <p className="text-xs text-muted-foreground">"Bora!", "Boa!" e as falas com o nome dele durante a série.</p>
+          </div>
+          <Switch
+            id="voice-motivation-toggle"
+            checked={motivation}
+            disabled={!studentProfile}
+            onCheckedChange={toggleMotivation}
+          />
+        </div>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <label className="flex items-center gap-2 min-w-0">
+            <span className="text-sm font-semibold shrink-0">Como falar o nome</span>
+            <Input
+              aria-label="Como falar o nome"
+              value={voiceName}
+              maxLength={60}
+              placeholder={defaultVoiceName(studentName)}
+              disabled={!studentProfile}
+              onChange={(e) => setVoiceName(e.target.value)}
+              onBlur={saveVoiceName}
+              className="h-9 w-[160px]"
+            />
+          </label>
+          <Link
+            to={`/voz-correcao-ao-vivo#nome-${studentId}`}
+            className="inline-flex items-center gap-1 text-xs font-semibold text-primary hover:underline"
+            data-testid="voice-name-shortcut"
+          >
+            <Mic className="h-3.5 w-3.5" /> Falas com nome
+          </Link>
         </div>
         {!studentProfile && (
           <p className="text-xs text-muted-foreground">Este aluno ainda não tem perfil detalhado, então o recurso não pode ser ativado.</p>

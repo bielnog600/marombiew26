@@ -244,6 +244,8 @@ const AlunoDetail = () => {
               studentProfile={studentProfile}
               onChanged={(v) => setStudentProfile((prev: any) => (prev ? { ...prev, premium_camera: v } : prev))}
               onDepthLevelChanged={(v) => setStudentProfile((prev: any) => (prev ? { ...prev, camera_depth_level: v } : prev))}
+              studentName={profile.nome}
+              onVoiceChanged={(patch) => setStudentProfile((prev: any) => (prev ? { ...prev, ...patch } : prev))}
             />
             <MealWeighPremiumCard
               studentId={id!}

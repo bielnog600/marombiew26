@@ -239,6 +239,13 @@
       "when": 1794430244886,
       "tag": "0033_diet_decision_applications_admin_only",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1794433241376,
+      "tag": "0034_coach_voice_motivation_and_names",
+      "breakpoints": true
     }
   ]
 }

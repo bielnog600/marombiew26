@@ -26,6 +26,8 @@ import {
 import { createCoachVoice, type CoachVoice } from '@/lib/liveCorrection/voice/browserVoice';
 import { START_MESSAGE, VOICE_CATALOG, legSwitchMessage, voicePreloadPriority } from '@/lib/liveCorrection/voice/phrases';
 import { coachVoiceBadgeLabel, coachVoiceProblem, type CoachVoiceStatus } from '@/lib/liveCorrection/voice/status';
+import { MotivationPicker, type MotivationClip, type VoiceMoment } from '@/lib/liveCorrection/voice/motivation';
+import type { VoiceItem } from '@/lib/liveCorrection/voice/queue';
 
 const MP_VERSION = '0.10.17';
 const WASM_URL = `https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@${MP_VERSION}/wasm`;
@@ -56,6 +58,8 @@ interface Props {
   exerciseRule?: ExerciseRuleId;
   /** Admin/conta do personal: selo "Voz: Fabiew (N/77)" ou "Voz: celular · motivo". */
   voiceDiagnostic?: boolean;
+  /** Meta de reps da série do plano (penúltima/última); sem meta, esse momento não toca. */
+  targetReps?: number | null;
 }
 
 /** Mensagem do aviso de posicionamento, conforme a vista exigida pela regra. */
@@ -360,6 +364,7 @@ function drawSkeleton(canvas: HTMLCanvasElement, video: HTMLVideoElement, lms: L
 const LiveCorrectionScreen: React.FC<Props> = ({
   studentId, exerciseName, onClose, onSaveToSet, targetSetLabel, depthLevelPicker = false, exercisePicker = false, exerciseRule,
   voiceDiagnostic = false,
+  targetReps = null,
 }) => {
   // Versão nova do app nunca recarrega com a câmera aberta.
   useHoldAppUpdate(true);
@@ -440,7 +445,12 @@ const LiveCorrectionScreen: React.FC<Props> = ({
   const issueTextRef = useRef<string | null>(null);
   /** Voz gravada do personal (áudios aprovados) com a voz do celular como fallback. */
   const voiceRef = useRef<CoachVoice | null>(null);
-  if (!voiceRef.current) voiceRef.current = createCoachVoice();
+  if (!voiceRef.current) voiceRef.current = createCoachVoice({ studentId });
+  /** Falas de motivação aprovadas (sorteio por momento, no máximo 1 a cada 3 reps). */
+  const motivationRef = useRef<MotivationPicker | null>(null);
+  if (!motivationRef.current) motivationRef.current = new MotivationPicker(() => voiceRef.current?.motivationClips() ?? []);
+  const targetRepsRef = useRef(targetReps);
+  targetRepsRef.current = targetReps;
 
   /** Muda a fase já no ref, para o próximo frame não repetir a transição. */
   const goPhase = useCallback((next: Phase) => {
@@ -492,10 +502,14 @@ const LiveCorrectionScreen: React.FC<Props> = ({
   const voiceAvailable = () => voiceOnRef.current && typeof window !== 'undefined';
 
   /** Fala os textos em sequência (interrompe a fala anterior, um trecho por vez). */
-  const speakSequence = useCallback((texts: string[]) => {
+  const speakSequence = useCallback((texts: VoiceItem[]) => {
     if (!voiceAvailable() || !texts.length) return;
     try { voiceRef.current?.say(texts); } catch { /* voz indisponível */ }
   }, []);
+
+  /** Motivação sempre vai no fim da fala (depois do número/correção). */
+  const motivationItem = (clip: MotivationClip | null): VoiceItem[] => (clip ? [{ clip: clip.key, text: clip.text }] : []);
+  const pickMotivation = (moment: VoiceMoment): VoiceItem[] => motivationItem(motivationRef.current?.pick(moment) ?? null);
 
   const speak = useCallback((text: string, force = false) => {
     if (!voiceAvailable()) return;
@@ -614,6 +628,7 @@ const LiveCorrectionScreen: React.FC<Props> = ({
         if (v > 0) { lastSpokeRef.current = Date.now(); speakSequence([repNumberWord(v)]); }
       }
       if (v === 0) {
+        const resumingSeries = resumeRef.current;
         if (resumeRef.current) {
           // Depois de trocar de perna: continua a mesma série.
           resumeRef.current = false;
@@ -623,7 +638,9 @@ const LiveCorrectionScreen: React.FC<Props> = ({
           spokenOnceRef.current.clear();
           setReps([]);
           startedAtRef.current = new Date();
+          motivationRef.current?.resetSeries();
         }
+        const startsSeries = !resumingSeries;
         counter.waitForStanding();
         autoFinishRef.current.reset();
         timedViewRef.current = null;
@@ -633,7 +650,10 @@ const LiveCorrectionScreen: React.FC<Props> = ({
         setPaused(false);
         goPhase('tracking');
         showFeedback({ text: 'Pode começar!', tone: 'ok' }, 2000);
-        speak(START_MESSAGE, true);
+        if (voiceAvailable()) {
+          lastSpokeRef.current = Date.now();
+          speakSequence([START_MESSAGE, ...(startsSeries ? pickMotivation('inicio_serie') : [])]);
+        }
       }
       return;
     }
@@ -711,7 +731,12 @@ const LiveCorrectionScreen: React.FC<Props> = ({
           lastSpokeRef.current = speechNow;
           markSpokenOnce(spokenErrors, currentRule.speakOncePerSeries, spokenOnceRef.current);
         }
-        speakSequence(plan.texts);
+        // Número e correção primeiro; a motivação (se sair no sorteio) vem no fim.
+        const motivation = motivationRef.current?.forRep({
+          complete: rep.complete, hasErrors: rep.errors.length > 0, correctionSpoken: plan.correctionSpoken,
+          completeCount, repIndex: counter.reps.length, targetReps: targetRepsRef.current,
+        }) ?? null;
+        speakSequence([...plan.texts, ...motivationItem(motivation)]);
       }
     }
     // Elevação pélvica informa o próprio descanso (topo ou parado embaixo).
@@ -847,7 +872,7 @@ const LiveCorrectionScreen: React.FC<Props> = ({
     setTimedSummary(timed);
     setSummary(s);
     setAutoFinished(auto);
-    if (auto) speakSequence([timed ? PLANK_FINISH_MESSAGE : AUTO_FINISH_MESSAGE]);
+    if (auto) speakSequence([timed ? PLANK_FINISH_MESSAGE : AUTO_FINISH_MESSAGE, ...pickMotivation('fim_serie')]);
     if (s.total > 0) void save(s); else goPhase('summary');
   }, [goPhase, releaseAll, save, speakSequence]);
   useEffect(() => { finishRef.current = finish; }, [finish]);
