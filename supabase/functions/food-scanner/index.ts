@@ -104,7 +104,7 @@ function parseWeighJson(text: string) {
   };
 }
 
-export function weighPrompt(
+function weighPrompt(
   hasPrevious: boolean,
   mealName: string,
   planFoods: string[],
