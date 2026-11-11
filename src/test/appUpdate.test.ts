@@ -1,6 +1,9 @@
 import { describe, it, expect, vi } from 'vitest';
 import { isChunkLoadError, reloadOnceForChunkError, CHUNK_RELOAD_KEY, CHUNK_RELOAD_WINDOW_MS } from '@/lib/appUpdate/chunkReload';
-import { createUpdateController, AUTO_APPLY_COOLDOWN_MS, TAKEOVER_TIMEOUT_MS, APPLY_ATTEMPT_KEY } from '@/lib/appUpdate/updateController';
+import {
+  createUpdateController, isAppShellCache, AUTO_APPLY_COOLDOWN_MS, TAKEOVER_TIMEOUT_MS, APPLY_ATTEMPT_KEY,
+  RECOVERY_KEY, RECOVERY_COOLDOWN_MS, SUPPRESS_KEY, SUPPRESS_NOTICE_MS,
+} from '@/lib/appUpdate/updateController';
 import { isSameUser } from '@/contexts/AuthContext';
 
 const memoryStorage = () => {
@@ -35,174 +38,268 @@ describe('erros de parte do app (chunk)', () => {
 });
 
 describe('quando aplicar a versão nova', () => {
-  const setup = (opts: { path?: string; visible?: boolean; storage?: ReturnType<typeof memoryStorage>; now?: number } = {}) => {
-    const env = { path: opts.path ?? '/minha-area', visible: opts.visible ?? true, now: opts.now ?? 1_000_000 };
+  type Opts = { path?: string; visible?: boolean; storage?: ReturnType<typeof memoryStorage>; now?: number; running?: string | null; published?: string | null };
+  const setup = (opts: Opts = {}) => {
+    const env = { path: opts.path ?? '/minha-area', visible: opts.visible ?? true, now: opts.now ?? 1_000_000, published: opts.published ?? null as string | null };
     const storage = opts.storage ?? memoryStorage();
     const timers: Array<{ fn: () => void; ms: number; done: boolean }> = [];
     const reload = vi.fn();
+    const recover = vi.fn(async () => undefined);
     const ctrl = createUpdateController({
       getPathname: () => env.path,
       isVisible: () => env.visible,
       storage: () => storage,
       now: () => env.now,
       reload,
+      recover,
+      runningVersion: opts.running === undefined ? 'v1' : opts.running,
+      fetchPublishedVersion: async () => env.published,
       setTimer: (fn, ms) => { const t = { fn, ms, done: false }; timers.push(t); return t; },
       clearTimer: (h) => { (h as { done: boolean }).done = true; },
     });
     const runTimers = () => timers.filter(t => !t.done).forEach(t => { t.done = true; t.fn(); });
     const apply = vi.fn();
-    return { env, ctrl, apply, reload, storage, timers, runTimers };
+    return { env, ctrl, apply, reload, recover, storage, timers, runTimers };
   };
   const flush = () => new Promise(r => setTimeout(r, 0));
+  const ready = async (s: ReturnType<typeof setup>, id = 'sw|v1') => { s.ctrl.markAvailable(s.apply, id); await flush(); };
 
   it('no meio do uso não recarrega: só avisa', async () => {
-    const { ctrl, apply } = setup();
-    ctrl.markAvailable(apply, 'sw|v1');
-    await flush();
-    expect(apply).not.toHaveBeenCalled();
-    expect(ctrl.getState()).toEqual({ available: true, held: false, stalled: false });
+    const s = setup({ published: 'v2' });
+    await ready(s);
+    expect(s.apply).not.toHaveBeenCalled();
+    expect(s.ctrl.getState()).toEqual({ available: true, held: false, stalled: false });
   });
 
   it('abertura do app com versão esperando não aplica nem recarrega sozinha', async () => {
-    const { ctrl, apply, reload, runTimers } = setup();
-    ctrl.markAvailable(apply, 'sw|v1'); // onNeedRefresh logo ao abrir
-    await flush();
-    runTimers();
-    expect(apply).not.toHaveBeenCalled();
-    expect(reload).not.toHaveBeenCalled();
-    expect(ctrl.getState().available).toBe(true);
+    const s = setup({ published: 'v2' });
+    await ready(s);
+    s.runTimers();
+    expect(s.apply).not.toHaveBeenCalled();
+    expect(s.reload).not.toHaveBeenCalled();
+    expect(s.ctrl.getState().available).toBe(true);
+  });
+
+  it('versão rodando igual à publicada: sem aviso e sem aplicar', async () => {
+    const s = setup({ running: 'v2', published: 'v2' });
+    await ready(s);
+    expect(s.ctrl.getState().available).toBe(false);
+    expect(s.ctrl.onHidden()).toBe(false);
+    expect(s.ctrl.apply('user')).toBe(false);
+    expect(s.apply).not.toHaveBeenCalled();
+  });
+
+  it('sem conseguir ler a versão publicada, avisa como antes', async () => {
+    const s = setup({ published: null });
+    await ready(s);
+    expect(s.ctrl.getState().available).toBe(true);
   });
 
   it('aplica ao ir para segundo plano', async () => {
-    const { ctrl, apply } = setup();
-    ctrl.markAvailable(apply, 'sw|v1');
-    expect(ctrl.onHidden()).toBe(true);
+    const s = setup({ published: 'v2' });
+    await ready(s);
+    expect(s.ctrl.onHidden()).toBe(true);
     await flush();
-    expect(apply).toHaveBeenCalledTimes(1);
+    expect(s.apply).toHaveBeenCalledTimes(1);
   });
 
   it('aplica quando o usuário toca em Atualizar', async () => {
-    const { ctrl, apply } = setup();
-    ctrl.markAvailable(apply, 'sw|v1');
-    expect(ctrl.apply('user')).toBe(true);
+    const s = setup({ published: 'v2' });
+    await ready(s);
+    expect(s.ctrl.apply('user')).toBe(true);
     await flush();
-    expect(apply).toHaveBeenCalledTimes(1);
+    expect(s.apply).toHaveBeenCalledTimes(1);
   });
 
   it('controllerchange após a troca recarrega exatamente 1 vez', async () => {
-    const { ctrl, apply, reload, runTimers } = setup();
-    ctrl.markAvailable(apply, 'sw|v1');
-    ctrl.apply('user');
+    const s = setup({ published: 'v2' });
+    await ready(s);
+    s.ctrl.apply('user');
     await flush();
-    expect(ctrl.onControllerChange()).toBe(true);
-    expect(ctrl.onControllerChange()).toBe(false);
-    runTimers(); // o prazo de 8 s não recarrega de novo
-    expect(ctrl.apply('user')).toBe(false);
-    expect(reload).toHaveBeenCalledTimes(1);
+    expect(s.ctrl.onControllerChange()).toBe(true);
+    expect(s.ctrl.onControllerChange()).toBe(false);
+    s.runTimers(); // o prazo de 8 s não recarrega de novo
+    await flush();
+    expect(s.ctrl.apply('user')).toBe(false);
+    expect(s.reload).toHaveBeenCalledTimes(1);
+    expect(s.recover).not.toHaveBeenCalled();
   });
 
-  it('controllerchange sem termos pedido a troca não recarrega', () => {
-    const { ctrl, apply, reload } = setup();
-    ctrl.markAvailable(apply, 'sw|v1');
-    expect(ctrl.onControllerChange()).toBe(false);
-    expect(reload).not.toHaveBeenCalled();
+  it('controllerchange não pedido (outro app atualizou) não recarrega no meio do uso', async () => {
+    const s = setup({ published: 'v2' });
+    await ready(s);
+    expect(s.ctrl.onControllerChange()).toBe(false);
+    await flush();
+    expect(s.reload).not.toHaveBeenCalled();
+    expect(s.ctrl.getState().available).toBe(true); // só o aviso
+
+    // Ao ir para segundo plano, recarrega uma vez (sem pedir troca de novo).
+    s.env.visible = false;
+    expect(s.ctrl.onHidden()).toBe(true);
+    expect(s.ctrl.onHidden()).toBe(false);
+    expect(s.reload).toHaveBeenCalledTimes(1);
+    expect(s.apply).not.toHaveBeenCalled();
   });
 
-  it('service worker que nunca assume: no máximo 1 reload e depois para', async () => {
+  it('controllerchange não pedido respeita a trava de 10 min e as telas protegidas', async () => {
+    const storage = memoryStorage();
+    storage.setItem(APPLY_ATTEMPT_KEY, JSON.stringify({ at: 1_000_000 - 1_000, id: 'sw|v1' }));
+    const s = setup({ storage, published: 'v2', path: '/treino-execucao' });
+    s.ctrl.onControllerChange();
+    await flush();
+    s.env.visible = false;
+    expect(s.ctrl.onHidden()).toBe(false); // treino aberto
+    s.env.path = '/minha-area';
+    expect(s.ctrl.onHidden()).toBe(false); // tentou há 1 s
+    expect(s.reload).not.toHaveBeenCalled();
+  });
+
+  it('travou (8 s sem controllerchange) → remove o SW do app e recarrega 1 vez', async () => {
+    const s = setup({ published: 'v2' });
+    await ready(s);
+    s.ctrl.apply('user');
+    await flush();
+    expect(s.timers[0].ms).toBe(TAKEOVER_TIMEOUT_MS);
+    s.runTimers();
+    await flush();
+    expect(s.recover).toHaveBeenCalledTimes(1);
+    expect(s.reload).toHaveBeenCalledTimes(1);
+    expect(s.ctrl.onControllerChange()).toBe(false); // não recarrega de novo
+    expect(s.reload).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(s.storage.getItem(RECOVERY_KEY)!)).toMatchObject({ at: 1_000_000, from: 'v1' });
+  });
+
+  it('recuperação não repete em menos de 10 min: pede para fechar e abrir', async () => {
+    const storage = memoryStorage();
+    const first = setup({ storage, published: 'v2' });
+    await ready(first);
+    first.ctrl.apply('user');
+    await flush();
+    first.runTimers();
+    await flush();
+    expect(first.reload).toHaveBeenCalledTimes(1);
+
+    // Volta ainda na versão antiga (rede devolveu a mesma) e o usuário toca de novo.
+    storage.setItem(SUPPRESS_KEY, '');
+    const second = setup({ storage, published: 'v2', now: 1_000_000 + RECOVERY_COOLDOWN_MS - 1 });
+    second.ctrl.markAvailable(second.apply, 'sw|v1');
+    await flush();
+    // Logo após a recuperação, o aviso fica escondido (item das 24 h).
+    expect(second.ctrl.getState().available).toBe(false);
+    expect(second.ctrl.apply('user')).toBe(false);
+    expect(second.recover).not.toHaveBeenCalled();
+    expect(second.reload).not.toHaveBeenCalled();
+  });
+
+  it('se a recuperação já foi usada há pouco e trava de novo, não recarrega', async () => {
+    const storage = memoryStorage();
+    storage.setItem(RECOVERY_KEY, JSON.stringify({ at: 1_000_000 - 60_000, from: 'v0' }));
+    storage.setItem(SUPPRESS_KEY, JSON.stringify({ until: 0 }));
+    const s = setup({ storage, published: 'v2' });
+    // Sem passar pelo aviso escondido: troca já pedida antes da recuperação registrada.
+    s.ctrl.markAvailable(s.apply, 'sw|v1');
+    await flush();
+    expect(s.ctrl.getState().available).toBe(false); // escondido por 24 h
+    expect(JSON.parse(storage.getItem(SUPPRESS_KEY)!)).toMatchObject({ until: 1_000_000 + SUPPRESS_NOTICE_MS, running: 'v1', published: 'v2' });
+    expect(s.reload).not.toHaveBeenCalled();
+  });
+
+  it('SW ainda esperando após a recuperação: esconde o aviso por 24 h e depois volta', async () => {
+    const storage = memoryStorage();
+    storage.setItem(RECOVERY_KEY, JSON.stringify({ at: 1_000_000, from: 'v1' }));
+    const after = setup({ storage, running: 'v2', published: null, now: 1_000_000 + 5_000 });
+    await ready(after, 'sw|v2');
+    expect(after.ctrl.getState().available).toBe(false);
+    expect(after.ctrl.onHidden()).toBe(false);
+
+    const nextDay = setup({ storage, running: 'v2', published: null, now: 1_000_000 + 5_000 + SUPPRESS_NOTICE_MS });
+    await ready(nextDay, 'sw|v2');
+    expect(nextDay.ctrl.getState().available).toBe(true);
+
+    // Publicação mais nova dentro das 24 h volta a avisar.
+    const newer = setup({ storage, running: 'v2', published: 'v3', now: 1_000_000 + 60 * 60 * 1000 });
+    await ready(newer, 'sw|v2');
+    expect(newer.ctrl.getState().available).toBe(true);
+  });
+
+  it('SW que nunca assume, várias aberturas: no máximo 1 reload e depois para', async () => {
     const storage = memoryStorage();
     let reloads = 0;
     let t = 1_000_000;
-    // Simula várias aberturas seguidas do app com a mesma versão presa em espera.
     for (let open = 0; open < 6; open++) {
-      const { ctrl, apply, reload, runTimers, env } = setup({ storage, now: t });
-      ctrl.markAvailable(apply, 'sw|v1');
-      env.visible = false;
-      ctrl.onHidden();
+      const s = setup({ storage, now: t, published: 'v2' });
+      await ready(s);
+      s.env.visible = false;
+      s.ctrl.onHidden();
+      s.ctrl.apply('user');
       await flush();
-      runTimers(); // 8 s sem controllerchange
-      expect(ctrl.getState().stalled).toBe(apply.mock.calls.length > 0);
-      reloads += reload.mock.calls.length;
+      s.runTimers(); // 8 s sem controllerchange
+      await flush();
+      reloads += s.reload.mock.calls.length;
       t += 60_000;
     }
-    expect(reloads).toBe(0);
-
-    // Mesmo o toque do usuário: no máximo 1 reload por tentativa.
-    const { ctrl, apply, reload, runTimers } = setup({ storage, now: t });
-    ctrl.markAvailable(apply, 'sw|v1');
-    ctrl.apply('user');
-    await flush();
-    ctrl.onControllerChange();
-    ctrl.onControllerChange();
-    runTimers();
-    expect(reload).toHaveBeenCalledTimes(1);
-  });
-
-  it('sem assumir em 8 s, não recarrega e pede para fechar e abrir o app', async () => {
-    const { ctrl, apply, reload, timers, runTimers } = setup();
-    ctrl.markAvailable(apply, 'sw|v1');
-    ctrl.apply('user');
-    await flush();
-    expect(timers[0].ms).toBe(TAKEOVER_TIMEOUT_MS);
-    runTimers();
-    expect(reload).not.toHaveBeenCalled();
-    expect(ctrl.getState()).toEqual({ available: false, held: false, stalled: true });
+    expect(reloads).toBe(1);
   });
 
   it('no máximo 1 tentativa automática a cada 10 minutos', async () => {
     const storage = memoryStorage();
-    const first = setup({ storage, now: 1_000_000 });
-    first.ctrl.markAvailable(first.apply, 'sw|v1');
+    const first = setup({ storage, now: 1_000_000, published: 'v2' });
+    await ready(first);
     expect(first.ctrl.onHidden()).toBe(true);
-    await flush();
-    first.runTimers();
 
-    const second = setup({ storage, now: 1_000_000 + AUTO_APPLY_COOLDOWN_MS - 1 });
-    second.ctrl.markAvailable(second.apply, 'sw|v2');
+    const second = setup({ storage, now: 1_000_000 + AUTO_APPLY_COOLDOWN_MS - 1, published: 'v2' });
+    await ready(second, 'sw|v2');
     expect(second.ctrl.onHidden()).toBe(false);
     expect(second.ctrl.getState().available).toBe(true); // só o aviso
 
-    const third = setup({ storage, now: 1_000_000 + AUTO_APPLY_COOLDOWN_MS });
-    third.ctrl.markAvailable(third.apply, 'sw|v2');
+    const third = setup({ storage, now: 1_000_000 + AUTO_APPLY_COOLDOWN_MS, published: 'v2' });
+    await ready(third, 'sw|v2');
     expect(third.ctrl.onHidden()).toBe(true);
   });
 
   it('mesma versão em espera já tentada não é aplicada de novo automaticamente', async () => {
     const storage = memoryStorage();
     storage.setItem(APPLY_ATTEMPT_KEY, JSON.stringify({ at: 0, id: 'sw|v1' }));
-    const { ctrl, apply } = setup({ storage, now: AUTO_APPLY_COOLDOWN_MS * 10 });
-    ctrl.markAvailable(apply, 'sw|v1');
-    expect(ctrl.onHidden()).toBe(false);
-    expect(ctrl.getState().available).toBe(true);
-    expect(ctrl.apply('user')).toBe(true); // o toque continua funcionando
+    const s = setup({ storage, now: AUTO_APPLY_COOLDOWN_MS * 10, published: 'v2' });
+    await ready(s);
+    expect(s.ctrl.onHidden()).toBe(false);
+    expect(s.ctrl.getState().available).toBe(true);
+    expect(s.ctrl.apply('user')).toBe(true); // o toque continua funcionando
   });
 
   it('storage indisponível não quebra a atualização', async () => {
-    const reload = vi.fn();
     const ctrl = createUpdateController({
-      getPathname: () => '/', isVisible: () => true, reload,
+      getPathname: () => '/', isVisible: () => true, reload: vi.fn(),
       storage: () => { throw new Error('SecurityError'); },
       setTimer: () => 0, clearTimer: () => undefined,
     });
     ctrl.markAvailable(vi.fn(), 'sw|v1');
+    await flush();
     expect(ctrl.apply('user')).toBe(true);
   });
 
-  it('nunca recarrega na execução do treino nem com a câmera aberta', async () => {
-    const { env, ctrl, apply } = setup({ path: '/treino-execucao' });
-    ctrl.markAvailable(apply, 'sw|v1');
-    expect(ctrl.onHidden()).toBe(false);
-    expect(ctrl.apply('user')).toBe(false);
+  it('apaga só os caches do app, mantendo imagens e fontes', () => {
+    expect(isAppShellCache('workbox-precache-v2-https://marombiew26.lovable.app/')).toBe(true);
+    expect(isAppShellCache('html-cache')).toBe(true);
+    expect(['supabase-images', 'images', 'google-fonts'].some(isAppShellCache)).toBe(false);
+  });
 
-    env.path = '/minha-area';
-    const release = ctrl.hold(); // câmera aberta em outra tela
-    expect(ctrl.onHidden()).toBe(false);
-    expect(ctrl.getState().held).toBe(true);
+  it('nunca recarrega na execução do treino nem com a câmera aberta', async () => {
+    const s = setup({ path: '/treino-execucao', published: 'v2' });
+    await ready(s);
+    expect(s.ctrl.onHidden()).toBe(false);
+    expect(s.ctrl.apply('user')).toBe(false);
+
+    s.env.path = '/minha-area';
+    const release = s.ctrl.hold(); // câmera aberta em outra tela
+    expect(s.ctrl.onHidden()).toBe(false);
+    expect(s.ctrl.getState().held).toBe(true);
     release();
     await flush();
-    expect(apply).not.toHaveBeenCalled(); // sair da tela não recarrega sozinho
-    expect(ctrl.onHidden()).toBe(true);
+    expect(s.apply).not.toHaveBeenCalled(); // sair da tela não recarrega sozinho
+    expect(s.ctrl.onHidden()).toBe(true);
     await flush();
-    expect(apply).toHaveBeenCalledTimes(1);
+    expect(s.apply).toHaveBeenCalledTimes(1);
   });
 });
 
