@@ -28,6 +28,8 @@ import ProtocolsDialog from '@/components/diet/ProtocolsDialog';
 import { protocolsToKeys, type SavedProtocols, type ProtocolKey } from '@/lib/dietProtocols';
 import { ListChecks, ScanBarcode } from 'lucide-react';
 const FoodScanner = lazyWithRetry(() => import('@/components/diet/FoodScanner'));
+const MealWeighScreen = lazyWithRetry(() => import('@/components/diet/mealWeigh/MealWeighScreen'));
+import { usePremiumScale } from '@/hooks/usePremiumScale';
 import { buildCarbCycleDays } from '@/lib/dietAiActions';
 import { parseDietPlanLoose } from '@/lib/dietSchema';
 import {
@@ -453,6 +455,8 @@ const MinhasDietas = () => {
   // meta base. Se ainda não temos treino carregado, cai no dia real.
   const isSelectedDayTraining = trainingDayIndices.includes(selectedWeekday);
   const [showScanner, setShowScanner] = useState(false);
+  const premiumScale = usePremiumScale(user?.id);
+  const [weighMealIndex, setWeighMealIndex] = useState<number | null>(null);
   const selectedDate = getWeekRange().dates[selectedWeekday];
   const { tracking, weeklyTracking, weekDates, today: trackingToday, loading: trackingLoading,
     ensureCanRegister, addWaterMl, removeWater, toggleMeal, waterCurrentMl, waterTargetMl } = useDailyTracking({
@@ -870,6 +874,16 @@ const MinhasDietas = () => {
     <AppLayout title="Plano Alimentar">
       <React.Suspense fallback={null}>
         <FoodScanner open={showScanner} onOpenChange={setShowScanner} dailyKcal={dailyTarget?.kcal || null} />
+        {weighMealIndex !== null && currentMeals[weighMealIndex] && user && (
+          <MealWeighScreen
+            meal={currentMeals[weighMealIndex]}
+            studentId={user.id}
+            logDate={selectedDate}
+            mealIndex={weighMealIndex}
+            dietPlanId={planId}
+            onClose={() => setWeighMealIndex(null)}
+          />
+        )}
       </React.Suspense>
       <div className="space-y-4 animate-fade-in">
         {/* Protocolos */}
@@ -1166,6 +1180,7 @@ const MinhasDietas = () => {
                     .map((m, mi) => ({ index: mi, name: m.time ? `${m.time} · ${m.name}` : m.name }))
                     .filter((t) => t.index !== i)}
                   onMoveFood={(food, targetIndex) => handleMoveFood(i, food, targetIndex)}
+                  onWeigh={premiumScale ? () => { if (ensureCanRegister()) setWeighMealIndex(i); } : undefined}
                 />
               );
             })}
