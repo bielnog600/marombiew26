@@ -394,7 +394,7 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
   /** Itens já pesados no topo: "Iogurte 154 g · Whey 26 g". */
   const weighedChips = mode === 'scan' && items.length > 0 ? (
     <div className="px-4 pb-2" data-testid="meal-weigh-weighed-chips" aria-label={`Já pesados: ${weighedChipsLabel(items)}`}>
-      <div className="flex gap-1.5 overflow-x-auto no-scrollbar">
+      <div className="flex gap-1.5 overflow-x-auto [scrollbar-width:none]">
         {items.map((it, i) => (
           <span key={i} className="shrink-0 rounded-full border border-primary/40 bg-primary/10 px-2.5 py-1 text-[11px] font-semibold text-primary tabular-nums">
             {it.alimento} {Math.round(it.gramas)} g
