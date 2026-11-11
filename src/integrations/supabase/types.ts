@@ -1038,6 +1038,121 @@ export type Database = {
         }
         Relationships: []
       }
+      coach_voice_config: {
+        Row: {
+          id: boolean
+          language_code: string
+          model_id: string | null
+          similarity_boost: number
+          stability: number
+          updated_at: string
+          voice_id: string | null
+          voice_name: string | null
+        }
+        Insert: {
+          id?: boolean
+          language_code?: string
+          model_id?: string | null
+          similarity_boost?: number
+          stability?: number
+          updated_at?: string
+          voice_id?: string | null
+          voice_name?: string | null
+        }
+        Update: {
+          id?: boolean
+          language_code?: string
+          model_id?: string | null
+          similarity_boost?: number
+          stability?: number
+          updated_at?: string
+          voice_id?: string | null
+          voice_name?: string | null
+        }
+        Relationships: []
+      }
+      coach_voice_phrases: {
+        Row: {
+          approved_take_id: string | null
+          categoria: string
+          created_at: string
+          phrase_key: string
+          texto: string
+          updated_at: string
+        }
+        Insert: {
+          approved_take_id?: string | null
+          categoria: string
+          created_at?: string
+          phrase_key: string
+          texto: string
+          updated_at?: string
+        }
+        Update: {
+          approved_take_id?: string | null
+          categoria?: string
+          created_at?: string
+          phrase_key?: string
+          texto?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "coach_voice_phrases_approved_take_fk"
+            columns: ["approved_take_id"]
+            isOneToOne: false
+            referencedRelation: "coach_voice_takes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      coach_voice_takes: {
+        Row: {
+          approved: boolean
+          created_at: string
+          created_by: string | null
+          file_path: string
+          id: string
+          model_id: string
+          phrase_key: string
+          settings: Json
+          texto: string
+          voice_id: string
+        }
+        Insert: {
+          approved?: boolean
+          created_at?: string
+          created_by?: string | null
+          file_path: string
+          id?: string
+          model_id: string
+          phrase_key: string
+          settings?: Json
+          texto: string
+          voice_id: string
+        }
+        Update: {
+          approved?: boolean
+          created_at?: string
+          created_by?: string | null
+          file_path?: string
+          id?: string
+          model_id?: string
+          phrase_key?: string
+          settings?: Json
+          texto?: string
+          voice_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "coach_voice_takes_phrase_key_fkey"
+            columns: ["phrase_key"]
+            isOneToOne: false
+            referencedRelation: "coach_voice_phrases"
+            referencedColumns: ["phrase_key"]
+          },
+        ]
+      }
       composition: {
         Row: {
           assessment_id: string
@@ -4187,6 +4302,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      approve_coach_voice_take: {
+        Args: { _take_id: string }
+        Returns: undefined
+      }
       approve_exercise_metadata_suggestion: {
         Args: {
           _fields?: string[]
@@ -4233,6 +4352,13 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      coach_voice_approved: {
+        Args: never
+        Returns: {
+          file_path: string
+          phrase_key: string
+        }[]
       }
       evaluate_metadata_completeness: {
         Args: { _exercise_id: string }

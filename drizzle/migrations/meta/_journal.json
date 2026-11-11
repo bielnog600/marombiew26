@@ -218,6 +218,13 @@
       "when": 1794414156564,
       "tag": "0030_meal_weigh_logs_unweighed_choices",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1794429265341,
+      "tag": "0031_coach_voice",
+      "breakpoints": true
     }
   ]
 }
