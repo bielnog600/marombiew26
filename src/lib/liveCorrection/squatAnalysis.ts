@@ -15,7 +15,7 @@ export const MIN_DESCENT_SECONDS = 1.5;
 /**
  * Folga da profundidade, em fração do comprimento da coxa: o quadril precisa
  * chegar até (altura do joelho − folga). 0 = exatamente na altura do joelho.
- * Este é o nível "Padrão"; cada aluno pode ter outro nível (DEPTH_LEVELS).
+ * Este é o nível "Intermediário" (padrão); cada aluno pode ter outro nível (DEPTH_LEVELS).
  */
 export const DEPTH_TOLERANCE = 0.15;
 /** Nenhum nível pode ter folga maior que isto. */
@@ -25,29 +25,46 @@ export const MAX_DEPTH_TOLERANCE = 0.25;
  * joelho da rep for MAIOR que isto (graus), a rep é incompleta ("Desce mais").
  */
 export const MAX_BOTTOM_KNEE_ANGLE = 110;
-/** Faltou até isto além da folga do nível (fração da coxa) = "Desce um pouco mais" (continua incompleta). */
+/** Faltou até isto para o exigido pelo nível (fração da coxa) = "Desce um pouco mais" (continua incompleta). */
 export const NEAR_DEPTH_MARGIN = 0.1;
 
 /** Profundidade exigida, escolhida pelo admin na ficha do aluno. */
-export type DepthLevel = 'paralelo' | 'padrao' | 'mobilidade_reduzida';
-export const DEFAULT_DEPTH_LEVEL: DepthLevel = 'padrao';
-export const DEPTH_LEVELS: Record<DepthLevel, { label: string; tolerance: number }> = {
-  paralelo: { label: 'Paralelo', tolerance: 0.05 },
-  padrao: { label: 'Padrão', tolerance: DEPTH_TOLERANCE },
-  mobilidade_reduzida: { label: 'Mobilidade reduzida', tolerance: 0.25 },
+export type DepthLevel = 'iniciante' | 'intermediario' | 'avancado' | 'pro';
+export const DEFAULT_DEPTH_LEVEL: DepthLevel = 'intermediario';
+/**
+ * minHipDepth = menor hipDepth máximo da rep que conta como completa
+ * (fração da coxa; negativo = quadril acima da linha do joelho, positivo = abaixo).
+ */
+export const DEPTH_LEVELS: Record<DepthLevel, { label: string; minHipDepth: number; hint: string }> = {
+  iniciante: { label: 'Iniciante', minHipDepth: -0.25, hint: 'quadril até 25% da coxa acima do joelho' },
+  intermediario: { label: 'Intermediário', minHipDepth: -DEPTH_TOLERANCE, hint: 'quadril até 15% da coxa acima do joelho' },
+  avancado: { label: 'Avançado', minHipDepth: -0.05, hint: 'praticamente paralelo (até 5% acima)' },
+  pro: { label: 'Pro', minHipDepth: 0.05, hint: 'abaixo do paralelo (5% da coxa abaixo do joelho)' },
 };
-export const DEPTH_LEVEL_ORDER: DepthLevel[] = ['paralelo', 'padrao', 'mobilidade_reduzida'];
+export const DEPTH_LEVEL_ORDER: DepthLevel[] = ['iniciante', 'intermediario', 'avancado', 'pro'];
+/** Nomes antigos salvos antes da troca de nomes. */
+const LEGACY_DEPTH_LEVELS: Record<string, DepthLevel> = {
+  mobilidade_reduzida: 'iniciante',
+  padrao: 'intermediario',
+  paralelo: 'avancado',
+};
 
 export function isDepthLevel(v: unknown): v is DepthLevel {
-  return typeof v === 'string' && v in DEPTH_LEVELS;
+  return typeof v === 'string' && Object.prototype.hasOwnProperty.call(DEPTH_LEVELS, v);
 }
-/** Nível salvo → nível válido (desconhecido/vazio = Padrão). */
+/** Nível salvo → nível válido (nomes antigos convertidos; desconhecido/vazio = Intermediário). */
 export function normalizeDepthLevel(v: unknown): DepthLevel {
-  return isDepthLevel(v) ? v : DEFAULT_DEPTH_LEVEL;
+  if (isDepthLevel(v)) return v;
+  if (typeof v === 'string' && LEGACY_DEPTH_LEVELS[v]) return LEGACY_DEPTH_LEVELS[v];
+  return DEFAULT_DEPTH_LEVEL;
 }
-/** Folga do nível, nunca acima de MAX_DEPTH_TOLERANCE. */
+/** Profundidade mínima do quadril exigida pelo nível; nunca mais permissiva que −MAX_DEPTH_TOLERANCE. */
+export function requiredHipDepthFor(level: unknown): number {
+  return Math.max(-MAX_DEPTH_TOLERANCE, DEPTH_LEVELS[normalizeDepthLevel(level)].minHipDepth);
+}
+/** Folga do nível acima da linha do joelho (negativa no Pro, que exige passar da linha). */
 export function depthToleranceFor(level: unknown): number {
-  return Math.min(MAX_DEPTH_TOLERANCE, DEPTH_LEVELS[normalizeDepthLevel(level)].tolerance);
+  return -requiredHipDepthFor(level);
 }
 
 export interface DepthVerdict {
@@ -56,16 +73,18 @@ export interface DepthVerdict {
   near: boolean;
 }
 /**
- * Decide a profundidade da rep. Completa = quadril dentro da folga do nível E joelho
+ * Decide a profundidade da rep. Completa = quadril chegou ao exigido pelo nível E joelho
  * chegou a MAX_BOTTOM_KNEE_ANGLE ou menos. "Quase" só quando o joelho passou na trava
- * e o quadril ficou até NEAR_DEPTH_MARGIN além da folga — parcial nunca é "quase".
+ * e faltou até NEAR_DEPTH_MARGIN para o exigido — parcial nunca é "quase".
  */
 export function judgeDepth(maxHipDepth: number, minKneeAngle: number, level: unknown = DEFAULT_DEPTH_LEVEL): DepthVerdict {
-  const tol = depthToleranceFor(level);
+  const required = requiredHipDepthFor(level);
   const kneeOk = minKneeAngle <= MAX_BOTTOM_KNEE_ANGLE;
-  const hipOk = maxHipDepth >= -tol;
+  // Arredonda para não errar por ruído de ponto flutuante na borda (ex.: 0.05 exato).
+  const hip = Math.round(maxHipDepth * 1e6) / 1e6;
+  const hipOk = hip >= required;
   if (kneeOk && hipOk) return { deepEnough: true, near: false };
-  const near = kneeOk && maxHipDepth >= -(tol + NEAR_DEPTH_MARGIN);
+  const near = kneeOk && hip >= Math.round((required - NEAR_DEPTH_MARGIN) * 1e6) / 1e6;
   return { deepEnough: false, near };
 }
 /** Quantos frames entram na média que suaviza os pontos. */
