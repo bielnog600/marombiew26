@@ -4,7 +4,7 @@ import {
   SquatRepCounter, repNumberWord, planRepSpeech, errorsToJson, LandmarkSmoother, angleAt, trunkAngle, summarizeReps,
   isSquatExercise, canSpeak, isFullBodyVisible, pickSide, LM, type FrameMetrics, type Landmark,
   DEPTH_TOLERANCE, MAX_DEPTH_TOLERANCE, MAX_BOTTOM_KNEE_ANGLE, NEAR_DEPTH_MARGIN, DEPTH_LEVELS,
-  depthToleranceFor, normalizeDepthLevel, judgeDepth,
+  depthToleranceFor, normalizeDepthLevel, judgeDepth, requiredHipDepthFor, isDepthLevel, DEPTH_LEVEL_ORDER, DEFAULT_DEPTH_LEVEL,
 } from '@/lib/liveCorrection/squatAnalysis';
 
 const f = (kneeAngle: number, trunk = 20, hipDepth = 0.1): FrameMetrics => ({ side: 'left', kneeAngle, trunkAngle: trunk, hipDepth });
@@ -158,70 +158,94 @@ describe('Correção ao vivo — agachamento', () => {
   });
 
   describe('profundidade por nível', () => {
-    it('padrão 0,15; níveis 0,05 / 0,15 / 0,25; nenhum passa de 0,25; trava 110°; quase = 0,10', () => {
+    it('4 níveis: Iniciante −0,25 / Intermediário −0,15 (padrão) / Avançado −0,05 / Pro +0,05; trava 110°; quase = 0,10', () => {
+      expect(DEPTH_LEVEL_ORDER).toEqual(['iniciante', 'intermediario', 'avancado', 'pro']);
+      expect(DEPTH_LEVEL_ORDER.map((l) => DEPTH_LEVELS[l].label)).toEqual(['Iniciante', 'Intermediário', 'Avançado', 'Pro']);
       expect(DEPTH_TOLERANCE).toBe(0.15);
-      expect(depthToleranceFor('paralelo')).toBe(0.05);
-      expect(depthToleranceFor('padrao')).toBe(0.15);
-      expect(depthToleranceFor('mobilidade_reduzida')).toBe(0.25);
+      expect(requiredHipDepthFor('iniciante')).toBe(-0.25);
+      expect(requiredHipDepthFor('intermediario')).toBe(-0.15);
+      expect(requiredHipDepthFor('avancado')).toBe(-0.05);
+      expect(requiredHipDepthFor('pro')).toBe(0.05);
+      expect(depthToleranceFor('intermediario')).toBe(0.15);
       expect(MAX_DEPTH_TOLERANCE).toBe(0.25);
-      for (const l of Object.values(DEPTH_LEVELS)) expect(l.tolerance).toBeLessThanOrEqual(0.25);
+      for (const l of DEPTH_LEVEL_ORDER) expect(requiredHipDepthFor(l)).toBeGreaterThanOrEqual(-0.25);
       expect(MAX_BOTTOM_KNEE_ANGLE).toBe(110);
       expect(NEAR_DEPTH_MARGIN).toBe(0.1);
     });
 
-    it('nível desconhecido ou vazio = Padrão', () => {
-      expect(normalizeDepthLevel(null)).toBe('padrao');
-      expect(normalizeDepthLevel('qualquer')).toBe('padrao');
-      expect(new SquatRepCounter().level).toBe('padrao');
+    it('nível desconhecido ou vazio = Intermediário; nomes antigos são convertidos', () => {
+      expect(DEFAULT_DEPTH_LEVEL).toBe('intermediario');
+      expect(normalizeDepthLevel(null)).toBe('intermediario');
+      expect(normalizeDepthLevel('qualquer')).toBe('intermediario');
+      expect(new SquatRepCounter().level).toBe('intermediario');
+      expect(normalizeDepthLevel('mobilidade_reduzida')).toBe('iniciante');
+      expect(normalizeDepthLevel('padrao')).toBe('intermediario');
+      expect(normalizeDepthLevel('paralelo')).toBe('avancado');
+      expect(isDepthLevel('padrao')).toBe(false);
+      expect(isDepthLevel('pro')).toBe(true);
     });
 
-    it('Paralelo: quadril 0,10 acima da linha do joelho não conta, 0,05 conta', () => {
-      expect(runRep(new SquatRepCounter('paralelo'), f(90, 20, -0.1))?.complete).toBe(false);
-      expect(runRep(new SquatRepCounter('paralelo'), f(90, 20, -0.05))?.complete).toBe(true);
+    it('Iniciante: quadril 0,25 acima conta, 0,30 não conta', () => {
+      expect(runRep(new SquatRepCounter('iniciante'), f(100, 20, -0.25))?.complete).toBe(true);
+      expect(runRep(new SquatRepCounter('iniciante'), f(100, 20, -0.3))?.complete).toBe(false);
     });
 
-    it('Padrão: quadril 0,15 acima conta, 0,20 não conta', () => {
+    it('Intermediário: quadril 0,15 acima conta, 0,20 não conta', () => {
       expect(runRep(new SquatRepCounter(), f(95, 20, -0.15))?.complete).toBe(true);
       expect(runRep(new SquatRepCounter(), f(95, 20, -0.2))?.complete).toBe(false);
     });
 
-    it('Mobilidade reduzida: quadril 0,25 acima conta, 0,30 não conta', () => {
-      expect(runRep(new SquatRepCounter('mobilidade_reduzida'), f(100, 20, -0.25))?.complete).toBe(true);
-      expect(runRep(new SquatRepCounter('mobilidade_reduzida'), f(100, 20, -0.3))?.complete).toBe(false);
+    it('Avançado: quadril 0,05 acima conta, 0,10 não conta', () => {
+      expect(runRep(new SquatRepCounter('avancado'), f(90, 20, -0.05))?.complete).toBe(true);
+      expect(runRep(new SquatRepCounter('avancado'), f(90, 20, -0.1))?.complete).toBe(false);
+    });
+
+    it('Pro: quadril precisa passar 0,05 abaixo da linha do joelho; no paralelo não conta', () => {
+      expect(runRep(new SquatRepCounter('pro'), f(85, 20, 0.05))?.complete).toBe(true);
+      expect(runRep(new SquatRepCounter('pro'), f(85, 20, 0.12))?.complete).toBe(true);
+      expect(runRep(new SquatRepCounter('pro'), f(85, 20, 0))?.complete).toBe(false);
+      expect(runRep(new SquatRepCounter('pro'), f(85, 20, 0.04))?.complete).toBe(false);
     });
 
     it('trava dos 110°: joelho acima de 110° no fundo é incompleta em qualquer nível, mesmo com o quadril "passando"', () => {
-      for (const lvl of ['paralelo', 'padrao', 'mobilidade_reduzida'] as const) {
+      for (const lvl of DEPTH_LEVEL_ORDER) {
         const rep = runRep(new SquatRepCounter(lvl), f(111, 20, 0.2));
         expect(rep?.complete).toBe(false);
         expect(rep?.errors).toEqual(['depth']);
+        expect(runRep(new SquatRepCounter(lvl), f(110, 20, 0.2))?.complete).toBe(true);
       }
-      expect(runRep(new SquatRepCounter(), f(110, 20, 0.2))?.complete).toBe(true);
     });
 
     it('meio agachamento (joelho ~120°) nunca conta nem vira "quase"', () => {
-      const rep = runRep(new SquatRepCounter('mobilidade_reduzida'), f(122, 20, -0.2));
+      const rep = runRep(new SquatRepCounter('iniciante'), f(122, 20, -0.2));
       expect(rep?.complete).toBe(false);
       expect(rep?.errors).toEqual(['depth']);
     });
 
-    it('quase: até 0,10 além da folga = "Desce um pouco mais" e continua incompleta', () => {
+    it('quase vale para todos os níveis: faltou até 0,10 = "Desce um pouco mais" e continua incompleta', () => {
       const near = runRep(new SquatRepCounter(), f(100, 20, -0.24));
       expect(near?.complete).toBe(false);
       expect(near?.errors).toEqual(['depth_near']);
       expect(planRepSpeech(near!, 0, null, 10000).texts).toEqual(['Desce um pouco mais']);
-      const far = runRep(new SquatRepCounter(), f(100, 20, -0.27));
-      expect(far?.errors).toEqual(['depth']);
-      expect(judgeDepth(-0.14, 100, 'paralelo')).toEqual({ deepEnough: false, near: true });
-      expect(judgeDepth(-0.16, 100, 'paralelo')).toEqual({ deepEnough: false, near: false });
-      expect(judgeDepth(-0.34, 100, 'mobilidade_reduzida')).toEqual({ deepEnough: false, near: true });
+      expect(runRep(new SquatRepCounter(), f(100, 20, -0.27))?.errors).toEqual(['depth']);
+      expect(judgeDepth(-0.34, 100, 'iniciante')).toEqual({ deepEnough: false, near: true });
+      expect(judgeDepth(-0.36, 100, 'iniciante')).toEqual({ deepEnough: false, near: false });
+      expect(judgeDepth(-0.14, 100, 'avancado')).toEqual({ deepEnough: false, near: true });
+      expect(judgeDepth(-0.16, 100, 'avancado')).toEqual({ deepEnough: false, near: false });
+      expect(judgeDepth(-0.05, 100, 'pro')).toEqual({ deepEnough: false, near: true });
+      expect(judgeDepth(-0.06, 100, 'pro')).toEqual({ deepEnough: false, near: false });
+      const proNear = runRep(new SquatRepCounter('pro'), f(90, 20, 0));
+      expect(proNear?.errors).toEqual(['depth_near']);
     });
 
     it('trocar o nível vale para as próximas reps', () => {
-      const c = new SquatRepCounter('paralelo');
+      const c = new SquatRepCounter('avancado');
       expect(runRep(c, f(95, 20, -0.15))?.complete).toBe(false);
-      c.setDepthLevel('padrao');
+      c.setDepthLevel('intermediario');
       expect(runRep(c, f(95, 20, -0.15))?.complete).toBe(true);
+      c.setDepthLevel('pro');
+      expect(c.level).toBe('pro');
+      expect(runRep(c, f(95, 20, 0))?.complete).toBe(false);
     });
   });
 });

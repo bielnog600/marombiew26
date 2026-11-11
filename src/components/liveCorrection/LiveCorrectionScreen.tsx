@@ -41,11 +41,11 @@ interface Props {
   depthLevelPicker?: boolean;
 }
 
-/** Seletor dos 3 níveis de profundidade (só no teste do admin). */
+/** Seletor dos 4 níveis de profundidade (só no teste do admin). */
 const DepthLevelPicker: React.FC<{ value: DepthLevel; onChange: (v: DepthLevel) => void }> = ({ value, onChange }) => (
   <div className="w-full max-w-sm" data-testid="live-depth-picker">
     <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-2 text-center">Profundidade exigida (teste)</p>
-    <div className="grid grid-cols-3 gap-1.5" role="radiogroup" aria-label="Profundidade exigida">
+    <div className="grid grid-cols-2 gap-1.5" role="radiogroup" aria-label="Profundidade exigida">
       {DEPTH_LEVEL_ORDER.map((lvl) => (
         <button
           key={lvl}
@@ -62,6 +62,7 @@ const DepthLevelPicker: React.FC<{ value: DepthLevel; onChange: (v: DepthLevel) 
         </button>
       ))}
     </div>
+    <p className="mt-1.5 text-[11px] text-center text-muted-foreground">{DEPTH_LEVELS[value].hint}</p>
   </div>
 );
 
@@ -189,7 +190,7 @@ const LiveCorrectionScreen: React.FC<Props> = ({ studentId, exerciseName, onClos
 
   useEffect(() => { phaseRef.current = phase; }, [phase]);
   useEffect(() => { counterRef.current.setDepthLevel(depthLevel); }, [depthLevel]);
-  // Profundidade escolhida pelo admin na ficha do aluno (sem perfil/erro = Padrão).
+  // Profundidade escolhida pelo admin na ficha do aluno (sem perfil/erro = Intermediário).
   useEffect(() => {
     if (depthLevelPicker) return;
     let cancelled = false;
@@ -738,7 +739,7 @@ const LiveCorrectionScreen: React.FC<Props> = ({ studentId, exerciseName, onClos
           <div className="max-w-md mx-auto space-y-4">
             <h2 className="text-2xl font-black text-center">Resumo</h2>
             {autoFinished && <p className="-mt-2 text-sm text-center text-muted-foreground">Fechou a série</p>}
-            <p className="-mt-2 text-xs text-center text-muted-foreground" data-testid="live-summary-depth">Profundidade exigida: {DEPTH_LEVELS[depthLevel].label}</p>
+            <p className="-mt-2 text-xs text-center text-muted-foreground" data-testid="live-summary-depth">Nível: {DEPTH_LEVELS[depthLevel].label}</p>
             <div className="grid grid-cols-3 gap-2">
               <div className="glass-card rounded-2xl p-3 text-center">
                 <p className="text-3xl font-black tabular-nums">{summary.total}</p>

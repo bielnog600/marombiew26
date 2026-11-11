@@ -162,6 +162,13 @@
       "when": 1794384900052,
       "tag": "0022_camera_depth_level",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1794385291265,
+      "tag": "0023_camera_depth_level_four_levels",
+      "breakpoints": true
     }
   ]
 }
