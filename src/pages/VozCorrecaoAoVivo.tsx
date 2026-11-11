@@ -90,11 +90,13 @@ const VozCorrecaoAoVivo = () => {
       ]);
       if (cfg.error || ph.error) throw cfg.error ?? ph.error;
       if (cfg.data) {
-        setConfig({
+        const loaded: VoiceConfig = {
           voice_id: cfg.data.voice_id, voice_name: cfg.data.voice_name, model_id: cfg.data.model_id,
           stability: Number(cfg.data.stability), similarity_boost: Number(cfg.data.similarity_boost),
           language_code: cfg.data.language_code,
-        });
+        };
+        configRef.current = loaded;
+        setConfig(loaded);
       }
       let phraseRows = (ph.data ?? []) as PhraseRow[];
       // Fala nova no código entra na lista como "sem áudio".
