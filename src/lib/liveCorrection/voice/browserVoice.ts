@@ -174,9 +174,11 @@ export interface CoachVoice {
 
 export function createCoachVoice(overrides: Partial<CoachVoiceDeps> = {}): CoachVoice {
   const deps: CoachVoiceDeps = { ...defaultCoachVoiceDeps(), ...overrides };
+  const mode: CoachVoicePlaybackMode = deps.preferMediaElement ? 'audio' : 'webaudio';
   const clips = new Map<string, LoadedClip>();
+  const pathByKey = new Map<string, string>();
   const urlByKey = new Map<string, string>();
-  let status: CoachVoiceStatus = { ...INITIAL_COACH_VOICE_STATUS };
+  let status: CoachVoiceStatus = { ...INITIAL_COACH_VOICE_STATUS, mode };
   const listeners = new Set<(s: CoachVoiceStatus) => void>();
   const update = (patch: Partial<CoachVoiceStatus>) => {
     const next = { ...status, ...patch };
@@ -186,8 +188,10 @@ export function createCoachVoice(overrides: Partial<CoachVoiceDeps> = {}): Coach
   };
 
   let source: AudioBufferSourceNode | null = null;
-  let audioEl: HTMLAudioElement | null = null;
-  let elementPrimed = false;
+  /** Elementos <audio> pré-criados; cada um precisa ser liberado no toque (iOS). */
+  const pool: HTMLAudioElement[] = [];
+  const primed = new Set<HTMLAudioElement>();
+  let nextEl = 0;
   let speechPrimed = false;
   /** Sobe a cada stop(): áudio que ainda esperava o resume() não toca depois de parado. */
   let epoch = 0;
@@ -235,13 +239,38 @@ export function createCoachVoice(overrides: Partial<CoachVoiceDeps> = {}): Coach
     } catch (e) { reject(e); }
   });
 
-  const element = () => (audioEl ??= deps.createAudioElement());
+  /** Cria os elementos de uma vez (ao abrir a tela e no toque), sem duplicar. */
+  const ensurePool = () => {
+    while (pool.length < AUDIO_POOL_SIZE) {
+      const el = deps.createAudioElement();
+      if (!el) break;
+      pool.push(el);
+    }
+    return pool;
+  };
+  /** Próximo elemento, preferindo os já liberados no toque. */
+  const takeElement = (): HTMLAudioElement | null => {
+    const all = ensurePool();
+    if (!all.length) return null;
+    for (let n = 0; n < all.length; n++) {
+      const el = all[(nextEl + n) % all.length];
+      if (primed.has(el)) { nextEl = (all.indexOf(el) + 1) % all.length; return el; }
+    }
+    const el = all[nextEl % all.length];
+    nextEl = (nextEl + 1) % all.length;
+    return el;
+  };
 
-  const playElement = (key: string, clip: LoadedClip) => new Promise<void>((resolve, reject) => {
-    const el = element();
-    if (!el) { reject(new Error('audio_element_unavailable')); return; }
+  const urlFor = (key: string, clip: LoadedClip) => {
     let url = urlByKey.get(key);
     if (!url) { url = deps.createObjectURL(clip.blob); urlByKey.set(key, url); }
+    return url;
+  };
+
+  const playElement = (key: string, clip: LoadedClip) => new Promise<void>((resolve, reject) => {
+    const el = takeElement();
+    if (!el) { reject(new Error('audio_element_unavailable')); return; }
+    const url = urlFor(key, clip);
     let timer: ReturnType<typeof setTimeout> | undefined;
     const cleanup = () => { if (timer) clearTimeout(timer); pending.delete(done); el.onended = null; el.onerror = null; };
     const done = () => { cleanup(); resolve(); };
@@ -253,10 +282,39 @@ export function createCoachVoice(overrides: Partial<CoachVoiceDeps> = {}): Coach
     timer = setTimeout(done, 15000);
     try {
       el.src = url;
+      try { el.currentTime = 0; } catch { /* alguns navegadores só depois de carregar */ }
       const p = el.play();
-      if (p && typeof p.catch === 'function') p.catch(fail);
+      if (p && typeof p.then === 'function') p.then(() => primed.add(el), fail);
+      else primed.add(el);
     } catch (e) { fail(e); }
   });
+
+  /** Web Audio; decodifica na hora se ainda não tiver (modo 'audio' não decodifica antes). */
+  const tryWebAudio = async (key: string, clip: LoadedClip, myEpoch: number): Promise<boolean> => {
+    const ctx = context();
+    if (!ctx) return false;
+    if (!clip.buffer) await decodeClip(deps, ctx, pathByKey.get(key) ?? key, clip);
+    if (!clip.buffer || myEpoch !== epoch) return false;
+    const running = await ensureRunning(ctx);
+    if (!running || myEpoch !== epoch) return false;
+    try {
+      await playBuffer(ctx, clip.buffer);
+      return true;
+    } catch (e) {
+      deps.log(`Web Audio não tocou ${key}`, e);
+      return false;
+    }
+  };
+
+  const tryElement = async (key: string, clip: LoadedClip): Promise<boolean> => {
+    try {
+      await playElement(key, clip);
+      return true;
+    } catch (e) {
+      deps.log(`<audio> não tocou ${key}`, e);
+      return false;
+    }
+  };
 
   const outputs: VoiceOutputs = {
     hasClip: (key) => clips.has(key),
@@ -264,25 +322,12 @@ export function createCoachVoice(overrides: Partial<CoachVoiceDeps> = {}): Coach
       const clip = clips.get(key);
       if (!clip) throw new Error('clip_unavailable');
       const myEpoch = epoch;
-      const ctx = context();
-      if (clip.buffer && ctx) {
-        const running = await ensureRunning(ctx);
+      const order: CoachVoicePlaybackMode[] = mode === 'audio' ? ['audio', 'webaudio'] : ['webaudio', 'audio'];
+      for (const path of order) {
         if (myEpoch !== epoch) return;
-        if (running) {
-          try {
-            await playBuffer(ctx, clip.buffer);
-            update({ lastPlayFailed: false });
-            return;
-          } catch (e) { deps.log(`Web Audio não tocou ${key}`, e); }
-        }
-      }
-      if (myEpoch !== epoch) return;
-      try {
-        await playElement(key, clip);
-        update({ lastPlayFailed: false });
-        return;
-      } catch (e) {
-        deps.log(`<audio> não tocou ${key}`, e);
+        const ok = path === 'audio' ? await tryElement(key, clip) : await tryWebAudio(key, clip, myEpoch);
+        if (myEpoch !== epoch) return;
+        if (ok) { update({ lastPlayFailed: false, playedMode: path }); return; }
       }
       update({ lastPlayFailed: true });
       throw new Error('clip_unavailable');
@@ -311,7 +356,7 @@ export function createCoachVoice(overrides: Partial<CoachVoiceDeps> = {}): Coach
       epoch++;
       try { source?.stop(); } catch { /* já parou */ }
       source = null;
-      try { audioEl?.pause(); } catch { /* ignore */ }
+      for (const el of pool) { try { el.pause(); } catch { /* ignore */ } }
       try { deps.speech()?.cancel(); } catch { /* ignore */ }
       settleAll();
     },
@@ -319,9 +364,24 @@ export function createCoachVoice(overrides: Partial<CoachVoiceDeps> = {}): Coach
   const queue = new VoiceQueue(outputs);
   let preloadJob: Promise<void> | null = null;
 
+  /** Libera cada <audio> no toque: tocar algo mudo dentro do gesto vale para os próximos áudios. */
+  const primeElements = () => {
+    for (const el of ensurePool()) {
+      if (primed.has(el)) continue;
+      primed.add(el);
+      try {
+        el.src = SILENT_WAV;
+        const p = el.play();
+        if (p && typeof p.catch === 'function') p.catch((e) => { primed.delete(el); deps.log('desbloqueio do <audio> falhou', e); });
+      } catch (e) { primed.delete(el); deps.log('desbloqueio do <audio> falhou', e); }
+    }
+  };
+
   return {
     unlock() {
       update({ unlocked: true, lastPlayFailed: false });
+      // Modo 'audio': o <audio> é o caminho principal, liberado antes de tudo.
+      if (mode === 'audio') primeElements();
       const ctx = context();
       if (ctx) {
         try {
@@ -337,18 +397,8 @@ export function createCoachVoice(overrides: Partial<CoachVoiceDeps> = {}): Coach
         } catch (e) { deps.log('desbloqueio do Web Audio falhou', e); }
         update({ contextState: ctx.state });
       }
-      // <audio> liberado uma vez no toque passa a tocar depois sem toque (segunda opção).
-      if (!elementPrimed) {
-        const el = element();
-        if (el) {
-          elementPrimed = true;
-          try {
-            el.src = SILENT_WAV;
-            const p = el.play();
-            if (p && typeof p.catch === 'function') p.catch((e) => { elementPrimed = false; deps.log('desbloqueio do <audio> falhou', e); });
-          } catch (e) { elementPrimed = false; deps.log('desbloqueio do <audio> falhou', e); }
-        }
-      }
+      // Modo 'webaudio': <audio> liberado como segunda opção.
+      if (mode !== 'audio') primeElements();
       if (!speechPrimed) {
         try {
           const synth = deps.speech();
@@ -365,6 +415,8 @@ export function createCoachVoice(overrides: Partial<CoachVoiceDeps> = {}): Coach
       if (preloadJob) return preloadJob;
       preloadJob = (async () => {
         context();
+        // Elementos prontos antes do primeiro toque (o toque só precisa liberá-los).
+        ensurePool();
         let rows: ApprovedClipRow[];
         try {
           rows = await deps.fetchApproved();
@@ -374,7 +426,7 @@ export function createCoachVoice(overrides: Partial<CoachVoiceDeps> = {}): Coach
           preloadJob = null;
           return;
         }
-        deps.log(`${rows.length} falas aprovadas`);
+        deps.log(`${rows.length} falas aprovadas (modo ${mode})`);
         update({ listed: true, approved: rows.length });
         const ordered = orderByPriority(rows, priorityKeys);
         // Poucos por vez para não disputar a rede com o modelo da câmera.
@@ -386,6 +438,9 @@ export function createCoachVoice(overrides: Partial<CoachVoiceDeps> = {}): Coach
             const clip = await loadClip(deps, row.file_path);
             if (clip) {
               clips.set(row.phrase_key, clip);
+              pathByKey.set(row.phrase_key, row.file_path);
+              // Modo 'audio': o Blob URL já fica pronto, o toque só troca o src.
+              if (mode === 'audio') urlFor(row.phrase_key, clip);
               if (clip.buffer) decoded++;
               update({ ready: clips.size });
             } else {
@@ -394,7 +449,7 @@ export function createCoachVoice(overrides: Partial<CoachVoiceDeps> = {}): Coach
           }
         };
         await Promise.all([worker(), worker(), worker()]);
-        deps.log(`áudios prontos ${clips.size}/${rows.length} (${decoded} decodificados, ${clips.size - decoded} pelo <audio>), AudioContext ${watchedCtx?.state ?? 'nenhum'}`);
+        deps.log(`áudios prontos ${clips.size}/${rows.length} (modo ${mode}, ${decoded} decodificados), AudioContext ${watchedCtx?.state ?? 'nenhum'}`);
       })();
       return preloadJob;
     },
