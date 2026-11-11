@@ -287,47 +287,47 @@ const MinhasDietas = () => {
   const loadDiet = async () => {
     if (!user) return;
     try {
-    // Chave de cache versionada: o cache antigo não continha conteudo_json.
-    const { data: dieta } = await fetchWithCache(
-      `plan:dieta:full:${DIET_DISPLAY_SCHEMA_VERSION}:${user.id}`,
-      async () => {
-        const { data } = await supabase
-          .from('ai_plans')
-          .select('id, titulo, conteudo, conteudo_json, protocols, version, content_revision, created_at, published_at, is_draft')
-          .eq('student_id', user.id)
-          .eq('tipo', 'dieta')
-          .eq('is_draft', false)
-          .order('published_at', { ascending: false, nullsFirst: false })
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .maybeSingle();
-        return data;
-      },
-    );
-    if (dieta) {
-      // Lógica (refeições, macros, pesagem, rebalanceamento) usa SEMPRE o
-      // original em português; a tradução fica só na camada de exibição.
-      const conteudo = typeof dieta.conteudo === 'string' ? dieta.conteudo : '';
-      setSections(parseSections(conteudo));
-      setDietMarkdown(conteudo);
-      const saved = (dieta as any).protocols as SavedProtocols | null | undefined;
-      setProtocolKeys(protocolsToKeys(saved));
-      setWeeklySchedule((saved as any)?.weekly_energy_schedule ?? null);
-      // HOTFIX ALUNO — structured publicada: o cardápio vem de conteudo_json.
-      const canonical = parseDietPlanLoose((dieta as any).conteudo_json);
-      const rawTargets = (dieta as any).conteudo_json?.targets ?? (canonical as any)?.targets ?? null;
-      setPublishedTargets(rawTargets && Number(rawTargets.kcal) > 0 ? rawTargets : null);
-      const structured = isStructuredPublishedDiet(canonical, (dieta as any).is_draft);
-      setStructuredPlan(structured ? canonical : null);
-      setStructuredProtocols(structured ? saved ?? null : null);
-      setPlanId(dieta.id);
-      // Version key combines plan id + created_at so any admin edit (which
-      // bumps created_at via re-insert OR keeps it via update) is detected.
-      // We hash the content length as a tiebreaker for in-place updates.
-      setPlanVersion(
-        `${dieta.id}-${(dieta as any).content_revision ?? 0}-${conteudo.length}-${DIET_DISPLAY_SCHEMA_VERSION}`,
+      // Chave de cache versionada: o cache antigo não continha conteudo_json.
+      const { data: dieta } = await fetchWithCache(
+        `plan:dieta:full:${DIET_DISPLAY_SCHEMA_VERSION}:${user.id}`,
+        async () => {
+          const { data } = await supabase
+            .from('ai_plans')
+            .select('id, titulo, conteudo, conteudo_json, protocols, version, content_revision, created_at, published_at, is_draft')
+            .eq('student_id', user.id)
+            .eq('tipo', 'dieta')
+            .eq('is_draft', false)
+            .order('published_at', { ascending: false, nullsFirst: false })
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          return data;
+        },
       );
-    }
+      if (dieta) {
+        // Lógica (refeições, macros, pesagem, rebalanceamento) usa SEMPRE o
+        // original em português; a tradução fica só na camada de exibição.
+        const conteudo = typeof dieta.conteudo === 'string' ? dieta.conteudo : '';
+        setSections(parseSections(conteudo));
+        setDietMarkdown(conteudo);
+        const saved = (dieta as any).protocols as SavedProtocols | null | undefined;
+        setProtocolKeys(protocolsToKeys(saved));
+        setWeeklySchedule((saved as any)?.weekly_energy_schedule ?? null);
+        // HOTFIX ALUNO — structured publicada: o cardápio vem de conteudo_json.
+        const canonical = parseDietPlanLoose((dieta as any).conteudo_json);
+        const rawTargets = (dieta as any).conteudo_json?.targets ?? (canonical as any)?.targets ?? null;
+        setPublishedTargets(rawTargets && Number(rawTargets.kcal) > 0 ? rawTargets : null);
+        const structured = isStructuredPublishedDiet(canonical, (dieta as any).is_draft);
+        setStructuredPlan(structured ? canonical : null);
+        setStructuredProtocols(structured ? saved ?? null : null);
+        setPlanId(dieta.id);
+        // Version key combines plan id + created_at so any admin edit (which
+        // bumps created_at via re-insert OR keeps it via update) is detected.
+        // We hash the content length as a tiebreaker for in-place updates.
+        setPlanVersion(
+          `${dieta.id}-${(dieta as any).content_revision ?? 0}-${conteudo.length}-${DIET_DISPLAY_SCHEMA_VERSION}`,
+        );
+      }
     } catch (error) {
       console.error('[MinhasDietas] falha ao carregar a dieta', error);
     } finally {
