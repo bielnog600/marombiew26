@@ -246,6 +246,13 @@
       "when": 1794433241376,
       "tag": "0034_coach_voice_motivation_and_names",
       "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1794439642473,
+      "tag": "0035_coach_voice_name_phrases_toggle",
+      "breakpoints": true
     }
   ]
 }

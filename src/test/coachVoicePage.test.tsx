@@ -50,12 +50,15 @@ vi.mock('@/lib/coachVoice/api', async (orig) => {
 
 import VozCorrecaoAoVivo from '@/pages/VozCorrecaoAoVivo';
 
-const render = (ui: React.ReactElement) => rtlRender(<MemoryRouter>{ui}</MemoryRouter>);
+const render = (ui: React.ReactElement, path = '/voz-correcao-ao-vivo') => rtlRender(<MemoryRouter initialEntries={[path]}>{ui}</MemoryRouter>);
+const numberKeys = VOICE_CATALOG.filter((p) => p.category === 'numeros').map((p) => p.key);
+const statuses = (text: string) => screen.queryAllByTestId(/^coach-voice-status-/).filter((el) => el.textContent === text);
 
 beforeEach(() => {
   db.phrases = [{ phrase_key: 'desce_mais', texto: 'Desce mais!', categoria: 'x', approved_take_id: null }];
   db.config = null; db.upserts = []; db.takes = [];
   calls.list = []; calls.failOn = null;
+  window.localStorage.clear();
 });
 
 describe('Voz da Correção ao vivo — tela do admin', () => {
@@ -66,18 +69,46 @@ describe('Voz da Correção ao vivo — tela do admin', () => {
     // Texto editado antes continua (não é sobrescrito pelo do código).
     expect(db.phrases.find((p) => p.phrase_key === 'desce_mais').texto).toBe('Desce mais!');
     await waitFor(() => expect(db.config).toMatchObject({ voice_id: 'fab', voice_name: 'Fabiew', model_id: 'eleven_multilingual_v2', stability: 0.4, similarity_boost: 1 }));
-    expect(screen.getAllByText('Sem áudio').length).toBe(VOICE_CATALOG.length);
+    // Falas com nome começam desligadas.
+    expect(db.config.name_phrases_enabled).toBe(false);
+    expect(screen.getByTestId('coach-voice-names-toggle')).toHaveAttribute('data-state', 'unchecked');
   });
 
-  it('"Gerar todas sem áudio" gera uma por vez e para no primeiro erro', async () => {
-    calls.failOn = VOICE_CATALOG[2].key;
+  it('aba Números: só os números, contador da aba e "Gerar sem áudio desta aba" para no primeiro erro', async () => {
+    window.localStorage.setItem('coachVoice.lastTab', 'numeros');
+    calls.failOn = numberKeys[2];
     render(<VozCorrecaoAoVivo />);
-    const btn = await screen.findByTestId('coach-voice-generate-all');
+    await waitFor(() => expect(screen.getByTestId('coach-voice-tab-counter-numeros')).toHaveTextContent(`0 de ${numberKeys.length} aprovadas`));
+    expect(statuses('Sem áudio')).toHaveLength(numberKeys.length);
+    const btn = screen.getByTestId('coach-voice-generate-tab-numeros');
     await waitFor(() => expect(btn).toBeEnabled());
     fireEvent.click(btn);
     await screen.findByText(/Parou em/);
     const gens = calls.list.filter((c) => c.action === 'generate').map((c) => c.phrase_key);
-    expect(gens).toEqual([VOICE_CATALOG[0].key, VOICE_CATALOG[1].key, VOICE_CATALOG[2].key]);
-    expect(screen.getAllByText('Para aprovar')).toHaveLength(2);
+    expect(gens).toEqual(numberKeys.slice(0, 3));
+    expect(statuses('Para aprovar')).toHaveLength(2);
+    // Filtro "Para aprovar" mostra só as duas geradas.
+    fireEvent.click(screen.getByRole('button', { name: 'Para aprovar' }));
+    expect(screen.queryAllByTestId(/^coach-voice-status-/)).toHaveLength(2);
+  });
+
+  it('lembra a última aba aberta e mostra as correções por exercício', async () => {
+    render(<VozCorrecaoAoVivo />);
+    await screen.findByTestId('coach-voice-counter');
+    fireEvent.mouseDown(screen.getByTestId('coach-voice-tab-correcoes'));
+    expect(window.localStorage.getItem('coachVoice.lastTab')).toBe('correcoes');
+    expect(await screen.findByTestId('coach-voice-group-squat')).toBeInTheDocument();
+    expect(screen.getByTestId('coach-voice-group-plank')).toBeInTheDocument();
+  });
+
+  it('aba Com nome desligada: aviso com chave para religar e sem "Gerar falas com nome"', async () => {
+    window.localStorage.setItem('coachVoice.lastTab', 'nomes');
+    render(<VozCorrecaoAoVivo />);
+    expect(await screen.findByTestId('coach-voice-names-disabled')).toHaveTextContent('Falas com nome desativadas');
+    expect(screen.queryByTestId('coach-voice-generate-names')).toBeNull();
+    fireEvent.click(screen.getByRole('switch', { name: 'Religar falas com nome do aluno' }));
+    await waitFor(() => expect(db.config).toMatchObject({ name_phrases_enabled: true }));
+    expect(await screen.findByTestId('coach-voice-generate-names')).toBeInTheDocument();
+    expect(screen.queryByTestId('coach-voice-names-disabled')).toBeNull();
   });
 });

@@ -1,43 +1,36 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { toast } from 'sonner';
-import { AlertTriangle, Loader2, RefreshCw, Sparkles, Square } from 'lucide-react';
 import AppLayout from '@/components/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Progress } from '@/components/ui/progress';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Slider } from '@/components/ui/slider';
-import { Switch } from '@/components/ui/switch';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { supabase } from '@/integrations/supabase/client';
-import {
-  VOICE_CATALOG, VOICE_CATEGORY_LABELS, VOICE_CATEGORY_ORDER,
-} from '@/lib/liveCorrection/voice/phrases';
+import { VOICE_CATALOG, VOICE_CATEGORY_LABELS, type VoicePhrase } from '@/lib/liveCorrection/voice/phrases';
 import { COACH_VOICE_BUCKET } from '@/lib/liveCorrection/voice/browserVoice';
 import {
   callCoachVoice, findOwnVoice, type CoachVoiceTake, type ElevenModelOption, type ElevenVoice,
 } from '@/lib/coachVoice/api';
 import {
+  VOICE_TABS, VOICE_TAB_LABELS, approvalCount, correctionGroups, emptyKeys, matchesFilter,
+  readLastVoiceTab, saveLastVoiceTab, systemPhrasesForTab, isVoiceTab,
+  type PhraseFilter, type VoiceTab,
+} from '@/lib/coachVoice/voiceTabs';
+import {
   customPhraseKey, isVoiceFrequency, isVoiceMoment, namePhraseKey, planNamePhrases,
   type NameStudent, type NameTemplate, type VoiceFrequency, type VoiceMoment,
 } from '@/lib/liveCorrection/voice/motivation';
-import PhraseCard, { PHRASE_COLUMNS, type PhraseRow } from '@/components/admin/coachVoice/PhraseCard';
+import PhraseCard, { PHRASE_COLUMNS, statusOf, type PhraseRow } from '@/components/admin/coachVoice/PhraseCard';
 import MotivationSection, { type CustomPhrasePatch } from '@/components/admin/coachVoice/MotivationSection';
 import NamePhrasesSection, { type TemplatePatch } from '@/components/admin/coachVoice/NamePhrasesSection';
-
-interface VoiceConfig {
-  voice_id: string | null;
-  voice_name: string | null;
-  model_id: string | null;
-  stability: number;
-  similarity_boost: number;
-  language_code: string;
-  motivation_enabled: boolean;
-}
+import VoiceConfigPanel, { type VoiceConfig } from '@/components/admin/coachVoice/VoiceConfigPanel';
+import VoiceTabToolbar from '@/components/admin/coachVoice/VoiceTabToolbar';
 
 const DEFAULT_CONFIG: VoiceConfig = {
-  voice_id: null, voice_name: null, model_id: null, stability: 0.4, similarity_boost: 1, language_code: 'pt', motivation_enabled: true,
+  voice_id: null, voice_name: null, model_id: null, stability: 0.4, similarity_boost: 1, language_code: 'pt',
+  motivation_enabled: true, name_phrases_enabled: false,
 };
 const SIGNED_URL_SECONDS = 60 * 60 * 6;
 const MOTIVATION_CATEGORY = 'Motivação';
@@ -64,8 +57,10 @@ const VozCorrecaoAoVivo = () => {
   const [providerError, setProviderError] = useState<string | null>(null);
   const [providerLoading, setProviderLoading] = useState(false);
   const [busyKey, setBusyKey] = useState<string | null>(null);
-  const [bulk, setBulk] = useState<{ scope: 'system' | 'names'; done: number; total: number } | null>(null);
-  const [bulkError, setBulkError] = useState<{ scope: 'system' | 'names'; message: string } | null>(null);
+  const [bulk, setBulk] = useState<{ scope: VoiceTab; done: number; total: number } | null>(null);
+  const [bulkError, setBulkError] = useState<{ scope: VoiceTab; message: string } | null>(null);
+  const [tab, setTab] = useState<VoiceTab>(() => (location.hash.startsWith('#nome-') ? 'nomes' : readLastVoiceTab()));
+  const [filters, setFilters] = useState<Partial<Record<VoiceTab, PhraseFilter>>>({});
   const [rowErrors, setRowErrors] = useState<Record<string, string>>({});
   const stopBulkRef = useRef(false);
   const configRef = useRef(config);
@@ -120,6 +115,7 @@ const VozCorrecaoAoVivo = () => {
           voice_id: cfg.data.voice_id, voice_name: cfg.data.voice_name, model_id: cfg.data.model_id,
           stability: Number(cfg.data.stability), similarity_boost: Number(cfg.data.similarity_boost),
           language_code: cfg.data.language_code, motivation_enabled: cfg.data.motivation_enabled !== false,
+          name_phrases_enabled: cfg.data.name_phrases_enabled === true,
         };
         configRef.current = loaded;
         setConfig(loaded);
@@ -191,9 +187,19 @@ const VozCorrecaoAoVivo = () => {
 
   // Atalho da ficha do aluno: #nome-<id> rola até as falas dele.
   useEffect(() => {
-    if (loading || !location.hash.startsWith('#nome-')) return;
-    document.getElementById(location.hash.slice(1))?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    if (!location.hash.startsWith('#nome-')) return;
+    setTab('nomes');
+    if (loading) return;
+    const id = location.hash.slice(1);
+    const t = window.setTimeout(() => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
+    return () => window.clearTimeout(t);
   }, [loading, location.hash]);
+
+  const changeTab = (value: string) => {
+    if (!isVoiceTab(value)) return;
+    setTab(value);
+    saveLastVoiceTab(value);
+  };
 
   const takesByKey = useMemo(() => {
     const m = new Map<string, CoachVoiceTake[]>();
@@ -201,11 +207,6 @@ const VozCorrecaoAoVivo = () => {
     return m;
   }, [takes]);
 
-  const approvedCount = VOICE_CATALOG.filter((p) => {
-    const r = rows.get(p.key);
-    return r?.approved_take_id && (takesByKey.get(p.key) ?? []).some((t) => t.id === r.approved_take_id);
-  }).length;
-  const emptyPhrases = VOICE_CATALOG.filter((p) => !(takesByKey.get(p.key)?.length));
   const customRows = useMemo(() => [...rows.values()].filter((r) => r.tipo === 'personalizada'), [rows]);
   /** Falas com nome que contam agora: modelo ativo × aluno premium, com linha criada. */
   const nameKeys = useMemo(() => {
@@ -217,7 +218,28 @@ const VozCorrecaoAoVivo = () => {
     }
     return keys;
   }, [students, templates, rows]);
-  const emptyNameKeys = nameKeys.filter((k) => !(takesByKey.get(k)?.length));
+  const statusForKey = useCallback((key: string) => statusOf(rows.get(key), takesByKey.get(key) ?? []), [rows, takesByKey]);
+  const groups = useMemo(() => correctionGroups(VOICE_CATALOG), []);
+  /** Chaves de cada aba (contador) e as que o "Gerar sem áudio desta aba" pode gerar. */
+  const tabKeys = useMemo(() => {
+    const sys = (t: VoiceTab) => systemPhrasesForTab(VOICE_CATALOG, t).map((p) => p.key);
+    return {
+      numeros: sys('numeros'), comandos: sys('comandos'), correcoes: sys('correcoes'),
+      motivacao: customRows.map((r) => r.phrase_key), nomes: nameKeys,
+    } as Record<Exclude<VoiceTab, 'config'>, string[]>;
+  }, [customRows, nameKeys]);
+  const generatableKeys = (t: Exclude<VoiceTab, 'config'>) => {
+    const keys = t === 'motivacao' ? customRows.filter((r) => r.ativo).map((r) => r.phrase_key) : tabKeys[t];
+    return emptyKeys(keys, statusForKey);
+  };
+  /** Contador geral: o que pode tocar hoje (sistema + motivação ativa + com nome se ligadas). */
+  const overall = approvalCount([
+    ...VOICE_CATALOG.map((p) => p.key),
+    ...customRows.filter((r) => r.ativo).map((r) => r.phrase_key),
+    ...(config.name_phrases_enabled ? nameKeys : []),
+  ], statusForKey);
+  const filterOf = (t: VoiceTab): PhraseFilter => filters[t] ?? 'todas';
+  const visible = (t: VoiceTab, key: string) => matchesFilter(statusForKey(key), filterOf(t));
 
   const generate = useCallback(async (key: string): Promise<boolean> => {
     setBusyKey(key);
@@ -236,7 +258,7 @@ const VozCorrecaoAoVivo = () => {
     }
   }, [signTakes]);
 
-  const runBulk = async (scope: 'system' | 'names', list: string[]) => {
+  const runBulk = async (scope: VoiceTab, list: string[]) => {
     if (!list.length) return;
     stopBulkRef.current = false;
     setBulkError(null);
@@ -351,178 +373,193 @@ const VozCorrecaoAoVivo = () => {
   const running = bulk != null;
   const cardDisabled = !ready || busyKey != null || running;
 
+  const systemCard = (p: VoicePhrase) => (
+    <PhraseCard
+      key={p.key}
+      phraseKey={p.key}
+      defaultText={p.voiceText}
+      cameraText={p.text}
+      row={rows.get(p.key)}
+      takes={takesByKey.get(p.key) ?? []}
+      urls={urls}
+      busy={busyKey === p.key}
+      disabled={cardDisabled}
+      error={rowErrors[p.key] ?? null}
+      onGenerate={() => generate(p.key).catch(() => undefined)}
+      onApprove={approve}
+      onSaveText={(t) => saveText(p.key, t)}
+    />
+  );
+
+  const toolbar = (t: Exclude<VoiceTab, 'config'>, extra: { label?: string; testId?: string; hide?: boolean } = {}) => {
+    const { approved, total } = approvalCount(tabKeys[t], statusForKey);
+    const pending = generatableKeys(t);
+    return (
+      <VoiceTabToolbar
+        tab={t}
+        approved={approved}
+        total={total}
+        filter={filterOf(t)}
+        onFilter={(f) => setFilters((m) => ({ ...m, [t]: f }))}
+        pending={pending.length}
+        generateLabel={extra.label}
+        generateTestId={extra.testId}
+        hideGenerate={extra.hide}
+        disabled={!ready || busyKey != null || loading || running}
+        bulk={bulk?.scope === t ? bulk : null}
+        bulkError={bulkError?.scope === t ? bulkError.message : null}
+        onGenerate={() => runBulk(t, pending)}
+        onStop={() => { stopBulkRef.current = true; }}
+      />
+    );
+  };
+
+  const body = (content: () => React.ReactNode) => (loading ? (
+    <div className="space-y-2">{[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-16 rounded-2xl" />)}</div>
+  ) : loadError ? (
+    <Card className="glass-card"><CardContent className="p-4 flex items-center justify-between gap-3">
+      <p className="text-sm text-destructive">{loadError}</p>
+      <Button size="sm" variant="outline" onClick={load}>Tentar de novo</Button>
+    </CardContent></Card>
+  ) : content());
+
+  const empty = <p className="text-xs text-muted-foreground px-1">Nenhuma fala neste filtro.</p>;
+  const systemList = (t: 'numeros' | 'comandos') => {
+    const list = systemPhrasesForTab(VOICE_CATALOG, t).filter((p) => visible(t, p.key));
+    if (!list.length) return empty;
+    if (t === 'numeros') return <div className="space-y-2">{list.map(systemCard)}</div>;
+    // Comandos: início/fim e posição em blocos.
+    const cats = [...new Set(list.map((p) => p.category))];
+    return (
+      <div className="space-y-4">
+        {cats.map((c) => (
+          <section key={c} className="space-y-2">
+            <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{VOICE_CATEGORY_LABELS[c]}</h2>
+            {list.filter((p) => p.category === c).map(systemCard)}
+          </section>
+        ))}
+      </div>
+    );
+  };
+
+  const corrections = () => {
+    const shown = groups
+      .map((g) => ({ g, list: g.phrases.filter((p) => visible('correcoes', p.key)) }))
+      .filter((x) => x.list.length);
+    if (!shown.length) return empty;
+    return (
+      <Accordion type="multiple" className="space-y-2">
+        {shown.map(({ g, list }) => {
+          const c = approvalCount(g.phrases.map((p) => p.key), statusForKey);
+          return (
+            <AccordionItem key={g.id} value={g.id} className="glass-card rounded-2xl border border-border/60 px-3" data-testid={`coach-voice-group-${g.id}`}>
+              <AccordionTrigger className="py-3 hover:no-underline">
+                <span className="flex flex-1 items-center justify-between gap-2 pr-2 text-left">
+                  <span className="text-sm font-semibold">{g.label}</span>
+                  <span className="text-xs text-muted-foreground tabular-nums"><span className="font-bold text-primary">{c.approved}</span> de {c.total}</span>
+                </span>
+              </AccordionTrigger>
+              <AccordionContent className="space-y-2 pb-3">{list.map(systemCard)}</AccordionContent>
+            </AccordionItem>
+          );
+        })}
+      </Accordion>
+    );
+  };
+
   return (
     <AppLayout title="Voz da Correção ao vivo">
-      <div className="max-w-3xl mx-auto space-y-4 pb-10" data-testid="coach-voice-page">
-        <Card className="glass-card">
-          <CardContent className="p-4 flex items-center justify-between gap-3">
-            <div>
-              <p className="text-sm font-semibold">Falas de motivação</p>
-              <p className="text-xs text-muted-foreground">Liga ou desliga para todos os alunos. Cada aluno também tem a própria chave na ficha.</p>
-            </div>
-            <Switch
-              checked={config.motivation_enabled}
-              onCheckedChange={(v) => void saveConfig({ motivation_enabled: v })}
-              aria-label="Falas de motivação"
-              data-testid="coach-voice-motivation-toggle"
+      <div className="max-w-3xl mx-auto pb-10" data-testid="coach-voice-page">
+        <Tabs value={tab} onValueChange={changeTab} className="space-y-3">
+          <TabsList className="h-auto w-full justify-start gap-1 overflow-x-auto rounded-2xl border border-border/60 bg-card p-1">
+            {VOICE_TABS.map((t) => (
+              <TabsTrigger
+                key={t}
+                value={t}
+                className="shrink-0 rounded-xl px-3 py-2 text-xs font-semibold text-muted-foreground data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-none"
+                data-testid={`coach-voice-tab-${t}`}
+              >
+                {VOICE_TAB_LABELS[t]}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+
+          <TabsContent value="config" className="mt-0">
+            <VoiceConfigPanel
+              config={config}
+              voices={voices}
+              models={models}
+              providerLoading={providerLoading}
+              providerError={providerError}
+              approved={overall.approved}
+              total={overall.total}
+              onReloadProvider={loadProvider}
+              onSave={(patch) => void saveConfig(patch)}
+              onPreview={(patch) => setConfig((c) => ({ ...c, ...patch }))}
             />
-          </CardContent>
-        </Card>
+          </TabsContent>
 
-        <Card className="glass-card">
-          <CardContent className="p-4 space-y-4">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="text-sm font-semibold">Sua voz no ElevenLabs</p>
-                <p className="text-xs text-muted-foreground">Uma fala por arquivo. Só as aprovadas tocam na câmera; as outras usam a voz do celular.</p>
-              </div>
-              <Button size="sm" variant="outline" onClick={loadProvider} disabled={providerLoading}>
-                {providerLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
-              </Button>
-            </div>
+          <TabsContent value="numeros" className="mt-0 space-y-3">
+            {toolbar('numeros')}
+            {body(() => systemList('numeros'))}
+          </TabsContent>
 
-            {providerError && (
-              <div className="flex items-start gap-2 rounded-xl border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive" role="alert">
-                <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" /> <span>{providerError}</span>
-              </div>
-            )}
+          <TabsContent value="comandos" className="mt-0 space-y-3">
+            {toolbar('comandos')}
+            {body(() => systemList('comandos'))}
+          </TabsContent>
 
-            <div className="grid gap-3 sm:grid-cols-2">
-              <label className="space-y-1.5">
-                <span className="text-xs font-medium text-muted-foreground">Voz</span>
-                <Select
-                  value={config.voice_id ?? undefined}
-                  onValueChange={(id) => void saveConfig({ voice_id: id, voice_name: voices.find((v) => v.voice_id === id)?.name ?? null })}
-                >
-                  <SelectTrigger aria-label="Voz"><SelectValue placeholder={providerLoading ? 'Carregando…' : 'Escolha a voz'}>{config.voice_name ?? undefined}</SelectValue></SelectTrigger>
-                  <SelectContent>
-                    {voices.map((v) => <SelectItem key={v.voice_id} value={v.voice_id}>{v.name}{v.category ? ` · ${v.category}` : ''}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </label>
-              <label className="space-y-1.5">
-                <span className="text-xs font-medium text-muted-foreground">Modelo</span>
-                <Select value={config.model_id ?? undefined} onValueChange={(id) => void saveConfig({ model_id: id })}>
-                  <SelectTrigger aria-label="Modelo"><SelectValue placeholder={providerLoading ? 'Carregando…' : 'Escolha o modelo'}>{models.find((m) => m.model_id === config.model_id)?.name ?? config.model_id ?? undefined}</SelectValue></SelectTrigger>
-                  <SelectContent>
-                    {models.map((m) => <SelectItem key={m.model_id} value={m.model_id}>{m.name}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </label>
-            </div>
+          <TabsContent value="correcoes" className="mt-0 space-y-3">
+            {toolbar('correcoes')}
+            {body(corrections)}
+          </TabsContent>
 
-            <div className="grid gap-4 sm:grid-cols-2">
-              {([['stability', 'Estabilidade'], ['similarity_boost', 'Similaridade']] as const).map(([field, label]) => (
-                <div key={field} className="space-y-2">
-                  <div className="flex justify-between text-xs"><span className="font-medium text-muted-foreground">{label}</span><span className="font-semibold tabular-nums">{config[field].toFixed(2)}</span></div>
-                  <Slider
-                    aria-label={label}
-                    min={0} max={1} step={0.05}
-                    value={[config[field]]}
-                    onValueChange={([v]) => setConfig((c) => ({ ...c, [field]: v }))}
-                    onValueCommit={([v]) => void saveConfig({ [field]: v } as Partial<VoiceConfig>)}
-                  />
-                </div>
-              ))}
-            </div>
+          <TabsContent value="motivacao" className="mt-0 space-y-3">
+            {toolbar('motivacao')}
+            {body(() => (
+              <MotivationSection
+                rows={customRows.filter((r) => visible('motivacao', r.phrase_key))}
+                hasAny={customRows.length > 0}
+                takesByKey={takesByKey}
+                urls={urls}
+                busyKey={busyKey}
+                disabled={cardDisabled}
+                rowErrors={rowErrors}
+                onGenerate={(k) => generate(k).catch(() => undefined)}
+                onApprove={approve}
+                onSaveText={saveText}
+                onAdd={addCustom}
+                onUpdate={updateCustom}
+                onDelete={deleteCustom}
+              />
+            ))}
+          </TabsContent>
 
-            <div className="flex flex-wrap items-center gap-3 pt-1">
-              {bulk?.scope === 'system' ? (
-                <Button variant="outline" onClick={() => { stopBulkRef.current = true; }}>
-                  <Square className="h-4 w-4 mr-1.5" /> Parar
-                </Button>
-              ) : (
-                <Button onClick={() => runBulk('system', emptyPhrases.map((p) => p.key))} disabled={!ready || !emptyPhrases.length || busyKey != null || loading || running} data-testid="coach-voice-generate-all">
-                  <Sparkles className="h-4 w-4 mr-1.5" /> Gerar todas sem áudio ({emptyPhrases.length})
-                </Button>
-              )}
-              <span className="text-sm" data-testid="coach-voice-counter">
-                <span className="font-bold text-primary">{approvedCount}</span> de {VOICE_CATALOG.length} aprovadas
-              </span>
-            </div>
-            {bulk?.scope === 'system' && (
-              <div className="space-y-1">
-                <Progress value={(bulk.done / bulk.total) * 100} />
-                <p className="text-xs text-muted-foreground">Gerando {Math.min(bulk.done + 1, bulk.total)} de {bulk.total}…</p>
-              </div>
-            )}
-            {bulkError?.scope === 'system' && <p className="text-sm text-destructive" role="alert">{bulkError.message}</p>}
-            {!ready && !providerLoading && !providerError && <p className="text-xs text-muted-foreground">Escolha a voz para poder gerar.</p>}
-          </CardContent>
-        </Card>
-
-        {loading ? (
-          <div className="space-y-2">{[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-20 rounded-2xl" />)}</div>
-        ) : loadError ? (
-          <Card className="glass-card"><CardContent className="p-4 flex items-center justify-between gap-3">
-            <p className="text-sm text-destructive">{loadError}</p>
-            <Button size="sm" variant="outline" onClick={load}>Tentar de novo</Button>
-          </CardContent></Card>
-        ) : (
-          <>
-            {VOICE_CATEGORY_ORDER.map((cat) => {
-              const list = VOICE_CATALOG.filter((p) => p.category === cat);
-              if (!list.length) return null;
-              return (
-                <section key={cat} className="space-y-2">
-                  <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">{VOICE_CATEGORY_LABELS[cat]}</h2>
-                  {list.map((p) => (
-                    <PhraseCard
-                      key={p.key}
-                      phraseKey={p.key}
-                      defaultText={p.voiceText}
-                      cameraText={p.text}
-                      row={rows.get(p.key)}
-                      takes={takesByKey.get(p.key) ?? []}
-                      urls={urls}
-                      busy={busyKey === p.key}
-                      disabled={cardDisabled}
-                      error={rowErrors[p.key] ?? null}
-                      onGenerate={() => generate(p.key).catch(() => undefined)}
-                      onApprove={approve}
-                      onSaveText={(t) => saveText(p.key, t)}
-                    />
-                  ))}
-                </section>
-              );
-            })}
-            <MotivationSection
-              rows={customRows}
-              takesByKey={takesByKey}
-              urls={urls}
-              busyKey={busyKey}
-              disabled={cardDisabled}
-              rowErrors={rowErrors}
-              onGenerate={(k) => generate(k).catch(() => undefined)}
-              onApprove={approve}
-              onSaveText={saveText}
-              onAdd={addCustom}
-              onUpdate={updateCustom}
-              onDelete={deleteCustom}
-            />
-            <NamePhrasesSection
-              templates={templates}
-              students={students}
-              rowsByKey={rows}
-              takesByKey={takesByKey}
-              urls={urls}
-              busyKey={busyKey}
-              disabled={cardDisabled}
-              rowErrors={rowErrors}
-              pendingCount={emptyNameKeys.length}
-              bulk={bulk?.scope === 'names' ? bulk : null}
-              bulkError={bulkError?.scope === 'names' ? bulkError.message : null}
-              onGenerate={(k) => generate(k).catch(() => undefined)}
-              onApprove={approve}
-              onGenerateAll={() => runBulk('names', emptyNameKeys)}
-              onStopAll={() => { stopBulkRef.current = true; }}
-              onTemplateAdd={addTemplate}
-              onTemplateUpdate={updateTemplate}
-              onTemplateDelete={deleteTemplate}
-              onVoiceNameSave={saveVoiceName}
-            />
-          </>
-        )}
+          <TabsContent value="nomes" className="mt-0 space-y-3">
+            {toolbar('nomes', { label: 'Gerar falas com nome', testId: 'coach-voice-generate-names', hide: !config.name_phrases_enabled })}
+            {body(() => (
+              <NamePhrasesSection
+                templates={templates}
+                students={students}
+                rowsByKey={rows}
+                takesByKey={takesByKey}
+                urls={urls}
+                busyKey={busyKey}
+                disabled={cardDisabled}
+                rowErrors={rowErrors}
+                enabled={config.name_phrases_enabled}
+                onToggleEnabled={(v) => void saveConfig({ name_phrases_enabled: v })}
+                visible={(k) => visible('nomes', k)}
+                onGenerate={(k) => generate(k).catch(() => undefined)}
+                onApprove={approve}
+                onTemplateAdd={addTemplate}
+                onTemplateUpdate={updateTemplate}
+                onTemplateDelete={deleteTemplate}
+                onVoiceNameSave={saveVoiceName}
+              />
+            ))}
+          </TabsContent>
+        </Tabs>
       </div>
     </AppLayout>
   );

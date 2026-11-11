@@ -46,11 +46,15 @@ export interface MotivationClip {
   personal: boolean;
 }
 
-/** Linha do servidor → fala de motivação (null = fala do sistema ou dados inválidos). */
+/**
+ * Linha do servidor → fala de motivação (null = fala do sistema, dados inválidos ou fala com
+ * nome com a chave "Falas com nome do aluno" desligada — o padrão).
+ */
 export function motivationClipFromRow(row: {
   phrase_key: string; tipo?: string | null; momento?: string | null; frequencia?: string | null; texto?: string | null;
-}): MotivationClip | null {
+}, opts: { namesEnabled?: boolean } = {}): MotivationClip | null {
   if (row.tipo !== 'personalizada' && row.tipo !== 'nome') return null;
+  if (row.tipo === 'nome' && opts.namesEnabled !== true) return null;
   if (!isVoiceMoment(row.momento)) return null;
   return {
     key: row.phrase_key,
