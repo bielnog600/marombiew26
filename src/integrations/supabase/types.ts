@@ -1044,6 +1044,7 @@ export type Database = {
           language_code: string
           model_id: string | null
           motivation_enabled: boolean
+          name_phrases_enabled: boolean
           similarity_boost: number
           stability: number
           updated_at: string
@@ -1055,6 +1056,7 @@ export type Database = {
           language_code?: string
           model_id?: string | null
           motivation_enabled?: boolean
+          name_phrases_enabled?: boolean
           similarity_boost?: number
           stability?: number
           updated_at?: string
@@ -1066,6 +1068,7 @@ export type Database = {
           language_code?: string
           model_id?: string | null
           motivation_enabled?: boolean
+          name_phrases_enabled?: boolean
           similarity_boost?: number
           stability?: number
           updated_at?: string
@@ -4439,6 +4442,7 @@ export type Database = {
         Args: { _student_id?: string }
         Returns: boolean
       }
+      coach_voice_name_phrases_enabled: { Args: never; Returns: boolean }
       evaluate_metadata_completeness: {
         Args: { _exercise_id: string }
         Returns: Json
