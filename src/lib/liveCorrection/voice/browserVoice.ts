@@ -53,6 +53,8 @@ export interface CoachVoiceDeps {
   fetchApproved(): Promise<ApprovedClipRow[]>;
   /** Falas de motivação ligadas (chave geral do admin + a do aluno). */
   fetchMotivationEnabled(): Promise<boolean>;
+  /** Chave geral "Falas com nome do aluno" (desligada = nunca toca fala do tipo 'nome'). */
+  fetchNamePhrasesEnabled(): Promise<boolean>;
   download(path: string): Promise<Blob>;
   createAudioElement(): HTMLAudioElement | null;
   createObjectURL(blob: Blob): string;
@@ -88,6 +90,11 @@ export const defaultCoachVoiceDeps = (studentId?: string | null): CoachVoiceDeps
   },
   fetchMotivationEnabled: async () => {
     const { data, error } = await supabase.rpc('coach_voice_motivation_enabled', studentId ? { _student_id: studentId } : {});
+    if (error) throw error;
+    return data === true;
+  },
+  fetchNamePhrasesEnabled: async () => {
+    const { data, error } = await supabase.rpc('coach_voice_name_phrases_enabled');
     if (error) throw error;
     return data === true;
   },
@@ -454,6 +461,11 @@ export function createCoachVoice(overrides: Partial<CoachVoiceDeps> & { studentI
           (v) => { motivationEnabled = v; },
           (e) => { motivationEnabled = false; deps.log('chave das falas de motivação falhou', e); },
         );
+        // Falha ao ler a chave = falas com nome desligadas.
+        const namesJob = deps.fetchNamePhrasesEnabled().then(
+          (v) => v === true,
+          (e) => { deps.log('chave das falas com nome falhou', e); return false; },
+        );
         try {
           rows = await deps.fetchApproved();
         } catch (e) {
@@ -464,8 +476,9 @@ export function createCoachVoice(overrides: Partial<CoachVoiceDeps> & { studentI
         }
         // Selo e contagem só das falas do sistema; motivação vem depois no download.
         const systemRows = rows.filter((r) => !r.tipo || r.tipo === 'sistema');
+        const namesEnabled = await namesJob;
         for (const r of rows) {
-          const m = motivationClipFromRow(r);
+          const m = motivationClipFromRow(r, { namesEnabled });
           if (m) motivationRows.set(m.key, m);
         }
         deps.log(`${systemRows.length} falas aprovadas + ${motivationRows.size} de motivação (modo ${mode})`);
