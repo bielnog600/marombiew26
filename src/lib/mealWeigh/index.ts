@@ -42,11 +42,17 @@ export interface WeighedItem {
   /** O que a IA leu/identificou, para o treinador conferir. */
   alimento_ia?: string | null;
   gramas_lidas?: number | null;
+  /** Índice do alimento no plano da refeição, quando casado com ele. */
+  indice_plano?: number | null;
 }
 
 /** Abaixo disso a leitura do visor ou o alimento são tratados como incertos. */
 export const LOW_CONFIDENCE = 0.5;
 export const UNREADABLE_MESSAGE = 'Não consegui ler a balança, tira outra foto mais de frente para o visor';
+/** Modo "Pesar alimentos da dieta" (só lê o peso). */
+export const SCALE_ONLY_UNREADABLE_MESSAGE = 'Não consegui ler a balança, tira outra foto de frente pro visor';
+export const scaleOnlyHint = (foodName: string) => `Coloca o ${foodName || 'alimento'} na balança e enquadra o visor`;
+export const NEXT_PLAN_FOOD_HINT = 'Lembra de zerar a balança (tara) ou trocar o prato';
 export const NOT_TARED_MESSAGE = 'Parece que a balança não foi zerada';
 export const FIRST_ITEM_HINT = 'Enquadra o prato e o visor da balança';
 export const NEXT_ITEM_HINT = 'Zera a balança (tara) e coloca o próximo alimento';
@@ -70,13 +76,13 @@ export function macrosForGrams(food: WeighFood, grams: number): EngineMacros {
 export function buildWeighedItem(
   food: WeighFood,
   grams: number,
-  opts: { edited?: boolean; fotoUrl?: string | null; aiName?: string | null; readGrams?: number | null } = {},
+  opts: { edited?: boolean; fotoUrl?: string | null; aiName?: string | null; readGrams?: number | null; planIndex?: number | null } = {},
 ): WeighedItem {
   const g = round1(Math.max(0, Number(grams) || 0));
   const m = macrosForGrams(food, g);
   return {
     alimento: food.name,
-    food_id: food.id,
+    food_id: isPlanOnlyFoodId(food.id) ? null : food.id,
     gramas: g,
     kcal: Math.round(m.kcal),
     p: round1(m.p),
@@ -86,6 +92,7 @@ export function buildWeighedItem(
     editado_pelo_aluno: !!opts.edited,
     alimento_ia: opts.aiName ?? null,
     gramas_lidas: opts.readGrams ?? null,
+    indice_plano: opts.planIndex ?? null,
   };
 }
 
@@ -161,10 +168,20 @@ export interface WeighFoodResolution {
   unmatchedNames: string[];
   /** true = mostrar as alternativas (não achou ou IA insegura). */
   needsChoice: boolean;
+  /** Índice do alimento do plano casado automaticamente (escanear prato). */
+  planIndex: number | null;
 }
 
-export function resolveWeighFood(ai: Pick<WeighAiResult, 'alimento' | 'alimento_alternativas' | 'confianca_alimento'>, foods: WeighFood[], planNames: string[] = []): WeighFoodResolution {
-  const food = matchWeighFood(ai.alimento, foods, planNames);
+export function resolveWeighFood(
+  ai: Pick<WeighAiResult, 'alimento' | 'alimento_alternativas' | 'confianca_alimento'>,
+  foods: WeighFood[],
+  planNames: string[] = [],
+  plannedFoods: PlannedFood[] = [],
+): WeighFoodResolution {
+  // Escanear prato: alimento identificado que está no plano casa direto com ele.
+  const planIndex = matchPlanFood(ai.alimento, plannedFoods);
+  const planFood = planIndex != null ? planFoodToWeighFood(plannedFoods[planIndex], foods) : null;
+  const food = planFood ?? matchWeighFood(ai.alimento, foods, planNames);
   const alternatives: WeighFood[] = [];
   const unmatchedNames: string[] = [];
   for (const name of (ai.alimento_alternativas ?? []).slice(0, 3)) {
@@ -178,6 +195,7 @@ export function resolveWeighFood(ai: Pick<WeighAiResult, 'alimento' | 'alimento_
     alternatives: alternatives.slice(0, 3),
     unmatchedNames,
     needsChoice: !food || (Number(ai.confianca_alimento) || 0) < LOW_CONFIDENCE,
+    planIndex: planFood ? planIndex : null,
   };
 }
 
@@ -287,17 +305,24 @@ export function compareWeighedMeal(planned: PlannedMeal, items: WeighedItem[]): 
   const consumido = sumWeighedItems(items);
   const previsto: EngineMacros = { kcal: planned.kcal, p: planned.p, c: planned.c, g: planned.g };
   const pairs: { item: number; plan: number; score: number }[] = [];
-  items.forEach((it, ii) => planned.alimentos.forEach((pf, pi) => {
-    const score = foodNameSimilarity(it.alimento, pf.alimento);
-    if (score >= NAME_MATCH_MIN) pairs.push({ item: ii, plan: pi, score });
-  }));
+  items.forEach((it, ii) => {
+    const idx = it.indice_plano;
+    if (idx != null && idx >= 0 && idx < planned.alimentos.length) {
+      pairs.push({ item: ii, plan: idx, score: 2 });
+      return;
+    }
+    planned.alimentos.forEach((pf, pi) => {
+      const score = foodNameSimilarity(it.alimento, pf.alimento);
+      if (score >= NAME_MATCH_MIN) pairs.push({ item: ii, plan: pi, score });
+    });
+  });
   pairs.sort((a, b) => b.score - a.score);
   const itemToPlan = new Map<number, number>();
   for (const p of pairs) {
     if (itemToPlan.has(p.item)) continue;
     // Um alimento do plano pode receber vários itens do MESMO alimento.
     const taken = Array.from(itemToPlan.entries()).find(([, plan]) => plan === p.plan);
-    if (taken && normalizeFoodName(items[taken[0]].alimento) !== normalizeFoodName(items[p.item].alimento)) continue;
+    if (taken && p.score < 2 && normalizeFoodName(items[taken[0]].alimento) !== normalizeFoodName(items[p.item].alimento)) continue;
     itemToPlan.set(p.item, p.plan);
   }
   const grams = new Map<number, number>();
@@ -352,4 +377,77 @@ export function fitWithin(width: number, height: number, max = WEIGH_IMAGE_MAX_S
   const h = Math.max(1, Number(height) || 1);
   const s = Math.min(1, max / Math.max(w, h));
   return { width: Math.round(w * s), height: Math.round(h * s) };
+}
+
+/* ---------------- Pesar alimentos da dieta (só lê o peso) --------------- */
+
+const PLAN_ONLY_PREFIX = 'plano:';
+export const isPlanOnlyFoodId = (id: string | null | undefined) => String(id ?? '').startsWith(PLAN_ONLY_PREFIX);
+
+/** Alimento do plano mais parecido com o nome; null quando nenhum passa do mínimo. */
+export function matchPlanFood(name: string, plannedFoods: PlannedFood[]): number | null {
+  let best: { idx: number; score: number } | null = null;
+  (plannedFoods ?? []).forEach((pf, idx) => {
+    const score = foodNameSimilarity(name, pf.alimento);
+    if (score >= NAME_MATCH_MIN && (!best || score > best.score)) best = { idx, score };
+  });
+  return best ? (best as { idx: number }).idx : null;
+}
+
+/**
+ * Alimento do plano como registro "por 100 g". Com gramas previstas, os macros
+ * vêm do próprio plano (pesar o previsto dá exatamente o previsto); sem gramas,
+ * usa o alimento da base com o mesmo nome. O nome é sempre o do plano.
+ */
+export function planFoodToWeighFood(pf: PlannedFood | null | undefined, foods: WeighFood[]): WeighFood | null {
+  if (!pf) return null;
+  const base = matchWeighFood(pf.alimento, foods);
+  const grams = Number(pf.gramas) || 0;
+  const hasMacros = pf.kcal > 0 || pf.p > 0 || pf.c > 0 || pf.g > 0;
+  if (grams > 0 && hasMacros) {
+    const per100 = 100 / grams;
+    return {
+      id: base?.id ?? `${PLAN_ONLY_PREFIX}${normalizeFoodName(pf.alimento)}`,
+      name: pf.alimento,
+      calories: pf.kcal * per100,
+      protein: pf.p * per100,
+      carbs: pf.c * per100,
+      fats: pf.g * per100,
+      portion_size: 100,
+    };
+  }
+  return base ? { ...base, name: pf.alimento } : null;
+}
+
+/** Item pesado de um alimento do plano: macros recalculados para o peso lido. */
+export function buildPlanWeighedItem(
+  pf: PlannedFood,
+  planIndex: number,
+  grams: number,
+  foods: WeighFood[],
+  opts: { readGrams?: number | null; override?: WeighFood | null } = {},
+): WeighedItem | null {
+  const food = opts.override ?? planFoodToWeighFood(pf, foods);
+  if (!food) return null;
+  const readG = opts.readGrams ?? null;
+  const edited = !!opts.override || readG == null || Math.abs((Number(grams) || 0) - readG) > 0.05;
+  return buildWeighedItem(food, grams, { edited, readGrams: readG, planIndex });
+}
+
+/** "Arroz branco — pesou 182 g (previsto 150 g, +32 g)" */
+export function formatPlanWeighLine(name: string, grams: number, planned: Pick<PlannedFood, 'gramas' | 'qty'>): string {
+  const g = Math.round(Number(grams) || 0);
+  if (planned.gramas == null) return `${name} — pesou ${g} g (previsto ${planned.qty || '—'})`;
+  const prev = Math.round(planned.gramas);
+  const diff = g - prev;
+  return `${name} — pesou ${g} g (previsto ${prev} g, ${diff > 0 ? '+' : diff < 0 ? '−' : '±'}${Math.abs(diff)} g)`;
+}
+
+/** Progresso "2 de 5" no modo alimentos da dieta. */
+export const planProgressLabel = (index: number, total: number) => `${Math.min(index + 1, total)} de ${total}`;
+
+/** Próximo alimento do plano ainda não pesado depois de `from` (na ordem da refeição); null = acabou. */
+export function nextPlanFoodIndex(from: number, total: number, weighed: number[]): number | null {
+  for (let i = from + 1; i < total; i++) if (!weighed.includes(i)) return i;
+  return null;
 }
