@@ -8,7 +8,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { cn } from '@/lib/utils';
 import {
   FULL_BODY_HOLD_MS, SKELETON_COLOR, SIDE_POINTS,
-  POSITION_MESSAGES, TURN_SIDEWAYS_MESSAGE, AUTO_FINISH_MESSAGE,
+  POSITION_MESSAGES, AUTO_FINISH_MESSAGE,
   DEPTH_LEVELS, DEPTH_LEVEL_ORDER, DEFAULT_DEPTH_LEVEL, normalizeDepthLevel, type DepthLevel,
   LandmarkSmoother, StillnessDetector, FacingGate, AutoFinishDetector,
   canSpeak, isFullBodyVisible, isFacingCamera, isStillMovement,
@@ -17,7 +17,8 @@ import {
 } from '@/lib/liveCorrection/squatAnalysis';
 import {
   EXERCISE_RULE_ORDER, DEFAULT_EXERCISE_RULE, LEG_LABELS, getExerciseRule, matchExerciseRule,
-  summarizeLiveReps, summarizeByLeg, autoFinishRepCount,
+  summarizeLiveReps, summarizeByLeg, autoFinishRepCount, ARM_POINTS,
+  FACE_CAMERA_MESSAGE, isWrongView, wrongViewMessage, speakableErrors, markSpokenOnce,
   type ExerciseRule, type ExerciseRuleId, type LiveRep, type LiveRepCounter, type LiveSessionSummary, type SilhouetteKind,
 } from '@/lib/liveCorrection/exercises';
 
@@ -52,8 +53,8 @@ interface Props {
 
 /** Mensagem do aviso de posicionamento, conforme a vista exigida pela regra. */
 const positionMessage = (rule: ExerciseRule, issue: Exclude<PositionIssue, 'ok'>) =>
-  issue === 'frontal' && rule.view === 'front' ? 'Fica de frente' : POSITION_MESSAGES[issue];
-const turnMessage = (rule: ExerciseRule) => (rule.view === 'front' ? 'Vira de frente' : TURN_SIDEWAYS_MESSAGE);
+  issue === 'frontal' && rule.view === 'front' ? FACE_CAMERA_MESSAGE : POSITION_MESSAGES[issue];
+const turnMessage = (rule: ExerciseRule) => wrongViewMessage(rule.view);
 const formatSeconds = (v: number | null) =>
   v == null ? '—' : `${v.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} s`;
 
@@ -156,9 +157,51 @@ const SplitSilhouette: React.FC<{ active: boolean; bench: boolean }> = ({ active
   </svg>
 );
 
+/** De frente, da cintura pra cima, braços ao lado do corpo (elevação lateral). */
+const FrontUpperSilhouette: React.FC<{ active: boolean }> = ({ active }) => (
+  <svg
+    viewBox="0 0 200 220"
+    className={cn('w-[78%] max-w-[420px] text-primary transition-opacity duration-300', active ? 'opacity-70' : 'opacity-40')}
+    fill="none"
+    aria-hidden="true"
+    data-testid="live-guide-silhouette"
+    data-silhouette="front_upper"
+  >
+    <g stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" strokeDasharray="6 5">
+      <circle cx="100" cy="34" r="22" fill="currentColor" fillOpacity="0.15" />
+      <path d="M60 72 L140 72 L132 196 L68 196 Z" fill="currentColor" fillOpacity="0.12" />
+      <path d="M60 74 L50 136 L46 196" strokeWidth="5" />
+      <path d="M140 74 L150 136 L154 196" strokeWidth="5" />
+    </g>
+  </svg>
+);
+
+/** Deitado de lado com as costas no banco (elevação pélvica). */
+const HipThrustSilhouette: React.FC<{ active: boolean }> = ({ active }) => (
+  <svg
+    viewBox="0 0 260 160"
+    className={cn('w-[86%] max-w-[520px] text-primary transition-opacity duration-300', active ? 'opacity-70' : 'opacity-40')}
+    fill="none"
+    aria-hidden="true"
+    data-testid="live-guide-silhouette"
+    data-silhouette="hip_thrust"
+  >
+    <g stroke="currentColor" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" strokeDasharray="6 5">
+      <circle cx="30" cy="62" r="13" strokeWidth="2.5" fill="currentColor" fillOpacity="0.15" />
+      <path d="M44 72 L130 84 L184 70 L190 146 L208 146" />
+    </g>
+    <g stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeDasharray="6 5" fill="currentColor" fillOpacity="0.12">
+      <rect x="20" y="82" width="60" height="10" rx="2" />
+      <path d="M28 92 L28 150 M72 92 L72 150" fill="none" />
+    </g>
+  </svg>
+);
+
 /** Contorno de uma pessoa de lado, para guiar o posicionamento. */
 const GuideSilhouette: React.FC<{ active: boolean; kind?: SilhouetteKind }> = ({ active, kind = 'standing' }) =>
-  kind !== 'standing' ? <SplitSilhouette active={active} bench={kind === 'split_bench'} /> : (
+  kind === 'front_upper' ? <FrontUpperSilhouette active={active} />
+  : kind === 'hip_thrust' ? <HipThrustSilhouette active={active} />
+  : kind !== 'standing' ? <SplitSilhouette active={active} bench={kind === 'split_bench'} /> : (
   <svg
     viewBox="0 0 100 260"
     className={cn('h-[68%] max-h-[560px] text-primary transition-opacity duration-300', active ? 'opacity-70' : 'opacity-40')}
@@ -180,7 +223,7 @@ const GuideSilhouette: React.FC<{ active: boolean; kind?: SilhouetteKind }> = ({
 
 interface Feedback { text: string; tone: 'ok' | 'error' | 'info' }
 
-function drawSkeleton(canvas: HTMLCanvasElement, video: HTMLVideoElement, lms: Landmark[] | null, side: Side) {
+function drawSkeleton(canvas: HTMLCanvasElement, video: HTMLVideoElement, lms: Landmark[] | null, side: Side, kind: 'legs' | 'arms' = 'legs') {
   const ctx = canvas.getContext('2d');
   if (!ctx) return;
   const dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -203,9 +246,10 @@ function drawSkeleton(canvas: HTMLCanvasElement, video: HTMLVideoElement, lms: L
   ctx.shadowColor = SKELETON_COLOR;
   ctx.lineCap = 'round';
   (['left', 'right'] as Side[]).forEach((s) => {
-    const main = s === side;
-    const p = SIDE_POINTS[s];
-    const chain = [p.shoulder, p.hip, p.knee, p.ankle];
+    // Braços (vista de frente): os dois lados contam igual.
+    const main = kind === 'arms' || s === side;
+    const p = SIDE_POINTS[s], a = ARM_POINTS[s];
+    const chain = kind === 'arms' ? [a.hip, a.shoulder, a.elbow, a.wrist] : [p.shoulder, p.hip, p.knee, p.ankle];
     ctx.globalAlpha = main ? 1 : 0.3;
     ctx.lineWidth = main ? 4 : 2;
     ctx.shadowBlur = main ? 10 : 0;
@@ -282,7 +326,15 @@ const LiveCorrectionScreen: React.FC<Props> = ({
   const feedbackTimerRef = useRef<number | null>(null);
   const startedAtRef = useRef<Date | null>(null);
   const wakeLockRef = useRef<any>(null);
-  const stillRef = useRef(new StillnessDetector());
+  const stillRef = useRef(new StillnessDetector(undefined, rule.stillPoints, rule.stillScale));
+  const stillRuleRef = useRef<ExerciseRuleId>(rule.id);
+  // Cada regra mede "parado" com os próprios pontos (elevação lateral não usa tornozelo).
+  if (stillRuleRef.current !== rule.id) {
+    stillRuleRef.current = rule.id;
+    stillRef.current = new StillnessDetector(undefined, rule.stillPoints, rule.stillScale);
+  }
+  /** Avisos de "1x por série" já falados nesta série. */
+  const spokenOnceRef = useRef(new Set<string>());
   const facingGateRef = useRef(new FacingGate());
   const autoFinishRef = useRef(new AutoFinishDetector());
   const issueRef = useRef<PositionIssue>('no_body');
@@ -390,11 +442,11 @@ const LiveCorrectionScreen: React.FC<Props> = ({
     if (!counter) return;
     if (lms && !counter.inRep) sideRef.current = counter.measureSide(lms);
     const side = sideRef.current;
-    drawSkeleton(canvas, video, lms, side);
-    const full = isFullBodyVisible(lms, side);
+    drawSkeleton(canvas, video, lms, side, currentRule.skeleton);
+    const full = currentRule.isBodyVisible ? currentRule.isBodyVisible(lms, side) : isFullBodyVisible(lms, side);
     const facingCamera = facingGateRef.current.update(!!lms && isFacingCamera(lms, w, h), now);
     // Vista errada: de frente numa regra de lado (ou de lado numa regra de frente).
-    const frontal = currentRule.view === 'side' ? facingCamera : !!lms && !facingCamera;
+    const frontal = isWrongView(currentRule.view, facingCamera, !!lms);
     const p = phaseRef.current;
 
     if (p === 'positioning') {
@@ -452,6 +504,7 @@ const LiveCorrectionScreen: React.FC<Props> = ({
           setResuming(false);
         } else {
           counter.reset();
+          spokenOnceRef.current.clear();
           setReps([]);
           startedAtRef.current = new Date();
         }
@@ -473,7 +526,7 @@ const LiveCorrectionScreen: React.FC<Props> = ({
       if (lostSinceRef.current == null) lostSinceRef.current = now;
       if (now - lostSinceRef.current > BODY_LOST_MS) {
         if (counter.inRep) counter.abortRep();
-        showFeedback({ text: 'Corpo inteiro na câmera', tone: 'info' }, 1500);
+        showFeedback({ text: currentRule.lostMessage ?? 'Corpo inteiro na câmera', tone: 'info' }, 1500);
       }
       if (autoFinish.update({ t: now, repCount: autoFinishRepCount(currentRule, counter.reps), fullBody: false, inRep: counter.inRep, kneeAngle: null, standing: false })) finishRef.current(true);
       return;
@@ -510,12 +563,18 @@ const LiveCorrectionScreen: React.FC<Props> = ({
       if (voiceAvailable()) {
         const speechNow = Date.now();
         const completeCount = counter.reps.filter((r) => r.complete).length;
-        const plan = planRepSpeech(rep, completeCount, lastSpokeRef.current, speechNow, currentRule.messages);
-        if (plan.correctionSpoken) lastSpokeRef.current = speechNow;
+        const spokenErrors = speakableErrors(rep.errors, currentRule.speakOncePerSeries, spokenOnceRef.current);
+        const plan = planRepSpeech({ complete: rep.complete, errors: spokenErrors }, completeCount, lastSpokeRef.current, speechNow, currentRule.messages);
+        if (plan.correctionSpoken) {
+          lastSpokeRef.current = speechNow;
+          markSpokenOnce(spokenErrors, currentRule.speakOncePerSeries, spokenOnceRef.current);
+        }
         speakSequence(plan.texts);
       }
     }
-    if (autoFinish.update({ t: now, repCount: autoFinishRepCount(currentRule, counter.reps), fullBody: true, inRep: counter.inRep, kneeAngle: null, standing: counter.atTop })) {
+    // Elevação pélvica informa o próprio descanso (topo ou parado embaixo).
+    const resting = counter.resting;
+    if (autoFinish.update({ t: now, repCount: autoFinishRepCount(currentRule, counter.reps), fullBody: true, inRep: resting === undefined ? counter.inRep : false, kneeAngle: null, standing: resting ?? counter.atTop })) {
       finishRef.current(true);
     }
   }, [goPhase, showFeedback, speak, speakSequence]);
@@ -641,6 +700,8 @@ const LiveCorrectionScreen: React.FC<Props> = ({
     // A partir daqui nenhum movimento conta (ex.: ir pegar o celular).
     phaseRef.current = 'saving';
     releaseAll();
+    // Rep ainda segurando em cima (elevação pélvica) fecha com o que já foi medido.
+    if (p === 'tracking') counterRef.current?.flush?.();
     const repsDone = [...(counterRef.current?.reps ?? [])];
     const s = summarizeLiveReps(repsDone, ruleRef.current.messages);
     setReps(repsDone);
@@ -655,6 +716,7 @@ const LiveCorrectionScreen: React.FC<Props> = ({
   /** "Fazer outra série": reabre a câmera direto, com a mesma câmera e voz. */
   const again = useCallback(() => {
     counterRef.current?.reset();
+    spokenOnceRef.current.clear();
     setReps([]);
     setSummary(null);
     setSaveError(null);
@@ -795,7 +857,9 @@ const LiveCorrectionScreen: React.FC<Props> = ({
             {rule.instruction(instructionName)}
           </p>
           <p className="text-sm text-muted-foreground max-w-xs">
-            A contagem começa sozinha quando o corpo inteiro aparecer por 2 segundos.
+            {rule.view === 'front'
+              ? 'A contagem começa sozinha quando você aparecer de frente, parado, por 2 segundos.'
+              : 'A contagem começa sozinha quando o corpo inteiro aparecer por 2 segundos.'}
           </p>
           <p className="text-xs text-muted-foreground">Câmera {facing === 'user' ? 'frontal' : 'traseira'} · troque no botão ao lado</p>
           {exercisePicker && <ExercisePicker value={ruleId} onChange={setRuleId} />}

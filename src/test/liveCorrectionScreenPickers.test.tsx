@@ -38,4 +38,19 @@ describe('Correção ao vivo — tela inicial por exercício', () => {
     expect(screen.getByTestId('live-instruction')).toHaveTextContent('Coloca o celular no chão, de lado pra você, com o corpo inteiro aparecendo');
     expect(screen.getByRole('button', { name: 'Começar' })).toBeEnabled();
   });
+
+  it('elevação lateral e pélvica: instrução própria e começa sem escolher perna', () => {
+    const { unmount } = render(<LiveCorrectionScreen studentId="u1" exerciseName="ELEVAÇÃO LATERAL" onClose={() => undefined} />);
+    expect(screen.getByTestId('live-instruction')).toHaveTextContent('Coloca o celular no chão ou apoiado, de frente pra você, com o corpo da cintura pra cima e os braços aparecendo');
+    expect(screen.queryByTestId('live-front-leg-picker')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Começar' })).toBeEnabled();
+    unmount();
+    render(<LiveCorrectionScreen studentId="u1" exerciseName="ELEVAÇÃO PÉLVICA" onClose={() => undefined} />);
+    expect(screen.getByTestId('live-instruction')).toHaveTextContent('Celular no chão, de lado, na altura do banco, com o corpo inteiro aparecendo');
+  });
+
+  it('teste do admin lista os 5 exercícios', () => {
+    render(<LiveCorrectionScreen studentId="u1" exerciseName="x" exercisePicker onClose={() => undefined} />);
+    expect(screen.getAllByRole('radio', { name: /Agachamento|Stiff|Búlgaro|Elevação lateral|Elevação pélvica/ })).toHaveLength(5);
+  });
 });

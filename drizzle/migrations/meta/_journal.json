@@ -176,6 +176,13 @@
       "when": 1794390299335,
       "tag": "0024_camera_sessions_exercise_rule",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1794391068541,
+      "tag": "0025_camera_sessions_exercise_rule_lateral_hip",
+      "breakpoints": true
     }
   ]
 }

@@ -461,24 +461,36 @@ export function planRepSpeech(
 // Posicionamento, vista de frente e fim automático
 // ---------------------------------------------------------------------------
 
-const STILL_POINTS = [LM.leftShoulder, LM.rightShoulder, LM.leftHip, LM.rightHip, LM.leftAnkle, LM.rightAnkle];
+const STILL_POINTS: readonly number[] = [LM.leftShoulder, LM.rightShoulder, LM.leftHip, LM.rightHip, LM.leftAnkle, LM.rightAnkle];
 
 /** Mede quanto quadril/ombro/tornozelo se mexeram nos últimos STILL_WINDOW_MS. */
 export class StillnessDetector {
   private frames: { t: number; pts: Point[]; bodyHeight: number }[] = [];
-  constructor(private readonly windowMs = STILL_WINDOW_MS) {}
+  /**
+   * `points`/`bodyScale` (opcionais) trocam os pontos medidos e a medida de referência
+   * (ex.: elevação lateral sem tornozelo). Sem eles, mesmo comportamento do agachamento.
+   */
+  constructor(
+    private readonly windowMs = STILL_WINDOW_MS,
+    private readonly points: readonly number[] = STILL_POINTS,
+    private readonly bodyScale?: (lms: Landmark[], width: number, height: number, side: Side) => number,
+  ) {}
   reset() { this.frames = []; }
 
   /** Devolve o movimento (fração da altura do corpo) ou null se a janela ainda não encheu. */
   push(lms: Landmark[], t: number, width = 1, height = 1, side: Side = pickSide(lms)): number | null {
-    const p = SIDE_POINTS[side];
-    const sh = toPx(lms[p.shoulder], width, height), an = toPx(lms[p.ankle], width, height);
-    const bodyHeight = Math.hypot(sh.x - an.x, sh.y - an.y) || 1;
-    this.frames.push({ t, pts: STILL_POINTS.map((i) => toPx(lms[i], width, height)), bodyHeight });
+    let bodyHeight: number;
+    if (this.bodyScale) bodyHeight = this.bodyScale(lms, width, height, side) || 1;
+    else {
+      const p = SIDE_POINTS[side];
+      const sh = toPx(lms[p.shoulder], width, height), an = toPx(lms[p.ankle], width, height);
+      bodyHeight = Math.hypot(sh.x - an.x, sh.y - an.y) || 1;
+    }
+    this.frames.push({ t, pts: this.points.map((i) => toPx(lms[i], width, height)), bodyHeight });
     while (this.frames.length > 1 && t - this.frames[1].t >= this.windowMs) this.frames.shift();
     if (t - this.frames[0].t < this.windowMs * 0.8) return null;
     let max = 0;
-    for (let k = 0; k < STILL_POINTS.length; k++) {
+    for (let k = 0; k < this.points.length; k++) {
       let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
       for (const f of this.frames) {
         const q = f.pts[k];
