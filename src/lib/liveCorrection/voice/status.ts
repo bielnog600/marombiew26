@@ -47,3 +47,10 @@ export function coachVoiceBadgeLabel(s: CoachVoiceStatus, total: number, voiceNa
   if (problem == null) return `Voz: ${voiceName} (${s.ready}/${total})`;
   return `Voz: celular · ${PROBLEM_LABELS[problem]}`;
 }
+
+/** Contas que veem o selo de diagnóstico da voz além do admin (conta de aluno do Fabiew Aires). */
+export const VOICE_DIAGNOSTIC_USER_IDS: readonly string[] = ['0feb5458-15cb-490a-9341-90bd57795495'];
+
+export function canSeeVoiceDiagnostic(userId: string | null | undefined, isAdmin: boolean): boolean {
+  return isAdmin || (!!userId && VOICE_DIAGNOSTIC_USER_IDS.includes(userId));
+}
