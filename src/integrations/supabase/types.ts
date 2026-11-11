@@ -4160,6 +4160,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      normalize_camera_depth_level: { Args: { _v: string }; Returns: string }
       publish_diet_plan_atomic: {
         Args: {
           p_expected_revision: number
