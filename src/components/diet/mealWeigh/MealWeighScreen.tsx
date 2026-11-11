@@ -411,11 +411,7 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
               <span className="absolute -top-px left-1/2 w-max max-w-[calc(100%-1rem)] -translate-x-1/2 -translate-y-1/2 rounded-2xl bg-primary px-3 py-1 text-center text-xs font-semibold text-primary-foreground" data-testid="meal-weigh-hint">
                 {mode === 'plan' ? scaleOnlyHint(currentPlanFood?.alimento ?? '') : items.length === 0 ? FIRST_ITEM_HINT : NEXT_ITEM_HINT}
               </span>
-              {mode === 'plan' && progress && (
-                <span className="absolute top-6 left-1/2 -translate-x-1/2 rounded-full bg-background/80 px-2.5 py-0.5 text-[11px] font-semibold text-primary tabular-nums" data-testid="meal-weigh-progress">
-                  {progress}
-                </span>
-              )}
+
               <span className="absolute bottom-4 left-1/2 -translate-x-1/2 rounded-lg border border-primary/60 bg-background/70 px-3 py-1 text-[11px] text-primary">
                 visor da balança
               </span>
@@ -431,6 +427,11 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
             <div className="absolute inset-x-0 bottom-0 flex flex-col items-center gap-3 bg-gradient-to-t from-background/95 to-transparent px-6 pt-10"
               style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 20px)' }}>
               {camError && <p className="text-center text-xs text-destructive">{camError}</p>}
+              {mode === 'plan' && progress && (
+                <p className="rounded-full bg-background/80 px-3 py-1 text-xs font-semibold text-primary tabular-nums" data-testid="meal-weigh-progress">
+                  Alimento {progress}
+                </p>
+              )}
               {items.length > 0 && (
                 <button type="button" onClick={() => setPhase('list')} className="text-xs text-muted-foreground underline-offset-2 hover:underline">
                   {items.length} {items.length === 1 ? 'item pesado' : 'itens pesados'} · {Math.round(accumulated)} g
