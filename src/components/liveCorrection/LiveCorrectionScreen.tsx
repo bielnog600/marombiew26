@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { useHoldAppUpdate } from '@/hooks/useHoldAppUpdate';
 import { createPortal } from 'react-dom';
 import type { PoseLandmarker } from '@mediapipe/tasks-vision';
 import { X, Volume2, VolumeX, SwitchCamera, Loader2, Camera, CheckCircle2, AlertTriangle, Timer, RotateCcw, ClipboardCheck } from 'lucide-react';
@@ -108,6 +109,8 @@ function drawSkeleton(canvas: HTMLCanvasElement, video: HTMLVideoElement, lms: L
 }
 
 const LiveCorrectionScreen: React.FC<Props> = ({ studentId, exerciseName, onClose, onSaveToSet, targetSetLabel }) => {
+  // Versão nova do app nunca recarrega com a câmera aberta.
+  useHoldAppUpdate(true);
   const [phase, setPhase] = useState<Phase>('intro');
   const [errorText, setErrorText] = useState<string | null>(null);
   const [facing, setFacing] = useState<Facing>('user');

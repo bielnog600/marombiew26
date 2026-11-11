@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import { lazyWithRetry } from '@/lib/appUpdate/lazyWithRetry';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -9,7 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Search, Plus, EyeOff, AlertTriangle } from 'lucide-react';
-const FoodScanner = React.lazy(() => import('@/components/diet/FoodScanner'));
+const FoodScanner = lazyWithRetry(() => import('@/components/diet/FoodScanner'));
 import type { ScanRecord } from '@/components/diet/FoodScanResult';
 import { toast } from 'sonner';
 import {

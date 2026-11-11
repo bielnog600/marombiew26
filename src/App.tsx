@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, lazy, Suspense } from "react";
+import { useState, useCallback, useEffect, Suspense } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -18,45 +18,70 @@ import StudentAppOpenTracker from "@/components/StudentAppOpenTracker";
 import { LanguageProvider } from "@/i18n";
 import AutoTranslate from "@/i18n/AutoTranslate";
 import Login from "./pages/Login";
-const Dashboard = lazy(() => import("./pages/Dashboard"));
-const CorrecaoAoVivoTeste = lazy(() => import("./pages/CorrecaoAoVivoTeste"));
-const Alunos = lazy(() => import("./pages/Alunos"));
-const AlunoDetail = lazy(() => import("./pages/AlunoDetail"));
-const NovaAvaliacao = lazy(() => import("./pages/NovaAvaliacao"));
-const Relatorio = lazy(() => import("./pages/Relatorio"));
-const MinhaArea = lazy(() => import("./pages/MinhaArea"));
-const MinhasAvaliacoes = lazy(() => import("./pages/MinhasAvaliacoes"));
-const TreinoExecucao = lazy(() => import("./pages/TreinoExecucao"));
-const PostureAnalysis = lazy(() => import("./pages/PostureAnalysis"));
-const TreinoIA = lazy(() => import("./pages/TreinoIA"));
-const DietaIA = lazy(() => import("./pages/DietaIA"));
-const TabataIA = lazy(() => import("./pages/TabataIA"));
-const TabataExecucao = lazy(() => import("./pages/TabataExecucao"));
-const CardioIA = lazy(() => import("./pages/CardioIA"));
-const CardioExecucao = lazy(() => import("./pages/CardioExecucao"));
-const Alimentos = lazy(() => import("./pages/Alimentos"));
-const Exercicios = lazy(() => import("./pages/Exercicios"));
-const ExerciseMetadataReview = lazy(() => import("./pages/ExerciseMetadataReview"));
-const HumanFirstReview = lazy(() => import("./pages/HumanFirstReview"));
-const HumanFirstReviewPreflight = lazy(() => import("./pages/HumanFirstReviewPreflight"));
-const DietQuestionnaire = lazy(() => import("./pages/DietQuestionnaire"));
-const Notificacoes = lazy(() => import("./pages/Notificacoes"));
-const Consultoria = lazy(() => import("./pages/Consultoria"));
-const Perfil = lazy(() => import("./pages/Perfil"));
-const MinhasDietas = lazy(() => import("./pages/MinhasDietas"));
-const MeusTreinos = lazy(() => import("./pages/MeusTreinos"));
-const TreinoPreview = lazy(() => import("./pages/TreinoPreview"));
-const Evolucao = lazy(() => import("./pages/Evolucao"));
-const MeuProgresso = lazy(() => import("./pages/MeuProgresso"));
+import { lazyWithRetry } from "@/lib/appUpdate/lazyWithRetry";
+import { preloadWhenIdle } from "@/lib/appUpdate/idlePreload";
+import AppUpdateToast from "@/components/AppUpdateToast";
+const Dashboard = lazyWithRetry(() => import("./pages/Dashboard"));
+const CorrecaoAoVivoTeste = lazyWithRetry(() => import("./pages/CorrecaoAoVivoTeste"));
+const Alunos = lazyWithRetry(() => import("./pages/Alunos"));
+const AlunoDetail = lazyWithRetry(() => import("./pages/AlunoDetail"));
+const NovaAvaliacao = lazyWithRetry(() => import("./pages/NovaAvaliacao"));
+const Relatorio = lazyWithRetry(() => import("./pages/Relatorio"));
+const MinhaArea = lazyWithRetry(() => import("./pages/MinhaArea"));
+const MinhasAvaliacoes = lazyWithRetry(() => import("./pages/MinhasAvaliacoes"));
+const TreinoExecucao = lazyWithRetry(() => import("./pages/TreinoExecucao"));
+const PostureAnalysis = lazyWithRetry(() => import("./pages/PostureAnalysis"));
+const TreinoIA = lazyWithRetry(() => import("./pages/TreinoIA"));
+const DietaIA = lazyWithRetry(() => import("./pages/DietaIA"));
+const TabataIA = lazyWithRetry(() => import("./pages/TabataIA"));
+const TabataExecucao = lazyWithRetry(() => import("./pages/TabataExecucao"));
+const CardioIA = lazyWithRetry(() => import("./pages/CardioIA"));
+const CardioExecucao = lazyWithRetry(() => import("./pages/CardioExecucao"));
+const Alimentos = lazyWithRetry(() => import("./pages/Alimentos"));
+const Exercicios = lazyWithRetry(() => import("./pages/Exercicios"));
+const ExerciseMetadataReview = lazyWithRetry(() => import("./pages/ExerciseMetadataReview"));
+const HumanFirstReview = lazyWithRetry(() => import("./pages/HumanFirstReview"));
+const HumanFirstReviewPreflight = lazyWithRetry(() => import("./pages/HumanFirstReviewPreflight"));
+const DietQuestionnaire = lazyWithRetry(() => import("./pages/DietQuestionnaire"));
+const Notificacoes = lazyWithRetry(() => import("./pages/Notificacoes"));
+const Consultoria = lazyWithRetry(() => import("./pages/Consultoria"));
+const Perfil = lazyWithRetry(() => import("./pages/Perfil"));
+const MinhasDietas = lazyWithRetry(() => import("./pages/MinhasDietas"));
+const MeusTreinos = lazyWithRetry(() => import("./pages/MeusTreinos"));
+const TreinoPreview = lazyWithRetry(() => import("./pages/TreinoPreview"));
+const Evolucao = lazyWithRetry(() => import("./pages/Evolucao"));
+const MeuProgresso = lazyWithRetry(() => import("./pages/MeuProgresso"));
 
-const NotFound = lazy(() => import("./pages/NotFound"));
-const Agenda = lazy(() => import("./pages/Agenda"));
-const MinhaAgenda = lazy(() => import("./pages/MinhaAgenda"));
-const Financeiro = lazy(() => import("./pages/Financeiro"));
-const RedeSocial = lazy(() => import("./pages/RedeSocial"));
+const NotFound = lazyWithRetry(() => import("./pages/NotFound"));
+const Agenda = lazyWithRetry(() => import("./pages/Agenda"));
+const MinhaAgenda = lazyWithRetry(() => import("./pages/MinhaAgenda"));
+const Financeiro = lazyWithRetry(() => import("./pages/Financeiro"));
+const RedeSocial = lazyWithRetry(() => import("./pages/RedeSocial"));
 import StudentErrorBoundary from "./components/StudentErrorBoundary";
 
 const queryClient = new QueryClient();
+
+/** Carregamento de tela sem piscar: mantém o fundo do app e mostra só uma barra fina no topo. */
+const RouteLoadingBar = () => (
+  <div role="status" aria-label="Carregando" className="min-h-screen bg-background">
+    <div className="fixed inset-x-0 top-0 z-[100] h-0.5 overflow-hidden bg-primary/20 pt-[env(safe-area-inset-top)]">
+      <div className="h-full w-1/3 animate-route-loading bg-primary" />
+    </div>
+  </div>
+);
+
+/** Depois do login, baixa as telas principais quando o aparelho estiver ocioso. */
+const RoutePreloader = () => {
+  const { user, role, loading } = useAuth();
+  useEffect(() => {
+    if (loading || !user || !role) return;
+    const screens = role === 'admin'
+      ? [Alunos, AlunoDetail]
+      : [MeusTreinos, TreinoExecucao, MinhasDietas, Evolucao, MeuProgresso];
+    return preloadWhenIdle(screens.map(screen => screen.preload));
+  }, [loading, user?.id, role]);
+  return null;
+};
 
 const RootRedirect = () => {
   const { user, role, loading } = useAuth();
@@ -85,7 +110,7 @@ const App = () => {
         {showSplash && <SplashScreenContainer onFinish={handleSplashFinish} />}
         <OfflineIndicator />
         <InstallBanner />
-        <BrowserRouter>
+        <BrowserRouter future={{ v7_startTransition: true }}>
           <ScrollToTop />
           <div>
           <AuthProvider>
@@ -93,11 +118,13 @@ const App = () => {
             <AutoTranslate />
             <TabSwipeProvider>
             <AdminTrainerSessionProvider>
+            <AppUpdateToast />
+            <RoutePreloader />
             <PushNotificationsInit />
             <StudentAppOpenTracker />
             <AdminTrainerSessionMount />
             <StudentErrorBoundary>
-            <Suspense fallback={<div role="status" className="min-h-screen flex items-center justify-center text-sm text-muted-foreground">Carregando…</div>}>
+            <Suspense fallback={<RouteLoadingBar />}>
             <Routes>
               <Route path="/" element={<RootRedirect />} />
               <Route path="/login" element={<Login />} />

@@ -1,10 +1,13 @@
 import React from 'react';
 import { Button } from '@/components/ui/button';
 import { AlertTriangle } from 'lucide-react';
+import { isChunkLoadError, reloadOnceForChunkError } from '@/lib/appUpdate/chunkReload';
 
 interface State {
   hasError: boolean;
   detail: string | null;
+  /** Parte do app sumiu após um deploy: recarregando sozinho, sem tela de erro. */
+  reloading: boolean;
 }
 
 /**
@@ -14,14 +17,19 @@ interface State {
  * rota (e expõe um detalhe técnico recolhível) para facilitar o diagnóstico.
  */
 class StudentErrorBoundary extends React.Component<React.PropsWithChildren, State> {
-  state: State = { hasError: false, detail: null };
+  state: State = { hasError: false, detail: null, reloading: false };
 
   static getDerivedStateFromError(error: unknown): State {
     const detail = error instanceof Error ? error.message : String(error);
-    return { hasError: true, detail };
+    return { hasError: true, detail, reloading: isChunkLoadError(error) };
   }
 
   componentDidCatch(error: unknown, info: React.ErrorInfo) {
+    if (isChunkLoadError(error)) {
+      if (reloadOnceForChunkError()) return;
+      // Já recarregou há pouco: mostra a tela de erro normal em vez de entrar em loop.
+      this.setState({ reloading: false });
+    }
     const err = error instanceof Error ? error : new Error(String(error));
     console.error('[StudentErrorBoundary]', {
       rota: window.location.pathname,
@@ -33,6 +41,7 @@ class StudentErrorBoundary extends React.Component<React.PropsWithChildren, Stat
 
   render() {
     if (!this.state.hasError) return this.props.children;
+    if (this.state.reloading) return <div role="status" aria-label="Atualizando" className="min-h-screen bg-background" />;
     return (
       <div className="min-h-screen flex flex-col items-center justify-center gap-4 p-6 text-center bg-background">
         <AlertTriangle className="h-10 w-10 text-primary" />
