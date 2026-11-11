@@ -124,3 +124,26 @@ export function phraseKeyForText(text: string): string | null {
 export function splitSpeech(text: string): string[] {
   return text.split(/\.\s+/).map((s) => s.trim().replace(/\.$/, '')).filter(Boolean);
 }
+
+/**
+ * Ordem de download dos áudios: contagem 3-2-1, "Pode começar", correções do exercício
+ * aberto, os outros números e só depois o resto do catálogo.
+ */
+export function voicePreloadPriority(ruleMessages: readonly string[]): string[] {
+  const out: string[] = [];
+  const push = (key: string | null) => { if (key && !out.includes(key)) out.push(key); };
+  [3, 2, 1].forEach((n) => push(numberPhraseKey(n)));
+  push(phraseKeyForText(START_MESSAGE));
+  for (const m of ruleMessages) for (const part of splitSpeech(m)) push(phraseKeyForText(part));
+  for (let n = 4; n <= SPOKEN_REP_MAX; n++) push(numberPhraseKey(n));
+  return out;
+}
+
+/** Linhas aprovadas na ordem de download (prioridade primeiro, depois a ordem original). */
+export function orderByPriority<T extends { phrase_key: string }>(rows: readonly T[], priority: readonly string[]): T[] {
+  const rank = new Map(priority.map((k, i) => [k, i]));
+  return rows
+    .map((row, i) => ({ row, i, r: rank.get(row.phrase_key) ?? priority.length + i }))
+    .sort((a, b) => a.r - b.r)
+    .map((x) => x.row);
+}

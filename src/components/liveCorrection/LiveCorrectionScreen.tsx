@@ -24,7 +24,8 @@ import {
   type TimedCounter, type TimedSummary,
 } from '@/lib/liveCorrection/exercises';
 import { createCoachVoice, type CoachVoice } from '@/lib/liveCorrection/voice/browserVoice';
-import { START_MESSAGE, legSwitchMessage } from '@/lib/liveCorrection/voice/phrases';
+import { START_MESSAGE, VOICE_CATALOG, legSwitchMessage, voicePreloadPriority } from '@/lib/liveCorrection/voice/phrases';
+import { coachVoiceBadgeLabel, coachVoiceProblem, type CoachVoiceStatus } from '@/lib/liveCorrection/voice/status';
 
 const MP_VERSION = '0.10.17';
 const WASM_URL = `https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@${MP_VERSION}/wasm`;
@@ -53,6 +54,8 @@ interface Props {
   exercisePicker?: boolean;
   /** Regra a usar; sem isto, vem do nome do exercício (sem casar = agachamento). */
   exerciseRule?: ExerciseRuleId;
+  /** Admin/conta do personal: selo "Voz: Fabiew (N/77)" ou "Voz: celular · motivo". */
+  voiceDiagnostic?: boolean;
 }
 
 /** Mensagem do aviso de posicionamento, conforme a vista exigida pela regra. */
@@ -356,6 +359,7 @@ function drawSkeleton(canvas: HTMLCanvasElement, video: HTMLVideoElement, lms: L
 
 const LiveCorrectionScreen: React.FC<Props> = ({
   studentId, exerciseName, onClose, onSaveToSet, targetSetLabel, depthLevelPicker = false, exercisePicker = false, exerciseRule,
+  voiceDiagnostic = false,
 }) => {
   // Versão nova do app nunca recarrega com a câmera aberta.
   useHoldAppUpdate(true);
@@ -462,8 +466,28 @@ const LiveCorrectionScreen: React.FC<Props> = ({
     return () => { cancelled = true; };
   }, [studentId, depthLevelPicker]);
   useEffect(() => { voiceOnRef.current = voiceOn; }, [voiceOn]);
-  // Pré-carrega os áudios aprovados assim que a tela abre.
-  useEffect(() => { void voiceRef.current?.preload(); }, []);
+  // Pré-carrega os áudios aprovados assim que a tela abre (antes do posicionamento):
+  // 3-2-1, "Pode começar" e as correções do exercício aberto primeiro.
+  useEffect(() => {
+    void voiceRef.current?.preload(voicePreloadPriority(Object.values(ruleRef.current.messages)));
+  }, []);
+  const [voiceStatus, setVoiceStatus] = useState<CoachVoiceStatus>(() => voiceRef.current!.getStatus());
+  useEffect(() => {
+    const v = voiceRef.current;
+    if (!v) return;
+    setVoiceStatus(v.getStatus());
+    return v.subscribe(setVoiceStatus);
+  }, []);
+  // Voltou do segundo plano/ligação: tenta reativar o áudio (o próximo toque libera de vez).
+  useEffect(() => {
+    const onVisible = () => { if (document.visibilityState === 'visible') void voiceRef.current?.prepare(); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, []);
+  /** Toque do usuário: libera o áudio no iPhone. Síncrono, sem await antes. */
+  const unlockVoice = useCallback(() => {
+    try { voiceRef.current?.unlock(); } catch { /* ignore */ }
+  }, []);
 
   const voiceAvailable = () => voiceOnRef.current && typeof window !== 'undefined';
 
@@ -563,6 +587,8 @@ const LiveCorrectionScreen: React.FC<Props> = ({
         if (prog >= 1) {
           countdownStartRef.current = now;
           countdownShownRef.current = null;
+          // 3-2-1 começa sem toque: tenta reativar o áudio liberado no "Começar".
+          void voiceRef.current?.prepare();
           goPhase('countdown');
         }
       } else {
@@ -709,8 +735,8 @@ const LiveCorrectionScreen: React.FC<Props> = ({
   }, [processFrame]);
 
   const begin = useCallback(async () => {
-    // Toque do usuário: libera o áudio gravado e a voz no iPhone.
-    try { voiceRef.current?.unlock(); } catch { /* ignore */ }
+    // Toque do usuário: libera o áudio gravado e a voz no iPhone (antes de qualquer await).
+    unlockVoice();
     setPhase('loading');
     setErrorText(null);
     resumeRef.current = false;
@@ -758,7 +784,7 @@ const LiveCorrectionScreen: React.FC<Props> = ({
       );
       setPhase('error');
     }
-  }, [facing, goPhase, loop, startCamera, stopLoop, stopStream]);
+  }, [facing, goPhase, loop, startCamera, stopLoop, stopStream, unlockVoice]);
 
   const switchCamera = useCallback(async () => {
     const next: Facing = facing === 'user' ? 'environment' : 'user';
@@ -828,6 +854,7 @@ const LiveCorrectionScreen: React.FC<Props> = ({
 
   /** "Fazer outra série": reabre a câmera direto, com a mesma câmera e voz. */
   const again = useCallback(() => {
+    unlockVoice();
     counterRef.current?.reset();
     spokenOnceRef.current.clear();
     setReps([]);
@@ -838,10 +865,11 @@ const LiveCorrectionScreen: React.FC<Props> = ({
     setAutoFinished(false);
     setCountdown(0);
     void begin();
-  }, [begin]);
+  }, [begin, unlockVoice]);
 
   /** "Trocar perna" (búlgaro/afundo): volta a posicionar e continua a mesma série. */
   const switchLeg = () => {
+    unlockVoice();
     const next: Side = (counterRef.current?.frontLeg ?? frontLeg ?? 'left') === 'left' ? 'right' : 'left';
     counterRef.current?.setFrontLeg?.(next);
     sideRef.current = next;
@@ -890,6 +918,10 @@ const LiveCorrectionScreen: React.FC<Props> = ({
       aria-modal="true"
       aria-label="Correção ao vivo"
       data-testid="live-correction-screen"
+      // Qualquer toque na tela da câmera também libera o áudio (iPhone).
+      onPointerUpCapture={unlockVoice}
+      onTouchEndCapture={unlockVoice}
+      onClickCapture={unlockVoice}
     >
       {/* Câmera + esqueleto */}
       <div className={cn('absolute inset-0', !live && 'hidden')} style={mirrored ? { transform: 'scaleX(-1)' } : undefined}>
@@ -966,6 +998,23 @@ const LiveCorrectionScreen: React.FC<Props> = ({
           )}
         </div>
       </div>
+
+      {voiceDiagnostic && (
+        <div
+          className="absolute left-3 z-20 pointer-events-none"
+          style={{ top: 'calc(max(12px, env(safe-area-inset-top)) + 52px)' }}
+        >
+          <span
+            data-testid="live-voice-badge"
+            className={cn(
+              'rounded-full border px-2 py-0.5 text-[10px] font-bold bg-card/80',
+              coachVoiceProblem(voiceStatus) == null ? 'border-primary text-primary' : 'border-border text-muted-foreground',
+            )}
+          >
+            {coachVoiceBadgeLabel(voiceStatus, VOICE_CATALOG.length)}
+          </span>
+        </div>
+      )}
 
       {/* Intro */}
       {phase === 'intro' && (

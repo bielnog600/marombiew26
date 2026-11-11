@@ -220,5 +220,7 @@ Fora do escopo desta entrega (Fases 3-6): LOW/MEDIUM/HIGH, novo carb cycling, aj
 
 ## Voz da Correção ao vivo (ElevenLabs)
 - [x] Tela do admin, falas automáticas do código, gerar/aprovar por fala, câmera toca as aprovadas com fallback.
-- [ ] Cadastrar ELEVENLABS_API_KEY — aguardando o Fabiew colar a chave.
-- [ ] Gerar e ouvir as falas reais e testar no iPhone — nenhuma chamada real ao ElevenLabs foi feita.
+- [x] Cadastrar ELEVENLABS_API_KEY.
+- [x] Gerar e aprovar as falas reais (77 aprovadas no banco).
+- [x] Voz gravada no iPhone: resume do áudio, segunda opção pelo <audio>, desbloqueio em todo toque, download por prioridade, logs [coach-voice] e selo de diagnóstico.
+- [ ] Ouvir a voz gravada num iPhone real — não há iPhone no ambiente de teste.
