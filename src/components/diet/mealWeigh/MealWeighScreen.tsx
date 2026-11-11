@@ -431,7 +431,11 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
             <div className="absolute inset-x-0 bottom-0 flex flex-col items-center gap-3 bg-gradient-to-t from-background/95 to-transparent px-6 pt-10"
               style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 20px)' }}>
               {camError && <p className="text-center text-xs text-destructive">{camError}</p>}
-              {items.length > 0 && <p className="text-xs text-muted-foreground">{items.length} {items.length === 1 ? 'item pesado' : 'itens pesados'} · {Math.round(accumulated)} g</p>}
+              {items.length > 0 && (
+                <button type="button" onClick={() => setPhase('list')} className="text-xs text-muted-foreground underline-offset-2 hover:underline">
+                  {items.length} {items.length === 1 ? 'item pesado' : 'itens pesados'} · {Math.round(accumulated)} g
+                </button>
+              )}
               <div className="flex w-full items-center justify-between">
                 <button type="button" onClick={() => fileRef.current?.click()} aria-label="Escolher foto"
                   className="h-12 w-12 rounded-full bg-secondary/80 flex items-center justify-center">

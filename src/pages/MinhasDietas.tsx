@@ -456,7 +456,7 @@ const MinhasDietas = () => {
   const isSelectedDayTraining = trainingDayIndices.includes(selectedWeekday);
   const [showScanner, setShowScanner] = useState(false);
   const premiumScale = usePremiumScale(user?.id);
-  const [weighMealIndex, setWeighMealIndex] = useState<number | null>(null);
+  const [weighTarget, setWeighTarget] = useState<{ meal: number; food?: number } | null>(null);
   const selectedDate = getWeekRange().dates[selectedWeekday];
   const { tracking, weeklyTracking, weekDates, today: trackingToday, loading: trackingLoading,
     ensureCanRegister, addWaterMl, removeWater, toggleMeal, waterCurrentMl, waterTargetMl } = useDailyTracking({
@@ -874,14 +874,16 @@ const MinhasDietas = () => {
     <AppLayout title="Plano Alimentar">
       <React.Suspense fallback={null}>
         <FoodScanner open={showScanner} onOpenChange={setShowScanner} dailyKcal={dailyTarget?.kcal || null} />
-        {weighMealIndex !== null && currentMeals[weighMealIndex] && user && (
+        {weighTarget && currentMeals[weighTarget.meal] && user && (
           <MealWeighScreen
-            meal={currentMeals[weighMealIndex]}
+            meal={currentMeals[weighTarget.meal]}
             studentId={user.id}
             logDate={selectedDate}
-            mealIndex={weighMealIndex}
+            mealIndex={weighTarget.meal}
             dietPlanId={planId}
-            onClose={() => setWeighMealIndex(null)}
+            initialMode={weighTarget.food != null ? 'plan' : undefined}
+            startFoodIndex={weighTarget.food}
+            onClose={() => setWeighTarget(null)}
           />
         )}
       </React.Suspense>
@@ -1180,7 +1182,8 @@ const MinhasDietas = () => {
                     .map((m, mi) => ({ index: mi, name: m.time ? `${m.time} · ${m.name}` : m.name }))
                     .filter((t) => t.index !== i)}
                   onMoveFood={(food, targetIndex) => handleMoveFood(i, food, targetIndex)}
-                  onWeigh={premiumScale ? () => { if (ensureCanRegister()) setWeighMealIndex(i); } : undefined}
+                  onWeigh={premiumScale ? () => { if (ensureCanRegister()) setWeighTarget({ meal: i }); } : undefined}
+                  onWeighFood={premiumScale ? (food) => { if (ensureCanRegister()) setWeighTarget({ meal: i, food }); } : undefined}
                 />
               );
             })}

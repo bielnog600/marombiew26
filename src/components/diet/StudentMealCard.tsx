@@ -41,6 +41,8 @@ interface StudentMealCardProps {
   isCurrent?: boolean;
   /** Premium "Pesar refeição": o botão só aparece quando informado. */
   onWeigh?: () => void;
+  /** Premium: ícone de balança em cada alimento (só lê o peso). */
+  onWeighFood?: (foodIndex: number) => void;
 }
 
 const StudentMealCard: React.FC<StudentMealCardProps> = ({
@@ -54,6 +56,7 @@ const StudentMealCard: React.FC<StudentMealCardProps> = ({
   onMoveFood,
   isCurrent,
   onWeigh,
+  onWeighFood,
 }) => {
   const [adjustMode, setAdjustMode] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
@@ -228,6 +231,16 @@ const StudentMealCard: React.FC<StudentMealCardProps> = ({
                       </div>
                     </div>
                     <div className="flex shrink-0 items-center gap-1">
+                      {onWeighFood && !adjustMode && (
+                        <button
+                          type="button"
+                          onClick={() => onWeighFood(foodIndex)}
+                          aria-label={`Pesar ${food.food}`}
+                          className="p-1.5 text-primary transition-colors hover:text-primary/80"
+                        >
+                          <Scale className="h-3.5 w-3.5" />
+                        </button>
+                      )}
                       {moveTargets.length > 0 && (
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
