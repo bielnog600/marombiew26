@@ -123,7 +123,6 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
   const fileRef = useRef<HTMLInputElement | null>(null);
 
   const planned = useMemo(() => plannedFromMeal(meal), [meal]);
-  const planNames = useMemo(() => planned.alimentos.map((f) => f.alimento).filter(Boolean), [planned]);
   const accumulated = useMemo(() => sumWeighedItems(items).gramas, [items]);
   const pending = useMemo(() => pendingPlanFoods(planned, items), [planned, items]);
   // Sempre a lista/fotos mais recentes na chamada da IA (sem closure velha).
@@ -392,8 +391,23 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
     </div>
   );
 
-  return (
-    <div className="fixed inset-0 z-[70] flex flex-col bg-background text-foreground" role="dialog" aria-label="Pesar refeição" data-testid="meal-weigh-screen">
+  /** Itens já pesados no topo: "Iogurte 154 g · Whey 26 g". */
+  const weighedChips = mode === 'scan' && items.length > 0 ? (
+    <div className="px-4 pb-2" data-testid="meal-weigh-weighed-chips" aria-label={`Já pesados: ${weighedChipsLabel(items)}`}>
+      <div className="flex gap-1.5 overflow-x-auto no-scrollbar">
+        {items.map((it, i) => (
+          <span key={i} className="shrink-0 rounded-full border border-primary/40 bg-primary/10 px-2.5 py-1 text-[11px] font-semibold text-primary tabular-nums">
+            {it.alimento} {Math.round(it.gramas)} g
+          </span>
+        ))}
+      </div>
+    </div>
+  ) : null;
+  const scanTitle = `Alimento ${items.length + 1}`;
+
+  const screen = (
+    <div className="fixed inset-0 z-[70] flex flex-col bg-background text-foreground" role="dialog" aria-modal="true" aria-label="Pesar refeição"
+      data-testid="meal-weigh-screen" data-no-swipe="true" style={{ height: '100dvh' }}>
       <input ref={fileRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={onFile} />
 
       {mode === 'choose' && (
@@ -428,7 +442,10 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
           ) : (
             pendingPhoto ? <img src={pendingPhoto} alt="" className="absolute inset-0 h-full w-full object-cover" /> : <div className="absolute inset-0 bg-secondary/40" />
           )}
-          <div className="absolute inset-x-0 top-0 bg-gradient-to-b from-background/90 to-transparent">{header('Pesar refeição')}</div>
+          <div className="absolute inset-x-0 top-0 z-10 bg-gradient-to-b from-background/90 to-transparent">
+            {header(mode === 'scan' ? scanTitle : 'Pesar refeição')}
+            {weighedChips}
+          </div>
           <div className="pointer-events-none absolute inset-0 flex items-center justify-center px-6">
             <div className="relative aspect-[3/4] w-full max-w-sm rounded-3xl border-2 border-dashed border-primary/80 shadow-[0_0_0_9999px_hsl(var(--background)/0.45)]">
               <span className="absolute -top-px left-1/2 w-max max-w-[calc(100%-1rem)] -translate-x-1/2 -translate-y-1/2 rounded-2xl bg-primary px-3 py-1 text-center text-xs font-semibold text-primary-foreground" data-testid="meal-weigh-hint">
@@ -456,8 +473,9 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
                 </p>
               )}
               {items.length > 0 && (
-                <button type="button" onClick={() => setPhase('list')} className="text-xs text-muted-foreground underline-offset-2 hover:underline">
-                  {items.length} {items.length === 1 ? 'item pesado' : 'itens pesados'} · {Math.round(accumulated)} g
+                <button type="button" onClick={() => setPhase(mode === 'scan' ? 'summary' : 'list')}
+                  className="rounded-full bg-background/80 px-3 py-1 text-xs font-semibold text-foreground">
+                  {mode === 'scan' ? 'Concluir refeição' : `${items.length} ${items.length === 1 ? 'item pesado' : 'itens pesados'}`} · {Math.round(accumulated)} g
                 </button>
               )}
               <div className="flex w-full items-center justify-between">
@@ -466,9 +484,9 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
                   <ImagePlus className="h-5 w-5" />
                 </button>
                 <button type="button" onClick={capture} disabled={!!camError} aria-label="Tirar foto"
-                  className="h-20 w-20 rounded-full border-4 border-primary bg-primary/20 flex items-center justify-center disabled:opacity-40">
-                  <span className="h-14 w-14 rounded-full bg-primary flex items-center justify-center">
-                    <Camera className="h-6 w-6 text-primary-foreground" />
+                  className="h-[88px] w-[88px] rounded-full border-4 border-primary bg-primary/20 flex items-center justify-center disabled:opacity-40">
+                  <span className="h-16 w-16 rounded-full bg-primary flex items-center justify-center">
+                    <Camera className="h-7 w-7 text-primary-foreground" />
                   </span>
                 </button>
                 {mode === 'plan' ? (
@@ -552,7 +570,8 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
 
       {mode === 'scan' && phase === 'item' && draft && (
         <div className="flex-1 min-h-0 flex flex-col">
-          {header(items.length === 0 ? 'Primeiro alimento' : `Alimento ${items.length + 1}`)}
+          {header(scanTitle)}
+          {weighedChips}
           <div className="flex-1 min-h-0 overflow-y-auto px-4 pb-4 space-y-3">
             <img src={draft.photo} alt="Foto da balança" className="h-40 w-full rounded-2xl object-cover border border-border" />
 
@@ -580,6 +599,12 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
             <div className="rounded-2xl border border-border bg-secondary/30 p-3 space-y-3">
               <div>
                 <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Alimento</p>
+                {draft.resolution.repeated && !draft.food && (
+                  <div role="alert" data-testid="meal-weigh-repeated" className="mt-1 rounded-xl border border-primary/50 bg-primary/10 p-2.5 text-sm">
+                    <p className="font-semibold">{REPEATED_FOOD_MESSAGE}</p>
+                    <p className="text-[11px] text-muted-foreground">A IA viu {draft.ai.alimento || draft.resolution.repeated.alimento}, que você já pesou ({Math.round(draft.resolution.repeated.gramas)} g).</p>
+                  </div>
+                )}
                 {draft.food ? (
                   <div className="mt-1 flex items-center gap-2">
                     <p className="flex-1 min-w-0 text-base font-bold truncate">{draft.food.name}</p>
@@ -587,14 +612,27 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
                       <Search className="h-3.5 w-3.5" /> Trocar
                     </Button>
                   </div>
-                ) : (
+                ) : draft.resolution.repeated ? null : (
                   <p className="mt-1 text-sm">
                     {draft.ai.alimento ? <>A IA viu <strong>{draft.ai.alimento}</strong>, mas não achei na base. Escolha:</> : 'Escolha o alimento:'}
                   </p>
                 )}
-                {draft.resolution.needsChoice && draft.resolution.alternatives.length > 0 && (
+                {pending.some((p) => p.index !== draft.planIndex) && (
+                  <div className="mt-2" data-testid="meal-weigh-pending-chips">
+                    <p className="text-[11px] text-muted-foreground mb-1">{draft.food ? 'Trocar por um alimento da refeição:' : 'Alimentos da refeição ainda não pesados:'}</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {pending.filter((p) => p.index !== draft.planIndex).map((p) => (
+                        <button key={p.index} type="button" onClick={() => pickPending(p)}
+                          className="rounded-full border border-primary/40 bg-primary/10 px-3 py-1.5 text-xs font-semibold text-primary">
+                          {p.food.alimento}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {(draft.resolution.needsChoice || !draft.food) && draft.resolution.alternatives.length > 0 && (
                   <div className="mt-2 flex flex-wrap gap-1.5" data-testid="meal-weigh-alternatives">
-                    {draft.food && <span className="text-xs text-muted-foreground self-center">Ou é:</span>}
+                    <span className="text-xs text-muted-foreground self-center">{draft.food ? 'Ou é:' : 'A IA sugere:'}</span>
                     {draft.resolution.alternatives.map((f) => (
                       <button key={f.id} type="button" onClick={() => pickFood(f)}
                         className={`rounded-full border px-3 py-1 text-xs ${draft.food?.id === f.id ? 'border-primary bg-primary/15 text-primary' : 'border-border bg-secondary/60'}`}>
@@ -635,16 +673,25 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
               </div>
 
               {draftMacros ? <MacroLine m={draftMacros} /> : <p className="text-xs text-muted-foreground">Escolha o alimento e as gramas para ver os macros.</p>}
-              {draft.ai.observacao && <p className="text-[11px] text-muted-foreground">Obs.: {draft.ai.observacao}</p>}
+              {(() => {
+                const obs = visibleWeighObservation(draft.ai.observacao, { tareSuspected: draft.tareSuggested != null });
+                return obs ? <p className="text-[11px] text-muted-foreground" data-testid="meal-weigh-observation">Obs.: {obs}</p> : null;
+              })()}
             </div>
           </div>
-          <div className="border-t border-border px-4 pt-3 flex gap-2" style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 12px)' }}>
-            <Button variant="outline" className="gap-1.5" onClick={() => { setDraft(null); setPhase('camera'); }}>
-              <RotateCcw className="h-4 w-4" /> Outra foto
+          <div className="sticky bottom-0 shrink-0 border-t border-border bg-background px-4 pt-3 space-y-2" data-testid="meal-weigh-item-actions"
+            style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 12px)' }}>
+            <Button className="w-full h-12 gap-1.5 text-base font-semibold" disabled={!draftValid} onClick={() => confirmItem('camera')}>
+              <Plus className="h-4 w-4" /> Próximo alimento
             </Button>
-            <Button className="flex-1 gap-1.5 font-semibold" disabled={!draft.food || !(gramsNum > 0)} onClick={confirmItem}>
-              <Check className="h-4 w-4" /> Confirmar
-            </Button>
+            <div className="flex gap-2">
+              <Button variant="outline" className="flex-1 gap-1.5" onClick={() => { setDraft(null); setPhase('camera'); }}>
+                <RotateCcw className="h-4 w-4" /> Tirar de novo
+              </Button>
+              <Button variant="outline" className="flex-1 gap-1.5" disabled={!draftValid} onClick={() => confirmItem('summary')}>
+                <Check className="h-4 w-4" /> Concluir refeição
+              </Button>
+            </div>
           </div>
         </div>
       )}
@@ -744,6 +791,9 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
       </AlertDialog>
     </div>
   );
+  // Portal no body: nenhum container da página (overflow/transform) prende a tela
+  // embaixo do menu inferior.
+  return typeof document !== 'undefined' ? createPortal(screen, document.body) : screen;
 };
 
 const ItemList: React.FC<{ items: WeighedItem[]; onRemove?: (i: number) => void }> = ({ items, onRemove }) => (
