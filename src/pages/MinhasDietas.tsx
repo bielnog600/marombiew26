@@ -8,8 +8,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/i18n';
-import { getCachedPlanTranslation, translatePlanMarkdown } from '@/lib/planTranslation';
-import { buildPlanTextDictionary, translateDisplayText } from '@/lib/planTranslationDisplay';
+import { getCachedPlanTranslation, translatePlanTexts } from '@/lib/planTranslation';
+import { translateDisplayText, type PlanTextDictionary } from '@/lib/planTranslationDisplay';
 import { UtensilsCrossed } from 'lucide-react';
 import { parseSections, type ParsedSection } from '@/lib/dietResultParser';
 import { parseTrainingSections } from '@/lib/trainingResultParser';
@@ -336,28 +336,24 @@ const MinhasDietas = () => {
   };
 
   // Tradução em segundo plano (nunca bloqueia a tela). Só troca texto exibido.
-  const [translation, setTranslation] = useState<{ source: string; language: string; text: string } | null>(null);
+  const [translation, setTranslation] = useState<{ key: string; dict: PlanTextDictionary | null } | null>(null);
+  const translationKey = `${language}|${planId ?? ''}|${dietMarkdown}`;
   useEffect(() => {
-    if (language === 'pt' || !dietMarkdown.trim()) return;
+    if (language === 'pt' || !planId || !dietMarkdown.trim()) return;
     let cancelled = false;
-    translatePlanMarkdown(dietMarkdown, language)
-      .then((text) => { if (!cancelled) setTranslation({ source: dietMarkdown, language, text }); })
+    const key = `${language}|${planId}|${dietMarkdown}`;
+    translatePlanTexts(planId, dietMarkdown, language)
+      .then((dict) => { if (!cancelled) setTranslation({ key, dict }); })
       .catch(() => { /* mantém o original */ });
     return () => { cancelled = true; };
-  }, [dietMarkdown, language]);
+  }, [planId, dietMarkdown, language]);
   const cachedTranslation = useMemo(
-    () => (language === 'pt' ? null : getCachedPlanTranslation(dietMarkdown, language)),
-    [dietMarkdown, language],
+    () => (language === 'pt' ? null : getCachedPlanTranslation(planId, dietMarkdown, language)),
+    [planId, dietMarkdown, language],
   );
-  const translatedMarkdown = language === 'pt'
+  const displayDictionary = language === 'pt'
     ? null
-    : translation && translation.source === dietMarkdown && translation.language === language
-      ? translation.text
-      : cachedTranslation;
-  const displayDictionary = useMemo(
-    () => buildPlanTextDictionary(dietMarkdown, translatedMarkdown),
-    [dietMarkdown, translatedMarkdown],
-  );
+    : (translation?.key === translationKey ? translation.dict : null) ?? cachedTranslation;
   const displayText = useCallback(
     (text: string) => translateDisplayText(displayDictionary, text),
     [displayDictionary],
