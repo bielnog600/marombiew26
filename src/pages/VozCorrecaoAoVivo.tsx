@@ -471,7 +471,7 @@ const VozCorrecaoAoVivo = () => {
     <AppLayout title="Voz da Correção ao vivo">
       <div className="max-w-3xl mx-auto pb-10" data-testid="coach-voice-page">
         <Tabs value={tab} onValueChange={changeTab} className="space-y-3">
-          <TabsList className="h-auto w-full justify-start gap-1 overflow-x-auto rounded-2xl border border-border/60 bg-card p-1 scrollbar-none">
+          <TabsList className="h-auto w-full justify-start gap-1 overflow-x-auto rounded-2xl border border-border/60 bg-card p-1">
             {VOICE_TABS.map((t) => (
               <TabsTrigger
                 key={t}

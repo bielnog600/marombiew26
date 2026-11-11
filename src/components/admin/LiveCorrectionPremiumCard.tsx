@@ -70,6 +70,21 @@ const LiveCorrectionPremiumCard: React.FC<Props> = ({ studentId, studentProfile,
     onVoiceChanged?.({ voice_name: stored });
   };
 
+  // Chave geral "Falas com nome do aluno" (desligada por padrão; fica em coach_voice_config).
+  const [namesEnabled, setNamesEnabled] = useState<boolean | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    supabase.from('coach_voice_config').select('name_phrases_enabled').eq('id', true).maybeSingle()
+      .then(({ data, error }) => { if (!cancelled) setNamesEnabled(error ? false : data?.name_phrases_enabled === true); });
+    return () => { cancelled = true; };
+  }, []);
+  const toggleNames = async (value: boolean) => {
+    setNamesEnabled(value);
+    const { error } = await supabase.from('coach_voice_config').upsert({ id: true, name_phrases_enabled: value });
+    if (error) { setNamesEnabled(!value); toast.error('Não foi possível alterar: ' + error.message); return; }
+    toast.success(value ? 'Falas com nome ligadas' : 'Falas com nome desligadas');
+  };
+
   const [enabled, setEnabled] = useState(!!studentProfile?.premium_camera);
   const [saving, setSaving] = useState(false);
   const [sessions, setSessions] = useState<CameraSession[] | null>(null);
@@ -167,7 +182,7 @@ const LiveCorrectionPremiumCard: React.FC<Props> = ({ studentId, studentProfile,
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
             <Label htmlFor="voice-motivation-toggle" className="font-semibold">Falas de motivação</Label>
-            <p className="text-xs text-muted-foreground">"Bora!", "Boa!" e as falas com o nome dele durante a série.</p>
+            <p className="text-xs text-muted-foreground">{namesEnabled ? '"Bora!", "Boa!" e as falas com o nome dele durante a série.' : '"Bora!", "Boa!" durante a série.'}</p>
           </div>
           <Switch
             id="voice-motivation-toggle"
@@ -176,6 +191,16 @@ const LiveCorrectionPremiumCard: React.FC<Props> = ({ studentId, studentProfile,
             onCheckedChange={toggleMotivation}
           />
         </div>
+        {namesEnabled === false && (
+          <div className="flex items-center justify-between gap-3 rounded-xl border border-border bg-secondary/40 p-3" data-testid="voice-names-disabled">
+            <div className="min-w-0">
+              <p className="text-sm font-semibold">Falas com nome desativadas</p>
+              <p className="text-xs text-muted-foreground">Vale para todos os alunos. Nada foi apagado.</p>
+            </div>
+            <Switch checked={false} onCheckedChange={toggleNames} aria-label="Religar falas com nome do aluno" />
+          </div>
+        )}
+        {namesEnabled === true && (
         <div className="flex flex-wrap items-center justify-between gap-3">
           <label className="flex items-center gap-2 min-w-0">
             <span className="text-sm font-semibold shrink-0">Como falar o nome</span>
@@ -198,6 +223,7 @@ const LiveCorrectionPremiumCard: React.FC<Props> = ({ studentId, studentProfile,
             <Mic className="h-3.5 w-3.5" /> Falas com nome
           </Link>
         </div>
+        )}
         {!studentProfile && (
           <p className="text-xs text-muted-foreground">Este aluno ainda não tem perfil detalhado, então o recurso não pode ser ativado.</p>
         )}
