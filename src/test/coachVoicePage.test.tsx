@@ -1,6 +1,7 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import React from 'react';
-import { render, screen, waitFor, fireEvent } from '@testing-library/react';
+import { render as rtlRender, screen, waitFor, fireEvent } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
 import { VOICE_CATALOG } from '@/lib/liveCorrection/voice/phrases';
 
 (globalThis as any).ResizeObserver ??= class { observe() {} unobserve() {} disconnect() {} };
@@ -24,6 +25,8 @@ vi.mock('@/integrations/supabase/client', () => {
           upsert: (rows: any[]) => { for (const r of rows) if (!db.phrases.some((p) => p.phrase_key === r.phrase_key)) db.phrases.push({ ...r, approved_take_id: null }); return result(null); },
           update: () => ({ eq: () => result(null) }),
         };
+        if (table === 'coach_voice_templates') return { select: () => ({ order: () => result([]) }) };
+        if (table === 'students_profile') return { select: () => ({ eq: () => result([]) }) };
         return { select: () => ({ order: () => result([...db.takes]) }) };
       },
       storage: { from: () => ({ createSignedUrls: () => result([]) }) },
@@ -46,6 +49,8 @@ vi.mock('@/lib/coachVoice/api', async (orig) => {
 });
 
 import VozCorrecaoAoVivo from '@/pages/VozCorrecaoAoVivo';
+
+const render = (ui: React.ReactElement) => rtlRender(<MemoryRouter>{ui}</MemoryRouter>);
 
 beforeEach(() => {
   db.phrases = [{ phrase_key: 'desce_mais', texto: 'Desce mais!', categoria: 'x', approved_take_id: null }];
