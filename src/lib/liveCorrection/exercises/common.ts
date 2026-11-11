@@ -1,8 +1,42 @@
 /**
  * Peças compartilhadas pelas regras de exercício (lógica pura, sem câmera).
  */
-import type { Side } from '../squatAnalysis';
-import type { LiveRep } from './types';
+import { MIN_VISIBILITY, TURN_SIDEWAYS_MESSAGE, type Landmark, type Side } from '../squatAnalysis';
+import type { CameraView, LiveRep } from './types';
+
+/** Aviso de vista errada numa regra de frente (elevação lateral). */
+export const FACE_CAMERA_MESSAGE = 'Fica de frente pra câmera';
+
+/** Vista errada: de frente numa regra de lado, ou de lado numa regra de frente. */
+export function isWrongView(view: CameraView, facingCamera: boolean, hasBody: boolean): boolean {
+  return view === 'side' ? facingCamera : hasBody && !facingCamera;
+}
+
+/** O que falar/mostrar quando a vista está errada. */
+export function wrongViewMessage(view: CameraView): string {
+  return view === 'front' ? FACE_CAMERA_MESSAGE : TURN_SIDEWAYS_MESSAGE;
+}
+
+/** Todos os pontos visíveis (visibilidade mínima) e dentro do quadro. */
+export function arePointsVisible(lms: Landmark[] | null | undefined, ids: readonly number[]): boolean {
+  if (!lms || lms.length < 29) return false;
+  return ids.every((i) => {
+    const l = lms[i];
+    return !!l && (l.visibility ?? 1) >= MIN_VISIBILITY && l.x >= 0 && l.x <= 1 && l.y >= 0 && l.y <= 1;
+  });
+}
+
+/** Avisos da rep que ainda podem ser falados (os de "1x por série" que já foram falados saem). */
+export function speakableErrors(errors: readonly string[], oncePerSeries: readonly string[] | undefined, spoken: ReadonlySet<string>): string[] {
+  if (!oncePerSeries?.length) return [...errors];
+  return errors.filter((e) => !(oncePerSeries.includes(e) && spoken.has(e)));
+}
+
+/** Marca como falados os avisos de "1x por série" que entraram na fala. */
+export function markSpokenOnce(errors: readonly string[], oncePerSeries: readonly string[] | undefined, spoken: Set<string>): void {
+  if (!oncePerSeries?.length) return;
+  for (const e of errors) if (oncePerSeries.includes(e)) spoken.add(e);
+}
 
 /** Nome do exercício → maiúsculas, sem acento, só letras/números separados por espaço. */
 export function normalizeExerciseName(name: string | null | undefined): string {

@@ -1,11 +1,11 @@
 import type { DepthLevel, Landmark, Side } from '../squatAnalysis';
 
 /** Id da regra salvo em camera_sessions.exercise_rule. */
-export type ExerciseRuleId = 'squat' | 'stiff' | 'bulgaro';
+export type ExerciseRuleId = 'squat' | 'stiff' | 'bulgaro' | 'lateral_raise' | 'hip_thrust';
 /** Vista que a câmera precisa ter da pessoa. */
 export type CameraView = 'side' | 'front';
 /** Contorno guia mostrado no posicionamento. */
-export type SilhouetteKind = 'standing' | 'split' | 'split_bench';
+export type SilhouetteKind = 'standing' | 'split' | 'split_bench' | 'front_upper' | 'hip_thrust';
 
 /** Rep de qualquer exercício, no formato que a tela e o resumo usam. */
 export interface LiveRep {
@@ -39,6 +39,13 @@ export interface LiveRepCounter {
   /** Só búlgaro/afundo. */
   readonly frontLeg?: Side;
   setFrontLeg?(leg: Side): void;
+  /**
+   * Parado numa posição de descanso, para o fim automático (elevação pélvica: no topo ou
+   * parado embaixo). Sem isto, o fim automático usa `atTop` fora de uma rep.
+   */
+  readonly resting?: boolean;
+  /** Fecha uma rep que ainda espera o fim (elevação pélvica segurando em cima) ao finalizar a série. */
+  flush?(): LiveRep | null;
 }
 
 export interface ExerciseRule {
@@ -60,4 +67,15 @@ export interface ExerciseRule {
   /** O que cada nível de profundidade exige, em texto curto. */
   levelHints: Record<DepthLevel, string>;
   createCounter(level?: unknown, frontLeg?: Side): LiveRepCounter;
+  /** Pontos que precisam aparecer; sem isto, exige o corpo inteiro (cabeça até tornozelo). */
+  isBodyVisible?(lms: Landmark[] | null | undefined, side: Side): boolean;
+  /** Aviso quando os pontos exigidos saem do quadro; sem isto, "Corpo inteiro na câmera". */
+  lostMessage?: string;
+  /** Pontos e medida de referência do "fica parado"; sem isto, ombro/quadril/tornozelo e ombro→tornozelo. */
+  stillPoints?: readonly number[];
+  stillScale?(lms: Landmark[], width: number, height: number, side: Side): number;
+  /** Linhas desenhadas na câmera; sem isto, 'legs' (ombro-quadril-joelho-tornozelo). */
+  skeleton?: 'legs' | 'arms';
+  /** Avisos falados no máximo 1x por série (continuam na tela e no resumo). */
+  speakOncePerSeries?: readonly string[];
 }
