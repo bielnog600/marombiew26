@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { AlertTriangle, Camera, Check, ChevronRight, ImagePlus, ListOrdered, Loader2, Plus, RotateCcw, Scale, ScanSearch, Search, SkipForward, Trash2, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -9,14 +10,15 @@ import {
 } from '@/components/ui/alert-dialog';
 import { supabase } from '@/integrations/supabase/client';
 import { useHoldAppUpdate } from '@/hooks/useHoldAppUpdate';
+import { useHideBottomNav } from '@/hooks/useBottomNavVisibility';
 import { filterFoodsBySearch } from '@/lib/foodSearch';
 import type { ParsedMeal } from '@/lib/dietResultParser';
 import {
-  FIRST_ITEM_HINT, NEXT_ITEM_HINT, NEXT_PLAN_FOOD_HINT, NOT_TARED_MESSAGE, SCALE_ONLY_UNREADABLE_MESSAGE, UNREADABLE_MESSAGE,
-  buildPlanWeighedItem, buildWeighedItem, checkTare, compareWeighedMeal, fitWithin, formatFoodComparison, formatPlanWeighLine,
-  isReadingUnreliable, macrosForGrams, nextPlanFoodIndex, planFoodToWeighFood, planProgressLabel, plannedFromMeal,
-  resolveWeighFood, round1, scaleOnlyHint, sumWeighedItems,
-  type WeighAiResult, type WeighFood, type WeighFoodResolution, type WeighedItem,
+  FIRST_ITEM_HINT, NEXT_ITEM_HINT, NEXT_PLAN_FOOD_HINT, NOT_TARED_MESSAGE, REPEATED_FOOD_MESSAGE, SCALE_ONLY_UNREADABLE_MESSAGE, UNREADABLE_MESSAGE,
+  buildPlanWeighedItem, buildScanWeighRequest, buildWeighedItem, checkTare, compareWeighedMeal, fitWithin, formatFoodComparison, formatPlanWeighLine,
+  isReadingUnreliable, macrosForGrams, matchPlanFood, nextPlanFoodIndex, pendingPlanFoods, planFoodToWeighFood, planProgressLabel, plannedFromMeal,
+  resolveScanWeigh, round1, scaleOnlyHint, sumWeighedItems, visibleWeighObservation, weighedChipsLabel,
+  type PendingPlanFood, type ScanWeighResolution, type WeighAiResult, type WeighFood, type WeighedItem,
 } from '@/lib/mealWeigh';
 
 interface Props {
@@ -51,8 +53,10 @@ interface PlanDraft {
 interface Draft {
   photo: string;
   ai: WeighAiResult;
-  resolution: WeighFoodResolution;
+  resolution: ScanWeighResolution;
   food: WeighFood | null;
+  /** Índice do alimento previsto escolhido (auto ou chip); null = fora do plano. */
+  planIndex: number | null;
   grams: string;
   unreadable: boolean;
   tareSuggested: number | null;
@@ -98,6 +102,8 @@ const signed = (n: number, unit = '') => `${n > 0 ? '+' : ''}${n}${unit}`;
 
 const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex, dietPlanId, testMode, initialMode, startFoodIndex, onClose, onSaved }) => {
   useHoldAppUpdate(true);
+  // Tela cheia de verdade: o menu inferior some enquanto a pesagem está aberta.
+  useHideBottomNav(true);
   const [mode, setMode] = useState<Mode>(initialMode ?? 'choose');
   const [phase, setPhase] = useState<Phase>('camera');
   const [planIdx, setPlanIdx] = useState(Math.max(0, startFoodIndex ?? 0));
@@ -119,6 +125,12 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
   const planned = useMemo(() => plannedFromMeal(meal), [meal]);
   const planNames = useMemo(() => planned.alimentos.map((f) => f.alimento).filter(Boolean), [planned]);
   const accumulated = useMemo(() => sumWeighedItems(items).gramas, [items]);
+  const pending = useMemo(() => pendingPlanFoods(planned, items), [planned, items]);
+  // Sempre a lista/fotos mais recentes na chamada da IA (sem closure velha).
+  const itemsRef = useRef<WeighedItem[]>([]);
+  const photosRef = useRef<string[]>([]);
+  itemsRef.current = items;
+  photosRef.current = photos;
 
   useEffect(() => {
     let cancelled = false;
@@ -166,17 +178,9 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
     setPendingPhoto(photo);
     setPhase('analyzing');
     try {
-      const previousImage = items.length > 0 ? photos[photos.length - 1] ?? null : null;
-      const { data, error } = await supabase.functions.invoke('food-scanner', {
-        body: {
-          action: 'weigh',
-          image: photo,
-          previousImage,
-          mealName: meal.name,
-          planFoods: planNames,
-          addedFoods: items.map((i) => ({ alimento: i.alimento, gramas: i.gramas })),
-        },
-      });
+      const doneItems = itemsRef.current;
+      const body = buildScanWeighRequest({ photo, items: doneItems, photos: photosRef.current, mealName: meal.name, planned });
+      const { data, error } = await supabase.functions.invoke('food-scanner', { body });
       if (error) {
         let msg = 'Não foi possível analisar a foto agora.';
         try { const b = await (error as any).context?.json?.(); if (b?.error) msg = b.error; } catch { /* sem corpo */ }
@@ -185,25 +189,27 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
       if (data?.error) throw new Error(data.error);
       const ai = data?.result as WeighAiResult;
       if (!ai) throw new Error('Não consegui analisar a foto. Tira outra.');
-      const resolution = resolveWeighFood(ai, foods, planNames, planned.alimentos);
+      const resolution = resolveScanWeigh(ai, foods, planned, doneItems);
       const unreadable = isReadingUnreliable(ai);
-      const tare = unreadable ? { notTared: false, suggestedGrams: null } : checkTare(ai.gramas_lidas, accumulated);
+      const acc = sumWeighedItems(doneItems).gramas;
+      const tare = unreadable ? { notTared: false, suggestedGrams: null } : checkTare(ai.gramas_lidas, acc);
       setDraft({
         photo, ai, resolution,
         food: resolution.food,
+        planIndex: resolution.planIndex,
         grams: unreadable || ai.gramas_lidas == null ? '' : String(ai.gramas_lidas),
         unreadable,
         tareSuggested: tare.notTared ? tare.suggestedGrams : null,
         tareDismissed: false,
       });
       setSearch('');
-      setSearchOpen(!resolution.food && resolution.alternatives.length === 0);
+      setSearchOpen(!resolution.food && !resolution.repeated && resolution.alternatives.length === 0 && resolution.pending.length === 0);
       setPhase('item');
     } catch (e) {
       toast.error((e as Error).message || 'Não foi possível analisar a foto.');
       setPhase('camera');
     }
-  }, [items, photos, meal.name, planNames, planned.alimentos, foods, accumulated]);
+  }, [meal.name, planned, foods]);
 
   const currentPlanFood = planned.alimentos[planIdx] ?? null;
 
@@ -296,19 +302,33 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
     setPhase('camera');
   };
 
-  const confirmItem = () => {
+  const draftValid = !!draft?.food && gramsNum > 0;
+  /** Confirma o item atual e segue: 'camera' = próximo alimento, 'summary' = concluir. */
+  const confirmItem = (next: 'camera' | 'summary' | 'list' = 'list') => {
     if (!draft?.food || !(gramsNum > 0)) return;
     const readG = draft.ai.gramas_lidas;
     const sameAsAi = draft.food.id === draft.resolution.food?.id;
     const edited = !sameAsAi || readG == null || Math.abs(gramsNum - readG) > 0.05;
     const item = buildWeighedItem(draft.food, gramsNum, {
       edited, aiName: draft.ai.alimento || null, readGrams: readG,
-      planIndex: sameAsAi ? draft.resolution.planIndex : null,
+      planIndex: draft.planIndex,
     });
-    setItems((prev) => [...prev, item]);
-    setPhotos((prev) => [...prev, draft.photo]);
+    const nextItems = [...itemsRef.current, item];
+    const nextPhotos = [...photosRef.current, draft.photo];
+    itemsRef.current = nextItems;
+    photosRef.current = nextPhotos;
+    setItems(nextItems);
+    setPhotos(nextPhotos);
     setDraft(null);
-    setPhase('list');
+    setPhase(next);
+  };
+
+  const pickPending = (p: PendingPlanFood) => {
+    const food = planFoodToWeighFood(p.food, foods);
+    if (!food) { setSearch(p.food.alimento); setSearchOpen(true); return; }
+    setDraft((d) => (d ? { ...d, food, planIndex: p.index } : d));
+    setSearchOpen(false);
+    setSearch('');
   };
 
   const removeItem = (idx: number) => {
@@ -350,7 +370,10 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
   const searchResults = useMemo(() => (search.trim() ? filterFoodsBySearch(foods, search).slice(0, 25) : []), [foods, search]);
   const pickFood = (f: WeighFood) => {
     if (mode === 'plan') setPlanDraft((d) => (d ? { ...d, override: f } : d));
-    else setDraft((d) => (d ? { ...d, food: f } : d));
+    else {
+      const hit = matchPlanFood(f.name, pending.map((p) => p.food));
+      setDraft((d) => (d ? { ...d, food: f, planIndex: hit != null ? pending[hit].index : null } : d));
+    }
     setSearchOpen(false);
     setSearch('');
   };
