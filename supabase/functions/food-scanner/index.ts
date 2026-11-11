@@ -200,6 +200,33 @@ Regras:
       return json({ evaluation });
     }
 
+    if (action === 'read_weight') {
+      // Pesar alimento da dieta (Premium): o alimento já é o do plano; só lê o visor.
+      const { data: allowed, error: permErr } = await admin.rpc('has_premium_scale', { _user_id: u.user.id });
+      if (permErr || allowed !== true) return json({ error: 'Pesar refeição é um recurso Premium.' }, 403);
+      const current = parseImage(body.image);
+      if (!current) return json({ error: 'Imagem inválida' }, 400);
+      const foodName = String(body.foodName ?? '').replace(/\s+/g, ' ').trim().slice(0, 120);
+      const text = await anthropic(
+        [
+          { type: 'image', source: { type: 'base64', ...current } },
+          {
+            type: 'text',
+            text: `Esta foto mostra uma balança de cozinha com ${foodName || 'um alimento'}. NÃO identifique o alimento: só leia o número do visor.
+Regras:
+- gramas_lidas é o número do visor em gramas (converta kg, oz ou lb para gramas). Nunca estime pelo tamanho da comida. Se não der para ler o visor, use null e visor_legivel false.
+- confianca_leitura vai de 0 a 1.
+Responda SOMENTE JSON:
+{"gramas_lidas":number|null,"visor_legivel":boolean,"confianca_leitura":number}`,
+          },
+        ],
+        150,
+      );
+      const parsed = parseWeighJson(text);
+      if (!parsed) return json({ error: 'Não consegui analisar a foto. Tira outra.' }, 422);
+      return json({ result: { gramas_lidas: parsed.gramas_lidas, visor_legivel: parsed.visor_legivel, confianca_leitura: parsed.confianca_leitura } });
+    }
+
     if (action === 'weigh') {
       // Pesar refeição (Premium): só quem tem premium_scale (ou admin).
       const { data: allowed, error: permErr } = await admin.rpc('has_premium_scale', { _user_id: u.user.id });
