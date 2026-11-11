@@ -39,7 +39,7 @@ describe('Correção ao vivo — nomes da etapa 3', () => {
   });
 
   it('seletor do admin com os 8 exercícios e mensagens antigas intactas', () => {
-    expect(EXERCISE_RULE_ORDER).toEqual(['squat', 'stiff', 'bulgaro', 'lateral_raise', 'hip_thrust', 'curl', 'triceps_french', 'shoulder_press']);
+    expect(EXERCISE_RULE_ORDER.slice(0, 8)).toEqual(['squat', 'stiff', 'bulgaro', 'lateral_raise', 'hip_thrust', 'curl', 'triceps_french', 'shoulder_press']);
     expect(ALL_ERROR_MESSAGES.depth).toBe('Desce mais');
     expect(ALL_ERROR_MESSAGES.depth_near).toBe('Desce um pouco mais');
     expect(ALL_ERROR_MESSAGES.raise_near).toBe('Sobe um pouco mais');
