@@ -46,26 +46,34 @@ const cleanupServiceWorkers = async () => {
 };
 
 /**
- * Atualização do app instalado sem recarregar no meio do uso:
+ * Atualização do app instalado sem recarregar no meio do uso nem em loop:
  * - procura versão nova a cada 5 min e ao voltar para o app;
- * - a versão nova fica esperando e só entra ao ir para segundo plano, na
- *   abertura do app ou no toque em "Atualizar" (ver updateController);
+ * - a versão nova fica esperando e só é aplicada ao ir para segundo plano ou no
+ *   toque em "Atualizar" (ver updateController, com trava persistente);
+ * - recarrega só quando o service worker novo assume (controllerchange);
  * - nenhum cache é apagado aqui: o service worker novo limpa os antigos.
  */
+declare const __APP_VERSION__: string | undefined;
+
 const startPwaUpdates = () => {
   if (!("serviceWorker" in navigator) || isPreviewHost || isInIframe) return;
+
+  const runningVersion = typeof __APP_VERSION__ === "string" ? __APP_VERSION__ : "unknown";
+  let swRegistration: ServiceWorkerRegistration | undefined;
+  const waitingId = () => `${swRegistration?.waiting?.scriptURL ?? "/sw.js"}|${runningVersion}`;
+
+  navigator.serviceWorker.addEventListener("controllerchange", () => {
+    appUpdates.onControllerChange();
+  });
 
   const updateSW = registerSW({
     immediate: true,
     onNeedRefresh() {
-      appUpdates.markAvailable(async () => {
-        await updateSW(true);
-        // Se o navegador não trocar sozinho em alguns segundos, recarrega.
-        window.setTimeout(() => window.location.reload(), 4000);
-      });
+      appUpdates.markAvailable(() => updateSW(true), waitingId());
     },
     onRegisteredSW(_swUrl, registration) {
       if (!registration) return;
+      swRegistration = registration;
 
       const checkForUpdate = () => {
         if (!navigator.onLine) return;

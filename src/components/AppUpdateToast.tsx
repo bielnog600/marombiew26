@@ -12,13 +12,18 @@ const AppUpdateToast = () => {
     appUpdates.subscribe,
     () => {
       const s = appUpdates.getState();
-      return `${s.available}|${s.held}`;
+      return `${s.available}|${s.held}|${s.stalled}`;
     },
   );
-  const [available, held] = snapshot.split('|').map(v => v === 'true');
+  const [available, held, stalled] = snapshot.split('|').map(v => v === 'true');
 
   useEffect(() => {
-    if (available && !held) {
+    if (stalled && !held) {
+      toast('Feche e abra o app para concluir a atualização', {
+        id: TOAST_ID,
+        duration: Number.POSITIVE_INFINITY,
+      });
+    } else if (available && !held) {
       toast('Nova versão disponível', {
         id: TOAST_ID,
         duration: Number.POSITIVE_INFINITY,
@@ -27,7 +32,7 @@ const AppUpdateToast = () => {
     } else {
       toast.dismiss(TOAST_ID);
     }
-  }, [available, held, location.pathname]);
+  }, [available, held, stalled, location.pathname]);
 
   return null;
 };
