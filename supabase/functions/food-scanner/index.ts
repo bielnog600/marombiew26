@@ -54,6 +54,74 @@ async function anthropic(content: unknown, maxTokens: number) {
   return text.trim();
 }
 
+const IMAGE_RE = /^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/;
+const MAX_IMAGE_CHARS = 6_000_000;
+const parseImage = (value: unknown) => {
+  const s = typeof value === 'string' ? value : '';
+  if (!s || s.length > MAX_IMAGE_CHARS) return null;
+  const m = s.match(IMAGE_RE);
+  return m ? { media_type: m[1], data: m[2] } : null;
+};
+const cleanNames = (value: unknown, max: number) =>
+  (Array.isArray(value) ? value : [])
+    .map((v) => String(v ?? '').replace(/\s+/g, ' ').trim().slice(0, 120))
+    .filter(Boolean)
+    .slice(0, max);
+const cleanAdded = (value: unknown) =>
+  (Array.isArray(value) ? value : [])
+    .map((v: any) => ({ alimento: String(v?.alimento ?? '').replace(/\s+/g, ' ').trim().slice(0, 120), gramas: Number(v?.gramas) }))
+    .filter((v) => v.alimento)
+    .slice(0, 30);
+
+/** Normaliza o JSON da pesagem; null quando a IA não devolveu um objeto. */
+function parseWeighJson(text: string) {
+  const raw = text.match(/\{[\s\S]*\}/)?.[0];
+  if (!raw) return null;
+  let o: any;
+  try { o = JSON.parse(raw); } catch { return null; }
+  if (!o || typeof o !== 'object') return null;
+  const num = (v: unknown) => {
+    if (v === null || v === undefined || v === '') return null;
+    const n = typeof v === 'string' ? Number(v.replace(',', '.').replace(/[^\d.]/g, '')) : Number(v);
+    return Number.isFinite(n) ? n : null;
+  };
+  const conf = (v: unknown) => {
+    let n = num(v) ?? 0;
+    if (n > 1) n = n / 100;
+    return Math.max(0, Math.min(1, n));
+  };
+  const grams = num(o.gramas_lidas);
+  const readable = grams !== null && grams > 0;
+  return {
+    alimento: String(o.alimento ?? '').trim().slice(0, 120),
+    alimento_alternativas: (Array.isArray(o.alimento_alternativas) ? o.alimento_alternativas : [])
+      .map((s: unknown) => String(s ?? '').trim().slice(0, 120)).filter(Boolean).slice(0, 3),
+    gramas_lidas: readable ? Math.round(grams! * 10) / 10 : null,
+    confianca_alimento: conf(o.confianca_alimento),
+    confianca_leitura: readable ? conf(o.confianca_leitura) : 0,
+    visor_legivel: o.visor_legivel === true && readable,
+    observacao: String(o.observacao ?? '').trim().slice(0, 240),
+  };
+}
+
+function weighPrompt(hasPrevious: boolean, mealName: string, planFoods: string[], added: { alimento: string; gramas: number }[]) {
+  const task = hasPrevious
+    ? 'Você recebeu duas fotos da mesma balança de cozinha: a ANTERIOR e a ATUAL. Entre elas o aluno zerou a balança (tara) e colocou UM alimento novo. Identifique só o alimento que foi ADICIONADO na foto ATUAL e leia o número do visor na foto ATUAL (depois da tara o visor mostra só o peso do alimento novo).'
+    : 'Você recebeu uma foto de uma balança de cozinha com comida. Identifique o alimento que está na balança e leia o número do visor.';
+  return `${task}
+Refeição: ${mealName || 'não informada'}.
+Alimentos previstos no plano desta refeição (prefira exatamente estes nomes quando fizer sentido): ${planFoods.length ? planFoods.join('; ') : 'nenhum informado'}.
+Já pesados nesta refeição: ${added.length ? added.map((a) => `${a.alimento}${Number.isFinite(a.gramas) && a.gramas > 0 ? ` (${Math.round(a.gramas)} g)` : ''}`).join('; ') : 'nenhum'}.
+Regras:
+- gramas_lidas é o número do visor em gramas (converta kg, oz ou lb para gramas). Nunca estime pelo tamanho da comida. Se não der para ler o visor, use null e visor_legivel false.
+- confianca_alimento e confianca_leitura vão de 0 a 1.
+- alimento_alternativas: 3 outros nomes prováveis para o alimento, do mais ao menos provável.
+- Nomes simples em português do Brasil, como numa tabela de alimentos (ex.: "Arroz branco cozido", "Peito de frango grelhado").
+- observacao: curta (ex.: reflexo no visor, balança parece não ter sido zerada) ou "".
+Responda SOMENTE JSON:
+{"alimento":string,"alimento_alternativas":[string,string,string],"gramas_lidas":number|null,"confianca_alimento":number,"confianca_leitura":number,"visor_legivel":boolean,"observacao":string}`;
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
   try {
@@ -130,6 +198,32 @@ Regras:
 - Nunca recomende uma troca que reduza de forma relevante a proteína da refeição (ex.: trocar whey, ovos, frango ou carne por um produto com bem menos proteína). Se o produto tem pouca proteína, ele pode entrar só como complemento ou no lugar de um carboidrato ou gordura equivalente, nunca no lugar da fonte de proteína. Só chame de 'boa proteína' acima de ~8 g por 100 g.`;
       const evaluation = await anthropic(prompt, 300);
       return json({ evaluation });
+    }
+
+    if (action === 'weigh') {
+      // Pesar refeição (Premium): só quem tem premium_scale (ou admin).
+      const { data: allowed, error: permErr } = await admin.rpc('has_premium_scale', { _user_id: u.user.id });
+      if (permErr || allowed !== true) return json({ error: 'Pesar refeição é um recurso Premium.' }, 403);
+      const current = parseImage(body.image);
+      if (!current) return json({ error: 'Imagem inválida' }, 400);
+      const previous = body.previousImage == null ? null : parseImage(body.previousImage);
+      if (body.previousImage != null && !previous) return json({ error: 'Imagem anterior inválida' }, 400);
+      const planFoods = cleanNames(body.planFoods, 40);
+      const added = cleanAdded(body.addedFoods);
+      const mealName = String(body.mealName ?? '').replace(/\s+/g, ' ').trim().slice(0, 80);
+      const content: unknown[] = previous
+        ? [
+            { type: 'text', text: 'Foto ANTERIOR:' },
+            { type: 'image', source: { type: 'base64', ...previous } },
+            { type: 'text', text: 'Foto ATUAL:' },
+            { type: 'image', source: { type: 'base64', ...current } },
+          ]
+        : [{ type: 'image', source: { type: 'base64', ...current } }];
+      content.push({ type: 'text', text: weighPrompt(!!previous, mealName, planFoods, added) });
+      const text = await anthropic(content, 400);
+      const result = parseWeighJson(text);
+      if (!result) return json({ error: 'Não consegui analisar a foto. Tira outra.' }, 422);
+      return json({ result });
     }
 
     return json({ error: 'Ação inválida' }, 400);
