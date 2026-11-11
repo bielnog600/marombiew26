@@ -206,7 +206,10 @@ Fora do escopo desta entrega (Fases 3-6): LOW/MEDIUM/HIGH, novo carb cycling, aj
 
 ## Tradução de dieta/treino (celular em inglês)
 - [x] Dieta e treinos aparecem na hora em português; tradução em segundo plano, limite de 15 s, pausa de 10 min após falha; lógica sempre no original
-- [ ] Decidir com o Fabiew: 15 s é menos que o tempo real da tradução (mediana ~46 s), então quase nenhuma tradução vai chegar
+- [x] Espera em segundo plano de 120 s; pausa de 10 min só após erro (timeout não pausa)
+- [x] Tradução guardada no servidor por plano/conteúdo; idioma do aparelho salvo no perfil ao abrir o app; publicar/editar dieta ou treino de aluno em inglês já dispara a tradução em segundo plano
+- [x] Claude rápido (o mesmo do scanner) recebendo só os nomes exibidos (refeições, alimentos, dias)
+- [ ] Ver a primeira tradução real chegar num celular em inglês — nenhuma chamada real à IA foi feita
 
 ## Pesar refeição — tela cheia e itens 2+
 - [x] Tela por cima de tudo, menu inferior escondido, rodapé fixo (Próximo alimento / Concluir refeição / Tirar de novo), chips dos itens pesados e "Alimento N"
