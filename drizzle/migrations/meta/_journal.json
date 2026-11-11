@@ -232,6 +232,13 @@
       "when": 1794429299910,
       "tag": "0032_coach_voice_storage_read",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1794430244886,
+      "tag": "0033_diet_decision_applications_admin_only",
+      "breakpoints": true
     }
   ]
 }
