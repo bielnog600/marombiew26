@@ -95,4 +95,20 @@ describe('food-scanner weigh (Pesar refeição)', () => {
     expect(content[1].text).toContain('Arroz branco');
     expect(content[1].text).toContain('NÃO identifique o alimento');
   });
+
+  it('itens 2+: compara as fotos, só o adicionado, e prioriza os previstos ainda não pesados', async () => {
+    const ctx = setup(true);
+    await ctx.request({
+      action: 'weigh', image: IMG, previousImage: PREV, mealName: 'Lanche',
+      planFoods: ['Iogurte natural', 'Whey protein', 'Chia'],
+      pendingPlanFoods: ['Chia'],
+      addedFoods: [{ alimento: 'Iogurte natural', gramas: 154 }, { alimento: 'Whey protein', gramas: 26 }],
+    });
+    const prompt = JSON.parse(String((ctx.fetch.mock.calls[0] as any)[1].body)).messages[0].content[4].text as string;
+    expect(prompt).toContain('Compare as duas fotos. Identifique SOMENTE o que foi adicionado entre a foto anterior e a atual.');
+    expect(prompt).toContain('Um alimento já pesado não deve ser retornado de novo, a menos que a quantidade dele claramente aumentou.');
+    expect(prompt).toContain('Candidatos prioritários (previstos e AINDA NÃO pesados): Chia.');
+    expect(prompt).toContain('sementes escuras pequenas → chia');
+    expect(prompt).toContain('Não comente a tigela');
+  });
 });
