@@ -24,7 +24,8 @@ import {
 
 import { Button } from '@/components/ui/button';
 import { useDailyTracking } from '@/hooks/useDailyTracking';
-import { fetchWithCache } from '@/lib/offlineCache';
+import { fetchWithCache, setCache } from '@/lib/offlineCache';
+import { latestWeighLogs, overlayDayWeighLogs, type WeighLogRecord } from '@/lib/mealWeigh';
 import ProtocolsDialog from '@/components/diet/ProtocolsDialog';
 import { protocolsToKeys, type SavedProtocols, type ProtocolKey } from '@/lib/dietProtocols';
 import { ListChecks, ScanBarcode } from 'lucide-react';
@@ -491,7 +492,36 @@ const MinhasDietas = () => {
   const [showScanner, setShowScanner] = useState(false);
   const premiumScale = usePremiumScale(user?.id);
   const [weighTarget, setWeighTarget] = useState<{ meal: number; food?: number } | null>(null);
-  const selectedDate = getWeekRange().dates[selectedWeekday];
+  const [confirmReweigh, setConfirmReweigh] = useState<{ meal: number; food?: number } | null>(null);
+  const weekRange = getWeekRange();
+  const selectedDate = weekRange.dates[selectedWeekday];
+  // Pesagens da semana ("Pesar refeição"): a mais recente de cada refeição/dia é o registro do dia.
+  const [weighLogs, setWeighLogs] = useState<WeighLogRecord[]>([]);
+  const weighCacheKey = user ? `meal-weigh:${user.id}:${weekRange.start}` : '';
+  useEffect(() => {
+    if (!user || !weighCacheKey) return;
+    let cancelled = false;
+    const { start, end } = getWeekRange();
+    (async () => {
+      try {
+        const { data } = await fetchWithCache(weighCacheKey, async () => {
+          const { data, error } = await supabase
+            .from('meal_weigh_logs')
+            .select('id, log_date, meal_index, items, unweighed, planned, created_at')
+            .eq('student_id', user.id)
+            .gte('log_date', start)
+            .lte('log_date', end);
+          if (error) throw error;
+          return data ?? [];
+        });
+        if (!cancelled) setWeighLogs(Array.isArray(data) ? (data as unknown as WeighLogRecord[]) : []);
+      } catch (error) {
+        console.error('[MinhasDietas] falha ao carregar pesagens', error);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [user, weighCacheKey]);
+  const latestLogs = useMemo(() => latestWeighLogs(weighLogs), [weighLogs]);
   const { tracking, weeklyTracking, weekDates, today: trackingToday, loading: trackingLoading,
     ensureCanRegister, addWaterMl, removeWater, toggleMeal, waterCurrentMl, waterTargetMl } = useDailyTracking({
       isTrainingDay: isSelectedDayTraining, date: selectedDate,
@@ -559,7 +589,7 @@ const MinhasDietas = () => {
   );
 
   // Overlay das edições do aluno sobre o plano prescrito.
-  const studentMeals = useMemo(
+  const editedMeals = useMemo(
     () =>
       prescribedMeals.map((m, mi) => {
         const saved = substitutions[`${activeGroupIndex}-${mi}`];
@@ -568,25 +598,52 @@ const MinhasDietas = () => {
     [prescribedMeals, substitutions, activeGroupIndex],
   );
 
-  // Rebalanceamento determinístico: apenas refeições FUTURAS absorvem a
-  // diferença; concluídas e a refeição editada permanecem congeladas.
-  const rebalance = useMemo(
-    () =>
-      rebalanceFutureMeals({
-        meals: studentMeals as any,
-        completedIndexes,
-        currentIndex: editedMealByGroup[activeGroupIndex] ?? -1,
-        dailyTarget,
-      }),
-    [studentMeals, completedIndexes, editedMealByGroup, activeGroupIndex, dailyTarget],
-  );
-
   const hasStudentEdits = useMemo(
     () => prescribedMeals.some((_, mi) => Boolean(substitutions[`${activeGroupIndex}-${mi}`])),
     [prescribedMeals, substitutions, activeGroupIndex],
   );
 
-  const currentMeals = hasStudentEdits ? rebalance.meals : prescribedMeals;
+  // Previsto do dia (sem pesagens): é o que a tela de pesagem compara.
+  const plannedDayMeals = useMemo(
+    () =>
+      hasStudentEdits
+        ? rebalanceFutureMeals({
+            meals: editedMeals as any,
+            completedIndexes,
+            currentIndex: editedMealByGroup[activeGroupIndex] ?? -1,
+            dailyTarget,
+          }).meals
+        : prescribedMeals,
+    [hasStudentEdits, editedMeals, completedIndexes, editedMealByGroup, activeGroupIndex, dailyTarget, prescribedMeals],
+  );
+
+  // Registro do dia: refeições pesadas mostram o consumido (o plano publicado não muda).
+  const weighOverlay = useMemo(
+    () => overlayDayWeighLogs(editedMeals, selectedDate, latestLogs),
+    [editedMeals, selectedDate, latestLogs],
+  );
+  const studentMeals = weighOverlay.meals;
+  const weighedIndexes = weighOverlay.weighedIndexes;
+  /** Concluídas + pesadas: nunca são reajustadas pelo rebalanceamento. */
+  const lockedIndexes = useMemo(
+    () => Array.from(new Set([...completedIndexes, ...weighedIndexes])),
+    [completedIndexes, weighedIndexes],
+  );
+
+  // Rebalanceamento determinístico: apenas refeições FUTURAS absorvem a
+  // diferença; concluídas, pesadas e a refeição editada permanecem congeladas.
+  const rebalance = useMemo(
+    () =>
+      rebalanceFutureMeals({
+        meals: studentMeals as any,
+        completedIndexes: lockedIndexes,
+        currentIndex: editedMealByGroup[activeGroupIndex] ?? -1,
+        dailyTarget,
+      }),
+    [studentMeals, lockedIndexes, editedMealByGroup, activeGroupIndex, dailyTarget],
+  );
+
+  const currentMeals = hasStudentEdits || weighedIndexes.length > 0 ? rebalance.meals : prescribedMeals;
 
   const resetDayEdits = useCallback(() => {
     dirtyRef.current = true;
@@ -653,9 +710,9 @@ const MinhasDietas = () => {
 
   const openPortionPreview = useCallback(() => {
     setPortionPreview(
-      adjustStudentPortions({ meals: currentMeals as any, lockedMealIndexes: completedIndexes, target: dailyTarget }),
+      adjustStudentPortions({ meals: currentMeals as any, lockedMealIndexes: lockedIndexes, target: dailyTarget }),
     );
-  }, [currentMeals, completedIndexes, dailyTarget]);
+  }, [currentMeals, lockedIndexes, dailyTarget]);
 
   const writeSubs = useCallback((subs: Record<string, any[]>, meta: Record<number, number>) => {
     dirtyRef.current = true;
@@ -672,7 +729,7 @@ const MinhasDietas = () => {
     setUndoSnapshot({ group: activeGroupIndex, subs: substitutions, meta: editedMealByGroup });
     const nextSubs = { ...substitutions };
     portionPreview.meals.forEach((m, mi) => {
-      if (completedIndexes.includes(mi)) return;
+      if (lockedIndexes.includes(mi)) return;
       nextSubs[`${activeGroupIndex}-${mi}`] = m.foods;
     });
     // Nenhuma refeição "congelada": o ajuste já fechou o dia.
@@ -680,7 +737,7 @@ const MinhasDietas = () => {
     pendingActionRef.current = 'aluno_ajustou_porcoes';
     writeSubs(nextSubs, nextMeta);
     setPortionPreview(null);
-  }, [portionPreview, activeGroupIndex, substitutions, editedMealByGroup, completedIndexes, writeSubs]);
+  }, [portionPreview, activeGroupIndex, substitutions, editedMealByGroup, lockedIndexes, writeSubs]);
 
   const undoPortionAdjust = useCallback(() => {
     if (!undoSnapshot) return;
@@ -815,13 +872,15 @@ const MinhasDietas = () => {
       const foods = substitutions[`${groupIndex}-${i}`];
       return foods ? { ...meal, foods } : meal;
     });
-    const hasEdits = prescribed.some((_, i) => Boolean(substitutions[`${groupIndex}-${i}`]));
-    const meals = hasEdits ? rebalanceFutureMeals({ meals: edited as any, completedIndexes: done,
+    const day = overlayDayWeighLogs(edited, date, latestLogs);
+    const hasEdits = day.weighedIndexes.length > 0 || prescribed.some((_, i) => Boolean(substitutions[`${groupIndex}-${i}`]));
+    const meals = hasEdits ? rebalanceFutureMeals({ meals: day.meals as any,
+      completedIndexes: Array.from(new Set([...done, ...day.weighedIndexes])),
       currentIndex: editedMealByGroup[groupIndex] ?? -1, dailyTarget: target }).meals : prescribed;
     return { date, tracking: row, targetKcal: target.kcal,
       consumedKcal: sumMealMacros(meals.filter((_, i) => done.includes(i)) as any).kcal };
   }), trackingToday), [weekDates.join(','), weeklyTracking, displayGroups, allMeals, usesMealOptions,
-    activeGroupIndex, isStructuredDiet, structuredGroups, publishedTargets, substitutions, editedMealByGroup, trackingToday]);
+    activeGroupIndex, isStructuredDiet, structuredGroups, publishedTargets, substitutions, editedMealByGroup, trackingToday, latestLogs]);
 
   // Refeição sugerida pelo horário atual (última cujo horário já passou).
   const currentMealIndex = useMemo(() => {
@@ -869,6 +928,25 @@ const MinhasDietas = () => {
     [currentMeals, persistFoodsChange, activeGroupIndex],
   );
 
+  // Pesagem salva: entra no registro do dia e marca a refeição como feita.
+  const handleWeighSaved = useCallback((log: WeighLogRecord) => {
+    setWeighLogs((prev) => {
+      const next = [...prev, log];
+      if (weighCacheKey) void setCache(weighCacheKey, next);
+      return next;
+    });
+    if (log.meal_index == null) return;
+    const key = trackingDayIndex * 1000 + log.meal_index;
+    if (!tracking.meals_completed.includes(key)) toggleMeal(key);
+  }, [weighCacheKey, trackingDayIndex, tracking.meals_completed, toggleMeal]);
+
+  /** Refeição já pesada neste dia: pergunta antes de substituir a pesagem. */
+  const openWeigh = useCallback((target: { meal: number; food?: number }) => {
+    if (!ensureCanRegister()) return;
+    if (weighedIndexes.includes(target.meal)) { setConfirmReweigh(target); return; }
+    setWeighTarget(target);
+  }, [ensureCanRegister, weighedIndexes]);
+
   const waterMl = waterCurrentMl;
   const waterGoalMl = waterTargetMl;
 
@@ -908,9 +986,9 @@ const MinhasDietas = () => {
     <AppLayout title="Plano Alimentar">
       <React.Suspense fallback={null}>
         <FoodScanner open={showScanner} onOpenChange={setShowScanner} dailyKcal={dailyTarget?.kcal || null} />
-        {weighTarget && currentMeals[weighTarget.meal] && user && (
+        {weighTarget && plannedDayMeals[weighTarget.meal] && user && (
           <MealWeighScreen
-            meal={currentMeals[weighTarget.meal]}
+            meal={plannedDayMeals[weighTarget.meal]}
             studentId={user.id}
             logDate={selectedDate}
             mealIndex={weighTarget.meal}
@@ -918,6 +996,7 @@ const MinhasDietas = () => {
             initialMode={weighTarget.food != null ? 'plan' : undefined}
             startFoodIndex={weighTarget.food}
             onClose={() => setWeighTarget(null)}
+            onSaved={handleWeighSaved}
           />
         )}
       </React.Suspense>
@@ -1185,6 +1264,23 @@ const MinhasDietas = () => {
           </AlertDialogContent>
         </AlertDialog>
 
+        <AlertDialog open={!!confirmReweigh} onOpenChange={(o) => !o && setConfirmReweigh(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Substituir a pesagem anterior?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Essa refeição já foi pesada neste dia. A nova pesagem passa a valer no lugar da anterior.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+              <AlertDialogAction onClick={() => { setWeighTarget(confirmReweigh); setConfirmReweigh(null); }}>
+                Pesar de novo
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
         {/* Hidratação */}
         <HydrationCard
           currentMl={waterMl}
@@ -1213,12 +1309,13 @@ const MinhasDietas = () => {
                   isCompleted={done}
                   onToggleComplete={() => handleToggleMeal(i)}
                   onFoodsChange={(foods) => handleFoodsChange(i, foods)}
+                  weighed={weighedIndexes.includes(i)}
                   moveTargets={currentMeals
                     .map((m, mi) => ({ index: mi, name: m.time ? `${m.time} · ${displayText(m.name)}` : displayText(m.name) }))
-                    .filter((t) => t.index !== i)}
+                    .filter((t) => t.index !== i && !weighedIndexes.includes(t.index))}
                   onMoveFood={(food, targetIndex) => handleMoveFood(i, food, targetIndex)}
-                  onWeigh={premiumScale ? () => { if (ensureCanRegister()) setWeighTarget({ meal: i }); } : undefined}
-                  onWeighFood={premiumScale ? (food) => { if (ensureCanRegister()) setWeighTarget({ meal: i, food }); } : undefined}
+                  onWeigh={premiumScale ? () => openWeigh({ meal: i }) : undefined}
+                  onWeighFood={premiumScale ? (food) => openWeigh({ meal: i, food }) : undefined}
                 />
               );
             })}
