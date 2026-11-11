@@ -80,7 +80,6 @@ describe('Pesar refeição — registro do dia', () => {
     const day = overlayDayWeighLogs([meal, { ...meal, name: 'Jantar' }], '2026-10-30', logs);
     expect(day.weighedIndexes).toEqual([0]);
     expect(day.meals[0].foods.reduce((s: number, f: any) => s + Number(f.kcal), 0)).toBe(134 + 335);
-    expect(day.meals[1]).toBe(meal.name === 'Jantar' ? meal : day.meals[1]);
     expect(day.meals[1].foods).toEqual(meal.foods);
     expect(overlayDayWeighLogs([meal], '2026-10-31', logs).weighedIndexes).toEqual([]);
   });
