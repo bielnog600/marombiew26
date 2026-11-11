@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AlertTriangle, Camera, Check, ChevronRight, ImagePlus, Loader2, Plus, RotateCcw, Scale, Search, Trash2, X } from 'lucide-react';
+import { AlertTriangle, Camera, Check, ChevronRight, ImagePlus, ListOrdered, Loader2, Plus, RotateCcw, Scale, ScanSearch, Search, SkipForward, Trash2, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -12,9 +12,10 @@ import { useHoldAppUpdate } from '@/hooks/useHoldAppUpdate';
 import { filterFoodsBySearch } from '@/lib/foodSearch';
 import type { ParsedMeal } from '@/lib/dietResultParser';
 import {
-  FIRST_ITEM_HINT, NEXT_ITEM_HINT, NOT_TARED_MESSAGE, UNREADABLE_MESSAGE,
-  buildWeighedItem, checkTare, compareWeighedMeal, fitWithin, formatFoodComparison,
-  isReadingUnreliable, macrosForGrams, plannedFromMeal, resolveWeighFood, round1, sumWeighedItems,
+  FIRST_ITEM_HINT, NEXT_ITEM_HINT, NEXT_PLAN_FOOD_HINT, NOT_TARED_MESSAGE, SCALE_ONLY_UNREADABLE_MESSAGE, UNREADABLE_MESSAGE,
+  buildPlanWeighedItem, buildWeighedItem, checkTare, compareWeighedMeal, fitWithin, formatFoodComparison, formatPlanWeighLine,
+  isReadingUnreliable, macrosForGrams, nextPlanFoodIndex, planFoodToWeighFood, planProgressLabel, plannedFromMeal,
+  resolveWeighFood, round1, scaleOnlyHint, sumWeighedItems,
   type WeighAiResult, type WeighFood, type WeighFoodResolution, type WeighedItem,
 } from '@/lib/mealWeigh';
 
@@ -27,11 +28,25 @@ interface Props {
   dietPlanId: string | null;
   /** Teste do admin: nada é salvo. */
   testMode?: boolean;
+  /** 'plan' = Pesar alimentos da dieta (só lê o peso); 'scan' = Escanear prato. Sem valor: o aluno escolhe. */
+  initialMode?: 'plan' | 'scan';
+  /** Alimento do plano para começar no modo 'plan'. */
+  startFoodIndex?: number;
   onClose: () => void;
   onSaved?: () => void;
 }
 
 type Phase = 'camera' | 'analyzing' | 'item' | 'list' | 'summary';
+type Mode = 'choose' | 'plan' | 'scan';
+
+interface PlanDraft {
+  photo: string;
+  readGrams: number | null;
+  grams: string;
+  unreadable: boolean;
+  /** Alimento escolhido na base quando o do plano não tem macros por grama. */
+  override: WeighFood | null;
+}
 
 interface Draft {
   photo: string;
@@ -81,9 +96,12 @@ const MacroLine: React.FC<{ m: { kcal: number; p: number; c: number; g: number }
 
 const signed = (n: number, unit = '') => `${n > 0 ? '+' : ''}${n}${unit}`;
 
-const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex, dietPlanId, testMode, onClose, onSaved }) => {
+const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex, dietPlanId, testMode, initialMode, startFoodIndex, onClose, onSaved }) => {
   useHoldAppUpdate(true);
+  const [mode, setMode] = useState<Mode>(initialMode ?? 'choose');
   const [phase, setPhase] = useState<Phase>('camera');
+  const [planIdx, setPlanIdx] = useState(Math.max(0, startFoodIndex ?? 0));
+  const [planDraft, setPlanDraft] = useState<PlanDraft | null>(null);
   const [items, setItems] = useState<WeighedItem[]>([]);
   const [photos, setPhotos] = useState<string[]>([]);
   const [draft, setDraft] = useState<Draft | null>(null);
@@ -116,7 +134,7 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
   }, []);
 
   useEffect(() => {
-    if (phase !== 'camera') { stopCamera(); return; }
+    if (phase !== 'camera' || mode === 'choose') { stopCamera(); return; }
     let cancelled = false;
     setCamError(null);
     (async () => {
@@ -140,7 +158,7 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
       }
     })();
     return () => { cancelled = true; stopCamera(); };
-  }, [phase, stopCamera]);
+  }, [phase, mode, stopCamera]);
 
   useEffect(() => () => stopCamera(), [stopCamera]);
 
@@ -167,7 +185,7 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
       if (data?.error) throw new Error(data.error);
       const ai = data?.result as WeighAiResult;
       if (!ai) throw new Error('Não consegui analisar a foto. Tira outra.');
-      const resolution = resolveWeighFood(ai, foods, planNames);
+      const resolution = resolveWeighFood(ai, foods, planNames, planned.alimentos);
       const unreadable = isReadingUnreliable(ai);
       const tare = unreadable ? { notTared: false, suggestedGrams: null } : checkTare(ai.gramas_lidas, accumulated);
       setDraft({
@@ -185,30 +203,108 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
       toast.error((e as Error).message || 'Não foi possível analisar a foto.');
       setPhase('camera');
     }
-  }, [items, photos, meal.name, planNames, foods, accumulated]);
+  }, [items, photos, meal.name, planNames, planned.alimentos, foods, accumulated]);
+
+  const currentPlanFood = planned.alimentos[planIdx] ?? null;
+
+  const analyzePlan = useCallback(async (photo: string) => {
+    setPendingPhoto(photo);
+    setPhase('analyzing');
+    try {
+      const { data, error } = await supabase.functions.invoke('food-scanner', {
+        body: { action: 'read_weight', image: photo, foodName: currentPlanFood?.alimento ?? '' },
+      });
+      if (error) {
+        let msg = 'Não foi possível analisar a foto agora.';
+        try { const b = await (error as any).context?.json?.(); if (b?.error) msg = b.error; } catch { /* sem corpo */ }
+        throw new Error(msg);
+      }
+      if (data?.error) throw new Error(data.error);
+      const read = data?.result as Pick<WeighAiResult, 'gramas_lidas' | 'visor_legivel' | 'confianca_leitura'> | undefined;
+      if (!read) throw new Error('Não consegui analisar a foto. Tira outra.');
+      const unreadable = isReadingUnreliable(read);
+      setPlanDraft({
+        photo,
+        readGrams: read.gramas_lidas ?? null,
+        grams: unreadable || read.gramas_lidas == null ? '' : String(read.gramas_lidas),
+        unreadable,
+        override: null,
+      });
+      setSearch('');
+      setSearchOpen(false);
+      setPhase('item');
+    } catch (e) {
+      toast.error((e as Error).message || 'Não foi possível analisar a foto.');
+      setPhase('camera');
+    }
+  }, [currentPlanFood]);
+
+  const runAnalysis = useCallback((photo: string) => (mode === 'plan' ? analyzePlan(photo) : analyze(photo)), [mode, analyze, analyzePlan]);
 
   const capture = useCallback(() => {
     const v = videoRef.current;
     if (!v || !v.videoWidth) { toast.error('A câmera ainda está abrindo.'); return; }
     const photo = toJpeg(v, v.videoWidth, v.videoHeight);
-    void analyze(photo);
-  }, [analyze]);
+    void runAnalysis(photo);
+  }, [runAnalysis]);
 
   const onFile = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     e.target.value = '';
     if (!file) return;
-    try { void analyze(await fileToJpeg(file)); } catch { toast.error('Não deu para abrir essa foto.'); }
-  }, [analyze]);
+    try { void runAnalysis(await fileToJpeg(file)); } catch { toast.error('Não deu para abrir essa foto.'); }
+  }, [runAnalysis]);
 
-  const gramsNum = Number(String(draft?.grams ?? '').replace(',', '.'));
+  const gramsNum = Number(String((mode === 'plan' ? planDraft?.grams : draft?.grams) ?? '').replace(',', '.'));
   const draftMacros = draft?.food && gramsNum > 0 ? macrosForGrams(draft.food, gramsNum) : null;
+
+  const weighedPlanIdx = useMemo(
+    () => items.map((it) => it.indice_plano).filter((i): i is number => typeof i === 'number'),
+    [items],
+  );
+  const planBaseFood = useMemo(() => planFoodToWeighFood(currentPlanFood, foods), [currentPlanFood, foods]);
+  const planFoodForDraft = planDraft?.override ?? planBaseFood;
+  const planMacros = planFoodForDraft && gramsNum > 0 ? macrosForGrams(planFoodForDraft, gramsNum) : null;
+  const nextPlanIdx = nextPlanFoodIndex(planIdx, planned.alimentos.length, weighedPlanIdx);
+
+  const confirmPlanItem = () => {
+    if (!planDraft || !currentPlanFood || !(gramsNum > 0)) return;
+    const item = buildPlanWeighedItem(currentPlanFood, planIdx, gramsNum, foods, { readGrams: planDraft.readGrams, override: planDraft.override });
+    if (!item) return;
+    // Pesar de novo o mesmo alimento substitui a pesagem anterior.
+    const keep = items.map((it, i) => ({ it, photo: photos[i] })).filter(({ it }) => it.indice_plano !== planIdx);
+    setItems([...keep.map((k) => k.it), item]);
+    setPhotos([...keep.map((k) => k.photo), planDraft.photo]);
+    setPlanDraft(null);
+    setPhase('list');
+  };
+
+  const skipPlanFood = () => {
+    if (nextPlanIdx != null) { setPlanIdx(nextPlanIdx); setPhase('camera'); return; }
+    setPhase(items.length > 0 ? 'list' : 'camera');
+    if (items.length === 0) toast('Esse era o último alimento da refeição.');
+  };
+
+  const goNextPlanFood = () => {
+    if (nextPlanIdx == null) return;
+    setPlanIdx(nextPlanIdx);
+    setPhase('camera');
+  };
+
+  const chooseMode = (m: 'plan' | 'scan') => {
+    setMode(m);
+    setPhase('camera');
+  };
 
   const confirmItem = () => {
     if (!draft?.food || !(gramsNum > 0)) return;
     const readG = draft.ai.gramas_lidas;
-    const edited = draft.food.id !== draft.resolution.food?.id || readG == null || Math.abs(gramsNum - readG) > 0.05;
-    const item = buildWeighedItem(draft.food, gramsNum, { edited, aiName: draft.ai.alimento || null, readGrams: readG });
+    const sameAsAi = draft.food.id === draft.resolution.food?.id;
+    const edited = !sameAsAi || readG == null || Math.abs(gramsNum - readG) > 0.05;
+    const item = buildWeighedItem(draft.food, gramsNum, {
+      edited, aiName: draft.ai.alimento || null, readGrams: readG,
+      planIndex: sameAsAi ? draft.resolution.planIndex : null,
+    });
     setItems((prev) => [...prev, item]);
     setPhotos((prev) => [...prev, draft.photo]);
     setDraft(null);
@@ -249,10 +345,12 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
   };
 
   const requestClose = () => (items.length > 0 && phase !== 'summary' ? setConfirmExit(true) : onClose());
+  const progress = planned.alimentos.length > 0 ? planProgressLabel(planIdx, planned.alimentos.length) : '';
 
   const searchResults = useMemo(() => (search.trim() ? filterFoodsBySearch(foods, search).slice(0, 25) : []), [foods, search]);
   const pickFood = (f: WeighFood) => {
-    setDraft((d) => (d ? { ...d, food: f } : d));
+    if (mode === 'plan') setPlanDraft((d) => (d ? { ...d, override: f } : d));
+    else setDraft((d) => (d ? { ...d, food: f } : d));
     setSearchOpen(false);
     setSearch('');
   };
@@ -275,7 +373,32 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
     <div className="fixed inset-0 z-[70] flex flex-col bg-background text-foreground" role="dialog" aria-label="Pesar refeição" data-testid="meal-weigh-screen">
       <input ref={fileRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={onFile} />
 
-      {(phase === 'camera' || phase === 'analyzing') && (
+      {mode === 'choose' && (
+        <div className="flex-1 min-h-0 flex flex-col">
+          {header('Pesar refeição')}
+          <div className="flex-1 min-h-0 overflow-y-auto px-4 pb-6 pt-2 space-y-3" data-testid="meal-weigh-mode-choice">
+            <p className="text-sm text-muted-foreground">Como você quer pesar?</p>
+            <button type="button" onClick={() => chooseMode('plan')} disabled={planned.alimentos.length === 0}
+              className="w-full rounded-2xl border border-primary/40 bg-primary/10 p-4 text-left flex gap-3 items-start disabled:opacity-40">
+              <span className="h-11 w-11 shrink-0 rounded-xl bg-primary/20 flex items-center justify-center"><ListOrdered className="h-5 w-5 text-primary" /></span>
+              <span className="min-w-0">
+                <span className="block text-base font-bold">Pesar alimentos da dieta</span>
+                <span className="block text-xs text-muted-foreground">Um por vez, na ordem da refeição. A câmera só lê o peso no visor.</span>
+              </span>
+            </button>
+            <button type="button" onClick={() => chooseMode('scan')}
+              className="w-full rounded-2xl border border-border bg-secondary/40 p-4 text-left flex gap-3 items-start">
+              <span className="h-11 w-11 shrink-0 rounded-xl bg-secondary flex items-center justify-center"><ScanSearch className="h-5 w-5 text-primary" /></span>
+              <span className="min-w-0">
+                <span className="block text-base font-bold">Escanear prato</span>
+                <span className="block text-xs text-muted-foreground">A IA identifica cada alimento que você coloca e lê o peso.</span>
+              </span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {mode !== 'choose' && (phase === 'camera' || phase === 'analyzing') && (
         <div className="relative flex-1 min-h-0 bg-background">
           {phase === 'camera' ? (
             <video ref={videoRef} className="absolute inset-0 h-full w-full object-cover" playsInline muted autoPlay />
@@ -285,9 +408,10 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
           <div className="absolute inset-x-0 top-0 bg-gradient-to-b from-background/90 to-transparent">{header('Pesar refeição')}</div>
           <div className="pointer-events-none absolute inset-0 flex items-center justify-center px-6">
             <div className="relative aspect-[3/4] w-full max-w-sm rounded-3xl border-2 border-dashed border-primary/80 shadow-[0_0_0_9999px_hsl(var(--background)/0.45)]">
-              <span className="absolute -top-px left-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary px-3 py-1 text-xs font-semibold text-primary-foreground whitespace-nowrap">
-                {items.length === 0 ? FIRST_ITEM_HINT : NEXT_ITEM_HINT}
+              <span className="absolute -top-px left-1/2 w-max max-w-[calc(100%-1rem)] -translate-x-1/2 -translate-y-1/2 rounded-2xl bg-primary px-3 py-1 text-center text-xs font-semibold text-primary-foreground" data-testid="meal-weigh-hint">
+                {mode === 'plan' ? scaleOnlyHint(currentPlanFood?.alimento ?? '') : items.length === 0 ? FIRST_ITEM_HINT : NEXT_ITEM_HINT}
               </span>
+
               <span className="absolute bottom-4 left-1/2 -translate-x-1/2 rounded-lg border border-primary/60 bg-background/70 px-3 py-1 text-[11px] text-primary">
                 visor da balança
               </span>
@@ -303,7 +427,16 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
             <div className="absolute inset-x-0 bottom-0 flex flex-col items-center gap-3 bg-gradient-to-t from-background/95 to-transparent px-6 pt-10"
               style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 20px)' }}>
               {camError && <p className="text-center text-xs text-destructive">{camError}</p>}
-              {items.length > 0 && <p className="text-xs text-muted-foreground">{items.length} {items.length === 1 ? 'item pesado' : 'itens pesados'} · {Math.round(accumulated)} g</p>}
+              {mode === 'plan' && progress && (
+                <p className="rounded-full bg-background/80 px-3 py-1 text-xs font-semibold text-primary tabular-nums" data-testid="meal-weigh-progress">
+                  Alimento {progress}
+                </p>
+              )}
+              {items.length > 0 && (
+                <button type="button" onClick={() => setPhase('list')} className="text-xs text-muted-foreground underline-offset-2 hover:underline">
+                  {items.length} {items.length === 1 ? 'item pesado' : 'itens pesados'} · {Math.round(accumulated)} g
+                </button>
+              )}
               <div className="flex w-full items-center justify-between">
                 <button type="button" onClick={() => fileRef.current?.click()} aria-label="Escolher foto"
                   className="h-12 w-12 rounded-full bg-secondary/80 flex items-center justify-center">
@@ -315,7 +448,12 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
                     <Camera className="h-6 w-6 text-primary-foreground" />
                   </span>
                 </button>
-                {items.length > 0 ? (
+                {mode === 'plan' ? (
+                  <button type="button" onClick={skipPlanFood} aria-label="Pular este alimento"
+                    className="h-12 w-12 rounded-full bg-secondary/80 flex items-center justify-center">
+                    <SkipForward className="h-5 w-5" />
+                  </button>
+                ) : items.length > 0 ? (
                   <button type="button" onClick={() => setPhase('list')} aria-label="Ver itens"
                     className="h-12 w-12 rounded-full bg-secondary/80 flex items-center justify-center text-sm font-bold">
                     {items.length}
@@ -327,7 +465,69 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
         </div>
       )}
 
-      {phase === 'item' && draft && (
+      {mode === 'plan' && phase === 'item' && planDraft && currentPlanFood && (
+        <div className="flex-1 min-h-0 flex flex-col">
+          {header(`Alimento ${progress}`)}
+          <div className="flex-1 min-h-0 overflow-y-auto px-4 pb-4 space-y-3">
+            <img src={planDraft.photo} alt="Foto da balança" className="h-40 w-full rounded-2xl object-cover border border-border" />
+            {planDraft.unreadable && (
+              <div role="alert" className="rounded-xl border border-destructive/40 bg-destructive/10 p-3 text-sm flex gap-2">
+                <AlertTriangle className="h-4 w-4 text-destructive shrink-0 mt-0.5" />
+                <p>{SCALE_ONLY_UNREADABLE_MESSAGE}</p>
+              </div>
+            )}
+            <div className="rounded-2xl border border-border bg-secondary/30 p-3 space-y-3">
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Alimento da dieta</p>
+                <p className="mt-1 text-base font-bold">{currentPlanFood.alimento}</p>
+                {gramsNum > 0 && (
+                  <p className="mt-1 text-sm text-primary font-semibold" data-testid="meal-weigh-plan-line">
+                    {formatPlanWeighLine(currentPlanFood.alimento, gramsNum, currentPlanFood)}
+                  </p>
+                )}
+              </div>
+              <div>
+                <label htmlFor="meal-weigh-grams" className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Gramas</label>
+                <div className="mt-1 flex items-center gap-2">
+                  <Input id="meal-weigh-grams" inputMode="decimal" value={planDraft.grams}
+                    onChange={(e) => setPlanDraft({ ...planDraft, grams: e.target.value.replace(/[^\d.,]/g, '') })}
+                    className="text-lg font-bold tabular-nums" placeholder="Digite as gramas" />
+                  <span className="text-sm text-muted-foreground">g</span>
+                </div>
+                {planDraft.readGrams != null && !planDraft.unreadable && (
+                  <p className="mt-1 text-[11px] text-muted-foreground">Lido no visor: {planDraft.readGrams} g</p>
+                )}
+              </div>
+              {planMacros ? <MacroLine m={planMacros} /> : planFoodForDraft ? (
+                <p className="text-xs text-muted-foreground">Digite as gramas para ver os macros.</p>
+              ) : (
+                <div className="space-y-1.5">
+                  <p className="text-xs text-muted-foreground">Esse alimento não tem macros por grama no plano. Escolha na base de alimentos:</p>
+                  <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar na base de alimentos" aria-label="Buscar alimento" />
+                  {searchResults.length > 0 && (
+                    <ul className="max-h-48 overflow-y-auto rounded-xl border border-border divide-y divide-border/50">
+                      {searchResults.map((f) => (
+                        <li key={f.id}><button type="button" onClick={() => pickFood(f)} className="w-full px-3 py-2 text-left text-sm active:bg-primary/10">{f.name}</button></li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              )}
+              {planDraft.override && <p className="text-[11px] text-muted-foreground">Macros de: {planDraft.override.name}</p>}
+            </div>
+          </div>
+          <div className="border-t border-border px-4 pt-3 flex gap-2" style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 12px)' }}>
+            <Button variant="outline" className="gap-1.5" onClick={() => { setPlanDraft(null); setPhase('camera'); }}>
+              <RotateCcw className="h-4 w-4" /> Outra foto
+            </Button>
+            <Button className="flex-1 gap-1.5 font-semibold" disabled={!planFoodForDraft || !(gramsNum > 0)} onClick={confirmPlanItem}>
+              <Check className="h-4 w-4" /> Confirmar
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {mode === 'scan' && phase === 'item' && draft && (
         <div className="flex-1 min-h-0 flex flex-col">
           {header(items.length === 0 ? 'Primeiro alimento' : `Alimento ${items.length + 1}`)}
           <div className="flex-1 min-h-0 overflow-y-auto px-4 pb-4 space-y-3">
@@ -426,10 +626,22 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
         </div>
       )}
 
-      {phase === 'list' && (
+      {mode !== 'choose' && phase === 'list' && (
         <div className="flex-1 min-h-0 flex flex-col">
           {header('Itens pesados')}
           <div className="flex-1 min-h-0 overflow-y-auto px-4 pb-4 space-y-2">
+            {mode === 'plan' && (
+              <div className="rounded-2xl border border-primary/40 bg-primary/10 p-3 text-sm" data-testid="meal-weigh-plan-next">
+                <p className="font-semibold tabular-nums">{weighedPlanIdx.length} de {planned.alimentos.length} alimentos pesados</p>
+                {nextPlanIdx != null ? (
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Próximo: <strong className="text-foreground">{planned.alimentos[nextPlanIdx]?.alimento}</strong> ({planProgressLabel(nextPlanIdx, planned.alimentos.length)}). {NEXT_PLAN_FOOD_HINT}.
+                  </p>
+                ) : (
+                  <p className="text-xs text-muted-foreground mt-0.5">Todos os alimentos da refeição foram vistos.</p>
+                )}
+              </div>
+            )}
             <ItemList items={items} onRemove={removeItem} />
             <div className="rounded-2xl border border-primary/30 bg-primary/5 p-3 space-y-2">
               <p className="text-xs font-semibold">Total até agora · {Math.round(totals.gramas)} g</p>
@@ -437,9 +649,15 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
             </div>
           </div>
           <div className="border-t border-border px-4 pt-3 flex gap-2" style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 12px)' }}>
-            <Button variant="outline" className="flex-1 gap-1.5" onClick={() => setPhase('camera')}>
-              <Plus className="h-4 w-4" /> Próximo alimento
-            </Button>
+            {mode === 'plan' ? (
+              <Button variant="outline" className="flex-1 gap-1.5" disabled={nextPlanIdx == null} onClick={goNextPlanFood}>
+                <Plus className="h-4 w-4" /> Próximo alimento da refeição
+              </Button>
+            ) : (
+              <Button variant="outline" className="flex-1 gap-1.5" onClick={() => setPhase('camera')}>
+                <Plus className="h-4 w-4" /> Próximo alimento
+              </Button>
+            )}
             <Button className="flex-1 gap-1.5 font-semibold" disabled={items.length === 0} onClick={() => setPhase('summary')}>
               Concluir refeição <ChevronRight className="h-4 w-4" />
             </Button>
@@ -447,7 +665,7 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
         </div>
       )}
 
-      {phase === 'summary' && (
+      {mode !== 'choose' && phase === 'summary' && (
         <div className="flex-1 min-h-0 flex flex-col">
           {header('Resumo da refeição')}
           <div className="flex-1 min-h-0 overflow-y-auto px-4 pb-4 space-y-3" data-testid="meal-weigh-summary">

@@ -20,4 +20,13 @@ describe('Botão Pesar refeição (premium)', () => {
     fireEvent.click(screen.getByRole('button', { name: /Pesar refeição/ }));
     expect(onWeigh).toHaveBeenCalledTimes(1);
   });
+  it('ícone de balança em cada alimento só com premium', () => {
+    const onWeighFood = vi.fn();
+    const { unmount } = render(<StudentMealCard {...base} />);
+    expect(screen.queryByRole('button', { name: 'Pesar Arroz branco cozido' })).toBeNull();
+    unmount();
+    render(<StudentMealCard {...base} onWeighFood={onWeighFood} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Pesar Arroz branco cozido' }));
+    expect(onWeighFood).toHaveBeenCalledWith(0);
+  });
 });

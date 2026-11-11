@@ -76,4 +76,23 @@ describe('food-scanner weigh (Pesar refeição)', () => {
     const content = JSON.parse(String((ctx.fetch.mock.calls[0] as any)[1].body)).messages[0].content;
     expect(content).toHaveLength(2);
   });
+
+  it('read_weight (alimento da dieta): sem premium 403 sem chamar a IA', async () => {
+    const ctx = setup(false);
+    expect((await ctx.request({ action: 'read_weight', image: IMG, foodName: 'Arroz branco' })).status).toBe(403);
+    expect(ctx.fetch).not.toHaveBeenCalled();
+  });
+
+  it('read_weight só lê o visor e devolve gramas_lidas, visor_legivel, confianca_leitura', async () => {
+    const ctx = setup(true, '{"gramas_lidas":182,"visor_legivel":true,"confianca_leitura":0.95}');
+    const res = await ctx.request({ action: 'read_weight', image: IMG, foodName: 'Arroz branco' });
+    expect(await res.json()).toEqual({ result: { gramas_lidas: 182, visor_legivel: true, confianca_leitura: 0.95 } });
+    const body = JSON.parse(String((ctx.fetch.mock.calls[0] as any)[1].body));
+    expect(body.model).toBe('claude-haiku-5-5');
+    expect(body.max_tokens).toBe(150);
+    const content = body.messages[0].content;
+    expect(content).toHaveLength(2);
+    expect(content[1].text).toContain('Arroz branco');
+    expect(content[1].text).toContain('NÃO identifique o alimento');
+  });
 });
