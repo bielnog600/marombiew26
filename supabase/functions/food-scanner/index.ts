@@ -104,20 +104,28 @@ function parseWeighJson(text: string) {
   };
 }
 
-function weighPrompt(hasPrevious: boolean, mealName: string, planFoods: string[], added: { alimento: string; gramas: number }[]) {
+function weighPrompt(
+  hasPrevious: boolean,
+  mealName: string,
+  planFoods: string[],
+  added: { alimento: string; gramas: number }[],
+  pendingFoods: string[] = [],
+) {
   const task = hasPrevious
-    ? 'Você recebeu duas fotos da mesma balança de cozinha: a ANTERIOR e a ATUAL. Entre elas o aluno zerou a balança (tara) e colocou UM alimento novo. Identifique só o alimento que foi ADICIONADO na foto ATUAL e leia o número do visor na foto ATUAL (depois da tara o visor mostra só o peso do alimento novo).'
+    ? 'Você recebeu duas fotos da mesma balança de cozinha: a ANTERIOR e a ATUAL. Entre elas o aluno zerou a balança (tara) e colocou UM alimento novo. Compare as duas fotos. Identifique SOMENTE o que foi adicionado entre a foto anterior e a atual. Um alimento já pesado não deve ser retornado de novo, a menos que a quantidade dele claramente aumentou. Leia o número do visor na foto ATUAL (depois da tara o visor mostra só o peso do alimento novo).'
     : 'Você recebeu uma foto de uma balança de cozinha com comida. Identifique o alimento que está na balança e leia o número do visor.';
+  const candidates = pendingFoods.length ? pendingFoods : planFoods;
   return `${task}
 Refeição: ${mealName || 'não informada'}.
-Alimentos previstos no plano desta refeição (prefira exatamente estes nomes quando fizer sentido): ${planFoods.length ? planFoods.join('; ') : 'nenhum informado'}.
+Alimentos previstos no plano desta refeição: ${planFoods.length ? planFoods.join('; ') : 'nenhum informado'}.
+Candidatos prioritários (previstos e AINDA NÃO pesados): ${candidates.length ? candidates.join('; ') : 'nenhum'}. Se o alimento novo for compatível com um deles (ex.: sementes escuras pequenas → chia), escolha esse, com exatamente esse nome.
 Já pesados nesta refeição: ${added.length ? added.map((a) => `${a.alimento}${Number.isFinite(a.gramas) && a.gramas > 0 ? ` (${Math.round(a.gramas)} g)` : ''}`).join('; ') : 'nenhum'}.
 Regras:
 - gramas_lidas é o número do visor em gramas (converta kg, oz ou lb para gramas). Nunca estime pelo tamanho da comida. Se não der para ler o visor, use null e visor_legivel false.
 - confianca_alimento e confianca_leitura vão de 0 a 1.
 - alimento_alternativas: 3 outros nomes prováveis para o alimento, do mais ao menos provável.
 - Nomes simples em português do Brasil, como numa tabela de alimentos (ex.: "Arroz branco cozido", "Peito de frango grelhado").
-- observacao: curta (ex.: reflexo no visor, balança parece não ter sido zerada) ou "".
+- observacao: curta (ex.: reflexo no visor) ou "". Só fale de tara ou balança não zerada se houver suspeita real (ex.: peso muito acima do esperado para o alimento). Não comente a tigela, o prato ou o recipiente.
 Responda SOMENTE JSON:
 {"alimento":string,"alimento_alternativas":[string,string,string],"gramas_lidas":number|null,"confianca_alimento":number,"confianca_leitura":number,"visor_legivel":boolean,"observacao":string}`;
 }
@@ -237,6 +245,7 @@ Responda SOMENTE JSON:
       if (body.previousImage != null && !previous) return json({ error: 'Imagem anterior inválida' }, 400);
       const planFoods = cleanNames(body.planFoods, 40);
       const added = cleanAdded(body.addedFoods);
+      const pendingFoods = cleanNames(body.pendingPlanFoods, 40);
       const mealName = String(body.mealName ?? '').replace(/\s+/g, ' ').trim().slice(0, 80);
       const content: unknown[] = previous
         ? [
@@ -246,7 +255,7 @@ Responda SOMENTE JSON:
             { type: 'image', source: { type: 'base64', ...current } },
           ]
         : [{ type: 'image', source: { type: 'base64', ...current } }];
-      content.push({ type: 'text', text: weighPrompt(!!previous, mealName, planFoods, added) });
+      content.push({ type: 'text', text: weighPrompt(!!previous, mealName, planFoods, added, pendingFoods) });
       const text = await anthropic(content, 400);
       const result = parseWeighJson(text);
       if (!result) return json({ error: 'Não consegui analisar a foto. Tira outra.' }, 422);

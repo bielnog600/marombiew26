@@ -451,3 +451,123 @@ export function nextPlanFoodIndex(from: number, total: number, weighed: number[]
   for (let i = from + 1; i < total; i++) if (!weighed.includes(i)) return i;
   return null;
 }
+
+/* ------------------- Escanear prato: itens 2+ e repetidos ---------------- */
+
+export const REPEATED_FOOD_MESSAGE = 'Esse alimento já foi pesado. O que você adicionou?';
+
+export interface PendingPlanFood {
+  index: number;
+  food: PlannedFood;
+}
+
+const isSameAsWeighed = (name: string, item: WeighedItem) =>
+  foodNameSimilarity(name, item.alimento) >= NAME_MATCH_MIN ||
+  (!!item.alimento_ia && foodNameSimilarity(name, item.alimento_ia) >= NAME_MATCH_MIN);
+
+/** Alimentos previstos da refeição que ainda não foram pesados (na ordem do plano). */
+export function pendingPlanFoods(planned: PlannedMeal, items: WeighedItem[]): PendingPlanFood[] {
+  const weighedIdx = new Set((items ?? []).map((it) => it.indice_plano).filter((i): i is number => typeof i === 'number'));
+  return (planned?.alimentos ?? [])
+    .map((food, index) => ({ index, food }))
+    .filter(({ index, food }) =>
+      food.alimento && !weighedIdx.has(index) &&
+      !(items ?? []).some((it) => it.indice_plano == null && isSameAsWeighed(food.alimento, it)));
+}
+
+/** Item já pesado que corresponde ao candidato (mesmo índice do plano, mesmo id da base ou mesmo nome). */
+export function findRepeatedFood(
+  candidate: { name: string; foodId?: string | null; planIndex?: number | null },
+  items: WeighedItem[],
+): WeighedItem | null {
+  if (!candidate?.name?.trim()) return null;
+  for (const it of items ?? []) {
+    if (candidate.planIndex != null && it.indice_plano === candidate.planIndex) return it;
+    if (candidate.foodId && !isPlanOnlyFoodId(candidate.foodId) && it.food_id === candidate.foodId) return it;
+    if (isSameAsWeighed(candidate.name, it)) return it;
+  }
+  return null;
+}
+
+export interface ScanWeighResolution extends WeighFoodResolution {
+  /** Item já pesado que a IA devolveu de novo — não é aceito automaticamente. */
+  repeated: WeighedItem | null;
+  /** Alimentos previstos ainda não pesados (chips rápidos). */
+  pending: PendingPlanFood[];
+}
+
+/**
+ * Escanear prato: prioriza os alimentos previstos ainda não pesados; se a IA
+ * devolver algo que já foi pesado nesta refeição, nada é escolhido sozinho e
+ * o aluno escolhe entre os não pesados, as alternativas da IA ou a busca.
+ */
+export function resolveScanWeigh(
+  ai: Pick<WeighAiResult, 'alimento' | 'alimento_alternativas' | 'confianca_alimento'>,
+  foods: WeighFood[],
+  planned: PlannedMeal,
+  items: WeighedItem[],
+): ScanWeighResolution {
+  const pending = pendingPlanFoods(planned, items);
+  const pendingFoods = pending.map((p) => p.food);
+  const pendingHit = matchPlanFood(ai.alimento, pendingFoods);
+  if (pendingHit != null) {
+    const pf = pending[pendingHit];
+    const base = resolveWeighFood(ai, foods, pendingFoods.map((f) => f.alimento), []);
+    const food = planFoodToWeighFood(pf.food, foods);
+    if (food) {
+      return {
+        ...base,
+        food,
+        alternatives: base.alternatives.filter((a) => a.id !== food.id && !findRepeatedFood({ name: a.name, foodId: a.id }, items)),
+        needsChoice: (Number(ai.confianca_alimento) || 0) < LOW_CONFIDENCE,
+        planIndex: pf.index,
+        repeated: null,
+        pending,
+      };
+    }
+  }
+  const base = resolveWeighFood(ai, foods, pendingFoods.map((f) => f.alimento), planned?.alimentos ?? []);
+  const alternatives = base.alternatives.filter((a) => !findRepeatedFood({ name: a.name, foodId: a.id }, items));
+  const repeated = items.length > 0
+    ? findRepeatedFood({ name: ai.alimento, foodId: base.food?.id ?? null, planIndex: base.planIndex }, items)
+    : null;
+  if (repeated) {
+    return { ...base, food: null, planIndex: null, alternatives, needsChoice: true, repeated, pending };
+  }
+  return { ...base, alternatives, repeated: null, pending };
+}
+
+/** "Iogurte 154 g · Whey 26 g" */
+export const weighedChipsLabel = (items: WeighedItem[]) =>
+  (items ?? []).map((it) => `${it.alimento} ${Math.round(it.gramas)} g`).join(' · ');
+
+/** Corpo da chamada `weigh`: a partir do 1º item confirmado SEMPRE vai a foto anterior + itens pesados. */
+export function buildScanWeighRequest(input: {
+  photo: string;
+  items: WeighedItem[];
+  photos: string[];
+  mealName: string;
+  planned: PlannedMeal;
+}) {
+  const { photo, items, photos, mealName, planned } = input;
+  const previousImage = items.length > 0 ? photos[photos.length - 1] ?? null : null;
+  return {
+    action: 'weigh' as const,
+    image: photo,
+    previousImage,
+    mealName,
+    planFoods: (planned?.alimentos ?? []).map((f) => f.alimento).filter(Boolean),
+    pendingPlanFoods: pendingPlanFoods(planned, items).map((p) => p.food.alimento),
+    addedFoods: items.map((i) => ({ alimento: i.alimento, gramas: i.gramas })),
+  };
+}
+
+const TARE_REMARK = /\b(tara|zerad\w*|zerar|tigela|prato|recipiente|pote|vasilha|bowl|cumbuca)\b/i;
+
+/** Observação da IA sobre tara/recipiente só aparece com suspeita real (peso acima do acumulado). */
+export function visibleWeighObservation(observacao: string | null | undefined, opts: { tareSuspected: boolean }): string {
+  const text = String(observacao ?? '').trim();
+  if (!text) return '';
+  if (TARE_REMARK.test(text) && !opts.tareSuspected) return '';
+  return text;
+}

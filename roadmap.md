@@ -207,3 +207,8 @@ Fora do escopo desta entrega (Fases 3-6): LOW/MEDIUM/HIGH, novo carb cycling, aj
 ## Tradução de dieta/treino (celular em inglês)
 - [x] Dieta e treinos aparecem na hora em português; tradução em segundo plano, limite de 15 s, pausa de 10 min após falha; lógica sempre no original
 - [ ] Decidir com o Fabiew: 15 s é menos que o tempo real da tradução (mediana ~46 s), então quase nenhuma tradução vai chegar
+
+## Pesar refeição — tela cheia e itens 2+
+- [x] Tela por cima de tudo, menu inferior escondido, rodapé fixo (Próximo alimento / Concluir refeição / Tirar de novo), chips dos itens pesados e "Alimento N"
+- [x] Foto anterior sempre a partir do 2º item; prompt "só o adicionado"; não pesados como candidatos; repetido rejeitado com chips; observação de tara só com suspeita
+- [ ] Conferir no iPhone real com balança (testado só com câmera e IA simuladas)
