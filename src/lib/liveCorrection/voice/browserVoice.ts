@@ -1,16 +1,20 @@
 /**
- * Saídas de voz no navegador: áudios aprovados pela Web Audio (decodificados antes,
- * tocam na hora e se misturam à música do aluno), um <audio> com o arquivo como
- * segunda opção (decode do Safari falhou ou o contexto não voltou a tocar) e a voz do
- * celular só quando nenhum dos dois tocar.
+ * Saídas de voz no navegador para os áudios aprovados do personal.
+ * - iPhone/iPad (modo 'audio'): toca por <audio> de mídia com o Blob URL do MP3 já baixado.
+ *   O iOS deixa a Web Audio muda com a chave lateral no silencioso, mas o <audio> toca.
+ *   Os elementos são criados ao abrir a tela e liberados no toque (`unlock()`); a Web Audio
+ *   fica só como segunda opção (decodifica sob demanda).
+ * - Outros aparelhos (modo 'webaudio'): Web Audio (decodificada antes, toca na hora e se
+ *   mistura à música), com o <audio> como segunda opção.
+ * - A voz do celular só entra quando nenhum dos dois tocar.
  * iPhone: `unlock()` roda síncrono no toque (botões e qualquer toque na tela da câmera);
  * o contexto pode ficar 'suspended'/'interrupted' depois da câmera, de uma ligação ou
- * de ir para segundo plano, então cada áudio tenta `resume()` antes de desistir.
+ * de ir para segundo plano, então a Web Audio tenta `resume()` antes de desistir.
  */
 import { supabase } from '@/integrations/supabase/client';
 import { VoiceQueue, type VoiceOutputs } from './queue';
 import { orderByPriority } from './phrases';
-import { INITIAL_COACH_VOICE_STATUS, type CoachVoiceStatus } from './status';
+import { INITIAL_COACH_VOICE_STATUS, type CoachVoicePlaybackMode, type CoachVoiceStatus } from './status';
 
 export const COACH_VOICE_BUCKET = 'coach-voice';
 const LOG_PREFIX = '[coach-voice]';
@@ -18,7 +22,22 @@ const LOG_PREFIX = '[coach-voice]';
 const SILENT_WAV = 'data:audio/wav;base64,UklGRiYAAABXQVZFZm10IBAAAAABAAEAESsAACJWAAACABAAZGF0YQIAAAAAAA==';
 
 export interface ApprovedClipRow { phrase_key: string; file_path: string }
-export interface LoadedClip { blob: Blob; buffer: AudioBuffer | null }
+export interface LoadedClip {
+  blob: Blob;
+  buffer: AudioBuffer | null;
+  /** Já tentou decodificar (não tenta de novo a cada fala). */
+  decodeTried: boolean;
+}
+/** Elementos <audio> pré-criados e liberados no toque (alternados a cada áudio). */
+const AUDIO_POOL_SIZE = 2;
+
+/** iPhone/iPad (inclui iPad que se apresenta como Mac). */
+export function isAppleMobile(): boolean {
+  if (typeof navigator === 'undefined') return false;
+  const ua = navigator.userAgent || '';
+  if (/iPad|iPhone|iPod/.test(ua)) return true;
+  return navigator.platform === 'MacIntel' && (navigator.maxTouchPoints ?? 0) > 1;
+}
 
 export interface CoachVoiceDeps {
   getContext(): AudioContext | null;
@@ -32,6 +51,8 @@ export interface CoachVoiceDeps {
   cache: Map<string, Promise<LoadedClip | null>>;
   resumeTimeoutMs: number;
   decodeTimeoutMs: number;
+  /** true = toca por <audio> de mídia primeiro (iPhone: funciona com a chave no silencioso). */
+  preferMediaElement: boolean;
 }
 
 let sharedCtx: AudioContext | null = null;
@@ -71,6 +92,7 @@ export const defaultCoachVoiceDeps = (): CoachVoiceDeps => ({
   cache: sharedCache,
   resumeTimeoutMs: 800,
   decodeTimeoutMs: 8000,
+  preferMediaElement: isAppleMobile(),
 });
 
 const wait = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
@@ -97,6 +119,19 @@ function decodeAudio(ctx: AudioContext, bytes: ArrayBuffer, timeoutMs: number): 
   });
 }
 
+async function decodeClip(deps: CoachVoiceDeps, ctx: AudioContext, path: string, clip: LoadedClip): Promise<void> {
+  if (clip.buffer || clip.decodeTried) return;
+  clip.decodeTried = true;
+  try {
+    // Cada decode recebe um ArrayBuffer novo (o Safari esvazia o que recebe).
+    const bytes = await clip.blob.arrayBuffer();
+    clip.buffer = await decodeAudio(ctx, bytes, deps.decodeTimeoutMs);
+  } catch (e) {
+    deps.log(`decode falhou, vai tocar pelo <audio>: ${path}`, e);
+  }
+}
+
+/** Baixa o arquivo; decodifica já no download só no modo Web Audio. */
 function loadClip(deps: CoachVoiceDeps, path: string): Promise<LoadedClip | null> {
   const cached = deps.cache.get(path);
   if (cached) return cached;
@@ -108,18 +143,12 @@ function loadClip(deps: CoachVoiceDeps, path: string): Promise<LoadedClip | null
       deps.log(`download falhou: ${path}`, e);
       return null;
     }
-    let buffer: AudioBuffer | null = null;
-    const ctx = deps.getContext();
-    if (ctx) {
-      try {
-        // Cada decode recebe um ArrayBuffer novo (o Safari esvazia o que recebe).
-        const bytes = await blob.arrayBuffer();
-        buffer = await decodeAudio(ctx, bytes, deps.decodeTimeoutMs);
-      } catch (e) {
-        deps.log(`decode falhou, vai tocar pelo <audio>: ${path}`, e);
-      }
+    const clip: LoadedClip = { blob, buffer: null, decodeTried: false };
+    if (!deps.preferMediaElement) {
+      const ctx = deps.getContext();
+      if (ctx) await decodeClip(deps, ctx, path, clip);
     }
-    return { blob, buffer };
+    return clip;
   })();
   deps.cache.set(path, job);
   void job.then((r) => { if (!r) deps.cache.delete(path); });
