@@ -24,6 +24,7 @@ interface CameraSession {
   tempo_medio_descida: number | null;
   reps_descida_rapida: number | null;
   depth_level: string | null;
+  exercise_rule: string | null;
 }
 
 interface Props {
@@ -51,7 +52,7 @@ const LiveCorrectionPremiumCard: React.FC<Props> = ({ studentId, studentProfile,
     let cancelled = false;
     supabase
       .from('camera_sessions')
-      .select('id, exercise_name, started_at, duration_seconds, total_reps, complete_reps, incomplete_reps, errors, tempo_medio_descida, reps_descida_rapida, depth_level')
+      .select('id, exercise_name, started_at, duration_seconds, total_reps, complete_reps, incomplete_reps, errors, tempo_medio_descida, reps_descida_rapida, depth_level, exercise_rule')
       .eq('student_id', studentId)
       .order('started_at', { ascending: false })
       .limit(50)
@@ -156,10 +157,18 @@ const LiveCorrectionPremiumCard: React.FC<Props> = ({ studentId, studentProfile,
                           {s.depth_level && ` · Nível: ${DEPTH_LEVELS[normalizeDepthLevel(s.depth_level)].label}`}
                         </p>
                       </div>
-                      <div className="text-right shrink-0 text-xs tabular-nums">
-                        <p><span className="font-bold">{s.total_reps}</span> reps</p>
-                        <p><span className="text-primary font-semibold">{s.complete_reps}</span> · <span className="text-destructive font-semibold">{s.incomplete_reps}</span></p>
-                      </div>
+                      {getExerciseRule(s.exercise_rule).timed && s.exercise_rule ? (
+                        // Prancha: total_reps = segundos na posição, complete_reps = segundos em boa posição.
+                        <div className="text-right shrink-0 text-xs tabular-nums" data-testid="camera-session-timed">
+                          <p><span className="font-bold text-primary">{s.complete_reps} s</span> em boa posição</p>
+                          <p className="text-muted-foreground">de {s.total_reps} s{s.total_reps > 0 ? ` · ${Math.round((s.complete_reps / s.total_reps) * 100)}%` : ''}</p>
+                        </div>
+                      ) : (
+                        <div className="text-right shrink-0 text-xs tabular-nums">
+                          <p><span className="font-bold">{s.total_reps}</span> reps</p>
+                          <p><span className="text-primary font-semibold">{s.complete_reps}</span> · <span className="text-destructive font-semibold">{s.incomplete_reps}</span></p>
+                        </div>
+                      )}
                     </div>
                     {s.tempo_medio_descida != null && (
                       <p className="mt-1.5 text-xs text-muted-foreground">

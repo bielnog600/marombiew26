@@ -217,10 +217,67 @@ const SideUpperSilhouette: React.FC<{ active: boolean }> = ({ active }) => (
   </svg>
 );
 
+const GuideSvg: React.FC<{ active: boolean; kind: SilhouetteKind; children: React.ReactNode }> = ({ active, kind, children }) => (
+  <svg
+    viewBox="0 0 260 160"
+    className={cn('w-[86%] max-w-[520px] text-primary transition-opacity duration-300', active ? 'opacity-70' : 'opacity-40')}
+    fill="none"
+    aria-hidden="true"
+    data-testid="live-guide-silhouette"
+    data-silhouette={kind}
+  >
+    {children}
+  </svg>
+);
+
+/** Deitado no banco, braços para cima (supino). */
+const BenchSilhouette: React.FC<{ active: boolean }> = ({ active }) => (
+  <GuideSvg active={active} kind="bench">
+    <g stroke="currentColor" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" strokeDasharray="6 5">
+      <circle cx="38" cy="78" r="13" strokeWidth="2.5" fill="currentColor" fillOpacity="0.15" />
+      <path d="M54 84 L140 84 L178 66 L190 132" />
+      <path d="M78 84 L84 52 L80 20" />
+    </g>
+    <g stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeDasharray="6 5" fill="currentColor" fillOpacity="0.12">
+      <rect x="24" y="92" width="150" height="10" rx="2" />
+      <path d="M40 102 L40 150 M160 102 L160 150" fill="none" />
+    </g>
+  </GuideSvg>
+);
+
+/** Sentado na máquina, pernas empurrando a plataforma (leg press). */
+const LegPressSilhouette: React.FC<{ active: boolean }> = ({ active }) => (
+  <GuideSvg active={active} kind="leg_press">
+    <g stroke="currentColor" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" strokeDasharray="6 5">
+      <circle cx="44" cy="58" r="13" strokeWidth="2.5" fill="currentColor" fillOpacity="0.15" />
+      <path d="M54 72 L92 126 L150 92 L196 62" />
+    </g>
+    <g stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeDasharray="6 5" fill="currentColor" fillOpacity="0.12">
+      <path d="M34 66 L80 138 L120 138" fill="none" />
+      <rect x="196" y="30" width="10" height="64" rx="2" transform="rotate(-30 201 62)" />
+    </g>
+  </GuideSvg>
+);
+
+/** De lado, apoiado nos antebraços com o corpo reto (prancha). */
+const PlankSilhouette: React.FC<{ active: boolean }> = ({ active }) => (
+  <GuideSvg active={active} kind="plank">
+    <g stroke="currentColor" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" strokeDasharray="6 5">
+      <circle cx="40" cy="80" r="13" strokeWidth="2.5" fill="currentColor" fillOpacity="0.15" />
+      <path d="M56 90 L140 98 L232 112" />
+      <path d="M56 90 L60 124 L92 124" />
+    </g>
+    <path d="M10 128 L250 128" stroke="currentColor" strokeWidth="2" strokeDasharray="4 6" opacity="0.6" />
+  </GuideSvg>
+);
+
 /** Contorno de uma pessoa de lado, para guiar o posicionamento. */
 const GuideSilhouette: React.FC<{ active: boolean; kind?: SilhouetteKind }> = ({ active, kind = 'standing' }) =>
   kind === 'front_upper' ? <FrontUpperSilhouette active={active} />
   : kind === 'side_upper' ? <SideUpperSilhouette active={active} />
+  : kind === 'bench' ? <BenchSilhouette active={active} />
+  : kind === 'leg_press' ? <LegPressSilhouette active={active} />
+  : kind === 'plank' ? <PlankSilhouette active={active} />
   : kind === 'hip_thrust' ? <HipThrustSilhouette active={active} />
   : kind !== 'standing' ? <SplitSilhouette active={active} bench={kind === 'split_bench'} /> : (
   <svg
@@ -865,7 +922,13 @@ const LiveCorrectionScreen: React.FC<Props> = ({
           <X className="h-5 w-5" />
         </button>
 
-        {phase === 'tracking' ? (
+        {phase === 'tracking' && rule.timed ? (
+          <div className="flex flex-col items-center min-w-0" aria-live="polite">
+            <span className="text-7xl font-black leading-none text-primary tabular-nums drop-shadow" data-testid="live-timer">{formatClock((timedView?.goodSec ?? 0) * 1000)}</span>
+            <span className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground mt-1">em boa posição</span>
+            <span className="mt-1 text-sm font-semibold tabular-nums text-muted-foreground">Total {formatClock((timedView?.totalSec ?? 0) * 1000)}</span>
+          </div>
+        ) : phase === 'tracking' ? (
           <div className="flex flex-col items-center min-w-0" aria-live="polite">
             {paused && <span className="mb-1 text-[11px] font-bold uppercase tracking-widest text-destructive">Pausado</span>}
             <span className="text-7xl font-black leading-none text-primary tabular-nums drop-shadow" data-testid="live-rep-count">{complete}</span>
@@ -990,7 +1053,21 @@ const LiveCorrectionScreen: React.FC<Props> = ({
       {phase === 'tracking' && (
         <div className="absolute inset-x-0 bottom-0 z-10 px-4 pt-10 bg-gradient-to-t from-background/90 to-transparent" style={{ paddingBottom: 'max(16px, env(safe-area-inset-bottom))' }}>
           <div className="min-h-[64px] flex items-center justify-center mb-3" aria-live="assertive">
-            {paused ? (
+            {rule.timed ? (
+              timedView && (timedView.fault || timedView.outText || timedView.inPosition) && (
+                <span
+                  className={cn(
+                    'rounded-2xl px-5 py-3 text-2xl font-black text-center border',
+                    timedView.fault ? 'bg-destructive text-destructive-foreground border-destructive'
+                      : timedView.inPosition ? 'bg-primary text-primary-foreground border-primary'
+                      : 'bg-card/90 text-foreground border-border',
+                  )}
+                  data-testid="live-feedback"
+                >
+                  {timedView.fault ? rule.messages[timedView.fault] ?? timedView.fault : timedView.inPosition ? 'Boa posição' : timedView.outText}
+                </span>
+              )
+            ) : paused ? (
               <span className="rounded-2xl px-5 py-3 text-2xl font-black text-center border bg-destructive text-destructive-foreground border-destructive" data-testid="live-feedback">
                 {turnMessage(rule)}
               </span>
@@ -1040,9 +1117,35 @@ const LiveCorrectionScreen: React.FC<Props> = ({
         <div className="absolute inset-0 overflow-y-auto px-5 pt-24" style={{ paddingBottom: 'max(24px, env(safe-area-inset-bottom))' }} data-testid="live-summary">
           <div className="max-w-md mx-auto space-y-4">
             <h2 className="text-2xl font-black text-center">Resumo</h2>
-            {autoFinished && <p className="-mt-2 text-sm text-center text-muted-foreground">Fechou a série</p>}
+            {autoFinished && <p className="-mt-2 text-sm text-center text-muted-foreground">{timedSummary ? 'Fechou' : 'Fechou a série'}</p>}
             <p className="-mt-2 text-xs text-center text-muted-foreground" data-testid="live-summary-depth">Nível: {DEPTH_LEVELS[depthLevel].label}</p>
             <p className="-mt-3 text-[11px] text-center text-muted-foreground">{summaryRule.label} · {summaryRule.levelHints[depthLevel]}</p>
+            {timedSummary ? (
+              <div className="grid grid-cols-3 gap-2" data-testid="live-summary-timed">
+                <div className="glass-card rounded-2xl p-3 text-center">
+                  <p className="text-3xl font-black tabular-nums">{formatClock(timedSummary.totalSeconds * 1000)}</p>
+                  <p className="text-[11px] uppercase tracking-wider text-muted-foreground">Tempo total</p>
+                </div>
+                <div className="glass-card rounded-2xl p-3 text-center">
+                  <p className="text-3xl font-black tabular-nums text-primary">{formatClock(timedSummary.goodSeconds * 1000)}</p>
+                  <p className="text-[11px] uppercase tracking-wider text-muted-foreground">Boa posição</p>
+                </div>
+                <div className="glass-card rounded-2xl p-3 text-center">
+                  <p className="text-3xl font-black tabular-nums">{timedSummary.goodPercent}%</p>
+                  <p className="text-[11px] uppercase tracking-wider text-muted-foreground">Em boa posição</p>
+                </div>
+                <div className="glass-card rounded-2xl p-3 text-center col-span-3 grid grid-cols-2 gap-2">
+                  <div>
+                    <p className={cn('text-2xl font-black tabular-nums', (timedSummary.faults.plank_hip_low ?? 0) > 0 && 'text-destructive')}>{timedSummary.faults.plank_hip_low ?? 0}</p>
+                    <p className="text-[11px] uppercase tracking-wider text-muted-foreground">Quadril caiu</p>
+                  </div>
+                  <div>
+                    <p className={cn('text-2xl font-black tabular-nums', (timedSummary.faults.plank_hip_high ?? 0) > 0 && 'text-destructive')}>{timedSummary.faults.plank_hip_high ?? 0}</p>
+                    <p className="text-[11px] uppercase tracking-wider text-muted-foreground">Quadril subiu</p>
+                  </div>
+                </div>
+              </div>
+            ) : (<>
             <div className="grid grid-cols-3 gap-2">
               <div className="glass-card rounded-2xl p-3 text-center">
                 <p className="text-3xl font-black tabular-nums">{summary.total}</p>
@@ -1121,6 +1224,7 @@ const LiveCorrectionScreen: React.FC<Props> = ({
                 </ul>
               </div>
             )}
+            </>)}
             <div className="glass-card rounded-2xl p-4">
               <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-2">Erros mais comuns</p>
               {summary.errors.length === 0 ? (
@@ -1137,7 +1241,7 @@ const LiveCorrectionScreen: React.FC<Props> = ({
               )}
             </div>
             {summary.total === 0 && (
-              <p className="text-sm text-center text-muted-foreground">Nenhuma rep contada, então nada foi salvo.</p>
+              <p className="text-sm text-center text-muted-foreground">{timedSummary ? 'Nenhum tempo na prancha, então nada foi salvo.' : 'Nenhuma rep contada, então nada foi salvo.'}</p>
             )}
             {saveError && (
               <div className="text-center space-y-2">
@@ -1151,7 +1255,7 @@ const LiveCorrectionScreen: React.FC<Props> = ({
             {onSaveToSet && summary.total > 0 && (
               <Button size="lg" className="w-full h-12 font-bold" onClick={saveToSet} data-testid="live-save-to-set">
                 <ClipboardCheck className="h-5 w-5 mr-2" />
-                Salvar na série{targetSetLabel ? ` (${targetSetLabel})` : ''} · {summary.complete} rep{summary.complete === 1 ? '' : 's'}
+                Salvar na série{targetSetLabel ? ` (${targetSetLabel})` : ''} · {timedSummary ? `${summary.complete} s` : `${summary.complete} rep${summary.complete === 1 ? '' : 's'}`}
               </Button>
             )}
             {exercisePicker && <div className="flex justify-center"><ExercisePicker value={ruleId} onChange={setRuleId} /></div>}
