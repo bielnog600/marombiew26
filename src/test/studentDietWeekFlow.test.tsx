@@ -9,7 +9,7 @@ const mock = vi.hoisted(() => ({
 }));
 vi.mock('@/contexts/AuthContext', () => ({ useAuth: () => ({ user: mock.user }) }));
 vi.mock('@/i18n', () => ({ useLanguage: () => ({ language: 'pt' }) }));
-vi.mock('@/lib/planTranslation', () => ({ translatePlanMarkdown: async (value: string) => value }));
+vi.mock('@/lib/planTranslation', () => ({ translatePlanTexts: async () => null, getCachedPlanTranslation: () => null }));
 vi.mock('@/hooks/useEventTracking', () => ({ useEventTracking: () => ({ trackEvent: mock.event }) }));
 vi.mock('@/lib/offlineQueue', () => ({ writeWithFallback: mock.write }));
 vi.mock('@/lib/offlineCache', () => ({ setCache: mock.cache, fetchWithCache: async (key: string) => ({
