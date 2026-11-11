@@ -225,6 +225,13 @@
       "when": 1794429265341,
       "tag": "0031_coach_voice",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1794429299910,
+      "tag": "0032_coach_voice_storage_read",
+      "breakpoints": true
     }
   ]
 }
