@@ -93,6 +93,7 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
   const [search, setSearch] = useState('');
   const [saving, setSaving] = useState(false);
   const [confirmExit, setConfirmExit] = useState(false);
+  const [pendingPhoto, setPendingPhoto] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const fileRef = useRef<HTMLInputElement | null>(null);
@@ -144,6 +145,7 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
   useEffect(() => () => stopCamera(), [stopCamera]);
 
   const analyze = useCallback(async (photo: string) => {
+    setPendingPhoto(photo);
     setPhase('analyzing');
     try {
       const previousImage = items.length > 0 ? photos[photos.length - 1] ?? null : null;
@@ -278,7 +280,7 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
           {phase === 'camera' ? (
             <video ref={videoRef} className="absolute inset-0 h-full w-full object-cover" playsInline muted autoPlay />
           ) : (
-            draft?.photo || photos.length >= 0 ? <AnalyzingBackdrop /> : null
+            pendingPhoto ? <img src={pendingPhoto} alt="" className="absolute inset-0 h-full w-full object-cover" /> : <div className="absolute inset-0 bg-secondary/40" />
           )}
           <div className="absolute inset-x-0 top-0 bg-gradient-to-b from-background/90 to-transparent">{header('Pesar refeição')}</div>
           <div className="pointer-events-none absolute inset-0 flex items-center justify-center px-6">
@@ -502,8 +504,6 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
     </div>
   );
 };
-
-const AnalyzingBackdrop = () => <div className="absolute inset-0 bg-secondary/40" />;
 
 const ItemList: React.FC<{ items: WeighedItem[]; onRemove?: (i: number) => void }> = ({ items, onRemove }) => (
   <ul className="space-y-2">
