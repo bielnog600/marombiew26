@@ -39,6 +39,8 @@ export default defineConfig(({ mode }) => ({
     VitePWA({
       filename: "sw.js",
       registerType: "prompt",
+      // Registro feito em main.tsx (Workbox direto); o plugin não injeta o seu.
+      injectRegister: null,
       includeAssets: ["favicon.ico", "pwa-192.png", "pwa-512.png"],
       devOptions: {
         enabled: false,

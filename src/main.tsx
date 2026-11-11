@@ -1,11 +1,11 @@
 import { createRoot } from "react-dom/client";
 import { Capacitor } from "@capacitor/core";
 import { ScreenOrientation } from "@capacitor/screen-orientation";
-import { registerSW } from "virtual:pwa-register";
+import { Workbox } from "workbox-window";
 import App from "./App.tsx";
 import "./index.css";
 
-import { appUpdates, UPDATE_CHECK_INTERVAL_MS } from "./lib/appUpdate/updateController";
+import { appUpdates, appRunningVersion, UPDATE_CHECK_INTERVAL_MS } from "./lib/appUpdate/updateController";
 import { reloadOnceForChunkError } from "./lib/appUpdate/chunkReload";
 
 // Parte do app (chunk) que não existe mais após um deploy: recarrega uma vez.
@@ -50,42 +50,44 @@ const cleanupServiceWorkers = async () => {
  * - procura versão nova a cada 5 min e ao voltar para o app;
  * - a versão nova fica esperando e só é aplicada ao ir para segundo plano ou no
  *   toque em "Atualizar" (ver updateController, com trava persistente);
- * - recarrega só quando o service worker novo assume (controllerchange);
- * - nenhum cache é apagado aqui: o service worker novo limpa os antigos.
+ * - recarrega só quando o service worker novo assume após pedirmos a troca; troca
+ *   feita por outro app aberto não recarrega no meio do uso;
+ * - Workbox direto (sem virtual:pwa-register) porque o registro do plugin recarrega
+ *   sozinho em qualquer troca de controle.
  */
-declare const __APP_VERSION__: string | undefined;
-
 const startPwaUpdates = () => {
   if (!("serviceWorker" in navigator) || isPreviewHost || isInIframe) return;
 
-  const runningVersion = typeof __APP_VERSION__ === "string" ? __APP_VERSION__ : "unknown";
+  const wb = new Workbox("/sw.js", { scope: "/", type: "classic" });
   let swRegistration: ServiceWorkerRegistration | undefined;
-  const waitingId = () => `${swRegistration?.waiting?.scriptURL ?? "/sw.js"}|${runningVersion}`;
+  const waitingId = () => `${swRegistration?.waiting?.scriptURL ?? "/sw.js"}|${appRunningVersion ?? "unknown"}`;
 
   navigator.serviceWorker.addEventListener("controllerchange", () => {
     appUpdates.onControllerChange();
   });
 
-  const updateSW = registerSW({
-    immediate: true,
-    onNeedRefresh() {
-      appUpdates.markAvailable(() => updateSW(true), waitingId());
-    },
-    onRegisteredSW(_swUrl, registration) {
-      if (!registration) return;
-      swRegistration = registration;
-
-      const checkForUpdate = () => {
-        if (!navigator.onLine) return;
-        registration.update().catch(() => undefined);
-      };
-
-      window.setInterval(checkForUpdate, UPDATE_CHECK_INTERVAL_MS);
-      document.addEventListener("visibilitychange", () => {
-        if (document.visibilityState === "visible") window.setTimeout(checkForUpdate, 1000);
-      });
-    },
+  const onNeedRefresh = () => {
+    appUpdates.markAvailable(() => wb.messageSkipWaiting(), waitingId());
+  };
+  wb.addEventListener("waiting", onNeedRefresh);
+  wb.addEventListener("installed", (event) => {
+    if (typeof event.isUpdate === "undefined" && event.isExternal) onNeedRefresh();
   });
+
+  wb.register({ immediate: true }).then((registration) => {
+    if (!registration) return;
+    swRegistration = registration;
+
+    const checkForUpdate = () => {
+      if (!navigator.onLine) return;
+      registration.update().catch(() => undefined);
+    };
+
+    window.setInterval(checkForUpdate, UPDATE_CHECK_INTERVAL_MS);
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible") window.setTimeout(checkForUpdate, 1000);
+    });
+  }).catch(() => undefined);
 
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "hidden") appUpdates.onHidden();
