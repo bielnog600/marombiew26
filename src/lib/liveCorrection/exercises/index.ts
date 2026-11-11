@@ -36,7 +36,9 @@ export function isExerciseRuleId(v: unknown): v is ExerciseRuleId {
 export function matchExerciseRule(name: string | null | undefined): ExerciseRule | null {
   const n = normalizeExerciseName(name);
   if (!n) return null;
-  return EXERCISE_RULES.find((r) => r.keywords.some((k) => nameHasKeyword(n, k))) ?? null;
+  return EXERCISE_RULES.find((r) =>
+    r.keywords.some((k) => nameHasKeyword(n, k)) && !r.excludeKeywords?.some((k) => nameHasKeyword(n, k)),
+  ) ?? null;
 }
 
 /** Todas as mensagens de erro/aviso, para mostrar sessões salvas de qualquer regra. */
