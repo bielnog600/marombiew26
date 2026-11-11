@@ -85,7 +85,7 @@ const LiveCorrectionPremiumCard: React.FC<Props> = ({ studentId, studentProfile,
       toast.error('Não foi possível alterar: ' + error.message);
       return;
     }
-    toast.success(`Profundidade exigida: ${DEPTH_LEVELS[raw].label}`);
+    toast.success(`Nível: ${DEPTH_LEVELS[raw].label}`);
     onDepthLevelChanged?.(raw);
   };
 
@@ -112,7 +112,7 @@ const LiveCorrectionPremiumCard: React.FC<Props> = ({ studentId, studentProfile,
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
             <Label htmlFor="camera-depth-level" className="font-semibold">Profundidade exigida</Label>
-            <p className="text-xs text-muted-foreground">Até onde o quadril precisa descer para a rep contar.</p>
+            <p className="text-xs text-muted-foreground">Até onde o quadril precisa descer para a rep contar: {DEPTH_LEVELS[depthLevel].hint}.</p>
           </div>
           <Select value={depthLevel} onValueChange={changeDepth} disabled={savingDepth || !studentProfile}>
             <SelectTrigger id="camera-depth-level" className="w-[190px] shrink-0" data-testid="camera-depth-level">
@@ -147,7 +147,7 @@ const LiveCorrectionPremiumCard: React.FC<Props> = ({ studentId, studentProfile,
                         <p className="text-xs text-muted-foreground">
                           {new Date(s.started_at).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
                           {s.duration_seconds > 0 && ` · ${Math.max(1, Math.round(s.duration_seconds / 60))} min`}
-                          {isDepthLevel(s.depth_level) && ` · ${DEPTH_LEVELS[s.depth_level].label}`}
+                          {s.depth_level && ` · Nível: ${DEPTH_LEVELS[normalizeDepthLevel(s.depth_level)].label}`}
                         </p>
                       </div>
                       <div className="text-right shrink-0 text-xs tabular-nums">
