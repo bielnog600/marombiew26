@@ -44,5 +44,4 @@
 - The `office-alunos` feed stays read-only and its published-plan summary (cadastro/acesso/planos) resolves in the pure `supabase/functions/office-alunos/planos.ts`: only `is_draft = false` rows of tipo treino/dieta/cardio count, the date is `published_at ?? created_at` rendered as a Lisbon day, so office drafts (`office_plan_drafts` or diet `is_draft=true`) can never reach the assistant.
 - Carb cycle: `dietCarbCycle`; day targets also in weekly_day_targets.
 - Set types live in `setTypes` (labels, %, logs); null log = work, so legacy history keeps counting.
-- Lazy routes/heavy libs via `lazyWithRetry` (one reload per sessionStorage window); shared helpers in vendor chunk.
-- PWA uses prompt mode without skipWaiting; `appUpdates` applies a waiting SW only on hidden/boot/tap and never while `useHoldAppUpdate` holds, so deploys never reload mid-workout.
+- Lazy routes/heavy libs; shared helpers in vendor chunk.
