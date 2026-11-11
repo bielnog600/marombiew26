@@ -52,7 +52,7 @@ function setup(opts: { plan?: TranslatablePlan | null; language?: string | null;
 describe('translate-plan — só o texto exibido vai para a IA', () => {
   it('dieta: células com texto, sem números, sem repetidos e sem a explicação longa', () => {
     expect(extractPlanTexts('dieta', DIET_MD)).toEqual([
-      'Refeição', 'Horário', 'Alimento', 'Quantidade', 'Kcal', 'Café da manhã', 'Pão francês', 'Almoço', 'Arroz branco',
+      'Refeição', 'Horário', 'Alimento', 'Quantidade', 'Café da manhã', 'Pão francês', 'Almoço', 'Arroz branco',
     ]);
   });
 
