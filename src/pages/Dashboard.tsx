@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import AppLayout from '@/components/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Users, ClipboardList, TrendingUp, UserPlus, AlertTriangle, RefreshCw, ScanEye, ChevronRight, Scale } from 'lucide-react';
+import { Users, ClipboardList, TrendingUp, UserPlus, AlertTriangle, RefreshCw, ScanEye, ChevronRight, Scale, Mic } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
