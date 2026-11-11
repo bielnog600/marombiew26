@@ -8,12 +8,15 @@ import TrainerLogSheet from './TrainerLogSheet';
 import DuoTrainerLogSheet from './DuoTrainerLogSheet';
 import AdminTrainerSessionBanner from './AdminTrainerSessionBanner';
 import StudentErrorBoundary from '@/components/StudentErrorBoundary';
+import { useHoldAppUpdate } from '@/hooks/useHoldAppUpdate';
 
 const AdminTrainerSessionMount: React.FC = () => {
   const ctx = useAdminTrainerSessionOptional();
   const active = ctx?.active ?? null;
   const isOpen = ctx?.isOpen ?? false;
   const close = ctx?.close ?? (() => {});
+  // Versão nova do app nunca recarrega com o Modo Treino aberto.
+  useHoldAppUpdate(isOpen);
   const [plan, setPlan] = useState<any | null>(null);
   const [loadingPlanId, setLoadingPlanId] = useState<string | null>(null);
 

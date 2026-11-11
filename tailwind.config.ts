@@ -107,6 +107,10 @@ export default {
           "0%": { backgroundPosition: "-200% 0" },
           "100%": { backgroundPosition: "200% 0" },
         },
+        "route-loading": {
+          "0%": { transform: "translateX(-100%)" },
+          "100%": { transform: "translateX(300%)" },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
@@ -115,6 +119,7 @@ export default {
         "phrase-zoom": "phrase-zoom 0.7s cubic-bezier(0.22,1,0.36,1) both",
         "phrase-breathe": "phrase-breathe 2.4s ease-in-out infinite",
         "shine": "shine 3s linear infinite",
+        "route-loading": "route-loading 1.1s ease-in-out infinite",
       },
     },
   },

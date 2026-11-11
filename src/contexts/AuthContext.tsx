@@ -75,6 +75,19 @@ const getCachedSession = () => {
   return null;
 };
 
+/** Mesmo usuário com os mesmos dados (a renovação do token não muda nada disso). */
+export const isSameUser = (a: User | null, b: User | null): boolean => {
+  if (a === b) return true;
+  if (!a || !b) return false;
+  if (a.id !== b.id || a.email !== b.email || a.updated_at !== b.updated_at) return false;
+  try {
+    return JSON.stringify(a.user_metadata ?? null) === JSON.stringify(b.user_metadata ?? null)
+      && JSON.stringify(a.app_metadata ?? null) === JSON.stringify(b.app_metadata ?? null);
+  } catch {
+    return false;
+  }
+};
+
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
@@ -143,7 +156,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
 
       setSession(nextSession);
-      setUser(nextSession?.user ?? null);
+      // Renovação do token (a cada hora e ao voltar para o app) traz um objeto
+      // de usuário novo com os mesmos dados; manter a mesma referência evita
+      // que telas inteiras recarreguem os dados e pisquem.
+      const nextUser = nextSession?.user ?? null;
+      setUser(prev => (isSameUser(prev, nextUser) ? prev : nextUser));
 
       if (!nextSession?.user) {
         if (intentionalSignOut.current) {

@@ -1,5 +1,6 @@
 import { FinalSetRir } from '@/components/training/FinalSetRir';
 import { lazyWithRetry } from '@/lib/appUpdate/lazyWithRetry';
+import { useHoldAppUpdate } from '@/hooks/useHoldAppUpdate';
 import { finalWorkingSetIndex } from '@/lib/finalWorkingSetRir';
 import { MethodSetRows } from '@/components/training/MethodSetRows';
 import { WorkoutSetCard, RestOffscreenIndicator } from '@/components/training/WorkoutSetCard';
@@ -180,6 +181,8 @@ const RestTimerOverlay = ({ timeLeft, totalSeconds, onClose, onAddTime }: { time
 };
 
 const TreinoExecucaoInner = () => {
+  // Versão nova do app nunca recarrega no meio do treino.
+  useHoldAppUpdate(true);
   const location = useLocation();
   const navigate = useNavigate();
   const { user } = useAuth();
