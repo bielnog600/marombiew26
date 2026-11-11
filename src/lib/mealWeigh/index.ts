@@ -44,6 +44,10 @@ export interface WeighedItem {
   gramas_lidas?: number | null;
   /** Índice do alimento no plano da refeição, quando casado com ele. */
   indice_plano?: number | null;
+  /** Fora do plano: alimento do plano que ele substituiu (o aluno não comeu esse). */
+  substituiu?: { indice_plano: number; alimento: string } | null;
+  /** Fora do plano e o aluno disse "Não, foi extra". */
+  extra?: boolean;
 }
 
 /** Abaixo disso a leitura do visor ou o alimento são tratados como incertos. */
@@ -301,9 +305,12 @@ export interface MealComparison {
  * máximo um alimento do plano (o de nome mais parecido); vários itens do mesmo
  * alimento somam as gramas.
  */
-export function compareWeighedMeal(planned: PlannedMeal, items: WeighedItem[]): MealComparison {
-  const consumido = sumWeighedItems(items);
-  const previsto: EngineMacros = { kcal: planned.kcal, p: planned.p, c: planned.c, g: planned.g };
+/**
+ * Pareia cada item pesado com no máximo um alimento do plano: primeiro pelo
+ * índice salvo, depois pelo nome mais parecido; vários itens do MESMO
+ * alimento podem cair no mesmo alimento do plano.
+ */
+export function pairItemsToPlan(planned: PlannedMeal, items: WeighedItem[]): Map<number, number> {
   const pairs: { item: number; plan: number; score: number }[] = [];
   items.forEach((it, ii) => {
     const idx = it.indice_plano;
@@ -320,13 +327,29 @@ export function compareWeighedMeal(planned: PlannedMeal, items: WeighedItem[]): 
   const itemToPlan = new Map<number, number>();
   for (const p of pairs) {
     if (itemToPlan.has(p.item)) continue;
-    // Um alimento do plano pode receber vários itens do MESMO alimento.
     const taken = Array.from(itemToPlan.entries()).find(([, plan]) => plan === p.plan);
     if (taken && p.score < 2 && normalizeFoodName(items[taken[0]].alimento) !== normalizeFoodName(items[p.item].alimento)) continue;
     itemToPlan.set(p.item, p.plan);
   }
+  return itemToPlan;
+}
+
+/**
+ * Compara a refeição pesada com a prevista. Com `unweighed`, os alimentos
+ * "comi sem pesar" contam a quantidade prevista no consumido e saem de
+ * `naoPesados` (a escolha do aluno já responde por eles).
+ */
+export function compareWeighedMeal(
+  planned: PlannedMeal,
+  items: WeighedItem[],
+  unweighed: UnweighedEntry[] = [],
+): MealComparison {
+  const consumido = mealConsumedTotals(items, unweighed);
+  const previsto: EngineMacros = { kcal: planned.kcal, p: planned.p, c: planned.c, g: planned.g };
+  const itemToPlan = pairItemsToPlan(planned, items);
   const grams = new Map<number, number>();
   itemToPlan.forEach((plan, item) => grams.set(plan, (grams.get(plan) ?? 0) + (Number(items[item].gramas) || 0)));
+  const answered = new Set(unweighed.map((u) => u.indice_plano));
   const alimentos: FoodComparison[] = planned.alimentos
     .map((pf, pi) => ({ pf, pi }))
     .filter(({ pi }) => grams.has(pi))
@@ -342,7 +365,7 @@ export function compareWeighedMeal(planned: PlannedMeal, items: WeighedItem[]): 
     });
   return {
     previsto,
-    consumido: { kcal: consumido.kcal, p: consumido.p, c: consumido.c, g: consumido.g },
+    consumido,
     diff: {
       kcal: Math.round(consumido.kcal - previsto.kcal),
       p: round1(consumido.p - previsto.p),
@@ -351,7 +374,7 @@ export function compareWeighedMeal(planned: PlannedMeal, items: WeighedItem[]): 
     },
     alimentos,
     foraDoPlano: items.filter((_, i) => !itemToPlan.has(i)),
-    naoPesados: planned.alimentos.filter((_, pi) => !grams.has(pi)),
+    naoPesados: planned.alimentos.filter((_, pi) => !grams.has(pi) && !answered.has(pi)),
   };
 }
 
@@ -570,4 +593,233 @@ export function visibleWeighObservation(observacao: string | null | undefined, o
   if (!text) return '';
   if (TARE_REMARK.test(text) && !opts.tareSuspected) return '';
   return text;
+}
+
+/* ---------- Itens não pesados, substituições e registro do dia ---------- */
+
+export type UnweighedChoice = 'comeu_sem_pesar' | 'nao_comeu';
+/** Ao concluir, todo alimento do plano não pesado começa como "Comi sem pesar". */
+export const DEFAULT_UNWEIGHED_CHOICE: UnweighedChoice = 'comeu_sem_pesar';
+
+/** Alimento do plano não pesado + escolha do aluno (meal_weigh_logs.unweighed). */
+export interface UnweighedEntry {
+  indice_plano: number;
+  alimento: string;
+  gramas: number | null;
+  qty: string;
+  kcal: number;
+  p: number;
+  c: number;
+  g: number;
+  escolha: UnweighedChoice;
+}
+
+export function buildUnweighedEntries(
+  pending: PendingPlanFood[],
+  choices: Record<number, UnweighedChoice | undefined> = {},
+): UnweighedEntry[] {
+  return (pending ?? []).map(({ index, food }) => ({
+    indice_plano: index,
+    alimento: food.alimento,
+    gramas: food.gramas,
+    qty: food.qty,
+    kcal: food.kcal,
+    p: food.p,
+    c: food.c,
+    g: food.g,
+    escolha: choices[index] ?? DEFAULT_UNWEIGHED_CHOICE,
+  }));
+}
+
+/** Consumido da refeição: itens pesados + previsto dos "comi sem pesar"; "não comi" conta zero. */
+export function mealConsumedTotals(items: WeighedItem[], unweighed: UnweighedEntry[] = []): EngineMacros {
+  const w = sumWeighedItems(items);
+  const acc = { kcal: w.kcal, p: w.p, c: w.c, g: w.g };
+  for (const u of unweighed ?? []) {
+    if (u.escolha !== 'comeu_sem_pesar') continue;
+    acc.kcal += Number(u.kcal) || 0;
+    acc.p += Number(u.p) || 0;
+    acc.c += Number(u.c) || 0;
+    acc.g += Number(u.g) || 0;
+  }
+  return { kcal: Math.round(acc.kcal), p: round1(acc.p), c: round1(acc.c), g: round1(acc.g) };
+}
+
+const plannedAmount = (u: Pick<UnweighedEntry, 'gramas' | 'qty'>) =>
+  u.gramas != null ? `${Math.round(u.gramas)} g` : u.qty || '—';
+
+/** "Banana: comeu sem pesar (previsto 30 g)" / "Banana: não comeu" */
+export function formatUnweighedLine(u: UnweighedEntry): string {
+  return u.escolha === 'nao_comeu'
+    ? `${u.alimento}: não comeu`
+    : `${u.alimento}: comeu sem pesar (previsto ${plannedAmount(u)})`;
+}
+
+export const substitutionQuestion = (foodName: string) => `A ${foodName} substituiu algum item?`;
+
+/** Itens fora do plano (índices em `items`) — só eles podem ter substituído algo. */
+export function outOfPlanItemIndexes(planned: PlannedMeal, items: WeighedItem[]): number[] {
+  const paired = pairItemsToPlan(planned, items);
+  return items.map((_, i) => i).filter((i) => !paired.has(i));
+}
+
+/** Registra no item fora do plano qual alimento não comido ele substituiu (null = "Não, foi extra"). */
+export function applySubstitution(
+  items: WeighedItem[],
+  itemIndex: number,
+  replaced: Pick<UnweighedEntry, 'indice_plano' | 'alimento'> | null,
+): WeighedItem[] {
+  return items.map((it, i) => {
+    if (i !== itemIndex) return it;
+    return replaced
+      ? { ...it, substituiu: { indice_plano: replaced.indice_plano, alimento: replaced.alimento }, extra: false }
+      : { ...it, substituiu: null, extra: true };
+  });
+}
+
+/** Ao mudar um "Não comi" para "Comi sem pesar", a troca que apontava para ele deixa de valer. */
+export function dropStaleSubstitutions(items: WeighedItem[], unweighed: UnweighedEntry[]): WeighedItem[] {
+  const notEaten = new Set(unweighed.filter((u) => u.escolha === 'nao_comeu').map((u) => u.indice_plano));
+  return items.map((it) => (it.substituiu && !notEaten.has(it.substituiu.indice_plano) ? { ...it, substituiu: null } : it));
+}
+
+/** "Trocou Banana → Pasta de amendoim" / "Extra: Pasta de amendoim" (null = ainda sem resposta). */
+export function formatSwapLine(item: WeighedItem): string | null {
+  if (item.substituiu?.alimento) return `Trocou ${item.substituiu.alimento} → ${item.alimento}`;
+  if (item.extra) return `Extra: ${item.alimento}`;
+  return null;
+}
+
+/** Linha de meal_weigh_logs lida pela dieta do aluno. */
+export interface WeighLogRecord {
+  id: string;
+  log_date: string;
+  meal_index: number | null;
+  items: WeighedItem[] | null;
+  unweighed?: UnweighedEntry[] | null;
+  planned?: (Partial<PlannedMeal> & { alimentos?: PlannedFood[] }) | null;
+  created_at: string;
+}
+
+export const weighLogKey = (date: string, mealIndex: number) => `${date}|${mealIndex}`;
+
+/** Registro do dia: para cada (data, refeição) vale a pesagem mais recente; as outras são histórico. */
+export function latestWeighLogs<T extends WeighLogRecord>(rows: T[]): Map<string, T> {
+  const out = new Map<string, T>();
+  for (const r of rows ?? []) {
+    if (r.meal_index == null || !r.log_date) continue;
+    const key = weighLogKey(r.log_date, r.meal_index);
+    const prev = out.get(key);
+    if (!prev || String(r.created_at) > String(prev.created_at)) out.set(key, r);
+  }
+  return out;
+}
+
+/** Ids das pesagens substituídas por uma mais recente da mesma refeição no mesmo dia. */
+export function supersededWeighLogIds(rows: WeighLogRecord[]): Set<string> {
+  const latest = latestWeighLogs(rows);
+  const ids = new Set<string>();
+  for (const r of rows ?? []) {
+    if (r.meal_index == null) continue;
+    const winner = latest.get(weighLogKey(r.log_date, r.meal_index));
+    if (winner && winner.id !== r.id) ids.add(r.id);
+  }
+  return ids;
+}
+
+/** Selo do alimento no card da refeição do dia. */
+export type DayFoodWeighStatus = 'pesado' | 'sem_pesar' | 'nao_comeu' | 'fora_do_plano';
+export interface DayFoodWeigh {
+  status: DayFoodWeighStatus;
+  gramas?: number;
+  previstoGramas?: number | null;
+  previstoQty?: string;
+  substituiu?: string | null;
+}
+export interface DayMealFood {
+  food: string;
+  qty: string;
+  kcal: string;
+  p: string;
+  c: string;
+  g: string;
+  weigh: DayFoodWeigh;
+}
+
+const str = (n: number) => String(round1(Number(n) || 0));
+
+/**
+ * Alimentos da refeição como foram consumidos no dia, montados só a partir da
+ * pesagem (o plano publicado não muda): pesados com as gramas reais, não
+ * pesados conforme a escolha ("não comi" = zero) e fora do plano no fim.
+ */
+export function dayMealFoodsFromLog(log: WeighLogRecord): DayMealFood[] {
+  const items = log.items ?? [];
+  const alimentos = log.planned?.alimentos ?? [];
+  const planned: PlannedMeal = {
+    nome: '', horario: null, alimentos, kcal: 0, p: 0, c: 0, g: 0,
+  };
+  const paired = pairItemsToPlan(planned, items);
+  const byPlan = new Map<number, WeighedItem[]>();
+  paired.forEach((pi, ii) => byPlan.set(pi, [...(byPlan.get(pi) ?? []), items[ii]]));
+  const choices = new Map((log.unweighed ?? []).map((u) => [u.indice_plano, u.escolha] as const));
+  const out: DayMealFood[] = [];
+  alimentos.forEach((pf, pi) => {
+    const weighed = byPlan.get(pi);
+    if (weighed?.length) {
+      const sum = sumWeighedItems(weighed);
+      out.push({
+        food: pf.alimento, qty: `${Math.round(sum.gramas)} g`,
+        kcal: String(Math.round(sum.kcal)), p: str(sum.p), c: str(sum.c), g: str(sum.g),
+        weigh: { status: 'pesado', gramas: sum.gramas, previstoGramas: pf.gramas, previstoQty: pf.qty },
+      });
+      return;
+    }
+    const notEaten = choices.get(pi) === 'nao_comeu';
+    out.push({
+      food: pf.alimento, qty: pf.qty,
+      kcal: notEaten ? '0' : String(Math.round(pf.kcal)),
+      p: notEaten ? '0' : str(pf.p), c: notEaten ? '0' : str(pf.c), g: notEaten ? '0' : str(pf.g),
+      weigh: { status: notEaten ? 'nao_comeu' : 'sem_pesar', previstoGramas: pf.gramas, previstoQty: pf.qty },
+    });
+  });
+  items.forEach((it, ii) => {
+    if (paired.has(ii)) return;
+    out.push({
+      food: it.alimento, qty: `${Math.round(Number(it.gramas) || 0)} g`,
+      kcal: String(Math.round(Number(it.kcal) || 0)), p: str(it.p), c: str(it.c), g: str(it.g),
+      weigh: { status: 'fora_do_plano', gramas: Number(it.gramas) || 0, substituiu: it.substituiu?.alimento ?? null },
+    });
+  });
+  return out;
+}
+
+/** "pesou 182 g (previsto 150 g)" */
+export function formatDayWeighLabel(w: DayFoodWeigh): string {
+  if (w.status === 'pesado') {
+    const prev = w.previstoGramas != null ? `${Math.round(w.previstoGramas)} g` : w.previstoQty || '—';
+    return `pesou ${Math.round(w.gramas ?? 0)} g (previsto ${prev})`;
+  }
+  if (w.status === 'sem_pesar') return 'comeu sem pesar';
+  if (w.status === 'nao_comeu') return 'não comeu';
+  return w.substituiu ? `no lugar de ${w.substituiu}` : `pesou ${Math.round(w.gramas ?? 0)} g`;
+}
+
+/**
+ * Refeições do dia com as pesagens salvas por cima: cada refeição pesada
+ * troca os alimentos pelos consumidos; as demais ficam como estão.
+ */
+export function overlayDayWeighLogs<M extends { foods?: unknown[] }>(
+  meals: M[],
+  date: string,
+  logs: Map<string, WeighLogRecord>,
+): { meals: M[]; weighedIndexes: number[] } {
+  const weighedIndexes: number[] = [];
+  const next = meals.map((m, i) => {
+    const log = logs.get(weighLogKey(date, i));
+    if (!log) return m;
+    weighedIndexes.push(i);
+    return { ...m, foods: dayMealFoodsFromLog(log) } as M;
+  });
+  return { meals: next, weighedIndexes };
 }

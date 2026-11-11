@@ -1,0 +1,5 @@
+ALTER TABLE public.meal_weigh_logs ADD COLUMN IF NOT EXISTS unweighed jsonb NOT NULL DEFAULT '[]'::jsonb;
+COMMENT ON COLUMN public.meal_weigh_logs.unweighed IS 'Alimentos do plano não pesados e a escolha do aluno: [{indice_plano, alimento, gramas, qty, kcal, p, c, g, escolha: comeu_sem_pesar|nao_comeu}]. Totais da linha já incluem os "comeu_sem_pesar".';
+COMMENT ON TABLE public.meal_weigh_logs IS 'Refeições pesadas pelo aluno (Pesar refeição, Premium). Registro do dia: a pesagem mais recente por (aluno, log_date, meal_index) é a que vale; as anteriores ficam como histórico. items: [{alimento, food_id, gramas, kcal, p, c, g, foto_url, editado_pelo_aluno, indice_plano, substituiu: {indice_plano, alimento} | null, extra}]; planned: macros e alimentos previstos da refeição.';
+CREATE INDEX IF NOT EXISTS meal_weigh_logs_student_date_meal_idx
+  ON public.meal_weigh_logs (student_id, log_date, meal_index, created_at DESC);

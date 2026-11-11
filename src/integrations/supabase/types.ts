@@ -2298,6 +2298,7 @@ export type Database = {
           total_g: number
           total_kcal: number
           total_p: number
+          unweighed: Json
         }
         Insert: {
           created_at?: string
@@ -2314,6 +2315,7 @@ export type Database = {
           total_g?: number
           total_kcal?: number
           total_p?: number
+          unweighed?: Json
         }
         Update: {
           created_at?: string
@@ -2330,6 +2332,7 @@ export type Database = {
           total_g?: number
           total_kcal?: number
           total_p?: number
+          unweighed?: Json
         }
         Relationships: []
       }

@@ -211,6 +211,13 @@
       "when": 1794413526662,
       "tag": "0029_plan_translations_cache_app_language",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1794414156564,
+      "tag": "0030_meal_weigh_logs_unweighed_choices",
+      "breakpoints": true
     }
   ]
 }

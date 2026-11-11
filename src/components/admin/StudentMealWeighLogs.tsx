@@ -3,14 +3,16 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ChevronDown, Scale } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
-import { formatFoodComparison, type FoodComparison, type WeighedItem } from '@/lib/mealWeigh';
+import { formatFoodComparison, formatSwapLine, formatUnweighedLine, supersededWeighLogIds, type FoodComparison, type UnweighedEntry, type WeighedItem } from '@/lib/mealWeigh';
 
 interface WeighLog {
   id: string;
   log_date: string;
   meal_name: string;
   meal_time: string | null;
+  meal_index: number | null;
   items: WeighedItem[] | null;
+  unweighed: UnweighedEntry[] | null;
   total_kcal: number;
   total_p: number;
   total_c: number;
@@ -33,7 +35,7 @@ export default function StudentMealWeighLogs({ studentId }: { studentId: string 
     let cancelled = false;
     supabase
       .from('meal_weigh_logs')
-      .select('id, log_date, meal_name, meal_time, items, total_kcal, total_p, total_c, total_g, planned, created_at')
+      .select('id, log_date, meal_name, meal_time, meal_index, items, unweighed, total_kcal, total_p, total_c, total_g, planned, created_at')
       .eq('student_id', studentId)
       .order('log_date', { ascending: false })
       .order('created_at', { ascending: false })
@@ -52,7 +54,7 @@ export default function StudentMealWeighLogs({ studentId }: { studentId: string 
           <p className="text-sm text-muted-foreground">Nenhuma refeição pesada ainda.</p>
         ) : (
           <ul className="space-y-2">
-            {rows.map((r) => {
+            {(() => { const superseded = supersededWeighLogIds(rows as any); return rows.map((r) => {
               const planned = r.planned ?? {};
               const diff = n(r.total_kcal) - n(planned.kcal);
               const expanded = open === r.id;
@@ -61,7 +63,10 @@ export default function StudentMealWeighLogs({ studentId }: { studentId: string 
                   <button type="button" onClick={() => setOpen(expanded ? null : r.id)} className="w-full p-3 text-left flex items-start gap-2">
                     <div className="min-w-0 flex-1">
                       <p className="text-sm font-semibold truncate">{r.meal_time ? `${r.meal_time} · ` : ''}{r.meal_name || 'Refeição'}</p>
-                      <p className="text-xs text-muted-foreground">{fmtDate(r.log_date)} · {(r.items ?? []).length} itens</p>
+                      <p className="text-xs text-muted-foreground">
+                        {fmtDate(r.log_date)} · {(r.items ?? []).length} itens
+                        {superseded.has(r.id) && <span className="ml-1 rounded-full bg-secondary px-1.5 py-0.5 text-[10px]">substituída por nova pesagem</span>}
+                      </p>
                     </div>
                     <div className="text-right shrink-0 text-xs tabular-nums">
                       <p><span className="font-bold text-primary">{n(r.total_kcal)}</span> / {n(planned.kcal)} kcal</p>
@@ -88,11 +93,24 @@ export default function StudentMealWeighLogs({ studentId }: { studentId: string 
                           {(planned.comparacao ?? []).map((c, i) => <p key={i}>{formatFoodComparison(c)}</p>)}
                         </div>
                       )}
+                      {(r.items ?? []).some((it) => formatSwapLine(it)) && (
+                        <div className="space-y-0.5" data-testid="meal-weigh-swaps">
+                          {(r.items ?? []).map((it, i) => {
+                            const line = formatSwapLine(it);
+                            return line ? <p key={i} className="font-semibold text-primary">{line}</p> : null;
+                          })}
+                        </div>
+                      )}
+                      {(r.unweighed ?? []).length > 0 && (
+                        <div className="text-muted-foreground space-y-0.5">
+                          {(r.unweighed ?? []).map((u) => <p key={u.indice_plano}>{formatUnweighedLine(u)}</p>)}
+                        </div>
+                      )}
                     </div>
                   )}
                 </li>
               );
-            })}
+            }); })()}
           </ul>
         )}
       </CardContent>

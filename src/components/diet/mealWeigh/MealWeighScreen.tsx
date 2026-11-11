@@ -18,7 +18,10 @@ import {
   buildPlanWeighedItem, buildScanWeighRequest, buildWeighedItem, checkTare, compareWeighedMeal, fitWithin, formatFoodComparison, formatPlanWeighLine,
   isReadingUnreliable, macrosForGrams, matchPlanFood, nextPlanFoodIndex, pendingPlanFoods, planFoodToWeighFood, planProgressLabel, plannedFromMeal,
   resolveScanWeigh, round1, scaleOnlyHint, sumWeighedItems, visibleWeighObservation, weighedChipsLabel,
-  type PendingPlanFood, type ScanWeighResolution, type WeighAiResult, type WeighFood, type WeighedItem,
+  applySubstitution, buildUnweighedEntries, dropStaleSubstitutions, formatSwapLine, formatUnweighedLine, mealConsumedTotals,
+  outOfPlanItemIndexes, substitutionQuestion,
+  type PendingPlanFood, type ScanWeighResolution, type UnweighedChoice, type WeighAiResult, type WeighFood, type WeighedItem,
+  type WeighLogRecord,
 } from '@/lib/mealWeigh';
 
 interface Props {
@@ -35,10 +38,11 @@ interface Props {
   /** Alimento do plano para começar no modo 'plan'. */
   startFoodIndex?: number;
   onClose: () => void;
-  onSaved?: () => void;
+  /** Pesagem salva (registro do dia da refeição). */
+  onSaved?: (log: WeighLogRecord) => void;
 }
 
-type Phase = 'camera' | 'analyzing' | 'item' | 'list' | 'summary';
+type Phase = 'camera' | 'analyzing' | 'item' | 'list' | 'review' | 'summary';
 type Mode = 'choose' | 'plan' | 'scan';
 
 interface PlanDraft {
@@ -118,6 +122,8 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
   const [saving, setSaving] = useState(false);
   const [confirmExit, setConfirmExit] = useState(false);
   const [pendingPhoto, setPendingPhoto] = useState<string | null>(null);
+  /** Escolha para cada alimento do plano não pesado (padrão: comi sem pesar). */
+  const [unweighedChoices, setUnweighedChoices] = useState<Record<number, UnweighedChoice>>({});
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const fileRef = useRef<HTMLInputElement | null>(null);
@@ -130,6 +136,11 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
   const photosRef = useRef<string[]>([]);
   itemsRef.current = items;
   photosRef.current = photos;
+
+  /** "Concluir refeição": antes do resumo, pergunta sobre os alimentos do plano não pesados. */
+  const finish = useCallback((list: WeighedItem[] = itemsRef.current) => {
+    setPhase(pendingPlanFoods(planned, list).length > 0 ? 'review' : 'summary');
+  }, [planned]);
 
   useEffect(() => {
     let cancelled = false;
@@ -319,7 +330,8 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
     setItems(nextItems);
     setPhotos(nextPhotos);
     setDraft(null);
-    setPhase(next);
+    if (next === 'summary') finish(nextItems);
+    else setPhase(next);
   };
 
   const pickPending = (p: PendingPlanFood) => {
@@ -335,14 +347,27 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
     setPhotos((prev) => prev.filter((_, i) => i !== idx));
   };
 
-  const comparison = useMemo(() => compareWeighedMeal(planned, items), [planned, items]);
+  const unweighed = useMemo(() => buildUnweighedEntries(pending, unweighedChoices), [pending, unweighedChoices]);
+  const notEaten = useMemo(() => unweighed.filter((u) => u.escolha === 'nao_comeu'), [unweighed]);
+  const outOfPlan = useMemo(() => outOfPlanItemIndexes(planned, items), [planned, items]);
+  /** Só pergunta "substituiu?" quando há item do plano marcado "Não comi". */
+  const swapQuestions = notEaten.length > 0 ? outOfPlan : [];
+  const swapsAnswered = swapQuestions.every((i) => items[i]?.extra === true || !!items[i]?.substituiu);
+  const comparison = useMemo(() => compareWeighedMeal(planned, items, unweighed), [planned, items, unweighed]);
   const totals = useMemo(() => sumWeighedItems(items), [items]);
+
+  const chooseUnweighed = (index: number, choice: UnweighedChoice) => {
+    const nextChoices = { ...unweighedChoices, [index]: choice };
+    setUnweighedChoices(nextChoices);
+    setItems((prev) => dropStaleSubstitutions(prev, buildUnweighedEntries(pendingPlanFoods(planned, prev), nextChoices)));
+  };
 
   const save = async () => {
     if (testMode) { toast.success('Modo teste: nada foi salvo.'); onClose(); return; }
     if (items.length === 0) return;
     setSaving(true);
-    const { error } = await supabase.from('meal_weigh_logs').insert({
+    const consumed = mealConsumedTotals(items, unweighed);
+    const { data: saved, error } = await supabase.from('meal_weigh_logs').insert({
       student_id: studentId,
       log_date: logDate,
       diet_plan_id: dietPlanId,
@@ -350,16 +375,17 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
       meal_name: meal.name || '',
       meal_time: meal.time ?? null,
       items: items as any,
-      total_kcal: totals.kcal,
-      total_p: totals.p,
-      total_c: totals.c,
-      total_g: totals.g,
+      unweighed: unweighed as any,
+      total_kcal: consumed.kcal,
+      total_p: consumed.p,
+      total_c: consumed.c,
+      total_g: consumed.g,
       planned: { ...planned, comparacao: comparison.alimentos } as any,
-    });
+    }).select('id, log_date, meal_index, items, unweighed, planned, created_at').single();
     setSaving(false);
     if (error) { toast.error('Não foi possível salvar: ' + error.message); return; }
-    toast.success('Refeição pesada salva');
-    onSaved?.();
+    toast.success('Refeição pesada salva no seu dia');
+    if (saved) onSaved?.(saved as unknown as WeighLogRecord);
     onClose();
   };
 
@@ -473,7 +499,7 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
                 </p>
               )}
               {items.length > 0 && (
-                <button type="button" onClick={() => setPhase(mode === 'scan' ? 'summary' : 'list')}
+                <button type="button" onClick={() => (mode === 'scan' ? finish() : setPhase('list'))}
                   className="rounded-full bg-background/80 px-3 py-1 text-xs font-semibold text-foreground">
                   {mode === 'scan' ? 'Concluir refeição' : `${items.length} ${items.length === 1 ? 'item pesado' : 'itens pesados'}`} · {Math.round(accumulated)} g
                 </button>
@@ -728,8 +754,62 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
                 <Plus className="h-4 w-4" /> Próximo alimento
               </Button>
             )}
-            <Button className="flex-1 gap-1.5 font-semibold" disabled={items.length === 0} onClick={() => setPhase('summary')}>
+            <Button className="flex-1 gap-1.5 font-semibold" disabled={items.length === 0} onClick={() => finish()}>
               Concluir refeição <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {mode !== 'choose' && phase === 'review' && (
+        <div className="flex-1 min-h-0 flex flex-col">
+          {header('Antes de concluir')}
+          <div className="flex-1 min-h-0 overflow-y-auto px-4 pb-4 space-y-3" data-testid="meal-weigh-review">
+            <div className="rounded-2xl border border-border bg-secondary/30 p-3 space-y-2">
+              <p className="text-sm font-semibold">Você não pesou estes alimentos. Comeu?</p>
+              <ul className="space-y-2">
+                {pending.map((p) => {
+                  const choice = unweighedChoices[p.index] ?? 'comeu_sem_pesar';
+                  const amount = p.food.gramas != null ? `${Math.round(p.food.gramas)} g` : p.food.qty || '—';
+                  return (
+                    <li key={p.index} className="rounded-xl border border-border/60 bg-background/40 p-2.5" data-testid="meal-weigh-unweighed-row">
+                      <p className="text-sm font-semibold">{p.food.alimento} <span className="font-normal text-muted-foreground">· previsto {amount}</span></p>
+                      <div className="mt-2 grid grid-cols-2 gap-2" role="group" aria-label={`O que aconteceu com ${p.food.alimento}`}>
+                        <Button size="sm" variant={choice === 'comeu_sem_pesar' ? 'default' : 'outline'} aria-pressed={choice === 'comeu_sem_pesar'}
+                          onClick={() => chooseUnweighed(p.index, 'comeu_sem_pesar')}>Comi sem pesar</Button>
+                        <Button size="sm" variant={choice === 'nao_comeu' ? 'default' : 'outline'} aria-pressed={choice === 'nao_comeu'}
+                          onClick={() => chooseUnweighed(p.index, 'nao_comeu')}>Não comi</Button>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+            {swapQuestions.map((ii) => {
+              const it = items[ii];
+              if (!it) return null;
+              return (
+                <div key={ii} className="rounded-2xl border border-primary/40 bg-primary/10 p-3 space-y-2" data-testid="meal-weigh-swap">
+                  <p className="text-sm font-semibold">{substitutionQuestion(it.alimento)}</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {notEaten.map((u) => {
+                      const active = it.substituiu?.indice_plano === u.indice_plano;
+                      return (
+                        <Button key={u.indice_plano} size="sm" variant={active ? 'default' : 'outline'} aria-pressed={active}
+                          onClick={() => setItems((prev) => applySubstitution(prev, ii, u))}>{u.alimento}</Button>
+                      );
+                    })}
+                    <Button size="sm" variant={it.extra ? 'default' : 'outline'} aria-pressed={!!it.extra}
+                      onClick={() => setItems((prev) => applySubstitution(prev, ii, null))}>Não, foi extra</Button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          <div className="border-t border-border px-4 pt-3 flex gap-2" style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 12px)' }}>
+            <Button variant="outline" onClick={() => setPhase('list')}>Voltar</Button>
+            <Button className="flex-1 font-semibold" disabled={!swapsAnswered} onClick={() => setPhase('summary')}>
+              Ver resumo <ChevronRight className="h-4 w-4" />
             </Button>
           </div>
         </div>
@@ -744,7 +824,7 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
               <p className="text-xs font-semibold mb-2">Previsto × consumido</p>
               <table className="w-full text-xs tabular-nums">
                 <thead>
-                  <tr className="text-muted-foreground"><th className="text-left font-medium" /><th className="text-right font-medium">Previsto</th><th className="text-right font-medium">Pesado</th><th className="text-right font-medium">Diferença</th></tr>
+                  <tr className="text-muted-foreground"><th className="text-left font-medium" /><th className="text-right font-medium">Previsto</th><th className="text-right font-medium">Consumido</th><th className="text-right font-medium">Diferença</th></tr>
                 </thead>
                 <tbody>
                   {(['kcal', 'p', 'c', 'g'] as const).map((k) => (
@@ -758,18 +838,23 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
                 </tbody>
               </table>
             </div>
-            {(comparison.alimentos.length > 0 || comparison.foraDoPlano.length > 0 || comparison.naoPesados.length > 0) && (
+            {(comparison.alimentos.length > 0 || comparison.foraDoPlano.length > 0 || comparison.naoPesados.length > 0 || unweighed.length > 0) && (
               <div className="rounded-2xl border border-border bg-secondary/30 p-3 space-y-1.5 text-xs">
                 <p className="font-semibold">Por alimento</p>
                 {comparison.alimentos.map((a) => <p key={a.alimento}>{formatFoodComparison(a)}</p>)}
-                {comparison.foraDoPlano.map((it, i) => <p key={`f${i}`} className="text-muted-foreground">{it.alimento}: fora do plano, pesou {Math.round(it.gramas)} g</p>)}
+                {comparison.foraDoPlano.map((it, i) => (
+                  <p key={`f${i}`} className="text-muted-foreground">
+                    {it.alimento}: fora do plano, pesou {Math.round(it.gramas)} g{formatSwapLine(it) ? ` · ${formatSwapLine(it)}` : ''}
+                  </p>
+                ))}
+                {unweighed.map((u) => <p key={`u${u.indice_plano}`} className="text-muted-foreground">{formatUnweighedLine(u)}</p>)}
                 {comparison.naoPesados.map((pf, i) => <p key={`n${i}`} className="text-muted-foreground">{pf.alimento}: previsto {pf.gramas != null ? `${Math.round(pf.gramas)} g` : pf.qty || '—'}, não pesado</p>)}
               </div>
             )}
             {testMode && <p className="text-center text-xs text-muted-foreground">Modo teste: nada é salvo.</p>}
           </div>
           <div className="border-t border-border px-4 pt-3 flex gap-2" style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 12px)' }}>
-            <Button variant="outline" onClick={() => setPhase('list')}>Voltar</Button>
+            <Button variant="outline" onClick={() => setPhase(pending.length > 0 ? 'review' : 'list')}>Voltar</Button>
             <Button className="flex-1 font-semibold" disabled={saving || items.length === 0} onClick={save}>
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : testMode ? 'Fechar teste' : 'Salvar'}
             </Button>
