@@ -1,4 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
+import fs from 'node:fs';
+import path from 'node:path';
 
 const rpc = vi.hoisted(() => vi.fn(async (_name: string, _args?: unknown) => ({ data: [], error: null })));
 vi.mock('@/integrations/supabase/client', () => ({ supabase: { rpc } }));
@@ -151,13 +153,73 @@ describe('Falas com nome — cada aluno só com as dele', () => {
       createAudioElement: () => null, createObjectURL: () => 'blob:x', speech: () => null, log: () => undefined,
       cache: new Map(), resumeTimeoutMs: 10, decodeTimeoutMs: 10, preferMediaElement: true,
     };
-    const on = createCoachVoice({ ...base, fetchMotivationEnabled: async () => true });
+    const on = createCoachVoice({ ...base, fetchMotivationEnabled: async () => true, fetchNamePhrasesEnabled: async () => true });
     await on.preload();
     expect(on.readyCount).toBe(1);
     expect(on.motivationClips().map((c) => c.text)).toEqual(['Boa, Rafa!']);
-    const off = createCoachVoice({ ...base, cache: new Map(), fetchMotivationEnabled: async () => false });
+    const off = createCoachVoice({ ...base, cache: new Map(), fetchMotivationEnabled: async () => false, fetchNamePhrasesEnabled: async () => true });
     await off.preload();
     expect(off.motivationClips()).toEqual([]);
     expect(motivationClipFromRow({ phrase_key: 'x', tipo: 'sistema', momento: 'fim_serie' })).toBeNull();
+  });
+
+  describe('chave "Falas com nome do aluno" desligada', () => {
+    const rows = [
+      { phrase_key: 'desce_mais', file_path: 'desce_mais/1.mp3', tipo: 'sistema' },
+      { phrase_key: 'motiv_bora', file_path: 'motiv_bora/1.mp3', tipo: 'personalizada', momento: 'fim_serie', frequencia: 'sempre', texto: 'Bora!' },
+      { phrase_key: namePhraseKey(TPL, RAFA), file_path: 'n/1.mp3', tipo: 'nome', momento: 'fim_serie', frequencia: 'sempre', texto: 'Boa, Rafa!' },
+    ];
+    const base = (names: CoachVoiceDeps['fetchNamePhrasesEnabled']): Partial<CoachVoiceDeps> => ({
+      getContext: () => null,
+      fetchApproved: async () => rows,
+      fetchMotivationEnabled: async () => true,
+      fetchNamePhrasesEnabled: names,
+      download: async () => ({ arrayBuffer: async () => new ArrayBuffer(8) }) as unknown as Blob,
+      createAudioElement: () => null, createObjectURL: () => 'blob:x', speech: () => null, log: () => undefined,
+      cache: new Map(), resumeTimeoutMs: 10, decodeTimeoutMs: 10, preferMediaElement: true,
+    });
+
+    it('desligada: fala com nome nunca entra no sorteio; sistema e personalizadas continuam', async () => {
+      const voice = createCoachVoice(base(async () => false));
+      await voice.preload();
+      expect(voice.readyCount).toBe(1);
+      expect(voice.motivationClips().map((c) => c.key)).toEqual(['motiv_bora']);
+      const picker = new MotivationPicker(() => voice.motivationClips(), seeded(3));
+      for (let i = 0; i < 30; i++) expect(picker.pick('fim_serie')?.personal).toBe(false);
+    });
+
+    it('erro ao ler a chave = desligada', async () => {
+      const voice = createCoachVoice(base(async () => { throw new Error('rpc'); }));
+      await voice.preload();
+      expect(voice.motivationClips().map((c) => c.key)).toEqual(['motiv_bora']);
+    });
+
+    it('ligada: a fala com nome volta (nada foi apagado)', async () => {
+      const voice = createCoachVoice(base(async () => true));
+      await voice.preload();
+      expect(voice.motivationClips().map((c) => c.key).sort()).toEqual(['motiv_bora', namePhraseKey(TPL, RAFA)].sort());
+    });
+
+    it('sem opção explícita, a linha "nome" não vira fala; a câmera pergunta a chave ao servidor', async () => {
+      const row = { phrase_key: 'n', tipo: 'nome', momento: 'fim_serie', frequencia: 'sempre', texto: 'Boa, Rafa!' };
+      expect(motivationClipFromRow(row)).toBeNull();
+      expect(motivationClipFromRow(row, { namesEnabled: true })?.personal).toBe(true);
+      rpc.mockClear();
+      await defaultCoachVoiceDeps(RAFA).fetchNamePhrasesEnabled();
+      expect(rpc).toHaveBeenCalledWith('coach_voice_name_phrases_enabled');
+    });
+
+    it('servidor: a versão atual de coach_voice_clips só devolve "nome" com a chave ligada (padrão desligada)', () => {
+      const dir = path.resolve(__dirname, '../../drizzle/migrations');
+      const files = fs.readdirSync(dir).filter((f) => f.endsWith('.sql')).sort();
+      const defining = files.filter((f) => /FUNCTION public\.coach_voice_clips\(/.test(fs.readFileSync(path.join(dir, f), 'utf8')));
+      const sql = fs.readFileSync(path.join(dir, defining[defining.length - 1]), 'utf8');
+      const fn = sql.slice(sql.indexOf('FUNCTION public.coach_voice_clips('));
+      const nameBranch = fn.match(/p\.tipo = 'nome'[^\n]*/)?.[0] ?? '';
+      expect(nameBranch).toMatch(/names\.enabled/);
+      expect(fn).toMatch(/name_phrases_enabled[^\n]*\), false\)/);
+      const all = files.map((f) => fs.readFileSync(path.join(dir, f), 'utf8')).join('\n');
+      expect(all).toMatch(/ADD COLUMN name_phrases_enabled boolean NOT NULL DEFAULT false/);
+    });
   });
 });
