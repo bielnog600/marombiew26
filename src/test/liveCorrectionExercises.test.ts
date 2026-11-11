@@ -13,7 +13,7 @@ import { LM, SquatRepCounter, frameMetrics, POSITION_MESSAGES, type Landmark, ty
 // Pontos de uma pessoa de lado (perna esquerda e direita podem ter ângulos diferentes)
 // ---------------------------------------------------------------------------
 const rad = (d: number) => (d * Math.PI) / 180;
-interface LegPose { knee: number; lean: number }
+interface LegPose { knee: number; lean?: number }
 /** knee = ângulo do joelho (180 = reto); lean = tronco inclinado da vertical. Canela vertical. */
 function pose(left: LegPose, right: LegPose = left): Landmark[] {
   const lms: Landmark[] = Array.from({ length: 33 }, () => ({ x: 0.5, y: 0.1, visibility: 0.9 }));
@@ -25,7 +25,7 @@ function pose(left: LegPose, right: LegPose = left): Landmark[] {
     const knee = { x: 0.5, y: 0.7 };
     const phi = rad(180 - p.knee);
     const hip = { x: knee.x - 0.2 * Math.sin(phi), y: knee.y - 0.2 * Math.cos(phi) };
-    const sh = { x: hip.x + 0.3 * Math.sin(rad(p.lean)), y: hip.y - 0.3 * Math.cos(rad(p.lean)) };
+    const sh = { x: hip.x + 0.3 * Math.sin(rad(p.lean ?? 0)), y: hip.y - 0.3 * Math.cos(rad(p.lean ?? 0)) };
     lms[ids.ankle] = { ...ankle, visibility: 0.9 };
     lms[ids.knee] = { ...knee, visibility: 0.9 };
     lms[ids.hip] = { ...hip, visibility: 0.9 };
