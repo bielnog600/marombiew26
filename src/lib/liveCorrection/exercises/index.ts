@@ -2,10 +2,13 @@
  * Registro das regras da Correção ao vivo. A ordem importa: as mais específicas primeiro,
  * para "AGACHAMENTO BÚLGARO" virar búlgaro e não agachamento.
  */
+import { benchPressRule } from './benchPress';
 import { bulgaroRule, lungeAutoFinishRepCount } from './bulgaro';
 import { curlRule } from './curl';
 import { hipThrustRule } from './hipThrust';
 import { lateralRaiseRule } from './lateralRaise';
+import { legPressRule } from './legPress';
+import { plankRule } from './plank';
 import { shoulderPressRule } from './shoulderPress';
 import { nameHasKeyword, normalizeExerciseName } from './common';
 import { squatRule } from './squat';
@@ -17,10 +20,12 @@ export const EXERCISE_RULES: ExerciseRule[] = [
   bulgaroRule, stiffRule, lateralRaiseRule, hipThrustRule, squatRule,
   // "ROSCA FRANCESA" é tríceps: o francês vem antes da rosca.
   tricepsFrenchRule, curlRule, shoulderPressRule,
+  benchPressRule, legPressRule, plankRule,
 ];
 /** Ordem do seletor de teste do admin. */
 export const EXERCISE_RULE_ORDER: ExerciseRuleId[] = [
   'squat', 'stiff', 'bulgaro', 'lateral_raise', 'hip_thrust', 'curl', 'triceps_french', 'shoulder_press',
+  'bench_press', 'leg_press', 'plank',
 ];
 export const DEFAULT_EXERCISE_RULE: ExerciseRuleId = 'squat';
 
@@ -63,3 +68,6 @@ export * from './arms';
 export * from './curl';
 export * from './tricepsFrench';
 export * from './shoulderPress';
+export * from './benchPress';
+export * from './legPress';
+export * from './plank';
