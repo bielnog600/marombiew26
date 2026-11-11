@@ -107,7 +107,8 @@ describe('Falas de motivação — prioridade na fila', () => {
     const f = fakeOutputs();
     const q = new VoiceQueue(f.out);
     void q.say([{ clip: 'motiv_bora', text: 'Bora!' }]);
-    await Promise.resolve();
+    await new Promise((r) => setTimeout(r, 1));
+    expect(f.played).toEqual(['motiv_bora']);
     await q.say(['seis']);
     expect(f.played).toEqual(['motiv_bora', 'numero_6']);
     expect(f.max()).toBe(1);
