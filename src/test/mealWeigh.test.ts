@@ -112,7 +112,7 @@ describe('Pesar refeição — previsto × consumido', () => {
     const items = [buildWeighedItem(ARROZ, 180), buildWeighedItem(FRANGO, 100), buildWeighedItem(FEIJAO, 80)];
     const cmp = compareWeighedMeal(plannedFromMeal(meal), items);
     expect(cmp.previsto).toEqual({ kcal: 403, p: 42.2, c: 44.3, g: 4.7 });
-    expect(cmp.consumido).toEqual({ kcal: 234 + 165 + 61, p: 4.8 + 31 + 3.8, c: 50.7 + 0 + 10.9, g: 0.5 + 3.6 + 0.4 });
+    expect(cmp.consumido).toEqual({ kcal: 460, p: 39.6, c: 61.6, g: 4.5 });
     expect(cmp.diff.kcal).toBe(460 - 403);
     expect(cmp.alimentos.map(formatFoodComparison)).toEqual([
       'Arroz branco cozido: previsto 150 g, pesou 180 g',
