@@ -180,6 +180,21 @@ const Dashboard = () => {
         </Link>
 
         <Link
+          to="/voz-correcao-ao-vivo"
+          className="glass-card flex items-center gap-3 rounded-2xl border border-primary/30 px-4 py-3 hover:border-primary/60 transition-colors"
+          data-testid="coach-voice-link"
+        >
+          <span className="h-9 w-9 shrink-0 rounded-xl bg-primary/15 flex items-center justify-center">
+            <Mic className="h-5 w-5 text-primary" />
+          </span>
+          <span className="flex-1 min-w-0">
+            <span className="block text-sm font-semibold">Voz da Correção ao vivo</span>
+            <span className="block text-xs text-muted-foreground">Gerar e aprovar as falas com a sua voz</span>
+          </span>
+          <ChevronRight className="h-4 w-4 text-muted-foreground" />
+        </Link>
+
+        <Link
           to="/pesar-refeicao-teste"
           className="glass-card flex items-center gap-3 rounded-2xl border border-primary/30 px-4 py-3 hover:border-primary/60 transition-colors"
           data-testid="meal-weigh-test-link"
