@@ -64,17 +64,12 @@ const DIET_PT = `| Refeição | Horário | Alimento | Quantidade | Kcal | P | C 
 |---|---|---|---|---|---|---|---|
 | Café da manhã | 07:00 | Pão francês | 50 g | 140 | 4 | 28 | 1 |
 | Almoço | 12:00 | Arroz branco | 150 g | 190 | 4 | 42 | 0 |`;
-const DIET_EN = `| Meal | Time | Food | Amount | Kcal | P | C | G |
-|---|---|---|---|---|---|---|---|
-| Breakfast | 07:00 | French bread | 50 g | 140 | 4 | 28 | 1 |
-| Lunch | 12:00 | White rice | 150 g | 190 | 4 | 42 | 0 |`;
+const DIET_PAIRS = [['Café da manhã', 'Breakfast'], ['Almoço', 'Lunch'], ['Pão francês', 'French bread'], ['Arroz branco', 'White rice']];
 
 const TRAINING_PT = `| TREINO DO DIA | EXERCÍCIO | SÉRIE | SÉRIE 2 | REPETIÇÕES | RIR | PAUSA | DESCRIÇÃO | VARIAÇÃO |
 |---|---|---|---|---|---|---|---|---|
 | SEGUNDA-FEIRA | LEG 180 | 3 | - | 8-12 | 2 | 90s | Descida controlada. | LEG PRESS 45 |`;
-const TRAINING_EN = `| WORKOUT DAY | EXERCISE | SET | SET 2 | REPS | RIR | REST | DESCRIPTION | VARIATION |
-|---|---|---|---|---|---|---|---|---|
-| MONDAY | LEG 180 | 3 | - | 8-12 | 2 | 90s | Controlled descent. | LEG PRESS 45 |`;
+const TRAINING_PAIRS = [['TREINO DO DIA', 'WORKOUT DAY'], ['SEGUNDA-FEIRA', 'Monday']];
 
 const renderDiet = () => render(
   <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
@@ -108,7 +103,7 @@ describe('MinhasDietas em inglês — nunca fica no skeleton', () => {
     expect(await screen.findByText('Café da manhã', {}, { timeout: 3000 })).toBeInTheDocument();
     expect(screen.getByText('Almoço')).toBeInTheDocument();
     expect(mock.invoke).toHaveBeenCalledWith('translate-plan', expect.objectContaining({
-      body: { content: DIET_PT, targetLanguage: 'en' },
+      body: { planId: 'diet-en', targetLanguage: 'en' },
     }));
   });
 
@@ -125,20 +120,32 @@ describe('MinhasDietas em inglês — nunca fica no skeleton', () => {
     mock.invoke.mockReturnValue(call.promise);
     renderDiet();
     expect(await screen.findByText('Café da manhã')).toBeInTheDocument();
-    call.resolve({ data: { translated: DIET_EN }, error: null });
+    call.resolve({ data: { pairs: DIET_PAIRS, cached: false }, error: null });
     expect(await screen.findByText('Breakfast')).toBeInTheDocument();
     expect(screen.getByText('Lunch')).toBeInTheDocument();
     expect(screen.queryByText('Café da manhã')).not.toBeInTheDocument();
   });
 
-  it('tradução que muda a estrutura é ignorada: continua em português', async () => {
-    mock.invoke.mockResolvedValue({ data: { translated: `${DIET_EN}\n| Dinner | 19:00 | Eggs | 2 un | 140 | 12 | 1 | 10 |` }, error: null });
+  it('resposta inválida do servidor é ignorada: continua em português', async () => {
+    mock.invoke.mockResolvedValue({ data: { pairs: 'oops' }, error: null });
     renderDiet();
     expect(await screen.findByText('Café da manhã')).toBeInTheDocument();
     await waitFor(() => expect(mock.invoke).toHaveBeenCalledTimes(1));
     await new Promise((r) => setTimeout(r, 20));
     expect(screen.getByText('Café da manhã')).toBeInTheDocument();
     expect(screen.queryByText('Breakfast')).not.toBeInTheDocument();
+  });
+
+  it('tradução já salva neste aparelho aparece na hora, sem chamar o servidor', async () => {
+    mock.invoke.mockResolvedValue({ data: { pairs: DIET_PAIRS }, error: null });
+    const first = renderDiet();
+    expect(await screen.findByText('Breakfast')).toBeInTheDocument();
+    first.unmount();
+    __resetPlanTranslationState();
+    mock.invoke.mockReset();
+    renderDiet();
+    expect(await screen.findByText('Breakfast')).toBeInTheDocument();
+    expect(mock.invoke).not.toHaveBeenCalled();
   });
 });
 
@@ -161,7 +168,7 @@ describe('MeusTreinos em inglês — nunca fica no skeleton', () => {
     mock.invoke.mockReturnValue(call.promise);
     render(<MeusTreinos />);
     expect(await screen.findByText('SEGUNDA-FEIRA')).toBeInTheDocument();
-    call.resolve({ data: { translated: TRAINING_EN }, error: null });
+    call.resolve({ data: { pairs: TRAINING_PAIRS, cached: false }, error: null });
     expect(await screen.findByText('MONDAY')).toBeInTheDocument();
     expect(screen.queryByText('SEGUNDA-FEIRA')).not.toBeInTheDocument();
   });

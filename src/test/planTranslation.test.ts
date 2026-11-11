@@ -8,12 +8,13 @@ import {
   TRANSLATION_TIMEOUT_MS,
   __resetPlanTranslationState,
   getCachedPlanTranslation,
-  translatePlanMarkdown,
+  translatePlanTexts,
 } from '@/lib/planTranslation';
-import { buildPlanTextDictionary, translateDisplayText } from '@/lib/planTranslationDisplay';
+import { dictionaryFromPairs, translateDisplayText } from '@/lib/planTranslationDisplay';
 
-const PT = '| Refeição | Horário | Alimento | Quantidade | Kcal | P | C | G |\n|---|---|---|---|---|---|---|---|\n| Almoço | 12:00 | Arroz branco | 150 g | 190 | 4 | 42 | 0 |';
-const EN = '| Meal | Time | Food | Amount | Kcal | P | C | G |\n|---|---|---|---|---|---|---|---|\n| Lunch | 12:00 | White rice | 150 g | 190 | 4 | 42 | 0 |';
+const PLAN = '11111111-1111-4111-8111-111111111111';
+const PT = '| Refeição | Horário | Alimento | Quantidade |\n|---|---|---|---|\n| Almoço | 12:00 | Arroz branco | 150 g |';
+const PAIRS = [['Almoço', 'Lunch'], ['Arroz branco', 'White rice']];
 
 beforeEach(() => {
   localStorage.clear();
@@ -22,100 +23,105 @@ beforeEach(() => {
 });
 afterEach(() => vi.useRealTimers());
 
-describe('translatePlanMarkdown — nunca trava', () => {
-  it('em 15 s sem resposta devolve o original e não tenta de novo por 10 min', async () => {
+describe('translatePlanTexts — segundo plano, nunca trava', () => {
+  it('espera até 120 s e, em timeout, não bloqueia novas tentativas', async () => {
+    expect(TRANSLATION_TIMEOUT_MS).toBe(120_000);
     vi.useFakeTimers();
     invoke.mockReturnValue(new Promise(() => {}));
-    const pending = translatePlanMarkdown(PT, 'en');
-    await vi.advanceTimersByTimeAsync(TRANSLATION_TIMEOUT_MS - 1);
+    const pending = translatePlanTexts(PLAN, PT, 'en');
     let settled = false;
     pending.then(() => { settled = true; });
-    await Promise.resolve();
+    await vi.advanceTimersByTimeAsync(119_999);
     expect(settled).toBe(false);
     await vi.advanceTimersByTimeAsync(1);
-    await expect(pending).resolves.toBe(PT);
-    expect(TRANSLATION_TIMEOUT_MS).toBe(15_000);
+    await expect(pending).resolves.toBeNull();
 
-    // Dentro de 10 min: devolve o original na hora, sem chamar a IA.
-    await vi.advanceTimersByTimeAsync(TRANSLATION_RETRY_AFTER_MS - 60_000);
-    await expect(translatePlanMarkdown(PT, 'en')).resolves.toBe(PT);
-    expect(invoke).toHaveBeenCalledTimes(1);
-
-    // Passados 10 min, tenta de novo.
-    await vi.advanceTimersByTimeAsync(60_000);
-    invoke.mockResolvedValue({ data: { translated: EN }, error: null });
-    await expect(translatePlanMarkdown(PT, 'en')).resolves.toBe(EN);
+    // Timeout não ativa a pausa de 10 min: a próxima abertura pergunta de novo
+    // (o servidor terminou e guardou a tradução).
+    invoke.mockResolvedValue({ data: { pairs: PAIRS, cached: true }, error: null });
+    const dict = await translatePlanTexts(PLAN, PT, 'en');
+    expect(translateDisplayText(dict, 'Almoço')).toBe('Lunch');
     expect(invoke).toHaveBeenCalledTimes(2);
-    expect(TRANSLATION_RETRY_AFTER_MS).toBe(600_000);
   });
 
-  it('cancela a chamada no timeout (AbortSignal)', async () => {
+  it('cancela a chamada no timeout (AbortSignal) e manda só o id do plano', async () => {
     vi.useFakeTimers();
     invoke.mockReturnValue(new Promise(() => {}));
-    const pending = translatePlanMarkdown(PT, 'en');
+    const pending = translatePlanTexts(PLAN, PT, 'en');
     await vi.advanceTimersByTimeAsync(0);
-    const signal = invoke.mock.calls[0][1].signal as AbortSignal;
-    expect(signal.aborted).toBe(false);
+    const [, options] = invoke.mock.calls[0];
+    expect(options.body).toEqual({ planId: PLAN, targetLanguage: 'en' });
+    expect((options.signal as AbortSignal).aborted).toBe(false);
     await vi.advanceTimersByTimeAsync(TRANSLATION_TIMEOUT_MS);
     await pending;
-    expect(signal.aborted).toBe(true);
+    expect((options.signal as AbortSignal).aborted).toBe(true);
   });
 
-  it('erro da função ou exceção devolve o original e marca a pausa de 10 min', async () => {
+  it('ERRO do servidor devolve null e pausa 10 min; depois tenta de novo', async () => {
+    vi.useFakeTimers();
     invoke.mockResolvedValueOnce({ data: null, error: new Error('502') });
-    await expect(translatePlanMarkdown(PT, 'en')).resolves.toBe(PT);
-    await expect(translatePlanMarkdown(PT, 'en')).resolves.toBe(PT);
+    await expect(translatePlanTexts(PLAN, PT, 'en')).resolves.toBeNull();
+    await expect(translatePlanTexts(PLAN, PT, 'en')).resolves.toBeNull();
     expect(invoke).toHaveBeenCalledTimes(1);
+    expect(TRANSLATION_RETRY_AFTER_MS).toBe(600_000);
 
+    await vi.advanceTimersByTimeAsync(TRANSLATION_RETRY_AFTER_MS);
+    invoke.mockResolvedValue({ data: { pairs: PAIRS }, error: null });
+    expect(await translatePlanTexts(PLAN, PT, 'en')).not.toBeNull();
+    expect(invoke).toHaveBeenCalledTimes(2);
+  });
+
+  it('exceção de rede também devolve null sem quebrar', async () => {
     invoke.mockRejectedValueOnce(new Error('rede'));
-    await expect(translatePlanMarkdown(`${PT}\n`, 'en')).resolves.toBe(`${PT}\n`);
+    await expect(translatePlanTexts(PLAN, PT, 'en')).resolves.toBeNull();
   });
 
   it('localStorage indisponível não quebra a tradução', async () => {
     const spy = vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => { throw new Error('blocked'); });
-    invoke.mockResolvedValue({ data: { translated: EN }, error: null });
-    await expect(translatePlanMarkdown(PT, 'en')).resolves.toBe(EN);
+    invoke.mockResolvedValue({ data: { pairs: PAIRS }, error: null });
+    const dict = await translatePlanTexts(PLAN, PT, 'en');
+    expect(translateDisplayText(dict, 'Arroz branco')).toBe('White rice');
     spy.mockRestore();
   });
 
-  it('sucesso fica em cache e chamadas simultâneas usam uma só IA', async () => {
+  it('sucesso fica neste aparelho e chamadas simultâneas usam uma só chamada', async () => {
     let resolve!: (v: unknown) => void;
     invoke.mockReturnValue(new Promise((r) => { resolve = r; }));
-    const a = translatePlanMarkdown(PT, 'en');
-    const b = translatePlanMarkdown(PT, 'en');
+    const a = translatePlanTexts(PLAN, PT, 'en');
+    const b = translatePlanTexts(PLAN, PT, 'en');
     await Promise.resolve();
-    resolve({ data: { translated: EN }, error: null });
-    await expect(a).resolves.toBe(EN);
-    await expect(b).resolves.toBe(EN);
+    resolve({ data: { pairs: PAIRS }, error: null });
+    await a; await b;
     expect(invoke).toHaveBeenCalledTimes(1);
-    expect(getCachedPlanTranslation(PT, 'en')).toBe(EN);
+    expect(translateDisplayText(getCachedPlanTranslation(PLAN, PT, 'en'), 'Almoço')).toBe('Lunch');
+    // conteúdo editado = outra chave
+    expect(getCachedPlanTranslation(PLAN, `${PT}\n`, 'en')).toBeNull();
   });
 
-  it('português nunca chama a IA', async () => {
-    await expect(translatePlanMarkdown(PT, 'pt')).resolves.toBe(PT);
+  it('resposta sem pares válidos é tratada como erro', async () => {
+    invoke.mockResolvedValue({ data: { translated: 'markdown antigo' }, error: null });
+    await expect(translatePlanTexts(PLAN, PT, 'en')).resolves.toBeNull();
+  });
+
+  it('português ou plano sem id nunca chama o servidor', async () => {
+    await expect(translatePlanTexts(PLAN, PT, 'pt')).resolves.toBeNull();
+    await expect(translatePlanTexts(null, PT, 'en')).resolves.toBeNull();
     expect(invoke).not.toHaveBeenCalled();
   });
 });
 
 describe('planTranslationDisplay — tradução só para exibir', () => {
-  it('pareia célula a célula quando a estrutura é a mesma', () => {
-    const dict = buildPlanTextDictionary(PT, EN);
+  it('troca só textos com par; o resto fica em português', () => {
+    const dict = dictionaryFromPairs([['Almoço', 'Lunch'], ['Arroz branco', 'White rice']]);
     expect(translateDisplayText(dict, 'Almoço')).toBe('Lunch');
-    expect(translateDisplayText(dict, 'Arroz branco')).toBe('White rice');
+    expect(translateDisplayText(dict, '**Arroz  branco**')).toBe('White rice');
     expect(translateDisplayText(dict, 'Feijão')).toBe('Feijão');
-  });
-
-  it('tradução com linhas a mais ou colunas diferentes é ignorada (mostra o original)', () => {
-    const extraRow = `${EN}\n| Dinner | 19:00 | Eggs | 2 un | 140 | 12 | 1 | 10 |`;
-    expect(buildPlanTextDictionary(PT, extraRow)).toBeNull();
-    const fewerCols = EN.replace('| 0 |', '|');
-    expect(buildPlanTextDictionary(PT, fewerCols)).toBeNull();
     expect(translateDisplayText(null, 'Almoço')).toBe('Almoço');
+    expect(dictionaryFromPairs([])).toBeNull();
   });
 
   it('mantém maiúsculas dos rótulos do treino', () => {
-    const md = '| TREINO DO DIA | EXERCÍCIO |\n|---|---|\n| SEGUNDA-FEIRA | LEG 180 |';
-    const en = '| WORKOUT DAY | EXERCISE |\n|---|---|\n| Monday | LEG 180 |';
-    expect(translateDisplayText(buildPlanTextDictionary(md, en), 'SEGUNDA-FEIRA')).toBe('MONDAY');
+    const dict = dictionaryFromPairs([['SEGUNDA-FEIRA', 'Monday']]);
+    expect(translateDisplayText(dict, 'SEGUNDA-FEIRA')).toBe('MONDAY');
   });
 });

@@ -16,8 +16,8 @@ import { isSameWorkoutDay } from '@/lib/activeWorkoutSession';
 import { cancelWorkoutSession } from '@/lib/workoutSessionResolution';
 import { parseTrainingSections, type ParsedTrainingDay } from '@/lib/trainingResultParser';
 import { useLanguage } from '@/i18n';
-import { getCachedPlanTranslation, translatePlanMarkdown } from '@/lib/planTranslation';
-import { buildPlanTextDictionary, translateDisplayText } from '@/lib/planTranslationDisplay';
+import { getCachedPlanTranslation, translatePlanTexts } from '@/lib/planTranslation';
+import { translateDisplayText, type PlanTextDictionary } from '@/lib/planTranslationDisplay';
 import { getSafeWorkoutDays, trackPlanAccess } from '@/lib/planMigrationUtils';
 import { findBestExerciseMatch } from '@/lib/exerciseMatcher';
 import { fetchWithCache } from '@/lib/offlineCache';
@@ -223,29 +223,27 @@ const MeusTreinos = () => {
   }, [plans, activePhase]);
 
   // Tradução em segundo plano do plano exibido; só troca texto mostrado.
-  const displayedContent = (plans.find(p => p.fase === activePhase) ?? plans[0])?.conteudo ?? '';
-  const [translation, setTranslation] = useState<{ source: string; language: string; text: string } | null>(null);
+  const displayedPlan = plans.find(p => p.fase === activePhase) ?? plans[0];
+  const displayedPlanId = displayedPlan?.id ?? null;
+  const displayedContent = displayedPlan?.conteudo ?? '';
+  const [translation, setTranslation] = useState<{ key: string; dict: PlanTextDictionary | null } | null>(null);
+  const translationKey = `${language}|${displayedPlanId ?? ''}|${displayedContent}`;
   useEffect(() => {
-    if (language === 'pt' || !displayedContent.trim()) return;
+    if (language === 'pt' || !displayedPlanId || !displayedContent.trim()) return;
     let cancelled = false;
-    translatePlanMarkdown(displayedContent, language)
-      .then((text) => { if (!cancelled) setTranslation({ source: displayedContent, language, text }); })
+    const key = `${language}|${displayedPlanId}|${displayedContent}`;
+    translatePlanTexts(displayedPlanId, displayedContent, language)
+      .then((dict) => { if (!cancelled) setTranslation({ key, dict }); })
       .catch(() => { /* mantém o original */ });
     return () => { cancelled = true; };
-  }, [displayedContent, language]);
+  }, [displayedPlanId, displayedContent, language]);
   const cachedTranslation = useMemo(
-    () => (language === 'pt' ? null : getCachedPlanTranslation(displayedContent, language)),
-    [displayedContent, language],
+    () => (language === 'pt' ? null : getCachedPlanTranslation(displayedPlanId, displayedContent, language)),
+    [displayedPlanId, displayedContent, language],
   );
-  const translatedContent = language === 'pt'
+  const displayDictionary = language === 'pt'
     ? null
-    : translation && translation.source === displayedContent && translation.language === language
-      ? translation.text
-      : cachedTranslation;
-  const displayDictionary = useMemo(
-    () => buildPlanTextDictionary(displayedContent, translatedContent),
-    [displayedContent, translatedContent],
-  );
+    : (translation?.key === translationKey ? translation.dict : null) ?? cachedTranslation;
   const showText = (text: string) => translateDisplayText(displayDictionary, text);
 
   const activePlanForAdherence = useMemo(() => {

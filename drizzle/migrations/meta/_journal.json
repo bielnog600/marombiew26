@@ -204,6 +204,13 @@
       "when": 1794410551562,
       "tag": "0028_premium_scale_meal_weigh_logs",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1794413526662,
+      "tag": "0029_plan_translations_cache_app_language",
+      "breakpoints": true
     }
   ]
 }

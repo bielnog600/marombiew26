@@ -2547,6 +2547,33 @@ export type Database = {
           },
         ]
       }
+      plan_translations: {
+        Row: {
+          content_hash: string
+          created_at: string
+          id: string
+          language: string
+          plan_id: string | null
+          translated: Json
+        }
+        Insert: {
+          content_hash: string
+          created_at?: string
+          id?: string
+          language: string
+          plan_id?: string | null
+          translated: Json
+        }
+        Update: {
+          content_hash?: string
+          created_at?: string
+          id?: string
+          language?: string
+          plan_id?: string | null
+          translated?: Json
+        }
+        Relationships: []
+      }
       posture: {
         Row: {
           assessment_id: string
@@ -3359,6 +3386,7 @@ export type Database = {
         Row: {
           access_status: string
           altura: number | null
+          app_language: string | null
           ativo: boolean
           camera_depth_level: string
           created_at: string
@@ -3385,6 +3413,7 @@ export type Database = {
         Insert: {
           access_status?: string
           altura?: number | null
+          app_language?: string | null
           ativo?: boolean
           camera_depth_level?: string
           created_at?: string
@@ -3411,6 +3440,7 @@ export type Database = {
         Update: {
           access_status?: string
           altura?: number | null
+          app_language?: string | null
           ativo?: boolean
           camera_depth_level?: string
           created_at?: string
@@ -4259,6 +4289,7 @@ export type Database = {
         Returns: {
           access_status: string
           altura: number | null
+          app_language: string | null
           ativo: boolean
           camera_depth_level: string
           created_at: string
@@ -4351,6 +4382,7 @@ export type Database = {
           status: string
         }[]
       }
+      set_my_app_language: { Args: { _language: string }; Returns: undefined }
       student_access_heartbeat: {
         Args: never
         Returns: {
@@ -4366,6 +4398,7 @@ export type Database = {
         Returns: {
           access_status: string
           altura: number | null
+          app_language: string | null
           ativo: boolean
           camera_depth_level: string
           created_at: string
