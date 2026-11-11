@@ -760,6 +760,7 @@ export type Database = {
           camera_side: string | null
           complete_reps: number
           created_at: string
+          depth_level: string | null
           duration_seconds: number
           ended_at: string
           errors: Json
@@ -776,6 +777,7 @@ export type Database = {
           camera_side?: string | null
           complete_reps?: number
           created_at?: string
+          depth_level?: string | null
           duration_seconds?: number
           ended_at?: string
           errors?: Json
@@ -792,6 +794,7 @@ export type Database = {
           camera_side?: string | null
           complete_reps?: number
           created_at?: string
+          depth_level?: string | null
           duration_seconds?: number
           ended_at?: string
           errors?: Json
@@ -3303,6 +3306,7 @@ export type Database = {
           access_status: string
           altura: number | null
           ativo: boolean
+          camera_depth_level: string
           created_at: string
           data_nascimento: string | null
           fotos: string[] | null
@@ -3327,6 +3331,7 @@ export type Database = {
           access_status?: string
           altura?: number | null
           ativo?: boolean
+          camera_depth_level?: string
           created_at?: string
           data_nascimento?: string | null
           fotos?: string[] | null
@@ -3351,6 +3356,7 @@ export type Database = {
           access_status?: string
           altura?: number | null
           ativo?: boolean
+          camera_depth_level?: string
           created_at?: string
           data_nascimento?: string | null
           fotos?: string[] | null
@@ -4195,6 +4201,7 @@ export type Database = {
           access_status: string
           altura: number | null
           ativo: boolean
+          camera_depth_level: string
           created_at: string
           data_nascimento: string | null
           fotos: string[] | null
@@ -4300,6 +4307,7 @@ export type Database = {
           access_status: string
           altura: number | null
           ativo: boolean
+          camera_depth_level: string
           created_at: string
           data_nascimento: string | null
           fotos: string[] | null
