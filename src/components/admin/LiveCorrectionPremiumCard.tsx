@@ -7,9 +7,9 @@ import { ScanEye } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
-  ERROR_MESSAGES, DEPTH_LEVELS, DEPTH_LEVEL_ORDER, normalizeDepthLevel, isDepthLevel,
-  type SquatError, type DepthLevel,
+  DEPTH_LEVELS, DEPTH_LEVEL_ORDER, normalizeDepthLevel, isDepthLevel, type DepthLevel,
 } from '@/lib/liveCorrection/squatAnalysis';
+import { ALL_ERROR_MESSAGES, EXERCISE_RULE_ORDER, getExerciseRule } from '@/lib/liveCorrection/exercises';
 import { toast } from 'sonner';
 
 interface CameraSession {
@@ -34,7 +34,7 @@ interface Props {
   onDepthLevelChanged?: (value: DepthLevel) => void;
 }
 
-const errorLabel = (key: string) => ERROR_MESSAGES[key as SquatError] ?? key;
+const errorLabel = (key: string) => ALL_ERROR_MESSAGES[key] ?? key;
 
 const LiveCorrectionPremiumCard: React.FC<Props> = ({ studentId, studentProfile, onChanged, onDepthLevelChanged }) => {
   const [enabled, setEnabled] = useState(!!studentProfile?.premium_camera);
@@ -99,7 +99,7 @@ const LiveCorrectionPremiumCard: React.FC<Props> = ({ studentId, studentProfile,
             </div>
             <div className="min-w-0">
               <Label htmlFor="premium-camera-toggle" className="font-semibold">Correção ao vivo (Premium)</Label>
-              <p className="text-xs text-muted-foreground">Câmera corrige o agachamento durante o treino.</p>
+              <p className="text-xs text-muted-foreground">Câmera corrige agachamento, stiff e búlgaro/afundo durante o treino.</p>
             </div>
           </div>
           <Switch
@@ -112,7 +112,13 @@ const LiveCorrectionPremiumCard: React.FC<Props> = ({ studentId, studentProfile,
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
             <Label htmlFor="camera-depth-level" className="font-semibold">Profundidade exigida</Label>
-            <p className="text-xs text-muted-foreground">Até onde o quadril precisa descer para a rep contar: {DEPTH_LEVELS[depthLevel].hint}.</p>
+            <p className="text-xs text-muted-foreground">Vale para todos os exercícios com câmera:</p>
+            <ul className="mt-0.5 text-xs text-muted-foreground" data-testid="camera-depth-level-hints">
+              {EXERCISE_RULE_ORDER.map((id) => {
+                const r = getExerciseRule(id);
+                return <li key={id}>{r.label}: {r.levelHints[depthLevel]}</li>;
+              })}
+            </ul>
           </div>
           <Select value={depthLevel} onValueChange={changeDepth} disabled={savingDepth || !studentProfile}>
             <SelectTrigger id="camera-depth-level" className="w-[190px] shrink-0" data-testid="camera-depth-level">

@@ -2,19 +2,24 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useHoldAppUpdate } from '@/hooks/useHoldAppUpdate';
 import { createPortal } from 'react-dom';
 import type { PoseLandmarker } from '@mediapipe/tasks-vision';
-import { X, Volume2, VolumeX, SwitchCamera, Loader2, Camera, CheckCircle2, AlertTriangle, Timer, RotateCcw, ClipboardCheck } from 'lucide-react';
+import { X, Volume2, VolumeX, SwitchCamera, Loader2, Camera, CheckCircle2, AlertTriangle, Timer, RotateCcw, ClipboardCheck, Repeat } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { cn } from '@/lib/utils';
 import {
-  FULL_BODY_HOLD_MS, SKELETON_COLOR, SIDE_POINTS, ERROR_MESSAGES, MIN_DESCENT_SECONDS,
+  FULL_BODY_HOLD_MS, SKELETON_COLOR, SIDE_POINTS,
   POSITION_MESSAGES, TURN_SIDEWAYS_MESSAGE, AUTO_FINISH_MESSAGE,
   DEPTH_LEVELS, DEPTH_LEVEL_ORDER, DEFAULT_DEPTH_LEVEL, normalizeDepthLevel, type DepthLevel,
-  LandmarkSmoother, SquatRepCounter, StillnessDetector, FacingGate, AutoFinishDetector,
-  canSpeak, errorsToJson, frameMetrics, isFullBodyVisible, isFacingCamera, isStillMovement,
-  diagnosePositioning, countdownValue, pickSide, planRepSpeech, repNumberWord, summarizeReps,
-  type Landmark, type PositionIssue, type RepResult, type SessionSummary, type Side,
+  LandmarkSmoother, StillnessDetector, FacingGate, AutoFinishDetector,
+  canSpeak, isFullBodyVisible, isFacingCamera, isStillMovement,
+  diagnosePositioning, countdownValue, planRepSpeech, repNumberWord,
+  type Landmark, type PositionIssue, type Side,
 } from '@/lib/liveCorrection/squatAnalysis';
+import {
+  EXERCISE_RULE_ORDER, DEFAULT_EXERCISE_RULE, LEG_LABELS, getExerciseRule, matchExerciseRule,
+  summarizeLiveReps, summarizeByLeg, autoFinishRepCount,
+  type ExerciseRule, type ExerciseRuleId, type LiveRep, type LiveRepCounter, type LiveSessionSummary, type SilhouetteKind,
+} from '@/lib/liveCorrection/exercises';
 
 const MP_VERSION = '0.10.17';
 const WASM_URL = `https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@${MP_VERSION}/wasm`;
@@ -39,10 +44,69 @@ interface Props {
   targetSetLabel?: string;
   /** Teste do admin: mostra um seletor para trocar a profundidade exigida na própria tela. */
   depthLevelPicker?: boolean;
+  /** Teste do admin: mostra um seletor de exercício (agachamento, stiff, búlgaro). */
+  exercisePicker?: boolean;
+  /** Regra a usar; sem isto, vem do nome do exercício (sem casar = agachamento). */
+  exerciseRule?: ExerciseRuleId;
 }
 
+/** Mensagem do aviso de posicionamento, conforme a vista exigida pela regra. */
+const positionMessage = (rule: ExerciseRule, issue: Exclude<PositionIssue, 'ok'>) =>
+  issue === 'frontal' && rule.view === 'front' ? 'Fica de frente' : POSITION_MESSAGES[issue];
+const turnMessage = (rule: ExerciseRule) => (rule.view === 'front' ? 'Vira de frente' : TURN_SIDEWAYS_MESSAGE);
+const formatSeconds = (v: number | null) =>
+  v == null ? '—' : `${v.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} s`;
+
+/** Seletor de exercício (só no teste do admin). */
+const ExercisePicker: React.FC<{ value: ExerciseRuleId; onChange: (v: ExerciseRuleId) => void }> = ({ value, onChange }) => (
+  <div className="w-full max-w-sm" data-testid="live-exercise-picker">
+    <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-2 text-center">Exercício (teste)</p>
+    <div className="grid grid-cols-3 gap-1.5" role="radiogroup" aria-label="Exercício">
+      {EXERCISE_RULE_ORDER.map((id) => (
+        <button
+          key={id}
+          type="button"
+          role="radio"
+          aria-checked={value === id}
+          onClick={() => onChange(id)}
+          className={cn(
+            'min-h-11 rounded-xl border px-2 py-2 text-xs font-bold leading-tight',
+            value === id ? 'bg-primary text-primary-foreground border-primary' : 'bg-card/80 border-border text-foreground',
+          )}
+        >
+          {getExerciseRule(id).label}
+        </button>
+      ))}
+    </div>
+  </div>
+);
+
+/** Perna da frente (búlgaro/afundo). */
+const FrontLegPicker: React.FC<{ value: Side | null; onChange: (v: Side) => void }> = ({ value, onChange }) => (
+  <div className="w-full max-w-sm" data-testid="live-front-leg-picker">
+    <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-2 text-center">Perna da frente</p>
+    <div className="grid grid-cols-2 gap-1.5" role="radiogroup" aria-label="Perna da frente">
+      {(['left', 'right'] as Side[]).map((leg) => (
+        <button
+          key={leg}
+          type="button"
+          role="radio"
+          aria-checked={value === leg}
+          onClick={() => onChange(leg)}
+          className={cn(
+            'min-h-11 rounded-xl border px-2 py-2 text-sm font-bold',
+            value === leg ? 'bg-primary text-primary-foreground border-primary' : 'bg-card/80 border-border text-foreground',
+          )}
+        >
+          {LEG_LABELS[leg]}
+        </button>
+      ))}
+    </div>
+  </div>
+);
+
 /** Seletor dos 4 níveis de profundidade (só no teste do admin). */
-const DepthLevelPicker: React.FC<{ value: DepthLevel; onChange: (v: DepthLevel) => void }> = ({ value, onChange }) => (
+const DepthLevelPicker: React.FC<{ value: DepthLevel; onChange: (v: DepthLevel) => void; hints: Record<DepthLevel, string> }> = ({ value, onChange, hints }) => (
   <div className="w-full max-w-sm" data-testid="live-depth-picker">
     <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-2 text-center">Profundidade exigida (teste)</p>
     <div className="grid grid-cols-2 gap-1.5" role="radiogroup" aria-label="Profundidade exigida">
@@ -62,12 +126,39 @@ const DepthLevelPicker: React.FC<{ value: DepthLevel; onChange: (v: DepthLevel) 
         </button>
       ))}
     </div>
-    <p className="mt-1.5 text-[11px] text-center text-muted-foreground">{DEPTH_LEVELS[value].hint}</p>
+    <p className="mt-1.5 text-[11px] text-center text-muted-foreground">{hints[value]}</p>
   </div>
 );
 
+/** Pessoa de lado em base afundada (búlgaro com banco ou afundo), para guiar o posicionamento. */
+const SplitSilhouette: React.FC<{ active: boolean; bench: boolean }> = ({ active, bench }) => (
+  <svg
+    viewBox="0 0 160 260"
+    className={cn('h-[68%] max-h-[560px] text-primary transition-opacity duration-300', active ? 'opacity-70' : 'opacity-40')}
+    fill="none"
+    aria-hidden="true"
+    data-testid="live-guide-silhouette"
+    data-silhouette={bench ? 'split_bench' : 'split'}
+  >
+    <g stroke="currentColor" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" strokeDasharray="6 5">
+      <circle cx="62" cy="24" r="14" strokeWidth="2.5" fill="currentColor" fillOpacity="0.15" />
+      <path d="M62 40 L64 122" />
+      <path d="M63 50 L60 110" strokeWidth="3.5" />
+      <path d="M64 122 L44 186 L44 248 L30 248" />
+      {bench ? <path d="M64 122 L98 184 L128 168" /> : <path d="M64 122 L96 186 L118 246 L128 248" />}
+    </g>
+    {bench && (
+      <g stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeDasharray="6 5" fill="currentColor" fillOpacity="0.12">
+        <rect x="112" y="168" width="44" height="10" rx="2" />
+        <path d="M118 178 L118 250 M150 178 L150 250" fill="none" />
+      </g>
+    )}
+  </svg>
+);
+
 /** Contorno de uma pessoa de lado, para guiar o posicionamento. */
-const GuideSilhouette: React.FC<{ active: boolean }> = ({ active }) => (
+const GuideSilhouette: React.FC<{ active: boolean; kind?: SilhouetteKind }> = ({ active, kind = 'standing' }) =>
+  kind !== 'standing' ? <SplitSilhouette active={active} bench={kind === 'split_bench'} /> : (
   <svg
     viewBox="0 0 100 260"
     className={cn('h-[68%] max-h-[560px] text-primary transition-opacity duration-300', active ? 'opacity-70' : 'opacity-40')}
@@ -85,7 +176,7 @@ const GuideSilhouette: React.FC<{ active: boolean }> = ({ active }) => (
       <path d="M51 62 C53 82 55 100 55 122" />
     </g>
   </svg>
-);
+  );
 
 interface Feedback { text: string; tone: 'ok' | 'error' | 'info' }
 
@@ -136,7 +227,9 @@ function drawSkeleton(canvas: HTMLCanvasElement, video: HTMLVideoElement, lms: L
   ctx.shadowBlur = 0;
 }
 
-const LiveCorrectionScreen: React.FC<Props> = ({ studentId, exerciseName, onClose, onSaveToSet, targetSetLabel, depthLevelPicker = false }) => {
+const LiveCorrectionScreen: React.FC<Props> = ({
+  studentId, exerciseName, onClose, onSaveToSet, targetSetLabel, depthLevelPicker = false, exercisePicker = false, exerciseRule,
+}) => {
   // Versão nova do app nunca recarrega com a câmera aberta.
   useHoldAppUpdate(true);
   const [phase, setPhase] = useState<Phase>('intro');
@@ -144,15 +237,26 @@ const LiveCorrectionScreen: React.FC<Props> = ({ studentId, exerciseName, onClos
   const [facing, setFacing] = useState<Facing>('user');
   const [voiceOn, setVoiceOn] = useState(true);
   const [holdProgress, setHoldProgress] = useState(0);
-  const [reps, setReps] = useState<RepResult[]>([]);
+  const [reps, setReps] = useState<LiveRep[]>([]);
   const [feedback, setFeedback] = useState<Feedback | null>(null);
-  const [summary, setSummary] = useState<SessionSummary | null>(null);
+  const [summary, setSummary] = useState<LiveSessionSummary | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [issue, setIssue] = useState<PositionIssue>('no_body');
   const [countdown, setCountdown] = useState(0);
   const [paused, setPaused] = useState(false);
   const [autoFinished, setAutoFinished] = useState(false);
   const [depthLevel, setDepthLevel] = useState<DepthLevel>(DEFAULT_DEPTH_LEVEL);
+  const [ruleId, setRuleId] = useState<ExerciseRuleId>(() => exerciseRule ?? matchExerciseRule(exerciseName)?.id ?? DEFAULT_EXERCISE_RULE);
+  const rule = getExerciseRule(ruleId);
+  const [frontLeg, setFrontLeg] = useState<Side | null>(null);
+  /** Voltou a posicionar depois de "Trocar perna": a série continua com as reps já feitas. */
+  const [resuming, setResuming] = useState(false);
+  /** Regra da série mostrada no resumo (o teste do admin pode trocar o seletor depois). */
+  const [summaryRuleId, setSummaryRuleId] = useState<ExerciseRuleId>(ruleId);
+  const summaryRule = getExerciseRule(summaryRuleId);
+  /** Nome salvo/exibido: no teste do admin, o exercício escolhido no seletor. */
+  const displayName = exercisePicker ? `${rule.label} (teste)` : exerciseName;
+  const instructionName = exercisePicker ? null : exerciseName;
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -161,7 +265,14 @@ const LiveCorrectionScreen: React.FC<Props> = ({ studentId, exerciseName, onClos
   const rafRef = useRef<number | null>(null);
   const lastVideoTimeRef = useRef(-1);
   const smootherRef = useRef(new LandmarkSmoother());
-  const counterRef = useRef(new SquatRepCounter());
+  const counterRef = useRef<LiveRepCounter | null>(null);
+  // Um contador por regra; trocar de exercício (teste do admin) cria um novo.
+  if (!counterRef.current || counterRef.current.ruleId !== rule.id) {
+    counterRef.current = rule.createCounter(depthLevel, frontLeg ?? 'left');
+  }
+  const ruleRef = useRef(rule);
+  ruleRef.current = rule;
+  const resumeRef = useRef(false);
   const phaseRef = useRef<Phase>('intro');
   const sideRef = useRef<Side>('left');
   const holdStartRef = useRef<number | null>(null);
@@ -189,7 +300,10 @@ const LiveCorrectionScreen: React.FC<Props> = ({ studentId, exerciseName, onClos
   }, []);
 
   useEffect(() => { phaseRef.current = phase; }, [phase]);
-  useEffect(() => { counterRef.current.setDepthLevel(depthLevel); }, [depthLevel]);
+  useEffect(() => { counterRef.current?.setDepthLevel(depthLevel); }, [depthLevel]);
+  useEffect(() => {
+    if (frontLeg) { counterRef.current?.setFrontLeg?.(frontLeg); sideRef.current = frontLeg; }
+  }, [frontLeg, ruleId]);
   // Profundidade escolhida pelo admin na ficha do aluno (sem perfil/erro = Intermediário).
   useEffect(() => {
     if (depthLevelPicker) return;
@@ -272,11 +386,15 @@ const LiveCorrectionScreen: React.FC<Props> = ({ studentId, exerciseName, onClos
     const lms = raw && raw.length ? smootherRef.current.push(raw) : null;
     if (!raw) smootherRef.current.reset();
     const counter = counterRef.current;
-    if (lms && !counter.inRep) sideRef.current = pickSide(lms);
+    const currentRule = ruleRef.current;
+    if (!counter) return;
+    if (lms && !counter.inRep) sideRef.current = counter.measureSide(lms);
     const side = sideRef.current;
     drawSkeleton(canvas, video, lms, side);
     const full = isFullBodyVisible(lms, side);
-    const frontal = facingGateRef.current.update(!!lms && isFacingCamera(lms, w, h), now);
+    const facingCamera = facingGateRef.current.update(!!lms && isFacingCamera(lms, w, h), now);
+    // Vista errada: de frente numa regra de lado (ou de lado numa regra de frente).
+    const frontal = currentRule.view === 'side' ? facingCamera : !!lms && !facingCamera;
     const p = phaseRef.current;
 
     if (p === 'positioning') {
@@ -293,7 +411,7 @@ const LiveCorrectionScreen: React.FC<Props> = ({ studentId, exerciseName, onClos
         const last = lastHintRef.current;
         if ((!last || last.issue !== next || now - last.at >= HINT_REPEAT_MS) && canSpeak(lastSpokeRef.current, Date.now())) {
           lastHintRef.current = { issue: next, at: now };
-          speak(POSITION_MESSAGES[next]);
+          speak(positionMessage(currentRule, next));
         }
       }
       if (next === 'ok') {
@@ -328,14 +446,20 @@ const LiveCorrectionScreen: React.FC<Props> = ({ studentId, exerciseName, onClos
         if (v > 0) { lastSpokeRef.current = Date.now(); speakSequence([repNumberWord(v)]); }
       }
       if (v === 0) {
-        counter.reset();
+        if (resumeRef.current) {
+          // Depois de trocar de perna: continua a mesma série.
+          resumeRef.current = false;
+          setResuming(false);
+        } else {
+          counter.reset();
+          setReps([]);
+          startedAtRef.current = new Date();
+        }
         counter.waitForStanding();
         autoFinishRef.current.reset();
         lostSinceRef.current = null;
         pausedRef.current = false;
         setPaused(false);
-        setReps([]);
-        startedAtRef.current = new Date();
         goPhase('tracking');
         showFeedback({ text: 'Pode começar!', tone: 'ok' }, 2000);
         speak('Pode começar', true);
@@ -351,7 +475,7 @@ const LiveCorrectionScreen: React.FC<Props> = ({ studentId, exerciseName, onClos
         if (counter.inRep) counter.abortRep();
         showFeedback({ text: 'Corpo inteiro na câmera', tone: 'info' }, 1500);
       }
-      if (autoFinish.update({ t: now, repCount: counter.reps.length, fullBody: false, inRep: counter.inRep, kneeAngle: null })) finishRef.current(true);
+      if (autoFinish.update({ t: now, repCount: autoFinishRepCount(currentRule, counter.reps), fullBody: false, inRep: counter.inRep, kneeAngle: null, standing: false })) finishRef.current(true);
       return;
     }
     lostSinceRef.current = null;
@@ -363,8 +487,8 @@ const LiveCorrectionScreen: React.FC<Props> = ({ studentId, exerciseName, onClos
         setPaused(true);
         counter.waitForStanding();
       }
-      speak(TURN_SIDEWAYS_MESSAGE);
-      autoFinish.update({ t: now, repCount: counter.reps.length, fullBody: true, inRep: false, kneeAngle: null });
+      speak(turnMessage(currentRule));
+      autoFinish.update({ t: now, repCount: autoFinishRepCount(currentRule, counter.reps), fullBody: true, inRep: false, kneeAngle: null, standing: false });
       return;
     }
     if (pausedRef.current) {
@@ -373,12 +497,11 @@ const LiveCorrectionScreen: React.FC<Props> = ({ studentId, exerciseName, onClos
       showFeedback({ text: 'Pode continuar', tone: 'ok' }, 1200);
     }
 
-    const metrics = frameMetrics(lms, w, h, side);
-    const rep = counter.update(metrics, now);
+    const rep = counter.update(lms, w, h, side, now);
     if (rep) {
       setReps([...counter.reps]);
       if (rep.errors.length) {
-        const text = rep.errors.map((e) => ERROR_MESSAGES[e]).join(' · ');
+        const text = rep.errors.map((e) => currentRule.messages[e] ?? e).join(' · ');
         showFeedback({ text, tone: 'error' });
       } else {
         showFeedback({ text: 'Boa!', tone: 'ok' }, 1200);
@@ -387,12 +510,12 @@ const LiveCorrectionScreen: React.FC<Props> = ({ studentId, exerciseName, onClos
       if (voiceAvailable()) {
         const speechNow = Date.now();
         const completeCount = counter.reps.filter((r) => r.complete).length;
-        const plan = planRepSpeech(rep, completeCount, lastSpokeRef.current, speechNow);
+        const plan = planRepSpeech(rep, completeCount, lastSpokeRef.current, speechNow, currentRule.messages);
         if (plan.correctionSpoken) lastSpokeRef.current = speechNow;
         speakSequence(plan.texts);
       }
     }
-    if (autoFinish.update({ t: now, repCount: counter.reps.length, fullBody: true, inRep: counter.inRep, kneeAngle: metrics.kneeAngle })) {
+    if (autoFinish.update({ t: now, repCount: autoFinishRepCount(currentRule, counter.reps), fullBody: true, inRep: counter.inRep, kneeAngle: null, standing: counter.atTop })) {
       finishRef.current(true);
     }
   }, [goPhase, showFeedback, speak, speakSequence]);
@@ -421,6 +544,8 @@ const LiveCorrectionScreen: React.FC<Props> = ({ studentId, exerciseName, onClos
     } catch { /* ignore */ }
     setPhase('loading');
     setErrorText(null);
+    resumeRef.current = false;
+    setResuming(false);
     try {
       if (!navigator.mediaDevices?.getUserMedia) throw new Error('camera_unsupported');
       const cameraPromise = startCamera(facing);
@@ -470,7 +595,7 @@ const LiveCorrectionScreen: React.FC<Props> = ({ studentId, exerciseName, onClos
     const next: Facing = facing === 'user' ? 'environment' : 'user';
     setFacing(next);
     if (phaseRef.current === 'positioning' || phaseRef.current === 'countdown' || phaseRef.current === 'tracking') {
-      counterRef.current.abortRep();
+      counterRef.current?.abortRep();
       smootherRef.current.reset();
       stillRef.current.reset();
       try { await startCamera(next); } catch { showFeedback({ text: 'Não foi possível trocar a câmera', tone: 'info' }); }
@@ -485,29 +610,30 @@ const LiveCorrectionScreen: React.FC<Props> = ({ studentId, exerciseName, onClos
     wakeLockRef.current = null;
   }, [stopLoop, stopStream]);
 
-  const save = useCallback(async (s: SessionSummary) => {
+  const save = useCallback(async (s: LiveSessionSummary) => {
     setPhase('saving');
     setSaveError(null);
     const started = startedAtRef.current ?? new Date();
     const ended = new Date();
     const { error } = await supabase.from('camera_sessions').insert({
       student_id: studentId,
-      exercise_name: exerciseName,
+      exercise_name: displayName,
+      exercise_rule: ruleRef.current.id,
       started_at: started.toISOString(),
       ended_at: ended.toISOString(),
       duration_seconds: Math.max(0, Math.round((ended.getTime() - started.getTime()) / 1000)),
       total_reps: s.total,
       complete_reps: s.complete,
       incomplete_reps: s.incomplete,
-      errors: errorsToJson(s),
+      errors: Object.fromEntries(s.errors.map((e) => [e.key, e.count])),
       camera_side: sideRef.current,
       tempo_medio_descida: s.avgDescentSeconds,
       reps_descida_rapida: s.fastDescentReps,
-      depth_level: counterRef.current.level,
+      depth_level: counterRef.current?.level ?? depthLevel,
     });
     if (error) setSaveError('Não foi possível salvar a sessão. Tente de novo.');
     setPhase('summary');
-  }, [exerciseName, studentId]);
+  }, [displayName, studentId, depthLevel]);
 
   const finish = useCallback((auto = false) => {
     const p = phaseRef.current;
@@ -515,9 +641,10 @@ const LiveCorrectionScreen: React.FC<Props> = ({ studentId, exerciseName, onClos
     // A partir daqui nenhum movimento conta (ex.: ir pegar o celular).
     phaseRef.current = 'saving';
     releaseAll();
-    const repsDone = [...counterRef.current.reps];
-    const s = summarizeReps(repsDone);
+    const repsDone = [...(counterRef.current?.reps ?? [])];
+    const s = summarizeLiveReps(repsDone, ruleRef.current.messages);
     setReps(repsDone);
+    setSummaryRuleId(ruleRef.current.id);
     setSummary(s);
     setAutoFinished(auto);
     if (auto) speakSequence([AUTO_FINISH_MESSAGE]);
@@ -527,7 +654,7 @@ const LiveCorrectionScreen: React.FC<Props> = ({ studentId, exerciseName, onClos
 
   /** "Fazer outra série": reabre a câmera direto, com a mesma câmera e voz. */
   const again = useCallback(() => {
-    counterRef.current.reset();
+    counterRef.current?.reset();
     setReps([]);
     setSummary(null);
     setSaveError(null);
@@ -536,6 +663,27 @@ const LiveCorrectionScreen: React.FC<Props> = ({ studentId, exerciseName, onClos
     setCountdown(0);
     void begin();
   }, [begin]);
+
+  /** "Trocar perna" (búlgaro/afundo): volta a posicionar e continua a mesma série. */
+  const switchLeg = () => {
+    const next: Side = (counterRef.current?.frontLeg ?? frontLeg ?? 'left') === 'left' ? 'right' : 'left';
+    counterRef.current?.setFrontLeg?.(next);
+    sideRef.current = next;
+    setFrontLeg(next);
+    autoFinishRef.current.reset();
+    resumeRef.current = true;
+    setResuming(true);
+    holdStartRef.current = null;
+    setHoldProgress(0);
+    stillRef.current.reset();
+    issueRef.current = 'no_body';
+    setIssue('no_body');
+    lastHintRef.current = null;
+    pausedRef.current = false;
+    setPaused(false);
+    goPhase('positioning');
+    speak(`Agora a perna ${LEG_LABELS[next].toLowerCase()} na frente`, true);
+  };
 
   const saveToSet = () => {
     if (!summary || !onSaveToSet) return;
@@ -554,6 +702,8 @@ const LiveCorrectionScreen: React.FC<Props> = ({ studentId, exerciseName, onClos
 
   const complete = reps.filter((r) => r.complete).length;
   const incomplete = reps.length - complete;
+  const legSummaries = (phase === 'summary' ? summaryRule : rule).needsFrontLeg ? summarizeByLeg(reps) : [];
+  const canStart = !rule.needsFrontLeg || frontLeg != null;
   const live = phase === 'loading' || phase === 'positioning' || phase === 'countdown' || phase === 'tracking';
   const mirrored = facing === 'user';
 
@@ -608,7 +758,7 @@ const LiveCorrectionScreen: React.FC<Props> = ({ studentId, exerciseName, onClos
         ) : (
           <div className="text-center pt-2 min-w-0">
             <p className="text-xs font-bold uppercase tracking-widest text-primary">Correção ao vivo</p>
-            <p className="text-sm font-semibold truncate">{exerciseName}</p>
+            <p className="text-sm font-semibold truncate">{displayName}</p>
           </div>
         )}
 
@@ -641,15 +791,18 @@ const LiveCorrectionScreen: React.FC<Props> = ({ studentId, exerciseName, onClos
           <div className="h-20 w-20 rounded-full bg-primary/15 border border-primary/40 flex items-center justify-center">
             <Camera className="h-9 w-9 text-primary" />
           </div>
-          <p className="text-xl font-bold leading-snug max-w-sm">
-            Coloca o celular no chão, de lado pra você, com o corpo inteiro aparecendo
+          <p className="text-xl font-bold leading-snug max-w-sm" data-testid="live-instruction">
+            {rule.instruction(instructionName)}
           </p>
           <p className="text-sm text-muted-foreground max-w-xs">
             A contagem começa sozinha quando o corpo inteiro aparecer por 2 segundos.
           </p>
           <p className="text-xs text-muted-foreground">Câmera {facing === 'user' ? 'frontal' : 'traseira'} · troque no botão ao lado</p>
-          {depthLevelPicker && <DepthLevelPicker value={depthLevel} onChange={setDepthLevel} />}
-          <Button size="lg" className="h-12 px-10 font-bold" onClick={begin}>Começar</Button>
+          {exercisePicker && <ExercisePicker value={ruleId} onChange={setRuleId} />}
+          {rule.needsFrontLeg && <FrontLegPicker value={frontLeg} onChange={setFrontLeg} />}
+          {depthLevelPicker && <DepthLevelPicker value={depthLevel} onChange={setDepthLevel} hints={rule.levelHints} />}
+          <Button size="lg" className="h-12 px-10 font-bold" onClick={begin} disabled={!canStart}>Começar</Button>
+          {!canStart && <p className="-mt-3 text-xs text-muted-foreground">Escolha a perna da frente para começar.</p>}
         </div>
       )}
 
@@ -662,7 +815,7 @@ const LiveCorrectionScreen: React.FC<Props> = ({ studentId, exerciseName, onClos
 
       {phase === 'positioning' && (
         <div className="absolute inset-0 z-[5] flex items-center justify-center pointer-events-none">
-          <GuideSilhouette active={issue === 'ok'} />
+          <GuideSilhouette active={issue === 'ok'} kind={rule.silhouette(instructionName)} />
         </div>
       )}
 
@@ -673,15 +826,23 @@ const LiveCorrectionScreen: React.FC<Props> = ({ studentId, exerciseName, onClos
               <span className="rounded-2xl px-5 py-2.5 text-xl font-black bg-primary text-primary-foreground border border-primary">Fica assim…</span>
             ) : issue !== 'no_body' ? (
               <span className="rounded-2xl px-5 py-2.5 text-xl font-black bg-destructive text-destructive-foreground border border-destructive" data-testid="live-position-hint">
-                {POSITION_MESSAGES[issue]}
+                {positionMessage(rule, issue)}
               </span>
             ) : null}
           </div>
-          <p className="text-center text-base font-bold leading-snug">{POSITION_MESSAGES.no_body}</p>
+          {resuming && frontLeg && (
+            <p className="text-center text-sm font-black uppercase tracking-wider text-primary mb-1" data-testid="live-resume-leg">
+              Perna da frente: {LEG_LABELS[frontLeg]} · {complete} rep{complete === 1 ? '' : 's'} até agora
+            </p>
+          )}
+          <p className="text-center text-base font-bold leading-snug">{rule.instruction(instructionName)}</p>
           <p className="mt-1 text-center text-xs text-muted-foreground">Encaixa o corpo na silhueta e fica parado</p>
           <div className="mt-3 h-2 rounded-full bg-secondary overflow-hidden">
             <div className="h-full bg-primary transition-[width] duration-150" style={{ width: `${holdProgress * 100}%` }} />
           </div>
+          {resuming && reps.length > 0 && (
+            <Button size="lg" variant="outline" className="mt-3 w-full h-12 font-bold" onClick={() => finish(false)}>Finalizar</Button>
+          )}
         </div>
       )}
 
@@ -699,7 +860,7 @@ const LiveCorrectionScreen: React.FC<Props> = ({ studentId, exerciseName, onClos
           <div className="min-h-[64px] flex items-center justify-center mb-3" aria-live="assertive">
             {paused ? (
               <span className="rounded-2xl px-5 py-3 text-2xl font-black text-center border bg-destructive text-destructive-foreground border-destructive" data-testid="live-feedback">
-                {TURN_SIDEWAYS_MESSAGE}
+                {turnMessage(rule)}
               </span>
             ) : feedback && (
               <span
@@ -715,6 +876,15 @@ const LiveCorrectionScreen: React.FC<Props> = ({ studentId, exerciseName, onClos
               </span>
             )}
           </div>
+          {rule.needsFrontLeg && frontLeg && (
+            <div className="mb-2 flex items-center justify-between gap-2 rounded-2xl border border-border bg-card/80 px-3 py-2" data-testid="live-front-leg">
+              <span className="text-sm font-bold">Perna da frente: <span className="text-primary">{LEG_LABELS[frontLeg]}</span></span>
+              <Button size="sm" variant="outline" className="h-11 font-bold border-primary text-primary" onClick={switchLeg} data-testid="live-switch-leg">
+                <Repeat className="h-4 w-4 mr-1.5" />
+                Trocar perna
+              </Button>
+            </div>
+          )}
           <Button size="lg" className="w-full h-12 font-bold" onClick={() => finish(false)}>Finalizar</Button>
         </div>
       )}
@@ -740,6 +910,7 @@ const LiveCorrectionScreen: React.FC<Props> = ({ studentId, exerciseName, onClos
             <h2 className="text-2xl font-black text-center">Resumo</h2>
             {autoFinished && <p className="-mt-2 text-sm text-center text-muted-foreground">Fechou a série</p>}
             <p className="-mt-2 text-xs text-center text-muted-foreground" data-testid="live-summary-depth">Nível: {DEPTH_LEVELS[depthLevel].label}</p>
+            <p className="-mt-3 text-[11px] text-center text-muted-foreground">{summaryRule.label} · {summaryRule.levelHints[depthLevel]}</p>
             <div className="grid grid-cols-3 gap-2">
               <div className="glass-card rounded-2xl p-3 text-center">
                 <p className="text-3xl font-black tabular-nums">{summary.total}</p>
@@ -760,19 +931,36 @@ const LiveCorrectionScreen: React.FC<Props> = ({ studentId, exerciseName, onClos
               </p>
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <p className="text-2xl font-black tabular-nums">
-                    {summary.avgDescentSeconds == null ? '—' : `${summary.avgDescentSeconds.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} s`}
-                  </p>
+                  <p className="text-2xl font-black tabular-nums">{formatSeconds(summary.avgDescentSeconds)}</p>
                   <p className="text-[11px] uppercase tracking-wider text-muted-foreground">Tempo médio</p>
                 </div>
                 <div>
                   <p className={cn('text-2xl font-black tabular-nums', summary.fastDescentReps > 0 && 'text-destructive')}>{summary.fastDescentReps}</p>
                   <p className="text-[11px] uppercase tracking-wider text-muted-foreground">
-                    Rápida{summary.fastDescentReps === 1 ? '' : 's'} demais (&lt; {MIN_DESCENT_SECONDS.toLocaleString('pt-BR')} s)
+                    Rápida{summary.fastDescentReps === 1 ? '' : 's'} demais (&lt; {summaryRule.minDescentSeconds.toLocaleString('pt-BR', { minimumFractionDigits: 1 })} s)
                   </p>
                 </div>
               </div>
             </div>
+            {legSummaries.length > 0 && (
+              <div className="glass-card rounded-2xl p-4" data-testid="live-summary-legs">
+                <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-2">Por perna da frente</p>
+                <div className="grid grid-cols-[1fr_auto_auto_auto] gap-x-3 gap-y-1.5 text-sm items-center">
+                  <span className="text-[11px] uppercase tracking-wider text-muted-foreground">Perna</span>
+                  <span className="text-[11px] uppercase tracking-wider text-muted-foreground text-right">Reps</span>
+                  <span className="text-[11px] uppercase tracking-wider text-muted-foreground text-right">Completas</span>
+                  <span className="text-[11px] uppercase tracking-wider text-muted-foreground text-right">Descida</span>
+                  {legSummaries.map((l) => (
+                    <React.Fragment key={l.leg}>
+                      <span className="font-bold">{LEG_LABELS[l.leg]}</span>
+                      <span className="tabular-nums text-right">{l.total}</span>
+                      <span className="tabular-nums text-right font-bold text-primary">{l.complete}</span>
+                      <span className="tabular-nums text-right text-muted-foreground">{formatSeconds(l.avgDescentSeconds)}</span>
+                    </React.Fragment>
+                  ))}
+                </div>
+              </div>
+            )}
             {reps.length > 0 && (
               <div className="glass-card rounded-2xl p-4" data-testid="live-summary-reps">
                 <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-2">Rep por rep</p>
@@ -784,13 +972,16 @@ const LiveCorrectionScreen: React.FC<Props> = ({ studentId, exerciseName, onClos
                       </span>
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center justify-between gap-2">
-                          <span className={cn('font-bold', r.complete ? 'text-foreground' : 'text-destructive')}>{r.complete ? 'Completa' : 'Incompleta'}</span>
+                          <span className={cn('font-bold', r.complete ? 'text-foreground' : 'text-destructive')}>
+                            {r.complete ? 'Completa' : 'Incompleta'}
+                            {r.leg && <span className="ml-1.5 text-xs font-semibold text-muted-foreground">· perna {LEG_LABELS[r.leg].toLowerCase()}</span>}
+                          </span>
                           <span className={cn('tabular-nums text-xs', r.fastDescent ? 'text-destructive font-bold' : 'text-muted-foreground')}>
-                            Descida {r.descentSeconds == null ? '—' : `${r.descentSeconds.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} s`}
+                            Descida {formatSeconds(r.descentSeconds)}
                           </span>
                         </div>
                         <p className="text-xs text-muted-foreground">
-                          {r.errors.length ? r.errors.map((e) => ERROR_MESSAGES[e]).join(' · ') : 'Sem erros'}
+                          {r.errors.length ? r.errors.map((e) => summaryRule.messages[e] ?? e).join(' · ') : 'Sem erros'}
                         </p>
                       </div>
                     </li>
@@ -831,8 +1022,10 @@ const LiveCorrectionScreen: React.FC<Props> = ({ studentId, exerciseName, onClos
                 Salvar na série{targetSetLabel ? ` (${targetSetLabel})` : ''} · {summary.complete} rep{summary.complete === 1 ? '' : 's'}
               </Button>
             )}
-            {depthLevelPicker && <div className="flex justify-center"><DepthLevelPicker value={depthLevel} onChange={setDepthLevel} /></div>}
-            <Button size="lg" variant="outline" className="w-full h-12 font-bold border-primary text-primary hover:bg-primary/10" onClick={again} data-testid="live-again">
+            {exercisePicker && <div className="flex justify-center"><ExercisePicker value={ruleId} onChange={setRuleId} /></div>}
+            {rule.needsFrontLeg && <div className="flex justify-center"><FrontLegPicker value={frontLeg} onChange={setFrontLeg} /></div>}
+            {depthLevelPicker && <div className="flex justify-center"><DepthLevelPicker value={depthLevel} onChange={setDepthLevel} hints={rule.levelHints} /></div>}
+            <Button size="lg" variant="outline" className="w-full h-12 font-bold border-primary text-primary hover:bg-primary/10" onClick={again} disabled={!canStart} data-testid="live-again">
               <RotateCcw className="h-5 w-5 mr-2" />
               Fazer outra série
             </Button>

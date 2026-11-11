@@ -765,6 +765,7 @@ export type Database = {
           ended_at: string
           errors: Json
           exercise_name: string
+          exercise_rule: string | null
           id: string
           incomplete_reps: number
           reps_descida_rapida: number
@@ -782,6 +783,7 @@ export type Database = {
           ended_at?: string
           errors?: Json
           exercise_name: string
+          exercise_rule?: string | null
           id?: string
           incomplete_reps?: number
           reps_descida_rapida?: number
@@ -799,6 +801,7 @@ export type Database = {
           ended_at?: string
           errors?: Json
           exercise_name?: string
+          exercise_rule?: string | null
           id?: string
           incomplete_reps?: number
           reps_descida_rapida?: number

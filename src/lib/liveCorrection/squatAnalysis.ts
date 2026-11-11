@@ -397,7 +397,7 @@ export function errorsToJson(summary: SessionSummary): Record<string, number> {
   return Object.fromEntries(summary.errors.map((e) => [e.key, e.count]));
 }
 
-/** Botão só em exercícios de agachamento (sem diferenciar acento/maiúsculas). */
+/** Nome contém "agachamento" (sem diferenciar acento/maiúsculas). O botão usa `matchExerciseRule` (exercises/). */
 export function isSquatExercise(name: string | null | undefined): boolean {
   if (!name) return false;
   return name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().includes('agachamento');
@@ -440,12 +440,18 @@ export interface RepSpeech {
  * O que falar ao fim de uma rep. O número (só reps completas) sempre fala e não
  * entra no limite; a correção respeita uma fala a cada VOICE_COOLDOWN_MS.
  */
-export function planRepSpeech(rep: RepResult, completeCount: number, lastCorrectionAt: number | null, now: number): RepSpeech {
+export function planRepSpeech(
+  rep: { complete: boolean; errors: readonly string[] },
+  completeCount: number,
+  lastCorrectionAt: number | null,
+  now: number,
+  messages: Record<string, string> = ERROR_MESSAGES,
+): RepSpeech {
   const texts: string[] = [];
   if (rep.complete) texts.push(repNumberWord(completeCount));
   let correctionSpoken = false;
   if (rep.errors.length && canSpeak(lastCorrectionAt, now)) {
-    texts.push(rep.errors.map((e) => ERROR_MESSAGES[e]).join('. '));
+    texts.push(rep.errors.map((e) => messages[e] ?? e).join('. '));
     correctionSpoken = true;
   }
   return { texts, correctionSpoken };
@@ -556,7 +562,11 @@ export class AutoFinishDetector {
   private standingSince: number | null = null;
   private lostSince: number | null = null;
   reset() { this.standingSince = null; this.lostSince = null; }
-  update(input: { t: number; repCount: number; fullBody: boolean; inRep: boolean; kneeAngle: number | null }): AutoFinishReason | null {
+  /**
+   * `standing` (opcional) = a pessoa está no topo do exercício; sem ele, usa o joelho do
+   * agachamento (> REP_END_KNEE_ANGLE).
+   */
+  update(input: { t: number; repCount: number; fullBody: boolean; inRep: boolean; kneeAngle: number | null; standing?: boolean }): AutoFinishReason | null {
     const { t, repCount, fullBody, inRep, kneeAngle } = input;
     if (!fullBody) {
       this.standingSince = null;
@@ -564,7 +574,8 @@ export class AutoFinishDetector {
       return repCount > 0 && t - this.lostSince >= AUTO_FINISH_LOST_MS ? 'left' : null;
     }
     this.lostSince = null;
-    const standing = !inRep && kneeAngle != null && kneeAngle > REP_END_KNEE_ANGLE;
+    const atTop = input.standing ?? (kneeAngle != null && kneeAngle > REP_END_KNEE_ANGLE);
+    const standing = !inRep && atTop;
     if (!standing) { this.standingSince = null; return null; }
     if (this.standingSince == null) this.standingSince = t;
     return repCount > 0 && t - this.standingSince >= AUTO_FINISH_IDLE_MS ? 'idle' : null;
