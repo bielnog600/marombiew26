@@ -151,7 +151,7 @@ describe('Correção ao vivo (Premium) button', () => {
     expect(screen.queryByTestId('live-correction-button')).toBeNull();
   });
 
-  it('shown on squats only when premium_camera is on, following the active variation', async () => {
+  it('shown on matching exercises only when premium_camera is on, following the active variation', async () => {
     mock.premiumCamera = true;
     mock.currentIndex = 4;
     render(<TreinoExecucao />);
@@ -161,8 +161,8 @@ describe('Correção ao vivo (Premium) button', () => {
     mock.currentIndex = 3;
     render(<TreinoExecucao />);
     await screen.findByText('LEG PRESS', { selector: 'h1' });
-    await new Promise((r) => setTimeout(r, 50));
-    expect(screen.queryByTestId('live-correction-button')).toBeNull();
+    // Leg press ganhou regra própria na etapa 4.
+    expect(await screen.findByTestId('live-correction-button')).toBeInTheDocument();
     cleanup();
     mock.currentIndex = 2;
     render(<TreinoExecucao />);

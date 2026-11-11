@@ -67,4 +67,21 @@ describe('Correção ao vivo — tela inicial por exercício', () => {
     expect(screen.getByTestId('live-instruction')).toHaveTextContent('de frente pra você');
     expect(screen.getByText(/aparecer de frente, parado/)).toBeInTheDocument();
   });
+
+  it('teste do admin lista os 11 exercícios', () => {
+    render(<LiveCorrectionScreen studentId="u1" exerciseName="x" exercisePicker onClose={() => undefined} />);
+    expect(screen.getAllByRole('radio', { name: /Agachamento|Stiff|Búlgaro|Elevação|Rosca|Tríceps|Desenvolvimento|Supino|Leg press|Prancha/ })).toHaveLength(11);
+  });
+
+  it('supino, leg press e prancha: instrução própria', () => {
+    const r1 = render(<LiveCorrectionScreen studentId="u1" exerciseName="SUPINO RETO HALTERES" onClose={() => undefined} />);
+    expect(screen.getByTestId('live-instruction')).toHaveTextContent('Celular no chão, de lado do banco, com o tronco e os braços aparecendo');
+    r1.unmount();
+    const r2 = render(<LiveCorrectionScreen studentId="u1" exerciseName="LEG PRESS 45 ART" onClose={() => undefined} />);
+    expect(screen.getByTestId('live-instruction')).toHaveTextContent('Celular de lado da máquina, com quadril, joelho e pé aparecendo');
+    r2.unmount();
+    render(<LiveCorrectionScreen studentId="u1" exerciseName="PRANCHA FRONTAL" onClose={() => undefined} />);
+    expect(screen.getByText(/O cronômetro começa sozinho/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Começar' })).toBeEnabled();
+  });
 });
