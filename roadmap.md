@@ -5,6 +5,8 @@
 - [x] Botão em cada refeição; câmera traseira com moldura, foto por item, IA (mesmo Claude do scanner) com foto anterior + atual, card editável, aviso de visor ilegível e de balança não zerada, resumo previsto × pesado e salvar.
 - [x] "Refeições pesadas" na aba Dietas do aluno; 24 testes novos; fluxo conferido no navegador com câmera e respostas simuladas.
 - [x] Escolha "Pesar alimentos da dieta" / "Escanear prato"; ícone de balança por alimento; modo só-peso com progresso, próximo alimento e mesmo resumo/salvar; escanear prato casa com o plano. 13 testes novos; fluxo conferido no navegador com respostas simuladas.
+- [x] Salvar entra na refeição do dia (selos Pesado/Fora do plano, refeição marcada, calorias e próximas refeições pelo consumido); pesar de novo pergunta e substitui.
+- [x] Concluir pergunta "Comi sem pesar"/"Não comi" para os não pesados; fora do plano pergunta se substituiu algo; admin mostra "Trocou X → Y" / "Extra".
 - [ ] Testar com balança e foto reais no celular — nenhuma chamada real à IA foi feita.
 
 ## Correção ao vivo (Premium)
