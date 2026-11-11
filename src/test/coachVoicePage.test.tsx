@@ -3,6 +3,8 @@ import React from 'react';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { VOICE_CATALOG } from '@/lib/liveCorrection/voice/phrases';
 
+(globalThis as any).ResizeObserver ??= class { observe() {} unobserve() {} disconnect() {} };
+
 const db = vi.hoisted(() => ({ phrases: [] as any[], config: null as any, upserts: [] as any[], takes: [] as any[] }));
 const calls = vi.hoisted(() => ({ list: [] as any[], failOn: null as string | null }));
 
