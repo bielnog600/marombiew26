@@ -225,5 +225,7 @@ Fora do escopo desta entrega (Fases 3-6): LOW/MEDIUM/HIGH, novo carb cycling, aj
 - [x] Voz gravada no iPhone: resume do áudio, segunda opção pelo <audio>, desbloqueio em todo toque, download por prioridade, logs [coach-voice] e selo de diagnóstico.
 - [x] iPhone no silencioso: voz gravada toca pelo <audio> de mídia (Web Audio só de reserva); selo mostra "audio"/"webaudio".
 - [x] Personalização: falas de Motivação, Falas com nome por aluno premium, momentos/frequência, chaves geral e por aluno.
-- [ ] Gerar e aprovar as falas de motivação e com nome — depende do Fabiew na tela de voz (não gero áudio sem autorização).
+- [x] Falas com nome desligadas por padrão (chave geral na tela de voz; câmera e servidor não usam; nada apagado).
+- [x] Tela de voz em abas (Configuração, Números, Comandos, Correções por exercício, Motivação, Com nome), filtros, contador e gerar por aba, linha compacta com versões em popover, última aba lembrada.
+- [ ] Gerar e aprovar as falas de motivação — depende do Fabiew na tela de voz (não gero áudio sem autorização).
 - [ ] Ouvir a voz gravada num iPhone real — não há iPhone no ambiente de teste.
