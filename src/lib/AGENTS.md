@@ -1,0 +1,1 @@
+- Plan translation (`planTranslation`, `planTranslationDisplay`) is display-only and never blocks loading: logic reads the Portuguese original and translated text applies only via cell-aligned tables, so a slow AI cannot freeze screens or alter data.

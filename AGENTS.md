@@ -45,4 +45,3 @@
 - Carb cycle: `dietCarbCycle`; day targets also in weekly_day_targets.
 - Set types live in `setTypes` (labels, %, logs); null log = work, so legacy history keeps counting.
 - Lazy routes/heavy libs; shared helpers in vendor chunk.
-- Plan translation (planTranslation, planTranslationDisplay) is display-only and never blocks loading: logic reads the Portuguese original and translated text applies only via cell-aligned tables, so a slow AI cannot freeze screens or alter data.
