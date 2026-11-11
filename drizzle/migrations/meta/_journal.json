@@ -183,6 +183,13 @@
       "when": 1794391068541,
       "tag": "0025_camera_sessions_exercise_rule_lateral_hip",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1794402231066,
+      "tag": "0026_camera_sessions_exercise_rule_arms",
+      "breakpoints": true
     }
   ]
 }
