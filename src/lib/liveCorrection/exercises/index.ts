@@ -3,16 +3,25 @@
  * para "AGACHAMENTO BÚLGARO" virar búlgaro e não agachamento.
  */
 import { bulgaroRule, lungeAutoFinishRepCount } from './bulgaro';
+import { curlRule } from './curl';
 import { hipThrustRule } from './hipThrust';
 import { lateralRaiseRule } from './lateralRaise';
+import { shoulderPressRule } from './shoulderPress';
 import { nameHasKeyword, normalizeExerciseName } from './common';
 import { squatRule } from './squat';
 import { stiffRule } from './stiff';
+import { tricepsFrenchRule } from './tricepsFrench';
 import type { ExerciseRule, ExerciseRuleId, LiveRep } from './types';
 
-export const EXERCISE_RULES: ExerciseRule[] = [bulgaroRule, stiffRule, lateralRaiseRule, hipThrustRule, squatRule];
+export const EXERCISE_RULES: ExerciseRule[] = [
+  bulgaroRule, stiffRule, lateralRaiseRule, hipThrustRule, squatRule,
+  // "ROSCA FRANCESA" é tríceps: o francês vem antes da rosca.
+  tricepsFrenchRule, curlRule, shoulderPressRule,
+];
 /** Ordem do seletor de teste do admin. */
-export const EXERCISE_RULE_ORDER: ExerciseRuleId[] = ['squat', 'stiff', 'bulgaro', 'lateral_raise', 'hip_thrust'];
+export const EXERCISE_RULE_ORDER: ExerciseRuleId[] = [
+  'squat', 'stiff', 'bulgaro', 'lateral_raise', 'hip_thrust', 'curl', 'triceps_french', 'shoulder_press',
+];
 export const DEFAULT_EXERCISE_RULE: ExerciseRuleId = 'squat';
 
 export function getExerciseRule(id: unknown): ExerciseRule {
@@ -48,3 +57,7 @@ export * from './stiff';
 export * from './bulgaro';
 export * from './lateralRaise';
 export * from './hipThrust';
+export * from './arms';
+export * from './curl';
+export * from './tricepsFrench';
+export * from './shoulderPress';

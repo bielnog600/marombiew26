@@ -1,11 +1,13 @@
 import type { DepthLevel, Landmark, Side } from '../squatAnalysis';
 
 /** Id da regra salvo em camera_sessions.exercise_rule. */
-export type ExerciseRuleId = 'squat' | 'stiff' | 'bulgaro' | 'lateral_raise' | 'hip_thrust';
+export type ExerciseRuleId =
+  | 'squat' | 'stiff' | 'bulgaro' | 'lateral_raise' | 'hip_thrust'
+  | 'curl' | 'triceps_french' | 'shoulder_press';
 /** Vista que a câmera precisa ter da pessoa. */
 export type CameraView = 'side' | 'front';
 /** Contorno guia mostrado no posicionamento. */
-export type SilhouetteKind = 'standing' | 'split' | 'split_bench' | 'front_upper' | 'hip_thrust';
+export type SilhouetteKind = 'standing' | 'split' | 'split_bench' | 'front_upper' | 'hip_thrust' | 'side_upper';
 
 /** Rep de qualquer exercício, no formato que a tela e o resumo usam. */
 export interface LiveRep {
@@ -66,7 +68,8 @@ export interface ExerciseRule {
   needsFrontLeg: boolean;
   /** O que cada nível de profundidade exige, em texto curto. */
   levelHints: Record<DepthLevel, string>;
-  createCounter(level?: unknown, frontLeg?: Side): LiveRepCounter;
+  /** `exerciseName` permite variações dentro da regra (ex.: rosca Scott sem checar cotovelo/balanço). */
+  createCounter(level?: unknown, frontLeg?: Side, exerciseName?: string | null): LiveRepCounter;
   /** Pontos que precisam aparecer; sem isto, exige o corpo inteiro (cabeça até tornozelo). */
   isBodyVisible?(lms: Landmark[] | null | undefined, side: Side): boolean;
   /** Aviso quando os pontos exigidos saem do quadro; sem isto, "Corpo inteiro na câmera". */
@@ -74,8 +77,13 @@ export interface ExerciseRule {
   /** Pontos e medida de referência do "fica parado"; sem isto, ombro/quadril/tornozelo e ombro→tornozelo. */
   stillPoints?: readonly number[];
   stillScale?(lms: Landmark[], width: number, height: number, side: Side): number;
-  /** Linhas desenhadas na câmera; sem isto, 'legs' (ombro-quadril-joelho-tornozelo). */
-  skeleton?: 'legs' | 'arms';
+  /**
+   * Linhas desenhadas na câmera; sem isto, 'legs' (ombro-quadril-joelho-tornozelo).
+   * 'arms' = os dois braços iguais (de frente); 'arm_side' = braço do lado medido em destaque (de lado).
+   */
+  skeleton?: 'legs' | 'arms' | 'arm_side';
+  /** Texto da tela inicial sobre quando a contagem começa; sem isto, o texto padrão da vista. */
+  startHint?: string;
   /** Avisos falados no máximo 1x por série (continuam na tela e no resumo). */
   speakOncePerSeries?: readonly string[];
 }

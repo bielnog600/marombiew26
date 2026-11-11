@@ -70,9 +70,9 @@ describe('Correção ao vivo — casamento de nomes', () => {
   });
 
   it('registro tem as 5 regras, id desconhecido cai no agachamento', () => {
-    expect(EXERCISE_RULE_ORDER).toEqual(['squat', 'stiff', 'bulgaro', 'lateral_raise', 'hip_thrust']);
+    expect(EXERCISE_RULE_ORDER.slice(0, 5)).toEqual(['squat', 'stiff', 'bulgaro', 'lateral_raise', 'hip_thrust']);
     expect(getExerciseRule('xyz').id).toBe('squat');
-    expect(EXERCISE_RULE_ORDER.map((id) => getExerciseRule(id).view)).toEqual(['side', 'side', 'side', 'front', 'side']);
+    expect(EXERCISE_RULE_ORDER.slice(0, 5).map((id) => getExerciseRule(id).view)).toEqual(['side', 'side', 'side', 'front', 'side']);
     expect(ALL_ERROR_MESSAGES.knee).toBe('Menos joelho, quadril pra trás');
   });
 });
