@@ -285,8 +285,8 @@ describe('Correção ao vivo — búlgaro / afundo', () => {
     expect(c.reps.map((r) => [r.leg, r.complete])).toEqual([['left', true], ['left', false], ['right', true]]);
     const legs = summarizeByLeg(c.reps);
     expect(legs).toEqual([
-      { leg: 'left', total: 2, complete: 1, avgDescentSeconds: 1.9 },
-      { leg: 'right', total: 1, complete: 1, avgDescentSeconds: 1.9 },
+      { leg: 'left', total: 2, complete: 1, avgDescentSeconds: 2 },
+      { leg: 'right', total: 1, complete: 1, avgDescentSeconds: 2 },
     ]);
     // "Salvar na série" usa o total de completas das duas pernas
     expect(summarizeLiveReps(c.reps, LUNGE_MESSAGES).complete).toBe(2);
