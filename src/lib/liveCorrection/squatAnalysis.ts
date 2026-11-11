@@ -15,8 +15,59 @@ export const MIN_DESCENT_SECONDS = 1.5;
 /**
  * Folga da profundidade, em fração do comprimento da coxa: o quadril precisa
  * chegar até (altura do joelho − folga). 0 = exatamente na altura do joelho.
+ * Este é o nível "Padrão"; cada aluno pode ter outro nível (DEPTH_LEVELS).
  */
-export const DEPTH_TOLERANCE = 0.05;
+export const DEPTH_TOLERANCE = 0.15;
+/** Nenhum nível pode ter folga maior que isto. */
+export const MAX_DEPTH_TOLERANCE = 0.25;
+/**
+ * Trava contra agachamento parcial, independente da folga: se o menor ângulo do
+ * joelho da rep for MAIOR que isto (graus), a rep é incompleta ("Desce mais").
+ */
+export const MAX_BOTTOM_KNEE_ANGLE = 110;
+/** Faltou até isto além da folga do nível (fração da coxa) = "Desce um pouco mais" (continua incompleta). */
+export const NEAR_DEPTH_MARGIN = 0.1;
+
+/** Profundidade exigida, escolhida pelo admin na ficha do aluno. */
+export type DepthLevel = 'paralelo' | 'padrao' | 'mobilidade_reduzida';
+export const DEFAULT_DEPTH_LEVEL: DepthLevel = 'padrao';
+export const DEPTH_LEVELS: Record<DepthLevel, { label: string; tolerance: number }> = {
+  paralelo: { label: 'Paralelo', tolerance: 0.05 },
+  padrao: { label: 'Padrão', tolerance: DEPTH_TOLERANCE },
+  mobilidade_reduzida: { label: 'Mobilidade reduzida', tolerance: 0.25 },
+};
+export const DEPTH_LEVEL_ORDER: DepthLevel[] = ['paralelo', 'padrao', 'mobilidade_reduzida'];
+
+export function isDepthLevel(v: unknown): v is DepthLevel {
+  return typeof v === 'string' && v in DEPTH_LEVELS;
+}
+/** Nível salvo → nível válido (desconhecido/vazio = Padrão). */
+export function normalizeDepthLevel(v: unknown): DepthLevel {
+  return isDepthLevel(v) ? v : DEFAULT_DEPTH_LEVEL;
+}
+/** Folga do nível, nunca acima de MAX_DEPTH_TOLERANCE. */
+export function depthToleranceFor(level: unknown): number {
+  return Math.min(MAX_DEPTH_TOLERANCE, DEPTH_LEVELS[normalizeDepthLevel(level)].tolerance);
+}
+
+export interface DepthVerdict {
+  deepEnough: boolean;
+  /** Incompleta, mas faltou pouco: "Desce um pouco mais". */
+  near: boolean;
+}
+/**
+ * Decide a profundidade da rep. Completa = quadril dentro da folga do nível E joelho
+ * chegou a MAX_BOTTOM_KNEE_ANGLE ou menos. "Quase" só quando o joelho passou na trava
+ * e o quadril ficou até NEAR_DEPTH_MARGIN além da folga — parcial nunca é "quase".
+ */
+export function judgeDepth(maxHipDepth: number, minKneeAngle: number, level: unknown = DEFAULT_DEPTH_LEVEL): DepthVerdict {
+  const tol = depthToleranceFor(level);
+  const kneeOk = minKneeAngle <= MAX_BOTTOM_KNEE_ANGLE;
+  const hipOk = maxHipDepth >= -tol;
+  if (kneeOk && hipOk) return { deepEnough: true, near: false };
+  const near = kneeOk && maxHipDepth >= -(tol + NEAR_DEPTH_MARGIN);
+  return { deepEnough: false, near };
+}
 /** Quantos frames entram na média que suaviza os pontos. */
 export const SMOOTHING_FRAMES = 5;
 /** Tempo com o corpo inteiro visível antes de começar a contar. */
@@ -67,9 +118,10 @@ export const SIDE_POINTS: Record<Side, { shoulder: number; hip: number; knee: nu
 export interface Landmark { x: number; y: number; z?: number; visibility?: number }
 export interface Point { x: number; y: number }
 
-export type SquatError = 'depth' | 'trunk' | 'descent';
+export type SquatError = 'depth' | 'depth_near' | 'trunk' | 'descent';
 export const ERROR_MESSAGES: Record<SquatError, string> = {
   depth: 'Desce mais',
+  depth_near: 'Desce um pouco mais',
   trunk: 'Peito pra cima',
   descent: 'Controla a descida',
 };
@@ -140,7 +192,7 @@ export interface FrameMetrics {
   side: Side;
   kneeAngle: number;
   trunkAngle: number;
-  /** (quadril.y − joelho.y) / coxa. ≥ −DEPTH_TOLERANCE = chegou na altura do joelho. */
+  /** (quadril.y − joelho.y) / coxa. ≥ −folga do nível = chegou na altura do joelho. */
   hipDepth: number;
 }
 
@@ -187,6 +239,15 @@ export class SquatRepCounter {
   /** false = precisa ver a pessoa em pé (> 165°) antes de aceitar uma nova descida. */
   private armed = true;
   readonly reps: RepResult[] = [];
+  private depthLevel: DepthLevel;
+
+  constructor(level: unknown = DEFAULT_DEPTH_LEVEL) {
+    this.depthLevel = normalizeDepthLevel(level);
+  }
+
+  get level(): DepthLevel { return this.depthLevel; }
+  /** Troca a profundidade exigida (vale para as próximas reps). */
+  setDepthLevel(level: unknown) { this.depthLevel = normalizeDepthLevel(level); }
 
   get inRep() { return this.phase === 'down'; }
 
@@ -253,8 +314,8 @@ export class SquatRepCounter {
     if (m.kneeAngle <= REP_END_KNEE_ANGLE) return null;
 
     const errors: SquatError[] = [];
-    const deepEnough = this.maxDepth >= -DEPTH_TOLERANCE;
-    if (!deepEnough) errors.push('depth');
+    const { deepEnough, near } = judgeDepth(this.maxDepth, this.minKnee, this.depthLevel);
+    if (!deepEnough) errors.push(near ? 'depth_near' : 'depth');
     if (this.bottomTrunk > MAX_TRUNK_ANGLE) errors.push('trunk');
     const descentSeconds = this.descentStartAt != null && this.bottomAt != null && this.bottomAt >= this.descentStartAt
       ? Math.round((this.bottomAt - this.descentStartAt) / 10) / 100

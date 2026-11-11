@@ -3,6 +3,8 @@ import {
   REP_START_KNEE_ANGLE, REP_END_KNEE_ANGLE, MAX_TRUNK_ANGLE, MIN_DESCENT_SECONDS,
   SquatRepCounter, repNumberWord, planRepSpeech, errorsToJson, LandmarkSmoother, angleAt, trunkAngle, summarizeReps,
   isSquatExercise, canSpeak, isFullBodyVisible, pickSide, LM, type FrameMetrics, type Landmark,
+  DEPTH_TOLERANCE, MAX_DEPTH_TOLERANCE, MAX_BOTTOM_KNEE_ANGLE, NEAR_DEPTH_MARGIN, DEPTH_LEVELS,
+  depthToleranceFor, normalizeDepthLevel, judgeDepth,
 } from '@/lib/liveCorrection/squatAnalysis';
 
 const f = (kneeAngle: number, trunk = 20, hipDepth = 0.1): FrameMetrics => ({ side: 'left', kneeAngle, trunkAngle: trunk, hipDepth });
@@ -153,5 +155,73 @@ describe('Correção ao vivo — agachamento', () => {
   it('voz: rep incompleta não fala número, só a correção', () => {
     const rep = runRep(new SquatRepCounter(), f(110, 20, -0.3));
     expect(planRepSpeech(rep!, 0, null, 10000)).toEqual({ texts: ['Desce mais'], correctionSpoken: true });
+  });
+
+  describe('profundidade por nível', () => {
+    it('padrão 0,15; níveis 0,05 / 0,15 / 0,25; nenhum passa de 0,25; trava 110°; quase = 0,10', () => {
+      expect(DEPTH_TOLERANCE).toBe(0.15);
+      expect(depthToleranceFor('paralelo')).toBe(0.05);
+      expect(depthToleranceFor('padrao')).toBe(0.15);
+      expect(depthToleranceFor('mobilidade_reduzida')).toBe(0.25);
+      expect(MAX_DEPTH_TOLERANCE).toBe(0.25);
+      for (const l of Object.values(DEPTH_LEVELS)) expect(l.tolerance).toBeLessThanOrEqual(0.25);
+      expect(MAX_BOTTOM_KNEE_ANGLE).toBe(110);
+      expect(NEAR_DEPTH_MARGIN).toBe(0.1);
+    });
+
+    it('nível desconhecido ou vazio = Padrão', () => {
+      expect(normalizeDepthLevel(null)).toBe('padrao');
+      expect(normalizeDepthLevel('qualquer')).toBe('padrao');
+      expect(new SquatRepCounter().level).toBe('padrao');
+    });
+
+    it('Paralelo: quadril 0,10 acima da linha do joelho não conta, 0,05 conta', () => {
+      expect(runRep(new SquatRepCounter('paralelo'), f(90, 20, -0.1))?.complete).toBe(false);
+      expect(runRep(new SquatRepCounter('paralelo'), f(90, 20, -0.05))?.complete).toBe(true);
+    });
+
+    it('Padrão: quadril 0,15 acima conta, 0,20 não conta', () => {
+      expect(runRep(new SquatRepCounter(), f(95, 20, -0.15))?.complete).toBe(true);
+      expect(runRep(new SquatRepCounter(), f(95, 20, -0.2))?.complete).toBe(false);
+    });
+
+    it('Mobilidade reduzida: quadril 0,25 acima conta, 0,30 não conta', () => {
+      expect(runRep(new SquatRepCounter('mobilidade_reduzida'), f(100, 20, -0.25))?.complete).toBe(true);
+      expect(runRep(new SquatRepCounter('mobilidade_reduzida'), f(100, 20, -0.3))?.complete).toBe(false);
+    });
+
+    it('trava dos 110°: joelho acima de 110° no fundo é incompleta em qualquer nível, mesmo com o quadril "passando"', () => {
+      for (const lvl of ['paralelo', 'padrao', 'mobilidade_reduzida'] as const) {
+        const rep = runRep(new SquatRepCounter(lvl), f(111, 20, 0.2));
+        expect(rep?.complete).toBe(false);
+        expect(rep?.errors).toEqual(['depth']);
+      }
+      expect(runRep(new SquatRepCounter(), f(110, 20, 0.2))?.complete).toBe(true);
+    });
+
+    it('meio agachamento (joelho ~120°) nunca conta nem vira "quase"', () => {
+      const rep = runRep(new SquatRepCounter('mobilidade_reduzida'), f(122, 20, -0.2));
+      expect(rep?.complete).toBe(false);
+      expect(rep?.errors).toEqual(['depth']);
+    });
+
+    it('quase: até 0,10 além da folga = "Desce um pouco mais" e continua incompleta', () => {
+      const near = runRep(new SquatRepCounter(), f(100, 20, -0.24));
+      expect(near?.complete).toBe(false);
+      expect(near?.errors).toEqual(['depth_near']);
+      expect(planRepSpeech(near!, 0, null, 10000).texts).toEqual(['Desce um pouco mais']);
+      const far = runRep(new SquatRepCounter(), f(100, 20, -0.27));
+      expect(far?.errors).toEqual(['depth']);
+      expect(judgeDepth(-0.14, 100, 'paralelo')).toEqual({ deepEnough: false, near: true });
+      expect(judgeDepth(-0.16, 100, 'paralelo')).toEqual({ deepEnough: false, near: false });
+      expect(judgeDepth(-0.34, 100, 'mobilidade_reduzida')).toEqual({ deepEnough: false, near: true });
+    });
+
+    it('trocar o nível vale para as próximas reps', () => {
+      const c = new SquatRepCounter('paralelo');
+      expect(runRep(c, f(95, 20, -0.15))?.complete).toBe(false);
+      c.setDepthLevel('padrao');
+      expect(runRep(c, f(95, 20, -0.15))?.complete).toBe(true);
+    });
   });
 });
