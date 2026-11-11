@@ -30,6 +30,8 @@ import AiBodyCompositionDialog from '@/components/admin/AiBodyCompositionDialog'
 import { Scale } from 'lucide-react';
 import SyncFailuresCard from '@/components/admin/SyncFailuresCard';
 import LiveCorrectionPremiumCard from '@/components/admin/LiveCorrectionPremiumCard';
+import MealWeighPremiumCard from '@/components/admin/MealWeighPremiumCard';
+import StudentMealWeighLogs from '@/components/admin/StudentMealWeighLogs';
 import { ScanEye } from 'lucide-react';
 import { toast } from 'sonner';
 import {
@@ -178,6 +180,11 @@ const AlunoDetail = () => {
                       <ScanEye className="h-3 w-3" /> Correção ao vivo
                     </Badge>
                   )}
+                  {studentProfile?.premium_scale && (
+                    <Badge className="gap-1">
+                      <Scale className="h-3 w-3" /> Pesar refeição
+                    </Badge>
+                  )}
                 </div>
                 <p className="text-muted-foreground">{profile.email}</p>
                 {profile.telefone && <p className="text-sm text-muted-foreground">{profile.telefone}</p>}
@@ -237,6 +244,11 @@ const AlunoDetail = () => {
               studentProfile={studentProfile}
               onChanged={(v) => setStudentProfile((prev: any) => (prev ? { ...prev, premium_camera: v } : prev))}
               onDepthLevelChanged={(v) => setStudentProfile((prev: any) => (prev ? { ...prev, camera_depth_level: v } : prev))}
+            />
+            <MealWeighPremiumCard
+              studentId={id!}
+              studentProfile={studentProfile}
+              onChanged={(v) => setStudentProfile((prev: any) => (prev ? { ...prev, premium_scale: v } : prev))}
             />
           </TabsContent>
 
@@ -478,6 +490,7 @@ const AlunoDetail = () => {
                 </CardContent>
               </Card>
               <StudentDietTab studentId={id!} />
+              <StudentMealWeighLogs studentId={id!} />
               <StudentFoodScans studentId={id!} />
             </div>
           </TabsContent>

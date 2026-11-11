@@ -28,7 +28,7 @@ export const APPLY_ATTEMPT_KEY = 'marombiew:sw-apply-attempt';
 export const RECOVERY_KEY = 'marombiew:sw-recovery';
 export const SUPPRESS_KEY = 'marombiew:sw-update-hidden';
 /** Telas onde nunca recarregar, mesmo sem a trava registrada pelo componente. */
-export const PROTECTED_PATHS = ['/treino-execucao', '/correcao-ao-vivo-teste'];
+export const PROTECTED_PATHS = ['/treino-execucao', '/correcao-ao-vivo-teste', '/pesar-refeicao-teste'];
 
 /** Caches do app que a recuperação apaga; imagens e fontes ficam. */
 export function isAppShellCache(name: string): boolean {
