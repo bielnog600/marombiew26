@@ -64,7 +64,7 @@ describe('food-scanner weigh (Pesar refeição)', () => {
     expect(content[1]).toEqual({ type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: 'REVG' } });
     expect(content[3]).toEqual({ type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: 'QUJD' } });
     const prompt = content[4].text as string;
-    expect(prompt).toContain('ADICIONADO');
+    expect(prompt).toContain('SOMENTE o que foi adicionado');
     expect(prompt).toContain('Arroz branco cozido; Peito de frango grelhado');
     expect(prompt).toContain('Peito de frango grelhado (120 g)');
   });
