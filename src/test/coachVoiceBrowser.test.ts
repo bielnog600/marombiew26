@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 vi.mock('@/integrations/supabase/client', () => ({ supabase: {} }));
 
 import { createCoachVoice, type CoachVoiceDeps } from '@/lib/liveCorrection/voice/browserVoice';
+import { VoiceQueue } from '@/lib/liveCorrection/voice/queue';
 import { orderByPriority, voicePreloadPriority } from '@/lib/liveCorrection/voice/phrases';
 import { coachVoiceBadgeLabel, INITIAL_COACH_VOICE_STATUS, canSeeVoiceDiagnostic } from '@/lib/liveCorrection/voice/status';
 
@@ -48,6 +49,7 @@ function deps(ctx: any, el: any, rows = [{ phrase_key: 'desce_mais', file_path: 
     cache: new Map(),
     resumeTimeoutMs: 50,
     decodeTimeoutMs: 50,
+    preferMediaElement: false,
   };
 }
 
@@ -128,7 +130,7 @@ describe('Voz da Correção ao vivo — tocar no iPhone', () => {
     const ok = createCoachVoice(deps(ctx, fakeElement()));
     await ok.preload();
     ok.unlock();
-    expect(coachVoiceBadgeLabel(ok.getStatus(), 77)).toBe('Voz: Fabiew (1/77)');
+    expect(coachVoiceBadgeLabel(ok.getStatus(), 77)).toBe('Voz: Fabiew · webaudio (1/77)');
     const none = createCoachVoice(deps(ctx, fakeElement(), []));
     await none.preload();
     expect(coachVoiceBadgeLabel(none.getStatus(), 77)).toBe('Voz: celular · sem áudios');
@@ -148,5 +150,90 @@ describe('Voz da Correção ao vivo — ordem do download e quem vê o selo', ()
     expect(canSeeVoiceDiagnostic('qualquer-aluno', false)).toBe(false);
     expect(canSeeVoiceDiagnostic('qualquer-aluno', true)).toBe(true);
     expect(canSeeVoiceDiagnostic('0feb5458-15cb-490a-9341-90bd57795495', false)).toBe(true);
+  });
+});
+
+/** <audio> falso que registra o que tocou e quantos tocam ao mesmo tempo. */
+function trackedElements(log: { played: string[]; active: number; maxActive: number }) {
+  return () => {
+    const el: any = { src: '', pause: vi.fn(), setAttribute: vi.fn(), currentTime: 0 };
+    el.play = vi.fn(() => {
+      if (el.src.startsWith('data:')) return Promise.resolve();
+      log.played.push(el.src);
+      log.active++;
+      log.maxActive = Math.max(log.maxActive, log.active);
+      setTimeout(() => { log.active--; el.onended?.(); }, 5);
+      return Promise.resolve();
+    });
+    return el;
+  };
+}
+
+describe('Voz da Correção ao vivo — iPhone no silencioso (modo <audio>)', () => {
+  const rows = [
+    { phrase_key: 'numero_5', file_path: 'numero_5/1.mp3' },
+    { phrase_key: 'desce_mais', file_path: 'desce_mais/1.mp3' },
+  ];
+  const audioDeps = (ctx: any, createAudioElement: () => any): Partial<CoachVoiceDeps> => ({
+    ...deps(ctx, null, rows),
+    createAudioElement,
+    createObjectURL: (b: any) => `blob:${b.name}`,
+    download: async (path: string) => ({ name: path.split('/')[0], arrayBuffer: async () => new ArrayBuffer(8) }) as unknown as Blob,
+    preferMediaElement: true,
+  });
+
+  it('fila toca o número e depois a correção pelo <audio>, sem sobrepor e sem Web Audio', async () => {
+    const { ctx, started } = fakeContext('running');
+    const log = { played: [] as string[], active: 0, maxActive: 0 };
+    const voice = createCoachVoice(audioDeps(ctx, trackedElements(log)));
+    await voice.preload();
+    voice.unlock();
+    const tts = vi.spyOn(voice.outputs, 'speakTts');
+    await new VoiceQueue(voice.outputs).say(['cinco', 'Desce mais']);
+    expect(log.played).toEqual(['blob:numero_5', 'blob:desce_mais']);
+    expect(log.maxActive).toBe(1);
+    expect(started).toEqual([]);
+    expect(ctx.decodeAudioData).not.toHaveBeenCalled();
+    expect(tts).not.toHaveBeenCalled();
+    expect(coachVoiceBadgeLabel(voice.getStatus(), 77)).toBe('Voz: Fabiew · audio (2/77)');
+  });
+
+  it('unlock libera os elementos <audio> pré-criados já dentro do toque', async () => {
+    const { ctx } = fakeContext('suspended');
+    const els: any[] = [];
+    const voice = createCoachVoice(audioDeps(ctx, () => { const el = fakeElement(); els.push(el); return el; }));
+    await voice.preload();
+    expect(els).toHaveLength(2);
+    expect(coachVoiceBadgeLabel(voice.getStatus(), 77)).toBe('Voz: celular · áudio bloqueado');
+    voice.unlock();
+    expect(els.every((el) => el.play.mock.calls.length === 1 && el.src.startsWith('data:audio/wav'))).toBe(true);
+  });
+
+  it('<audio> falha: cai na Web Audio (decodifica na hora) e o selo mostra webaudio', async () => {
+    const { ctx, started } = fakeContext('running');
+    const voice = createCoachVoice(audioDeps(ctx, () => {
+      const el = fakeElement();
+      el.play = vi.fn(() => (el.src.startsWith('data:') ? Promise.resolve() : Promise.reject(new Error('NotSupportedError'))));
+      return el;
+    }));
+    await voice.preload();
+    voice.unlock();
+    await voice.outputs.playClip('desce_mais');
+    expect(started).toEqual(['buffer']);
+    expect(coachVoiceBadgeLabel(voice.getStatus(), 77)).toBe('Voz: Fabiew · webaudio (2/77)');
+  });
+
+  it('nenhum toca: a fila cai na voz do celular', async () => {
+    const { ctx } = fakeContext('suspended', { canResume: false });
+    const voice = createCoachVoice(audioDeps(ctx, () => {
+      const el = fakeElement();
+      el.play = vi.fn(() => Promise.reject(new Error('NotAllowedError')));
+      return el;
+    }));
+    await voice.preload();
+    const spoken: string[] = [];
+    vi.spyOn(voice.outputs, 'speakTts').mockImplementation(async (t) => { spoken.push(t); });
+    await new VoiceQueue(voice.outputs).say(['Desce mais']);
+    expect(spoken).toEqual(['Desce mais']);
   });
 });
