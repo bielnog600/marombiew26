@@ -69,10 +69,10 @@ describe('Correção ao vivo — casamento de nomes', () => {
     expect(normalizeExerciseName('Búlgaro  c/ halteres')).toBe('BULGARO C HALTERES');
   });
 
-  it('registro tem as 3 regras, id desconhecido cai no agachamento', () => {
-    expect(EXERCISE_RULE_ORDER).toEqual(['squat', 'stiff', 'bulgaro']);
+  it('registro tem as 5 regras, id desconhecido cai no agachamento', () => {
+    expect(EXERCISE_RULE_ORDER).toEqual(['squat', 'stiff', 'bulgaro', 'lateral_raise', 'hip_thrust']);
     expect(getExerciseRule('xyz').id).toBe('squat');
-    expect(EXERCISE_RULE_ORDER.map((id) => getExerciseRule(id).view)).toEqual(['side', 'side', 'side']);
+    expect(EXERCISE_RULE_ORDER.map((id) => getExerciseRule(id).view)).toEqual(['side', 'side', 'side', 'front', 'side']);
     expect(ALL_ERROR_MESSAGES.knee).toBe('Menos joelho, quadril pra trás');
   });
 });
