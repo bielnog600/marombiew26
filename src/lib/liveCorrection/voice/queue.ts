@@ -3,6 +3,8 @@
  * - Cada fala vira trechos: áudio aprovado (voz gravada) ou voz do celular (fallback).
  * - Um trecho por vez, na ordem (número primeiro, depois a correção), sem sobreposição.
  * - Uma fala nova interrompe a anterior, como a voz do celular já fazia.
+ * - Falas de motivação entram como áudio direto ({ clip, text }), sempre no fim da fala;
+ *   como a próxima fala interrompe a anterior, número e correção nunca esperam a motivação.
  */
 import { phraseKeyForText, splitSpeech } from './phrases';
 
@@ -10,10 +12,20 @@ export type VoiceSegment =
   | { kind: 'clip'; key: string; text: string }
   | { kind: 'tts'; text: string };
 
+/** Áudio aprovado tocado pela chave (falas de motivação), com o texto para a voz do celular. */
+export interface VoiceClipItem { clip: string; text: string }
+export type VoiceItem = string | VoiceClipItem;
+
 /** Trechos de uma fala: trecho com áudio aprovado toca o áudio, o resto usa a voz do celular. */
-export function resolveVoiceSegments(texts: readonly string[], hasClip: (key: string) => boolean): VoiceSegment[] {
+export function resolveVoiceSegments(texts: readonly VoiceItem[], hasClip: (key: string) => boolean): VoiceSegment[] {
   const out: VoiceSegment[] = [];
-  for (const text of texts) {
+  for (const item of texts) {
+    if (typeof item !== 'string') {
+      if (hasClip(item.clip)) out.push({ kind: 'clip', key: item.clip, text: item.text });
+      else if (item.text.trim()) out.push({ kind: 'tts', text: item.text });
+      continue;
+    }
+    const text = item;
     const parts = splitSpeech(text);
     const keys = parts.map((p) => phraseKeyForText(p));
     // Fala fora do catálogo continua inteira na voz do celular.
@@ -46,8 +58,11 @@ export class VoiceQueue {
   constructor(private readonly out: VoiceOutputs) {}
 
   /** Interrompe a fala atual e fala `texts` em sequência. */
-  say(texts: readonly string[]): Promise<void> {
-    const segments = resolveVoiceSegments(texts.filter((t) => t && t.trim()), (k) => this.out.hasClip(k));
+  say(texts: readonly VoiceItem[]): Promise<void> {
+    const segments = resolveVoiceSegments(
+      texts.filter((t) => (typeof t === 'string' ? t && t.trim() : t && t.clip)),
+      (k) => this.out.hasClip(k),
+    );
     const gen = ++this.generation;
     this.out.stop();
     const previous = this.running;
