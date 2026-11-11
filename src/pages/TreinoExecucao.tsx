@@ -1,4 +1,5 @@
 import { FinalSetRir } from '@/components/training/FinalSetRir';
+import { lazyWithRetry } from '@/lib/appUpdate/lazyWithRetry';
 import { finalWorkingSetIndex } from '@/lib/finalWorkingSetRir';
 import { MethodSetRows } from '@/components/training/MethodSetRows';
 import { WorkoutSetCard, RestOffscreenIndicator } from '@/components/training/WorkoutSetCard';
@@ -42,7 +43,7 @@ import ExerciseVideoCapture from '@/components/training/ExerciseVideoCapture';
 import { Settings2, Info, BarChart3, Camera, Maximize2, ScanEye } from 'lucide-react';
 import { usePremiumCamera } from '@/hooks/usePremiumCamera';
 import { isSquatExercise } from '@/lib/liveCorrection/squatAnalysis';
-const LiveCorrectionScreen = React.lazy(() => import('@/components/liveCorrection/LiveCorrectionScreen'));
+const LiveCorrectionScreen = lazyWithRetry(() => import('@/components/liveCorrection/LiveCorrectionScreen'));
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { methodExplanation } from '@/lib/workoutExecutionMethods';

@@ -1,4 +1,5 @@
 import { getWeekRange, summarizeDietWeek } from '@/lib/localTrackingWeek';
+import { lazyWithRetry } from '@/lib/appUpdate/lazyWithRetry';
 import { resolveStudentDayTarget } from '@/lib/studentDietDayTarget';
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import AppLayout from '@/components/AppLayout';
@@ -26,7 +27,7 @@ import { fetchWithCache } from '@/lib/offlineCache';
 import ProtocolsDialog from '@/components/diet/ProtocolsDialog';
 import { protocolsToKeys, type SavedProtocols, type ProtocolKey } from '@/lib/dietProtocols';
 import { ListChecks, ScanBarcode } from 'lucide-react';
-const FoodScanner = React.lazy(() => import('@/components/diet/FoodScanner'));
+const FoodScanner = lazyWithRetry(() => import('@/components/diet/FoodScanner'));
 import { buildCarbCycleDays } from '@/lib/dietAiActions';
 import { parseDietPlanLoose } from '@/lib/dietSchema';
 import {
