@@ -15,6 +15,7 @@ const CorrecaoAoVivoTeste = () => {
       <LiveCorrectionScreen
         studentId={user.id}
         exerciseName="Agachamento (teste)"
+        depthLevelPicker
         onClose={() => navigate('/dashboard')}
       />
     </Suspense>

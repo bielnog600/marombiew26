@@ -9,6 +9,7 @@ import { cn } from '@/lib/utils';
 import {
   FULL_BODY_HOLD_MS, SKELETON_COLOR, SIDE_POINTS, ERROR_MESSAGES, MIN_DESCENT_SECONDS,
   POSITION_MESSAGES, TURN_SIDEWAYS_MESSAGE, AUTO_FINISH_MESSAGE,
+  DEPTH_LEVELS, DEPTH_LEVEL_ORDER, DEFAULT_DEPTH_LEVEL, normalizeDepthLevel, type DepthLevel,
   LandmarkSmoother, SquatRepCounter, StillnessDetector, FacingGate, AutoFinishDetector,
   canSpeak, errorsToJson, frameMetrics, isFullBodyVisible, isFacingCamera, isStillMovement,
   diagnosePositioning, countdownValue, pickSide, planRepSpeech, repNumberWord, summarizeReps,
@@ -36,7 +37,33 @@ interface Props {
   onSaveToSet?: (completeReps: number) => void;
   /** Nome da série de destino, ex.: "Série 2". */
   targetSetLabel?: string;
+  /** Teste do admin: mostra um seletor para trocar a profundidade exigida na própria tela. */
+  depthLevelPicker?: boolean;
 }
+
+/** Seletor dos 3 níveis de profundidade (só no teste do admin). */
+const DepthLevelPicker: React.FC<{ value: DepthLevel; onChange: (v: DepthLevel) => void }> = ({ value, onChange }) => (
+  <div className="w-full max-w-sm" data-testid="live-depth-picker">
+    <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-2 text-center">Profundidade exigida (teste)</p>
+    <div className="grid grid-cols-3 gap-1.5" role="radiogroup" aria-label="Profundidade exigida">
+      {DEPTH_LEVEL_ORDER.map((lvl) => (
+        <button
+          key={lvl}
+          type="button"
+          role="radio"
+          aria-checked={value === lvl}
+          onClick={() => onChange(lvl)}
+          className={cn(
+            'min-h-11 rounded-xl border px-2 py-2 text-xs font-bold leading-tight',
+            value === lvl ? 'bg-primary text-primary-foreground border-primary' : 'bg-card/80 border-border text-foreground',
+          )}
+        >
+          {DEPTH_LEVELS[lvl].label}
+        </button>
+      ))}
+    </div>
+  </div>
+);
 
 /** Contorno de uma pessoa de lado, para guiar o posicionamento. */
 const GuideSilhouette: React.FC<{ active: boolean }> = ({ active }) => (
@@ -108,7 +135,7 @@ function drawSkeleton(canvas: HTMLCanvasElement, video: HTMLVideoElement, lms: L
   ctx.shadowBlur = 0;
 }
 
-const LiveCorrectionScreen: React.FC<Props> = ({ studentId, exerciseName, onClose, onSaveToSet, targetSetLabel }) => {
+const LiveCorrectionScreen: React.FC<Props> = ({ studentId, exerciseName, onClose, onSaveToSet, targetSetLabel, depthLevelPicker = false }) => {
   // Versão nova do app nunca recarrega com a câmera aberta.
   useHoldAppUpdate(true);
   const [phase, setPhase] = useState<Phase>('intro');
@@ -124,6 +151,7 @@ const LiveCorrectionScreen: React.FC<Props> = ({ studentId, exerciseName, onClos
   const [countdown, setCountdown] = useState(0);
   const [paused, setPaused] = useState(false);
   const [autoFinished, setAutoFinished] = useState(false);
+  const [depthLevel, setDepthLevel] = useState<DepthLevel>(DEFAULT_DEPTH_LEVEL);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -160,6 +188,19 @@ const LiveCorrectionScreen: React.FC<Props> = ({ studentId, exerciseName, onClos
   }, []);
 
   useEffect(() => { phaseRef.current = phase; }, [phase]);
+  useEffect(() => { counterRef.current.setDepthLevel(depthLevel); }, [depthLevel]);
+  // Profundidade escolhida pelo admin na ficha do aluno (sem perfil/erro = Padrão).
+  useEffect(() => {
+    if (depthLevelPicker) return;
+    let cancelled = false;
+    supabase
+      .from('students_profile')
+      .select('camera_depth_level')
+      .eq('user_id', studentId)
+      .maybeSingle()
+      .then(({ data }) => { if (!cancelled) setDepthLevel(normalizeDepthLevel(data?.camera_depth_level)); }, () => undefined);
+    return () => { cancelled = true; };
+  }, [studentId, depthLevelPicker]);
   useEffect(() => { voiceOnRef.current = voiceOn; }, [voiceOn]);
 
   const voiceAvailable = () => voiceOnRef.current && typeof window !== 'undefined' && 'speechSynthesis' in window;
@@ -461,6 +502,7 @@ const LiveCorrectionScreen: React.FC<Props> = ({ studentId, exerciseName, onClos
       camera_side: sideRef.current,
       tempo_medio_descida: s.avgDescentSeconds,
       reps_descida_rapida: s.fastDescentReps,
+      depth_level: counterRef.current.level,
     });
     if (error) setSaveError('Não foi possível salvar a sessão. Tente de novo.');
     setPhase('summary');
@@ -605,6 +647,7 @@ const LiveCorrectionScreen: React.FC<Props> = ({ studentId, exerciseName, onClos
             A contagem começa sozinha quando o corpo inteiro aparecer por 2 segundos.
           </p>
           <p className="text-xs text-muted-foreground">Câmera {facing === 'user' ? 'frontal' : 'traseira'} · troque no botão ao lado</p>
+          {depthLevelPicker && <DepthLevelPicker value={depthLevel} onChange={setDepthLevel} />}
           <Button size="lg" className="h-12 px-10 font-bold" onClick={begin}>Começar</Button>
         </div>
       )}
@@ -695,6 +738,7 @@ const LiveCorrectionScreen: React.FC<Props> = ({ studentId, exerciseName, onClos
           <div className="max-w-md mx-auto space-y-4">
             <h2 className="text-2xl font-black text-center">Resumo</h2>
             {autoFinished && <p className="-mt-2 text-sm text-center text-muted-foreground">Fechou a série</p>}
+            <p className="-mt-2 text-xs text-center text-muted-foreground" data-testid="live-summary-depth">Profundidade exigida: {DEPTH_LEVELS[depthLevel].label}</p>
             <div className="grid grid-cols-3 gap-2">
               <div className="glass-card rounded-2xl p-3 text-center">
                 <p className="text-3xl font-black tabular-nums">{summary.total}</p>
@@ -786,6 +830,7 @@ const LiveCorrectionScreen: React.FC<Props> = ({ studentId, exerciseName, onClos
                 Salvar na série{targetSetLabel ? ` (${targetSetLabel})` : ''} · {summary.complete} rep{summary.complete === 1 ? '' : 's'}
               </Button>
             )}
+            {depthLevelPicker && <div className="flex justify-center"><DepthLevelPicker value={depthLevel} onChange={setDepthLevel} /></div>}
             <Button size="lg" variant="outline" className="w-full h-12 font-bold border-primary text-primary hover:bg-primary/10" onClick={again} data-testid="live-again">
               <RotateCcw className="h-5 w-5 mr-2" />
               Fazer outra série
