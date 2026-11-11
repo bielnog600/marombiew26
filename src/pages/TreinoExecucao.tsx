@@ -43,7 +43,7 @@ import { SessionRpeDialog } from '@/components/training/SessionRpeDialog';
 import ExerciseVideoCapture from '@/components/training/ExerciseVideoCapture';
 import { Settings2, Info, BarChart3, Camera, Maximize2, ScanEye } from 'lucide-react';
 import { usePremiumCamera } from '@/hooks/usePremiumCamera';
-import { isSquatExercise } from '@/lib/liveCorrection/squatAnalysis';
+import { matchExerciseRule } from '@/lib/liveCorrection/exercises';
 const LiveCorrectionScreen = lazyWithRetry(() => import('@/components/liveCorrection/LiveCorrectionScreen'));
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
@@ -1620,7 +1620,7 @@ const TreinoExecucaoInner = () => {
               Execução
             </button>
           )}
-          {user && premiumCamera && exercise && isSquatExercise(effectiveNameFor(exercise)) && (
+          {user && premiumCamera && exercise && matchExerciseRule(effectiveNameFor(exercise)) && (
             <button
               type="button"
               onClick={() => {

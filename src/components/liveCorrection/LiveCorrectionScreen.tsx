@@ -251,6 +251,9 @@ const LiveCorrectionScreen: React.FC<Props> = ({
   const [frontLeg, setFrontLeg] = useState<Side | null>(null);
   /** Voltou a posicionar depois de "Trocar perna": a série continua com as reps já feitas. */
   const [resuming, setResuming] = useState(false);
+  /** Regra da série mostrada no resumo (o teste do admin pode trocar o seletor depois). */
+  const [summaryRuleId, setSummaryRuleId] = useState<ExerciseRuleId>(ruleId);
+  const summaryRule = getExerciseRule(summaryRuleId);
   /** Nome salvo/exibido: no teste do admin, o exercício escolhido no seletor. */
   const displayName = exercisePicker ? `${rule.label} (teste)` : exerciseName;
   const instructionName = exercisePicker ? null : exerciseName;
@@ -641,6 +644,7 @@ const LiveCorrectionScreen: React.FC<Props> = ({
     const repsDone = [...(counterRef.current?.reps ?? [])];
     const s = summarizeLiveReps(repsDone, ruleRef.current.messages);
     setReps(repsDone);
+    setSummaryRuleId(ruleRef.current.id);
     setSummary(s);
     setAutoFinished(auto);
     if (auto) speakSequence([AUTO_FINISH_MESSAGE]);
@@ -698,7 +702,7 @@ const LiveCorrectionScreen: React.FC<Props> = ({
 
   const complete = reps.filter((r) => r.complete).length;
   const incomplete = reps.length - complete;
-  const legSummaries = rule.needsFrontLeg ? summarizeByLeg(reps) : [];
+  const legSummaries = (phase === 'summary' ? summaryRule : rule).needsFrontLeg ? summarizeByLeg(reps) : [];
   const canStart = !rule.needsFrontLeg || frontLeg != null;
   const live = phase === 'loading' || phase === 'positioning' || phase === 'countdown' || phase === 'tracking';
   const mirrored = facing === 'user';
@@ -906,7 +910,7 @@ const LiveCorrectionScreen: React.FC<Props> = ({
             <h2 className="text-2xl font-black text-center">Resumo</h2>
             {autoFinished && <p className="-mt-2 text-sm text-center text-muted-foreground">Fechou a série</p>}
             <p className="-mt-2 text-xs text-center text-muted-foreground" data-testid="live-summary-depth">Nível: {DEPTH_LEVELS[depthLevel].label}</p>
-            <p className="-mt-3 text-[11px] text-center text-muted-foreground">{rule.label} · {rule.levelHints[depthLevel]}</p>
+            <p className="-mt-3 text-[11px] text-center text-muted-foreground">{summaryRule.label} · {summaryRule.levelHints[depthLevel]}</p>
             <div className="grid grid-cols-3 gap-2">
               <div className="glass-card rounded-2xl p-3 text-center">
                 <p className="text-3xl font-black tabular-nums">{summary.total}</p>
@@ -933,7 +937,7 @@ const LiveCorrectionScreen: React.FC<Props> = ({
                 <div>
                   <p className={cn('text-2xl font-black tabular-nums', summary.fastDescentReps > 0 && 'text-destructive')}>{summary.fastDescentReps}</p>
                   <p className="text-[11px] uppercase tracking-wider text-muted-foreground">
-                    Rápida{summary.fastDescentReps === 1 ? '' : 's'} demais (&lt; {rule.minDescentSeconds.toLocaleString('pt-BR', { minimumFractionDigits: 1 })} s)
+                    Rápida{summary.fastDescentReps === 1 ? '' : 's'} demais (&lt; {summaryRule.minDescentSeconds.toLocaleString('pt-BR', { minimumFractionDigits: 1 })} s)
                   </p>
                 </div>
               </div>
@@ -977,7 +981,7 @@ const LiveCorrectionScreen: React.FC<Props> = ({
                           </span>
                         </div>
                         <p className="text-xs text-muted-foreground">
-                          {r.errors.length ? r.errors.map((e) => rule.messages[e] ?? e).join(' · ') : 'Sem erros'}
+                          {r.errors.length ? r.errors.map((e) => summaryRule.messages[e] ?? e).join(' · ') : 'Sem erros'}
                         </p>
                       </div>
                     </li>

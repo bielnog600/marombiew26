@@ -16,6 +16,7 @@ const CorrecaoAoVivoTeste = () => {
         studentId={user.id}
         exerciseName="Agachamento (teste)"
         depthLevelPicker
+        exercisePicker
         onClose={() => navigate('/dashboard')}
       />
     </Suspense>
