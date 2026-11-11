@@ -38,7 +38,7 @@ export const TRICEPS_MESSAGES: Record<TricepsError, string> = {
   descent: 'Controla a descida',
 };
 
-export const TRICEPS_INSTRUCTION = 'Celular de lado, com o corpo da cintura pra cima e o braço aparecendo, também acima da cabeça';
+export const TRICEPS_INSTRUCTION = 'Celular de lado, com o corpo da cintura pra cima e o braço aparecendo, inclusive acima da cabeça';
 
 export interface TricepsMetrics {
   elbowAngle: number;

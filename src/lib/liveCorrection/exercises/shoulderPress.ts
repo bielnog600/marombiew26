@@ -36,7 +36,7 @@ export const PRESS_MESSAGES: Record<PressError, string> = {
 };
 
 export const PRESS_INSTRUCTION =
-  'Coloca o celular no chão ou apoiado, de frente pra você, com o corpo da cintura pra cima e os braços aparecendo, também esticados em cima';
+  'Coloca o celular no chão ou apoiado, de frente pra você, com o corpo da cintura pra cima e os braços aparecendo, inclusive esticados em cima';
 
 export interface PressMetrics {
   leftElbow: number;

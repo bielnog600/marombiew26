@@ -197,9 +197,28 @@ const HipThrustSilhouette: React.FC<{ active: boolean }> = ({ active }) => (
   </svg>
 );
 
+/** De lado, da cintura pra cima, com o braço dobrado (rosca, tríceps francês). */
+const SideUpperSilhouette: React.FC<{ active: boolean }> = ({ active }) => (
+  <svg
+    viewBox="0 0 160 220"
+    className={cn('h-[60%] max-h-[480px] text-primary transition-opacity duration-300', active ? 'opacity-70' : 'opacity-40')}
+    fill="none"
+    aria-hidden="true"
+    data-testid="live-guide-silhouette"
+    data-silhouette="side_upper"
+  >
+    <g stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" strokeDasharray="6 5">
+      <circle cx="76" cy="30" r="20" fill="currentColor" fillOpacity="0.15" />
+      <path d="M62 56 C54 70 52 92 54 118 L56 200 L94 200 L96 118 C98 92 96 70 88 56 Z" fill="currentColor" fillOpacity="0.12" />
+      <path d="M76 70 L80 132 L120 104" strokeWidth="5" />
+    </g>
+  </svg>
+);
+
 /** Contorno de uma pessoa de lado, para guiar o posicionamento. */
 const GuideSilhouette: React.FC<{ active: boolean; kind?: SilhouetteKind }> = ({ active, kind = 'standing' }) =>
   kind === 'front_upper' ? <FrontUpperSilhouette active={active} />
+  : kind === 'side_upper' ? <SideUpperSilhouette active={active} />
   : kind === 'hip_thrust' ? <HipThrustSilhouette active={active} />
   : kind !== 'standing' ? <SplitSilhouette active={active} bench={kind === 'split_bench'} /> : (
   <svg
@@ -223,7 +242,7 @@ const GuideSilhouette: React.FC<{ active: boolean; kind?: SilhouetteKind }> = ({
 
 interface Feedback { text: string; tone: 'ok' | 'error' | 'info' }
 
-function drawSkeleton(canvas: HTMLCanvasElement, video: HTMLVideoElement, lms: Landmark[] | null, side: Side, kind: 'legs' | 'arms' = 'legs') {
+function drawSkeleton(canvas: HTMLCanvasElement, video: HTMLVideoElement, lms: Landmark[] | null, side: Side, kind: 'legs' | 'arms' | 'arm_side' = 'legs') {
   const ctx = canvas.getContext('2d');
   if (!ctx) return;
   const dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -249,7 +268,8 @@ function drawSkeleton(canvas: HTMLCanvasElement, video: HTMLVideoElement, lms: L
     // Braços (vista de frente): os dois lados contam igual.
     const main = kind === 'arms' || s === side;
     const p = SIDE_POINTS[s], a = ARM_POINTS[s];
-    const chain = kind === 'arms' ? [a.hip, a.shoulder, a.elbow, a.wrist] : [p.shoulder, p.hip, p.knee, p.ankle];
+    // De lado (rosca, tríceps francês): braço medido em destaque.
+    const chain = kind !== 'legs' ? [a.hip, a.shoulder, a.elbow, a.wrist] : [p.shoulder, p.hip, p.knee, p.ankle];
     ctx.globalAlpha = main ? 1 : 0.3;
     ctx.lineWidth = main ? 4 : 2;
     ctx.shadowBlur = main ? 10 : 0;
@@ -312,7 +332,7 @@ const LiveCorrectionScreen: React.FC<Props> = ({
   const counterRef = useRef<LiveRepCounter | null>(null);
   // Um contador por regra; trocar de exercício (teste do admin) cria um novo.
   if (!counterRef.current || counterRef.current.ruleId !== rule.id) {
-    counterRef.current = rule.createCounter(depthLevel, frontLeg ?? 'left');
+    counterRef.current = rule.createCounter(depthLevel, frontLeg ?? 'left', instructionName);
   }
   const ruleRef = useRef(rule);
   ruleRef.current = rule;
@@ -857,9 +877,9 @@ const LiveCorrectionScreen: React.FC<Props> = ({
             {rule.instruction(instructionName)}
           </p>
           <p className="text-sm text-muted-foreground max-w-xs">
-            {rule.view === 'front'
+            {rule.startHint ?? (rule.view === 'front'
               ? 'A contagem começa sozinha quando você aparecer de frente, parado, por 2 segundos.'
-              : 'A contagem começa sozinha quando o corpo inteiro aparecer por 2 segundos.'}
+              : 'A contagem começa sozinha quando o corpo inteiro aparecer por 2 segundos.')}
           </p>
           <p className="text-xs text-muted-foreground">Câmera {facing === 'user' ? 'frontal' : 'traseira'} · troque no botão ao lado</p>
           {exercisePicker && <ExercisePicker value={ruleId} onChange={setRuleId} />}
