@@ -191,7 +191,7 @@ describe('Correção ao vivo — stiff', () => {
 
   it('pelos pontos: rep completa contada do começo ao fim', () => {
     const c = new StiffRepCounter();
-    const seq: [number, number, number][] = [[178, 0, 0], [175, 10, 200], [170, 30, 800], [165, 50, 1600], [162, 62, 2600], [170, 30, 3400], [178, 2, 4000]];
+    const seq: [number, number, number][] = [[178, 0, 0], [175, 10, 200], [170, 30, 800], [165, 50, 1600], [162, 62, 3200], [170, 30, 3800], [178, 2, 4400]];
     let last = null;
     for (const [k, l, t] of seq) last = c.update(pose({ knee: k, lean: l }), 1, 1, 'left', t) ?? last;
     expect(last).toMatchObject({ complete: true, errors: [] });
