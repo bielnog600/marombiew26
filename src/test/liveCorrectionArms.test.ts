@@ -149,7 +149,7 @@ describe('Rosca', () => {
     let t = 0;
     const push = (a: number) => { const r = c.push(cm(a), t); t += 100; return r; };
     push(170); push(130); push(90); push(50);
-    for (const a of [55, 60, 70, 80, 90, 100, 110, 120, 125, 130, 135, 140, 145]) expect(push(a)).toBeNull();
+    for (let a = 55; a <= 145; a += 5) expect(push(a)).toBeNull(); // volta devagar só até 145°
     const first = push(130);
     expect(first?.errors).toEqual(['curl_extend']);
     expect(first?.complete).toBe(true);
