@@ -192,6 +192,8 @@ export function createCoachVoice(overrides: Partial<CoachVoiceDeps> = {}): Coach
   const pool: HTMLAudioElement[] = [];
   const primed = new Set<HTMLAudioElement>();
   let nextEl = 0;
+  /** Elemento tocando agora (o desbloqueio de um toque no meio da fala não troca o src dele). */
+  let currentEl: HTMLAudioElement | null = null;
   let speechPrimed = false;
   /** Sobe a cada stop(): áudio que ainda esperava o resume() não toca depois de parado. */
   let epoch = 0;
@@ -272,7 +274,12 @@ export function createCoachVoice(overrides: Partial<CoachVoiceDeps> = {}): Coach
     if (!el) { reject(new Error('audio_element_unavailable')); return; }
     const url = urlFor(key, clip);
     let timer: ReturnType<typeof setTimeout> | undefined;
-    const cleanup = () => { if (timer) clearTimeout(timer); pending.delete(done); el.onended = null; el.onerror = null; };
+    const cleanup = () => {
+      if (timer) clearTimeout(timer);
+      pending.delete(done);
+      el.onended = null; el.onerror = null;
+      if (currentEl === el) currentEl = null;
+    };
     const done = () => { cleanup(); resolve(); };
     const fail = (e: unknown) => { cleanup(); reject(e ?? new Error('audio_element_failed')); };
     pending.add(done);
@@ -280,6 +287,7 @@ export function createCoachVoice(overrides: Partial<CoachVoiceDeps> = {}): Coach
     el.onerror = () => fail(el.error ?? new Error('audio_element_error'));
     // Áudio que nunca avisa o fim não trava a fila.
     timer = setTimeout(done, 15000);
+    currentEl = el;
     try {
       el.src = url;
       try { el.currentTime = 0; } catch { /* alguns navegadores só depois de carregar */ }
@@ -367,7 +375,7 @@ export function createCoachVoice(overrides: Partial<CoachVoiceDeps> = {}): Coach
   /** Libera cada <audio> no toque: tocar algo mudo dentro do gesto vale para os próximos áudios. */
   const primeElements = () => {
     for (const el of ensurePool()) {
-      if (primed.has(el)) continue;
+      if (primed.has(el) || el === currentEl) continue;
       primed.add(el);
       try {
         el.src = SILENT_WAV;
