@@ -49,8 +49,22 @@ describe('Correção ao vivo — tela inicial por exercício', () => {
     expect(screen.getByTestId('live-instruction')).toHaveTextContent('Celular no chão, de lado, na altura do banco, com o corpo inteiro aparecendo');
   });
 
-  it('teste do admin lista os 5 exercícios', () => {
+  it('teste do admin lista os 8 exercícios', () => {
     render(<LiveCorrectionScreen studentId="u1" exerciseName="x" exercisePicker onClose={() => undefined} />);
-    expect(screen.getAllByRole('radio', { name: /Agachamento|Stiff|Búlgaro|Elevação lateral|Elevação pélvica/ })).toHaveLength(5);
+    expect(screen.getAllByRole('radio', { name: /Agachamento|Stiff|Búlgaro|Elevação lateral|Elevação pélvica|Rosca|Tríceps francês|Desenvolvimento/ })).toHaveLength(8);
+  });
+
+  it('rosca, francês e desenvolvimento: instrução própria, sem corpo inteiro', () => {
+    const { unmount } = render(<LiveCorrectionScreen studentId="u1" exerciseName="ROSCA DIRETA C/ HALTERES" onClose={() => undefined} />);
+    expect(screen.getByTestId('live-instruction')).toHaveTextContent('Celular de lado, com o corpo da cintura pra cima e o braço aparecendo');
+    expect(screen.getByText(/da cintura pra cima, parado/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Começar' })).toBeEnabled();
+    unmount();
+    const r2 = render(<LiveCorrectionScreen studentId="u1" exerciseName="TRÍCEPS FRANCÊS" onClose={() => undefined} />);
+    expect(screen.getByTestId('live-instruction')).toHaveTextContent('acima da cabeça');
+    r2.unmount();
+    render(<LiveCorrectionScreen studentId="u1" exerciseName="DESENV. ARNOLD" onClose={() => undefined} />);
+    expect(screen.getByTestId('live-instruction')).toHaveTextContent('de frente pra você');
+    expect(screen.getByText(/aparecer de frente, parado/)).toBeInTheDocument();
   });
 });
