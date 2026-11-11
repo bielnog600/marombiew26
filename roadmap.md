@@ -1,5 +1,11 @@
 # Roadmap
 
+## Pesar refeição (Premium)
+- [x] Permissão premium_scale (só admin), interruptor e selo na ficha, ativado para Fabiew Aires; "Testar Pesar refeição" no Dashboard.
+- [x] Botão em cada refeição; câmera traseira com moldura, foto por item, IA (mesmo Claude do scanner) com foto anterior + atual, card editável, aviso de visor ilegível e de balança não zerada, resumo previsto × pesado e salvar.
+- [x] "Refeições pesadas" na aba Dietas do aluno; 24 testes novos; fluxo conferido no navegador com câmera e respostas simuladas.
+- [ ] Testar com balança e foto reais no celular — nenhuma chamada real à IA foi feita.
+
 ## Correção ao vivo (Premium)
 - [x] Coluna premium_camera (só admin altera), interruptor e sessões na ficha do aluno, filtro e selo na lista de alunos; ativado para Fabiew Aires.
 - [x] Botão nos agachamentos do treino do aluno; tela cheia com câmera, esqueleto, contador, correções, voz e resumo salvo em camera_sessions.

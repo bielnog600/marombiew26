@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from 'react';
-import { Check, ChevronDown, Plus, SlidersHorizontal, Trash2, ArrowRightLeft, X, UtensilsCrossed } from 'lucide-react';
+import { Check, ChevronDown, Plus, SlidersHorizontal, Trash2, ArrowRightLeft, X, UtensilsCrossed, Scale } from 'lucide-react';
 import { toast } from 'sonner';
 import type { ParsedFood, ParsedMeal } from '@/lib/dietResultParser';
 import { scaleFood, parseNumeric } from '@/lib/dailyDietRebalance';
@@ -39,6 +39,8 @@ interface StudentMealCardProps {
   onMoveFood: (food: ParsedFood, targetMealIndex: number) => void;
   /** Destaque da refeição sugerida pelo horário atual. */
   isCurrent?: boolean;
+  /** Premium "Pesar refeição": o botão só aparece quando informado. */
+  onWeigh?: () => void;
 }
 
 const StudentMealCard: React.FC<StudentMealCardProps> = ({
@@ -51,6 +53,7 @@ const StudentMealCard: React.FC<StudentMealCardProps> = ({
   moveTargets,
   onMoveFood,
   isCurrent,
+  onWeigh,
 }) => {
   const [adjustMode, setAdjustMode] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
@@ -158,6 +161,16 @@ const StudentMealCard: React.FC<StudentMealCardProps> = ({
                   {adjustMode ? <X className="h-3.5 w-3.5" /> : <SlidersHorizontal className="h-3.5 w-3.5" />}
                   {adjustMode ? 'Concluir' : 'Ajustar'}
                 </button>
+                {onWeigh && (
+                  <button
+                    type="button"
+                    onClick={onWeigh}
+                    className="ml-auto inline-flex items-center gap-1.5 rounded-full border border-primary/50 bg-primary/10 px-3 py-1.5 text-xs font-semibold text-primary transition-colors hover:bg-primary/15"
+                  >
+                    <Scale className="h-3.5 w-3.5" />
+                    Pesar refeição
+                  </button>
+                )}
               </div>
 
               <div className="mt-3 rounded-xl bg-background/40">

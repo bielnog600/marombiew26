@@ -23,6 +23,7 @@ import { preloadWhenIdle } from "@/lib/appUpdate/idlePreload";
 import AppUpdateToast from "@/components/AppUpdateToast";
 const Dashboard = lazyWithRetry(() => import("./pages/Dashboard"));
 const CorrecaoAoVivoTeste = lazyWithRetry(() => import("./pages/CorrecaoAoVivoTeste"));
+const PesarRefeicaoTeste = lazyWithRetry(() => import("./pages/PesarRefeicaoTeste"));
 const Alunos = lazyWithRetry(() => import("./pages/Alunos"));
 const AlunoDetail = lazyWithRetry(() => import("./pages/AlunoDetail"));
 const NovaAvaliacao = lazyWithRetry(() => import("./pages/NovaAvaliacao"));
@@ -130,6 +131,7 @@ const App = () => {
               <Route path="/login" element={<Login />} />
               <Route path="/dashboard" element={<ProtectedRoute requiredRole="admin"><Dashboard /></ProtectedRoute>} />
               <Route path="/correcao-ao-vivo-teste" element={<ProtectedRoute requiredRole="admin"><CorrecaoAoVivoTeste /></ProtectedRoute>} />
+              <Route path="/pesar-refeicao-teste" element={<ProtectedRoute requiredRole="admin"><PesarRefeicaoTeste /></ProtectedRoute>} />
               <Route path="/alunos" element={<ProtectedRoute requiredRole="admin"><Alunos /></ProtectedRoute>} />
               <Route path="/alunos/:id" element={<ProtectedRoute requiredRole="admin"><AlunoDetail /></ProtectedRoute>} />
               <Route path="/nova-avaliacao/:studentId" element={<ProtectedRoute requiredRole="admin"><NovaAvaliacao /></ProtectedRoute>} />

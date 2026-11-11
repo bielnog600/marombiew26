@@ -2282,6 +2282,57 @@ export type Database = {
         }
         Relationships: []
       }
+      meal_weigh_logs: {
+        Row: {
+          created_at: string
+          diet_plan_id: string | null
+          id: string
+          items: Json
+          log_date: string
+          meal_index: number | null
+          meal_name: string
+          meal_time: string | null
+          planned: Json | null
+          student_id: string
+          total_c: number
+          total_g: number
+          total_kcal: number
+          total_p: number
+        }
+        Insert: {
+          created_at?: string
+          diet_plan_id?: string | null
+          id?: string
+          items?: Json
+          log_date?: string
+          meal_index?: number | null
+          meal_name?: string
+          meal_time?: string | null
+          planned?: Json | null
+          student_id: string
+          total_c?: number
+          total_g?: number
+          total_kcal?: number
+          total_p?: number
+        }
+        Update: {
+          created_at?: string
+          diet_plan_id?: string | null
+          id?: string
+          items?: Json
+          log_date?: string
+          meal_index?: number | null
+          meal_name?: string
+          meal_time?: string | null
+          planned?: Json | null
+          student_id?: string
+          total_c?: number
+          total_g?: number
+          total_kcal?: number
+          total_p?: number
+        }
+        Relationships: []
+      }
       metadata_vocabularies: {
         Row: {
           aliases: Json
@@ -3320,6 +3371,7 @@ export type Database = {
           objetivo: string | null
           observacoes: string | null
           premium_camera: boolean
+          premium_scale: boolean
           presencial: boolean
           raca: string | null
           restricoes: string | null
@@ -3345,6 +3397,7 @@ export type Database = {
           objetivo?: string | null
           observacoes?: string | null
           premium_camera?: boolean
+          premium_scale?: boolean
           presencial?: boolean
           raca?: string | null
           restricoes?: string | null
@@ -3370,6 +3423,7 @@ export type Database = {
           objetivo?: string | null
           observacoes?: string | null
           premium_camera?: boolean
+          premium_scale?: boolean
           presencial?: boolean
           raca?: string | null
           restricoes?: string | null
@@ -4156,6 +4210,7 @@ export type Database = {
         Returns: number
       }
       has_premium_camera: { Args: { _user_id: string }; Returns: boolean }
+      has_premium_scale: { Args: { _user_id: string }; Returns: boolean }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -4216,6 +4271,7 @@ export type Database = {
           objetivo: string | null
           observacoes: string | null
           premium_camera: boolean
+          premium_scale: boolean
           presencial: boolean
           raca: string | null
           restricoes: string | null
@@ -4322,6 +4378,7 @@ export type Database = {
           objetivo: string | null
           observacoes: string | null
           premium_camera: boolean
+          premium_scale: boolean
           presencial: boolean
           raca: string | null
           restricoes: string | null
