@@ -3,6 +3,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useTabSwipe } from '@/contexts/TabSwipeContext';
+import { useBottomNavHidden } from '@/hooks/useBottomNavVisibility';
 import {
   LayoutDashboard, Users, ClipboardList, User, Briefcase, LogOut,
   Home, Dumbbell, UtensilsCrossed, Apple, Settings2,
@@ -36,6 +37,7 @@ const BottomNav: React.FC = () => {
   const location = useLocation();
   const items = role === 'admin' ? adminItems : alunoItems;
   const { dragProgress, isDragging } = useTabSwipe();
+  const hiddenByOverlay = useBottomNavHidden();
 
   const containerRef = useRef<HTMLDivElement | null>(null);
   const itemRefs = useRef<Array<HTMLButtonElement | null>>([]);
@@ -102,6 +104,9 @@ const BottomNav: React.FC = () => {
     await signOut();
     navigate('/login');
   };
+
+  // Tela cheia aberta por cima (ex.: Pesar refeição): o menu some.
+  if (hiddenByOverlay) return null;
 
   return (
     <nav
