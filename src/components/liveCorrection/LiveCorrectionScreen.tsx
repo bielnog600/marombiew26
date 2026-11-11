@@ -23,6 +23,8 @@ import {
   type ExerciseRule, type ExerciseRuleId, type LiveRep, type LiveRepCounter, type LiveSessionSummary, type SilhouetteKind,
   type TimedCounter, type TimedSummary,
 } from '@/lib/liveCorrection/exercises';
+import { createCoachVoice, type CoachVoice } from '@/lib/liveCorrection/voice/browserVoice';
+import { START_MESSAGE, legSwitchMessage } from '@/lib/liveCorrection/voice/phrases';
 
 const MP_VERSION = '0.10.17';
 const WASM_URL = `https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@${MP_VERSION}/wasm`;
@@ -432,6 +434,9 @@ const LiveCorrectionScreen: React.FC<Props> = ({
   const finishRef = useRef<(auto: boolean) => void>(() => undefined);
   const timedViewRef = useRef<TimedView | null>(null);
   const issueTextRef = useRef<string | null>(null);
+  /** Voz gravada do personal (áudios aprovados) com a voz do celular como fallback. */
+  const voiceRef = useRef<CoachVoice | null>(null);
+  if (!voiceRef.current) voiceRef.current = createCoachVoice();
 
   /** Muda a fase já no ref, para o próximo frame não repetir a transição. */
   const goPhase = useCallback((next: Phase) => {
@@ -457,25 +462,15 @@ const LiveCorrectionScreen: React.FC<Props> = ({
     return () => { cancelled = true; };
   }, [studentId, depthLevelPicker]);
   useEffect(() => { voiceOnRef.current = voiceOn; }, [voiceOn]);
+  // Pré-carrega os áudios aprovados assim que a tela abre.
+  useEffect(() => { void voiceRef.current?.preload(); }, []);
 
-  const voiceAvailable = () => voiceOnRef.current && typeof window !== 'undefined' && 'speechSynthesis' in window;
+  const voiceAvailable = () => voiceOnRef.current && typeof window !== 'undefined';
 
-  /** Fala os textos em sequência (interrompe a fala anterior). */
+  /** Fala os textos em sequência (interrompe a fala anterior, um trecho por vez). */
   const speakSequence = useCallback((texts: string[]) => {
     if (!voiceAvailable() || !texts.length) return;
-    try {
-      const synth = window.speechSynthesis;
-      synth.cancel();
-      const voices = synth.getVoices();
-      const voice = voices.find((v) => v.lang?.toLowerCase() === 'pt-br') ?? voices.find((v) => v.lang?.toLowerCase().startsWith('pt'));
-      for (const text of texts) {
-        const u = new SpeechSynthesisUtterance(text);
-        u.lang = 'pt-BR';
-        u.rate = 1.05;
-        if (voice) u.voice = voice;
-        synth.speak(u);
-      }
-    } catch { /* voz indisponível */ }
+    try { voiceRef.current?.say(texts); } catch { /* voz indisponível */ }
   }, []);
 
   const speak = useCallback((text: string, force = false) => {
@@ -612,7 +607,7 @@ const LiveCorrectionScreen: React.FC<Props> = ({
         setPaused(false);
         goPhase('tracking');
         showFeedback({ text: 'Pode começar!', tone: 'ok' }, 2000);
-        speak('Pode começar', true);
+        speak(START_MESSAGE, true);
       }
       return;
     }
@@ -714,14 +709,8 @@ const LiveCorrectionScreen: React.FC<Props> = ({
   }, [processFrame]);
 
   const begin = useCallback(async () => {
-    // Toque do usuário: libera a voz no iPhone.
-    try {
-      if ('speechSynthesis' in window) {
-        const u = new SpeechSynthesisUtterance(' ');
-        u.volume = 0;
-        window.speechSynthesis.speak(u);
-      }
-    } catch { /* ignore */ }
+    // Toque do usuário: libera o áudio gravado e a voz no iPhone.
+    try { voiceRef.current?.unlock(); } catch { /* ignore */ }
     setPhase('loading');
     setErrorText(null);
     resumeRef.current = false;
@@ -785,7 +774,7 @@ const LiveCorrectionScreen: React.FC<Props> = ({
   const releaseAll = useCallback(() => {
     stopLoop();
     stopStream();
-    try { window.speechSynthesis?.cancel(); } catch { /* ignore */ }
+    try { voiceRef.current?.cancel(); } catch { /* ignore */ }
     try { wakeLockRef.current?.release?.(); } catch { /* ignore */ }
     wakeLockRef.current = null;
   }, [stopLoop, stopStream]);
@@ -869,7 +858,7 @@ const LiveCorrectionScreen: React.FC<Props> = ({
     pausedRef.current = false;
     setPaused(false);
     goPhase('positioning');
-    speak(`Agora a perna ${LEG_LABELS[next].toLowerCase()} na frente`, true);
+    speak(legSwitchMessage(next), true);
   };
 
   const saveToSet = () => {
@@ -958,7 +947,7 @@ const LiveCorrectionScreen: React.FC<Props> = ({
         <div className="flex flex-col gap-2 shrink-0">
           <button
             type="button"
-            onClick={() => setVoiceOn((v) => { if (v) { try { window.speechSynthesis?.cancel(); } catch { /* */ } } return !v; })}
+            onClick={() => setVoiceOn((v) => { if (v) { try { voiceRef.current?.cancel(); } catch { /* */ } } return !v; })}
             aria-label={voiceOn ? 'Desligar voz' : 'Ligar voz'}
             aria-pressed={voiceOn}
             className={cn('h-11 w-11 rounded-full border flex items-center justify-center', voiceOn ? 'bg-primary text-primary-foreground border-primary' : 'bg-card/80 border-border text-muted-foreground')}

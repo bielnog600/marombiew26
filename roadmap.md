@@ -217,3 +217,8 @@ Fora do escopo desta entrega (Fases 3-6): LOW/MEDIUM/HIGH, novo carb cycling, aj
 - [x] Tela por cima de tudo, menu inferior escondido, rodapé fixo (Próximo alimento / Concluir refeição / Tirar de novo), chips dos itens pesados e "Alimento N"
 - [x] Foto anterior sempre a partir do 2º item; prompt "só o adicionado"; não pesados como candidatos; repetido rejeitado com chips; observação de tara só com suspeita
 - [ ] Conferir no iPhone real com balança (testado só com câmera e IA simuladas)
+
+## Voz da Correção ao vivo (ElevenLabs)
+- [x] Tela do admin, falas automáticas do código, gerar/aprovar por fala, câmera toca as aprovadas com fallback.
+- [ ] Cadastrar ELEVENLABS_API_KEY — aguardando o Fabiew colar a chave.
+- [ ] Gerar e ouvir as falas reais e testar no iPhone — nenhuma chamada real ao ElevenLabs foi feita.

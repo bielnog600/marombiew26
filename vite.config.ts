@@ -72,6 +72,16 @@ export default defineConfig(({ mode }) => ({
             },
           },
           {
+            // Voz gravada da Correção ao vivo: cada arquivo tem data no nome e nunca muda.
+            urlPattern: /^https:\/\/.*\.supabase\.co\/storage\/v1\/object\/(authenticated\/)?coach-voice\/.*\.mp3$/i,
+            handler: "CacheFirst",
+            options: {
+              cacheName: "coach-voice",
+              expiration: { maxEntries: 400, maxAgeSeconds: 60 * 60 * 24 * 365 },
+              cacheableResponse: { statuses: [200] },
+            },
+          },
+          {
             // Imagens de exercícios e fotos hospedadas no Supabase Storage
             urlPattern: /^https:\/\/.*\.supabase\.co\/storage\/v1\/object\/public\/.*\.(png|jpg|jpeg|webp|svg|gif)$/i,
             handler: "CacheFirst",
