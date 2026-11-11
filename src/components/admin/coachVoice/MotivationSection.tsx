@@ -15,7 +15,10 @@ import ConfirmDeleteButton from './ConfirmDeleteButton';
 export interface CustomPhrasePatch { momento?: VoiceMoment; frequencia?: VoiceFrequency; ativo?: boolean }
 
 interface Props {
+  /** Falas que passam no filtro da aba. */
   rows: PhraseRow[];
+  /** Existe alguma fala (mesmo fora do filtro). */
+  hasAny: boolean;
   takesByKey: Map<string, CoachVoiceTake[]>;
   urls: Record<string, string>;
   busyKey: string | null;
@@ -31,7 +34,7 @@ interface Props {
 
 /** Categoria "Motivação": falas que o admin escreve e escolhe quando tocam. */
 const MotivationSection: React.FC<Props> = ({
-  rows, takesByKey, urls, busyKey, disabled, rowErrors, onGenerate, onApprove, onSaveText, onAdd, onUpdate, onDelete,
+  rows, hasAny, takesByKey, urls, busyKey, disabled, rowErrors, onGenerate, onApprove, onSaveText, onAdd, onUpdate, onDelete,
 }) => {
   const [adding, setAdding] = useState(false);
   const [text, setText] = useState('');
@@ -51,7 +54,7 @@ const MotivationSection: React.FC<Props> = ({
   return (
     <section className="space-y-2" data-testid="coach-voice-motivation">
       <div className="flex items-center justify-between gap-2">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Motivação</h2>
+        <p className="text-xs text-muted-foreground">Tocam só depois do número e da correção, no máximo 1 a cada 3 reps.</p>
         {!adding && (
           <Button size="sm" variant="outline" onClick={() => setAdding(true)} data-testid="coach-voice-add-phrase">
             <Plus className="h-4 w-4 mr-1" /> Adicionar fala
@@ -79,7 +82,7 @@ const MotivationSection: React.FC<Props> = ({
         </Card>
       )}
       {!rows.length && !adding && (
-        <p className="text-xs text-muted-foreground">Nenhuma fala de motivação ainda. Elas tocam só depois do número e da correção, no máximo 1 a cada 3 reps.</p>
+        <p className="text-xs text-muted-foreground">{hasAny ? 'Nenhuma fala neste filtro.' : 'Nenhuma fala de motivação ainda.'}</p>
       )}
       {rows.map((r) => (
         <PhraseCard

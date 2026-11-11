@@ -1,9 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { Plus, Sparkles, Square, UserRound } from 'lucide-react';
+import { AlertTriangle, Plus, UserRound } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Progress } from '@/components/ui/progress';
 import { Switch } from '@/components/ui/switch';
 import type { CoachVoiceTake } from '@/lib/coachVoice/api';
 import {
@@ -25,13 +24,13 @@ interface Props {
   busyKey: string | null;
   disabled: boolean;
   rowErrors: Record<string, string>;
-  pendingCount: number;
-  bulk: { done: number; total: number } | null;
-  bulkError: string | null;
+  /** Chave geral "Falas com nome do aluno". */
+  enabled: boolean;
+  onToggleEnabled(v: boolean): void;
+  /** Fala passa no filtro da aba. */
+  visible(key: string): boolean;
   onGenerate(key: string): void;
   onApprove(take: CoachVoiceTake): void;
-  onGenerateAll(): void;
-  onStopAll(): void;
   onTemplateAdd(): void;
   onTemplateUpdate(id: string, patch: TemplatePatch): void;
   onTemplateDelete(id: string): void;
@@ -97,7 +96,18 @@ const NamePhrasesSection: React.FC<Props> = (p) => {
   const active = p.templates.filter((t) => t.ativo);
   return (
     <section className="space-y-3" data-testid="coach-voice-names">
-      <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Falas com nome</h2>
+      {!p.enabled && (
+        <div className="flex items-start justify-between gap-3 rounded-2xl border border-primary/40 bg-primary/10 p-3" role="status" data-testid="coach-voice-names-disabled">
+          <div className="flex items-start gap-2">
+            <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5 text-primary" />
+            <div>
+              <p className="text-sm font-semibold">Falas com nome desativadas</p>
+              <p className="text-xs text-muted-foreground">Não tocam na câmera de nenhum aluno. Modelos, nomes e gravações ficam guardados para quando você religar.</p>
+            </div>
+          </div>
+          <Switch checked={false} onCheckedChange={p.onToggleEnabled} aria-label="Religar falas com nome do aluno" />
+        </div>
+      )}
       <Card className="glass-card">
         <CardContent className="p-3 space-y-3">
           <div className="flex items-center justify-between gap-2">
@@ -109,22 +119,6 @@ const NamePhrasesSection: React.FC<Props> = (p) => {
               <TemplateRow key={t.id} t={t} onUpdate={(patch) => p.onTemplateUpdate(t.id, patch)} onDelete={() => p.onTemplateDelete(t.id)} />
             ))}
           </ul>
-          <div className="flex flex-wrap items-center gap-3">
-            {p.bulk ? (
-              <Button variant="outline" onClick={p.onStopAll}><Square className="h-4 w-4 mr-1.5" /> Parar</Button>
-            ) : (
-              <Button onClick={p.onGenerateAll} disabled={p.disabled || !p.pendingCount} data-testid="coach-voice-generate-names">
-                <Sparkles className="h-4 w-4 mr-1.5" /> Gerar falas com nome ({p.pendingCount})
-              </Button>
-            )}
-          </div>
-          {p.bulk && (
-            <div className="space-y-1">
-              <Progress value={(p.bulk.done / p.bulk.total) * 100} />
-              <p className="text-xs text-muted-foreground">Gerando {Math.min(p.bulk.done + 1, p.bulk.total)} de {p.bulk.total}…</p>
-            </div>
-          )}
-          {p.bulkError && <p className="text-sm text-destructive" role="alert">{p.bulkError}</p>}
         </CardContent>
       </Card>
 
@@ -140,6 +134,7 @@ const NamePhrasesSection: React.FC<Props> = (p) => {
             {!name && <p className="text-xs text-muted-foreground">Preencha como falar o nome para criar as falas.</p>}
             {name && active.map((t) => {
               const key = namePhraseKey(t.id, s.user_id);
+              if (!p.visible(key)) return null;
               const row = p.rowsByKey.get(key);
               return (
                 <PhraseCard
