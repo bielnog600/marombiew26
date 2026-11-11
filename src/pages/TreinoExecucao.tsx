@@ -49,6 +49,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { methodExplanation } from '@/lib/workoutExecutionMethods';
 import { canSeeVoiceDiagnostic } from '@/lib/liveCorrection/voice/status';
+import { parseTargetReps } from '@/lib/liveCorrection/voice/motivation';
 import { fetchWithCache, getCached, setCache } from '@/lib/offlineCache';
 import { useRestTimer } from '@/hooks/useRestTimer';
 import { useSessionProgression } from '@/hooks/useSessionProgression';
@@ -1717,6 +1718,7 @@ const TreinoExecucaoInner = () => {
             studentId={user.id}
             exerciseName={liveCorrectionName}
             voiceDiagnostic={canSeeVoiceDiagnostic(user.id, isAdmin)}
+            targetReps={liveCorrectionTarget ? parseTargetReps(setPlan[liveCorrectionTarget.setIdx]?.reps) : null}
             onClose={() => { setLiveCorrectionName(null); setLiveCorrectionTarget(null); }}
             targetSetLabel={liveCorrectionTarget ? `Série ${liveCorrectionTarget.setIdx + 1}` : undefined}
             onSaveToSet={liveCorrectionTarget ? (completeReps) => {
