@@ -470,7 +470,7 @@ export function createCoachVoice(overrides: Partial<CoachVoiceDeps> & { studentI
         }
         deps.log(`${systemRows.length} falas aprovadas + ${motivationRows.size} de motivação (modo ${mode})`);
         update({ listed: true, approved: systemRows.length });
-        const ordered = orderByPriority(rows, priorityKeys);
+        const ordered = orderByPriority([...systemRows, ...rows.filter((r) => motivationRows.has(r.phrase_key))], priorityKeys);
         // Poucos por vez para não disputar a rede com o modelo da câmera.
         let i = 0;
         let decoded = 0;
