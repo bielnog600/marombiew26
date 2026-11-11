@@ -3,6 +3,8 @@ import { useEventTracking } from '@/hooks/useEventTracking';
 import { useAuth } from '@/contexts/AuthContext';
 import { resolveStaleWorkoutSessionsThrottled } from '@/lib/workoutSessionResolution';
 import ForgottenWorkoutPrompt from '@/components/training/ForgottenWorkoutPrompt';
+import { useLanguage } from '@/i18n';
+import { syncStudentAppLanguage } from '@/lib/studentAppLanguage';
 
 /**
  * Registra "app_opened" para o aluno em qualquer rota (não só na Home),
@@ -12,6 +14,13 @@ import ForgottenWorkoutPrompt from '@/components/training/ForgottenWorkoutPrompt
 const StudentAppOpenTracker = () => {
   const { user, role } = useAuth();
   const { trackEvent } = useEventTracking();
+  const { language } = useLanguage();
+
+  // Idioma do aparelho no perfil: permite traduzir o plano assim que for publicado.
+  useEffect(() => {
+    if (!user || role !== 'aluno') return;
+    void syncStudentAppLanguage(language);
+  }, [user?.id, role, language]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!user || role !== 'aluno') return;
