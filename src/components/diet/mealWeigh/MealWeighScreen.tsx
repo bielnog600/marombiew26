@@ -824,7 +824,7 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
               <p className="text-xs font-semibold mb-2">Previsto × consumido</p>
               <table className="w-full text-xs tabular-nums">
                 <thead>
-                  <tr className="text-muted-foreground"><th className="text-left font-medium" /><th className="text-right font-medium">Previsto</th><th className="text-right font-medium">Pesado</th><th className="text-right font-medium">Diferença</th></tr>
+                  <tr className="text-muted-foreground"><th className="text-left font-medium" /><th className="text-right font-medium">Previsto</th><th className="text-right font-medium">Consumido</th><th className="text-right font-medium">Diferença</th></tr>
                 </thead>
                 <tbody>
                   {(['kcal', 'p', 'c', 'g'] as const).map((k) => (

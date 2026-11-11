@@ -12,6 +12,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import AddFoodDialog from './AddFoodDialog';
+import { formatDayWeighLabel, type DayFoodWeigh } from '@/lib/mealWeigh';
 import FoodSubstitutionDialog from './FoodSubstitutionDialog';
 
 const parseNum = (v?: string) => {
@@ -21,6 +22,30 @@ const parseNum = (v?: string) => {
 };
 
 const round = (n: number) => Math.round(Number.isFinite(n) ? n : 0);
+
+/** Selo da pesagem do dia, quando o alimento veio de "Pesar refeição". */
+const foodWeigh = (food: ParsedFood): DayFoodWeigh | null => {
+  const w = (food as ParsedFood & { weigh?: DayFoodWeigh }).weigh;
+  return w && typeof w.status === 'string' ? w : null;
+};
+
+const WeighBadge: React.FC<{ weigh: DayFoodWeigh }> = ({ weigh }) => {
+  if (weigh.status === 'pesado') {
+    return (
+      <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-primary/50 bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold text-primary">
+        <Scale className="h-3 w-3" /> Pesado
+      </span>
+    );
+  }
+  const label = weigh.status === 'fora_do_plano' ? 'Fora do plano' : weigh.status === 'nao_comeu' ? 'Não comeu' : 'Sem pesar';
+  return (
+    <span className={`inline-flex shrink-0 items-center gap-1 rounded-full border px-1.5 py-0.5 text-[10px] font-semibold ${
+      weigh.status === 'fora_do_plano' ? 'border-primary/50 bg-primary/10 text-primary' : 'border-border bg-secondary/60 text-muted-foreground'
+    }`}>
+      {weigh.status === 'fora_do_plano' && <Scale className="h-3 w-3" />} {label}
+    </span>
+  );
+};
 
 export interface MealTarget {
   index: number;
@@ -45,6 +70,8 @@ interface StudentMealCardProps {
   onWeighFood?: (foodIndex: number) => void;
   /** Só exibição (ex.: tradução); dados e callbacks seguem com o texto original. */
   displayText?: (text: string) => string;
+  /** Refeição já pesada neste dia: mostra o consumido e trava a edição (pesar de novo substitui). */
+  weighed?: boolean;
 }
 
 const StudentMealCard: React.FC<StudentMealCardProps> = ({
@@ -60,6 +87,7 @@ const StudentMealCard: React.FC<StudentMealCardProps> = ({
   onWeigh,
   onWeighFood,
   displayText,
+  weighed,
 }) => {
   const show = displayText ?? ((text: string) => text);
   const [adjustMode, setAdjustMode] = useState(false);
@@ -127,6 +155,11 @@ const StudentMealCard: React.FC<StudentMealCardProps> = ({
             <div className="flex items-center gap-2">
               {meal.time && <span className="text-xs font-semibold text-primary">{meal.time}</span>}
               <span className="truncate text-sm font-semibold text-foreground">{show(meal.name)}</span>
+              {weighed && (
+                <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-primary/50 bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold text-primary" data-testid="meal-weighed-badge">
+                  <Scale className="h-3 w-3" /> Pesado
+                </span>
+              )}
             </div>
             <p className="mt-0.5 text-[11px] text-muted-foreground">
               {totalKcal > 0 ? `Aprox. ${round(totalKcal)} kcal` : 'Sem calorias registradas'}
@@ -148,6 +181,7 @@ const StudentMealCard: React.FC<StudentMealCardProps> = ({
           <div className="overflow-hidden">
             <div className="border-t border-border/50 px-3 pb-3 pt-3">
               <div className="flex gap-2">
+                {!weighed && (<>
                 <button
                   type="button"
                   onClick={() => setAddOpen(true)}
@@ -168,6 +202,7 @@ const StudentMealCard: React.FC<StudentMealCardProps> = ({
                   {adjustMode ? <X className="h-3.5 w-3.5" /> : <SlidersHorizontal className="h-3.5 w-3.5" />}
                   {adjustMode ? 'Concluir' : 'Ajustar'}
                 </button>
+                </>)}
                 {onWeigh && (
                   <button
                     type="button"
@@ -175,7 +210,7 @@ const StudentMealCard: React.FC<StudentMealCardProps> = ({
                     className="ml-auto inline-flex items-center gap-1.5 rounded-full border border-primary/50 bg-primary/10 px-3 py-1.5 text-xs font-semibold text-primary transition-colors hover:bg-primary/15"
                   >
                     <Scale className="h-3.5 w-3.5" />
-                    Pesar refeição
+                    {weighed ? 'Pesar de novo' : 'Pesar refeição'}
                   </button>
                 )}
               </div>
@@ -186,17 +221,20 @@ const StudentMealCard: React.FC<StudentMealCardProps> = ({
                     Nenhum alimento nesta refeição.
                   </p>
                 )}
-                {foods.map((food, foodIndex) => (
+                {foods.map((food, foodIndex) => {
+                  const weigh = foodWeigh(food);
+                  const locked = !!weighed;
+                  return (
                   <div
                     key={`${meal.name}-${food.food}-${foodIndex}`}
                     className="flex items-start gap-2 border-b border-border/30 px-3 py-2.5 last:border-0"
                   >
                     <div
-                      role={adjustMode ? undefined : 'button'}
-                      tabIndex={adjustMode ? undefined : 0}
-                      onClick={adjustMode ? undefined : () => setSubIndex(foodIndex)}
+                      role={adjustMode || locked ? undefined : 'button'}
+                      tabIndex={adjustMode || locked ? undefined : 0}
+                      onClick={adjustMode || locked ? undefined : () => setSubIndex(foodIndex)}
                       onKeyDown={
-                        adjustMode
+                        adjustMode || locked
                           ? undefined
                           : (e) => {
                               if (e.key === 'Enter' || e.key === ' ') {
@@ -205,12 +243,18 @@ const StudentMealCard: React.FC<StudentMealCardProps> = ({
                               }
                             }
                       }
-                      aria-label={adjustMode ? undefined : `Substituir ${food.food}`}
+                      aria-label={adjustMode || locked ? undefined : `Substituir ${food.food}`}
                       className={`min-w-0 flex-1 rounded-lg transition-colors ${
-                        adjustMode ? '' : 'cursor-pointer active:bg-primary/5'
+                        adjustMode || locked ? '' : 'cursor-pointer active:bg-primary/5'
                       }`}
                     >
-                      <p className="truncate text-sm font-medium text-foreground">{show(food.food)}</p>
+                      <div className="flex min-w-0 items-center gap-1.5">
+                        <p className={`truncate text-sm font-medium ${weigh?.status === 'nao_comeu' ? 'text-muted-foreground line-through' : 'text-foreground'}`}>{show(food.food)}</p>
+                        {weigh && <WeighBadge weigh={weigh} />}
+                      </div>
+                      {weigh && (weigh.status === 'pesado' || weigh.status === 'fora_do_plano' || weigh.status === 'nao_comeu') && (
+                        <p className="mt-0.5 text-[11px] font-semibold text-primary" data-testid="meal-food-weigh-label">{formatDayWeighLabel(weigh)}</p>
+                      )}
                       <div className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[11px]">
                         {adjustMode ? (
                           <Input
@@ -234,7 +278,7 @@ const StudentMealCard: React.FC<StudentMealCardProps> = ({
                         <span className="text-chart-5">G {food.g || '0'}</span>
                       </div>
                     </div>
-                    <div className="flex shrink-0 items-center gap-1">
+                    {!locked && <div className="flex shrink-0 items-center gap-1">
                       {onWeighFood && !adjustMode && (
                         <button
                           type="button"
@@ -278,9 +322,10 @@ const StudentMealCard: React.FC<StudentMealCardProps> = ({
                       >
                         <Trash2 className="h-3.5 w-3.5" />
                       </button>
-                    </div>
+                    </div>}
                   </div>
-                ))}
+                  );
+                })}
               </div>
 
               {onToggleComplete && (
