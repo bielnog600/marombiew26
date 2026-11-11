@@ -149,7 +149,7 @@ describe('Rosca', () => {
     let t = 0;
     const push = (a: number) => { const r = c.push(cm(a), t); t += 100; return r; };
     push(170); push(130); push(90); push(50);
-    for (const a of [70, 90, 110, 125, 135, 145]) expect(push(a)).toBeNull();
+    for (const a of [55, 60, 70, 80, 90, 100, 110, 120, 125, 130, 135, 140, 145]) expect(push(a)).toBeNull();
     const first = push(130);
     expect(first?.errors).toEqual(['curl_extend']);
     expect(first?.complete).toBe(true);
@@ -229,7 +229,7 @@ describe('Tríceps francês', () => {
   });
 
   it('faltou mais de 10° → "Desce mais atrás da cabeça"', () => {
-    const { rep } = tricepsRep(new TricepsFrenchCounter(), 0, 90);
+    const { rep } = tricepsRep(new TricepsFrenchCounter(), 0, 90, { downFrames: 30 });
     expect(rep?.complete).toBe(false);
     expect(rep?.errors).toEqual(['triceps_low']);
     expect(TRICEPS_MESSAGES.triceps_low).toBe('Desce mais atrás da cabeça');
@@ -291,7 +291,7 @@ const pm = (l: number, r: number = l): PressMetrics => ({ leftElbow: l, rightElb
 /** Braços esticados → descem até `bottom` → sobem até `peak` → começam a descer (fecha a rep). */
 function pressRep(
   c: ShoulderPressCounter, t0: number, bottom: number,
-  opts: { peak?: number; bottomR?: number; peakR?: number; downFrames?: number } = {},
+  opts: { peak?: number; bottomDiff?: number; peakR?: number; downFrames?: number } = {},
 ) {
   let t = t0;
   const peak = opts.peak ?? 172;
@@ -300,7 +300,8 @@ function pressRep(
   for (let k = 0; k < 3; k++) push(pm(172));
   const down = opts.downFrames ?? 20;
   for (let k = 1; k < down; k++) push(pm(172 - (172 - bottom) * (k / down)));
-  push(pm(bottom, opts.bottomR ?? bottom));
+  const d = opts.bottomDiff ?? 0;
+  push(pm(bottom - d / 2, bottom + d / 2));
   for (let k = 1; k < 5; k++) push(pm(bottom + (peak - bottom) * (k / 5)));
   push(pm(peak, opts.peakR ?? peak));
   expect(rep).toBeNull();
@@ -317,7 +318,7 @@ describe('Desenvolvimento', () => {
   });
 
   it('faltou mais de 10° → "Desce até a altura da orelha"', () => {
-    const { rep } = pressRep(new ShoulderPressCounter(), 0, 115);
+    const { rep } = pressRep(new ShoulderPressCounter(), 0, 115, { downFrames: 30 });
     expect(rep?.complete).toBe(false);
     expect(rep?.errors).toEqual(['press_low']);
     expect(PRESS_MESSAGES.press_low).toBe('Desce até a altura da orelha');
@@ -334,9 +335,9 @@ describe('Desenvolvimento', () => {
   });
 
   it('braços diferentes mais de 15° no fundo ou no topo → "Sobe os dois iguais"', () => {
-    expect(pressRep(new ShoulderPressCounter(), 0, 80, { bottomR: 100 }).rep?.errors).toEqual(['asymmetry']);
+    expect(pressRep(new ShoulderPressCounter(), 0, 90, { bottomDiff: 20 }).rep?.errors).toEqual(['asymmetry']);
     expect(pressRep(new ShoulderPressCounter(), 0, 90, { peak: 178, peakR: 160 }).rep?.errors).toEqual(['asymmetry']);
-    expect(pressRep(new ShoulderPressCounter(), 0, 85, { bottomR: 99 }).rep?.errors).toEqual([]);
+    expect(pressRep(new ShoulderPressCounter(), 0, 90, { bottomDiff: 14 }).rep?.errors).toEqual([]);
     expect(PRESS_MESSAGES.asymmetry).toBe('Sobe os dois iguais');
   });
 
