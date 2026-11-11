@@ -1043,6 +1043,7 @@ export type Database = {
           id: boolean
           language_code: string
           model_id: string | null
+          motivation_enabled: boolean
           similarity_boost: number
           stability: number
           updated_at: string
@@ -1053,6 +1054,7 @@ export type Database = {
           id?: boolean
           language_code?: string
           model_id?: string | null
+          motivation_enabled?: boolean
           similarity_boost?: number
           stability?: number
           updated_at?: string
@@ -1063,6 +1065,7 @@ export type Database = {
           id?: boolean
           language_code?: string
           model_id?: string | null
+          motivation_enabled?: boolean
           similarity_boost?: number
           stability?: number
           updated_at?: string
@@ -1074,26 +1077,44 @@ export type Database = {
       coach_voice_phrases: {
         Row: {
           approved_take_id: string | null
+          ativo: boolean
           categoria: string
           created_at: string
+          frequencia: string
+          momento: string | null
           phrase_key: string
+          student_id: string | null
+          template_id: string | null
           texto: string
+          tipo: string
           updated_at: string
         }
         Insert: {
           approved_take_id?: string | null
+          ativo?: boolean
           categoria: string
           created_at?: string
+          frequencia?: string
+          momento?: string | null
           phrase_key: string
+          student_id?: string | null
+          template_id?: string | null
           texto: string
+          tipo?: string
           updated_at?: string
         }
         Update: {
           approved_take_id?: string | null
+          ativo?: boolean
           categoria?: string
           created_at?: string
+          frequencia?: string
+          momento?: string | null
           phrase_key?: string
+          student_id?: string | null
+          template_id?: string | null
           texto?: string
+          tipo?: string
           updated_at?: string
         }
         Relationships: [
@@ -1102,6 +1123,13 @@ export type Database = {
             columns: ["approved_take_id"]
             isOneToOne: false
             referencedRelation: "coach_voice_takes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "coach_voice_phrases_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "coach_voice_templates"
             referencedColumns: ["id"]
           },
         ]
@@ -1152,6 +1180,36 @@ export type Database = {
             referencedColumns: ["phrase_key"]
           },
         ]
+      }
+      coach_voice_templates: {
+        Row: {
+          ativo: boolean
+          created_at: string
+          frequencia: string
+          id: string
+          momento: string
+          texto: string
+          updated_at: string
+        }
+        Insert: {
+          ativo?: boolean
+          created_at?: string
+          frequencia?: string
+          id?: string
+          momento: string
+          texto: string
+          updated_at?: string
+        }
+        Update: {
+          ativo?: boolean
+          created_at?: string
+          frequencia?: string
+          id?: string
+          momento?: string
+          texto?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       composition: {
         Row: {
@@ -3527,6 +3585,8 @@ export type Database = {
           suspension_reason: string | null
           updated_at: string
           user_id: string
+          voice_motivation_enabled: boolean
+          voice_name: string | null
         }
         Insert: {
           access_status?: string
@@ -3554,6 +3614,8 @@ export type Database = {
           suspension_reason?: string | null
           updated_at?: string
           user_id: string
+          voice_motivation_enabled?: boolean
+          voice_name?: string | null
         }
         Update: {
           access_status?: string
@@ -3581,6 +3643,8 @@ export type Database = {
           suspension_reason?: string | null
           updated_at?: string
           user_id?: string
+          voice_motivation_enabled?: boolean
+          voice_name?: string | null
         }
         Relationships: []
       }
@@ -4360,6 +4424,21 @@ export type Database = {
           phrase_key: string
         }[]
       }
+      coach_voice_clips: {
+        Args: { _student_id?: string }
+        Returns: {
+          file_path: string
+          frequencia: string
+          momento: string
+          phrase_key: string
+          texto: string
+          tipo: string
+        }[]
+      }
+      coach_voice_motivation_enabled: {
+        Args: { _student_id?: string }
+        Returns: boolean
+      }
       evaluate_metadata_completeness: {
         Args: { _exercise_id: string }
         Returns: Json
@@ -4441,6 +4520,8 @@ export type Database = {
           suspension_reason: string | null
           updated_at: string
           user_id: string
+          voice_motivation_enabled: boolean
+          voice_name: string | null
         }
         SetofOptions: {
           from: "*"
@@ -4550,6 +4631,8 @@ export type Database = {
           suspension_reason: string | null
           updated_at: string
           user_id: string
+          voice_motivation_enabled: boolean
+          voice_name: string | null
         }
         SetofOptions: {
           from: "*"
