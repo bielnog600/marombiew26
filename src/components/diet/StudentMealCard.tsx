@@ -43,6 +43,8 @@ interface StudentMealCardProps {
   onWeigh?: () => void;
   /** Premium: ícone de balança em cada alimento (só lê o peso). */
   onWeighFood?: (foodIndex: number) => void;
+  /** Só exibição (ex.: tradução); dados e callbacks seguem com o texto original. */
+  displayText?: (text: string) => string;
 }
 
 const StudentMealCard: React.FC<StudentMealCardProps> = ({
@@ -57,7 +59,9 @@ const StudentMealCard: React.FC<StudentMealCardProps> = ({
   isCurrent,
   onWeigh,
   onWeighFood,
+  displayText,
 }) => {
+  const show = displayText ?? ((text: string) => text);
   const [adjustMode, setAdjustMode] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
   const [subIndex, setSubIndex] = useState<number | null>(null);
@@ -122,7 +126,7 @@ const StudentMealCard: React.FC<StudentMealCardProps> = ({
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
               {meal.time && <span className="text-xs font-semibold text-primary">{meal.time}</span>}
-              <span className="truncate text-sm font-semibold text-foreground">{meal.name}</span>
+              <span className="truncate text-sm font-semibold text-foreground">{show(meal.name)}</span>
             </div>
             <p className="mt-0.5 text-[11px] text-muted-foreground">
               {totalKcal > 0 ? `Aprox. ${round(totalKcal)} kcal` : 'Sem calorias registradas'}
@@ -206,7 +210,7 @@ const StudentMealCard: React.FC<StudentMealCardProps> = ({
                         adjustMode ? '' : 'cursor-pointer active:bg-primary/5'
                       }`}
                     >
-                      <p className="truncate text-sm font-medium text-foreground">{food.food}</p>
+                      <p className="truncate text-sm font-medium text-foreground">{show(food.food)}</p>
                       <div className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[11px]">
                         {adjustMode ? (
                           <Input

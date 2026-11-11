@@ -8,7 +8,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/i18n';
-import { translatePlanMarkdown } from '@/lib/planTranslation';
+import { getCachedPlanTranslation, translatePlanMarkdown } from '@/lib/planTranslation';
+import { buildPlanTextDictionary, translateDisplayText } from '@/lib/planTranslationDisplay';
 import { UtensilsCrossed } from 'lucide-react';
 import { parseSections, type ParsedSection } from '@/lib/dietResultParser';
 import { parseTrainingSections } from '@/lib/trainingResultParser';
@@ -281,49 +282,86 @@ const MinhasDietas = () => {
     return () => { supabase.removeChannel(channel); };
   }, [user]);
 
+  // A dieta nunca espera a tradução: carrega e mostra o original, e a
+  // tradução (só texto exibido) chega depois em segundo plano.
   const loadDiet = async () => {
     if (!user) return;
-    // Chave de cache versionada: o cache antigo não continha conteudo_json.
-    const { data: dieta } = await fetchWithCache(
-      `plan:dieta:full:${DIET_DISPLAY_SCHEMA_VERSION}:${user.id}`,
-      async () => {
-        const { data } = await supabase
-          .from('ai_plans')
-          .select('id, titulo, conteudo, conteudo_json, protocols, version, content_revision, created_at, published_at, is_draft')
-          .eq('student_id', user.id)
-          .eq('tipo', 'dieta')
-          .eq('is_draft', false)
-          .order('published_at', { ascending: false, nullsFirst: false })
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .maybeSingle();
-        return data;
-      },
-    );
-    if (dieta) {
-      const conteudo = await translatePlanMarkdown(dieta.conteudo, language);
-      setSections(parseSections(conteudo));
-      setDietMarkdown(conteudo);
-      const saved = (dieta as any).protocols as SavedProtocols | null | undefined;
-      setProtocolKeys(protocolsToKeys(saved));
-      setWeeklySchedule((saved as any)?.weekly_energy_schedule ?? null);
-      // HOTFIX ALUNO — structured publicada: o cardápio vem de conteudo_json.
-      const canonical = parseDietPlanLoose((dieta as any).conteudo_json);
-      const rawTargets = (dieta as any).conteudo_json?.targets ?? (canonical as any)?.targets ?? null;
-      setPublishedTargets(rawTargets && Number(rawTargets.kcal) > 0 ? rawTargets : null);
-      const structured = isStructuredPublishedDiet(canonical, (dieta as any).is_draft);
-      setStructuredPlan(structured ? canonical : null);
-      setStructuredProtocols(structured ? saved ?? null : null);
-      setPlanId(dieta.id);
-      // Version key combines plan id + created_at so any admin edit (which
-      // bumps created_at via re-insert OR keeps it via update) is detected.
-      // We hash the content length as a tiebreaker for in-place updates.
-      setPlanVersion(
-        `${dieta.id}-${(dieta as any).content_revision ?? 0}-${dieta.conteudo.length}-${DIET_DISPLAY_SCHEMA_VERSION}`,
+    try {
+      // Chave de cache versionada: o cache antigo não continha conteudo_json.
+      const { data: dieta } = await fetchWithCache(
+        `plan:dieta:full:${DIET_DISPLAY_SCHEMA_VERSION}:${user.id}`,
+        async () => {
+          const { data } = await supabase
+            .from('ai_plans')
+            .select('id, titulo, conteudo, conteudo_json, protocols, version, content_revision, created_at, published_at, is_draft')
+            .eq('student_id', user.id)
+            .eq('tipo', 'dieta')
+            .eq('is_draft', false)
+            .order('published_at', { ascending: false, nullsFirst: false })
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          return data;
+        },
       );
+      if (dieta) {
+        // Lógica (refeições, macros, pesagem, rebalanceamento) usa SEMPRE o
+        // original em português; a tradução fica só na camada de exibição.
+        const conteudo = typeof dieta.conteudo === 'string' ? dieta.conteudo : '';
+        setSections(parseSections(conteudo));
+        setDietMarkdown(conteudo);
+        const saved = (dieta as any).protocols as SavedProtocols | null | undefined;
+        setProtocolKeys(protocolsToKeys(saved));
+        setWeeklySchedule((saved as any)?.weekly_energy_schedule ?? null);
+        // HOTFIX ALUNO — structured publicada: o cardápio vem de conteudo_json.
+        const canonical = parseDietPlanLoose((dieta as any).conteudo_json);
+        const rawTargets = (dieta as any).conteudo_json?.targets ?? (canonical as any)?.targets ?? null;
+        setPublishedTargets(rawTargets && Number(rawTargets.kcal) > 0 ? rawTargets : null);
+        const structured = isStructuredPublishedDiet(canonical, (dieta as any).is_draft);
+        setStructuredPlan(structured ? canonical : null);
+        setStructuredProtocols(structured ? saved ?? null : null);
+        setPlanId(dieta.id);
+        // Version key combines plan id + created_at so any admin edit (which
+        // bumps created_at via re-insert OR keeps it via update) is detected.
+        // We hash the content length as a tiebreaker for in-place updates.
+        setPlanVersion(
+          `${dieta.id}-${(dieta as any).content_revision ?? 0}-${conteudo.length}-${DIET_DISPLAY_SCHEMA_VERSION}`,
+        );
+      }
+    } catch (error) {
+      console.error('[MinhasDietas] falha ao carregar a dieta', error);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
+
+  // Tradução em segundo plano (nunca bloqueia a tela). Só troca texto exibido.
+  const [translation, setTranslation] = useState<{ source: string; language: string; text: string } | null>(null);
+  useEffect(() => {
+    if (language === 'pt' || !dietMarkdown.trim()) return;
+    let cancelled = false;
+    translatePlanMarkdown(dietMarkdown, language)
+      .then((text) => { if (!cancelled) setTranslation({ source: dietMarkdown, language, text }); })
+      .catch(() => { /* mantém o original */ });
+    return () => { cancelled = true; };
+  }, [dietMarkdown, language]);
+  const cachedTranslation = useMemo(
+    () => (language === 'pt' ? null : getCachedPlanTranslation(dietMarkdown, language)),
+    [dietMarkdown, language],
+  );
+  const translatedMarkdown = language === 'pt'
+    ? null
+    : translation && translation.source === dietMarkdown && translation.language === language
+      ? translation.text
+      : cachedTranslation;
+  const displayDictionary = useMemo(
+    () => buildPlanTextDictionary(dietMarkdown, translatedMarkdown),
+    [dietMarkdown, translatedMarkdown],
+  );
+  const displayText = useCallback(
+    (text: string) => translateDisplayText(displayDictionary, text),
+    [displayDictionary],
+  );
 
   const mealGroups = useMemo(() => {
     const mealSections = sections.filter(s => s.type === 'meal' && s.meals && s.meals.length > 0);
@@ -1169,6 +1207,7 @@ const MinhasDietas = () => {
                 <StudentMealCard
                   key={`day-${activeGroupIndex}-${meal.name}-${meal.time || 'sem-hora'}-${i}`}
                   meal={meal}
+                  displayText={displayDictionary ? displayText : undefined}
                   expanded={expandedMeal === i}
                   isCurrent={selectedDate === trackingToday && currentMealIndex === i}
                   onToggleExpand={() => {
@@ -1179,7 +1218,7 @@ const MinhasDietas = () => {
                   onToggleComplete={() => handleToggleMeal(i)}
                   onFoodsChange={(foods) => handleFoodsChange(i, foods)}
                   moveTargets={currentMeals
-                    .map((m, mi) => ({ index: mi, name: m.time ? `${m.time} · ${m.name}` : m.name }))
+                    .map((m, mi) => ({ index: mi, name: m.time ? `${m.time} · ${displayText(m.name)}` : displayText(m.name) }))
                     .filter((t) => t.index !== i)}
                   onMoveFood={(food, targetIndex) => handleMoveFood(i, food, targetIndex)}
                   onWeigh={premiumScale ? () => { if (ensureCanRegister()) setWeighTarget({ meal: i }); } : undefined}

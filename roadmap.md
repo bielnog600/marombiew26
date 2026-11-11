@@ -203,3 +203,7 @@ Fora do escopo desta entrega (Fases 3-6): LOW/MEDIUM/HIGH, novo carb cycling, aj
 - [x] Descanso automático pelo tipo da série confirmada (Aquecimento 60s, Preparatória 120s, Trabalho 180s, Reconhecimento 90s); sem tipos = pausa do plano; bi-set/superset inalterado; aluno + Modo Treino (individual e dupla); rótulo "Descanso · Tipo X"
 - [x] Modo Treino admin: exercícios normais com o mesmo registro por série dos grupos (individual e dupla), mantendo Variação, Histórico, alvo, cronômetro, Observações e Salvar no plano
 - [ ] Conferir na tela o novo registro do Modo Treino com um aluno real (não abri a sessão de treino do admin)
+
+## Tradução de dieta/treino (celular em inglês)
+- [x] Dieta e treinos aparecem na hora em português; tradução em segundo plano, limite de 15 s, pausa de 10 min após falha; lógica sempre no original
+- [ ] Decidir com o Fabiew: 15 s é menos que o tempo real da tradução (mediana ~46 s), então quase nenhuma tradução vai chegar
