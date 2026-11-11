@@ -122,7 +122,7 @@ export function createUpdateController(deps: Deps) {
     if (!s || typeof s.until !== 'number' || s.until <= now()) return false;
     if ((s.running ?? null) !== running) return false;
     // Uma versão publicada mais nova que a do momento em que escondemos volta a avisar.
-    return !published || !s.published || published === s.published;
+    return !published || published === (s.published ?? null);
   };
 
   const clearTimerIfAny = () => { if (timer !== null) { clearTimer(timer); timer = null; } };
