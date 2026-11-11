@@ -298,7 +298,7 @@ describe('Prancha — cronômetro', () => {
 
   it('quadril caído não anda o cronômetro, mas conta no tempo total e 1 vez no resumo', () => {
     const c = new PlankCounter();
-    let { t } = hold(c, 0, 10000, GOOD);
+    let { t } = hold(c, 0, 10100, GOOD); // 1º frame não tem tempo anterior: 10,0 s
     const low = hold(c, t, 5000, LOW);
     expect(low.frames.some((f) => f.newFault === 'plank_hip_low')).toBe(true);
     expect(low.frames.filter((f) => f.newFault).length).toBe(1);
@@ -307,9 +307,9 @@ describe('Prancha — cronômetro', () => {
     t = hold(c, low.t, 5000, GOOD).t;
     hold(c, t, 2000, HIGH);
     const s = c.summary();
-    expect(s.totalSeconds).toBe(21);
+    expect(s.totalSeconds).toBe(22);
     expect(s.goodSeconds).toBe(15);
-    expect(s.goodPercent).toBe(Math.round((15000 / 21900) * 100));
+    expect(s.goodPercent).toBe(68);
     expect(s.faults).toEqual({ plank_hip_low: 1, plank_hip_high: 1 });
   });
 
@@ -323,7 +323,7 @@ describe('Prancha — cronômetro', () => {
 
   it('fora da posição (joelho no chão ou fora do quadro) por mais de 3 s fecha', () => {
     const c = new PlankCounter();
-    const { t } = hold(c, 0, 5000, GOOD);
+    const { t } = hold(c, 0, 5100, GOOD);
     const kneel = hold(c, t, 3000, pk(178, 0, 5, 110));
     expect(kneel.frames.some((f) => f.autoFinish)).toBe(false);
     expect(c.push(pk(178, 0, 5, 110), kneel.t + 100).autoFinish).toBe(true);

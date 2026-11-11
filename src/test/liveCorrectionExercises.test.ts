@@ -58,7 +58,7 @@ describe('Correção ao vivo — casamento de nomes', () => {
   });
 
   it('exercícios sem regra não mostram o botão', () => {
-    expect(matchExerciseRule('LEG PRESS 45')).toBeNull();
+    expect(matchExerciseRule('CADEIRA EXTENSORA')).toBeNull();
     expect(matchExerciseRule('LEVANTAMENTO TERRA')).toBeNull();
     expect(matchExerciseRule('HACK MACHINE')).toBeNull();
     expect(matchExerciseRule('')).toBeNull();
