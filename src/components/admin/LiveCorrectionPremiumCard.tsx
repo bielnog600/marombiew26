@@ -5,7 +5,11 @@ import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ScanEye } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
-import { ERROR_MESSAGES, type SquatError } from '@/lib/liveCorrection/squatAnalysis';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import {
+  ERROR_MESSAGES, DEPTH_LEVELS, DEPTH_LEVEL_ORDER, normalizeDepthLevel, isDepthLevel,
+  type SquatError, type DepthLevel,
+} from '@/lib/liveCorrection/squatAnalysis';
 import { toast } from 'sonner';
 
 interface CameraSession {
@@ -19,29 +23,35 @@ interface CameraSession {
   errors: Record<string, number> | null;
   tempo_medio_descida: number | null;
   reps_descida_rapida: number | null;
+  depth_level: string | null;
 }
 
 interface Props {
   studentId: string;
   /** students_profile do aluno; null = sem perfil de aluno. */
-  studentProfile: { premium_camera?: boolean | null } | null;
+  studentProfile: { premium_camera?: boolean | null; camera_depth_level?: string | null } | null;
   onChanged?: (value: boolean) => void;
+  onDepthLevelChanged?: (value: DepthLevel) => void;
 }
 
 const errorLabel = (key: string) => ERROR_MESSAGES[key as SquatError] ?? key;
 
-const LiveCorrectionPremiumCard: React.FC<Props> = ({ studentId, studentProfile, onChanged }) => {
+const LiveCorrectionPremiumCard: React.FC<Props> = ({ studentId, studentProfile, onChanged, onDepthLevelChanged }) => {
   const [enabled, setEnabled] = useState(!!studentProfile?.premium_camera);
   const [saving, setSaving] = useState(false);
   const [sessions, setSessions] = useState<CameraSession[] | null>(null);
 
+  const [depthLevel, setDepthLevel] = useState<DepthLevel>(normalizeDepthLevel(studentProfile?.camera_depth_level));
+  const [savingDepth, setSavingDepth] = useState(false);
+
   useEffect(() => { setEnabled(!!studentProfile?.premium_camera); }, [studentProfile?.premium_camera]);
+  useEffect(() => { setDepthLevel(normalizeDepthLevel(studentProfile?.camera_depth_level)); }, [studentProfile?.camera_depth_level]);
 
   useEffect(() => {
     let cancelled = false;
     supabase
       .from('camera_sessions')
-      .select('id, exercise_name, started_at, duration_seconds, total_reps, complete_reps, incomplete_reps, errors, tempo_medio_descida, reps_descida_rapida')
+      .select('id, exercise_name, started_at, duration_seconds, total_reps, complete_reps, incomplete_reps, errors, tempo_medio_descida, reps_descida_rapida, depth_level')
       .eq('student_id', studentId)
       .order('started_at', { ascending: false })
       .limit(50)
@@ -63,6 +73,22 @@ const LiveCorrectionPremiumCard: React.FC<Props> = ({ studentId, studentProfile,
     onChanged?.(value);
   };
 
+  const changeDepth = async (raw: string) => {
+    if (!isDepthLevel(raw)) return;
+    const previous = depthLevel;
+    setSavingDepth(true);
+    setDepthLevel(raw);
+    const { error } = await supabase.from('students_profile').update({ camera_depth_level: raw }).eq('user_id', studentId);
+    setSavingDepth(false);
+    if (error) {
+      setDepthLevel(previous);
+      toast.error('Não foi possível alterar: ' + error.message);
+      return;
+    }
+    toast.success(`Profundidade exigida: ${DEPTH_LEVELS[raw].label}`);
+    onDepthLevelChanged?.(raw);
+  };
+
   return (
     <Card className="glass-card border-primary/30 mt-4" data-testid="live-correction-premium-card">
       <CardContent className="p-5 space-y-4">
@@ -82,6 +108,22 @@ const LiveCorrectionPremiumCard: React.FC<Props> = ({ studentId, studentProfile,
             disabled={saving || !studentProfile}
             onCheckedChange={toggle}
           />
+        </div>
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <Label htmlFor="camera-depth-level" className="font-semibold">Profundidade exigida</Label>
+            <p className="text-xs text-muted-foreground">Até onde o quadril precisa descer para a rep contar.</p>
+          </div>
+          <Select value={depthLevel} onValueChange={changeDepth} disabled={savingDepth || !studentProfile}>
+            <SelectTrigger id="camera-depth-level" className="w-[190px] shrink-0" data-testid="camera-depth-level">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {DEPTH_LEVEL_ORDER.map((lvl) => (
+                <SelectItem key={lvl} value={lvl}>{DEPTH_LEVELS[lvl].label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
         {!studentProfile && (
           <p className="text-xs text-muted-foreground">Este aluno ainda não tem perfil detalhado, então o recurso não pode ser ativado.</p>
@@ -105,6 +147,7 @@ const LiveCorrectionPremiumCard: React.FC<Props> = ({ studentId, studentProfile,
                         <p className="text-xs text-muted-foreground">
                           {new Date(s.started_at).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
                           {s.duration_seconds > 0 && ` · ${Math.max(1, Math.round(s.duration_seconds / 60))} min`}
+                          {isDepthLevel(s.depth_level) && ` · ${DEPTH_LEVELS[s.depth_level].label}`}
                         </p>
                       </div>
                       <div className="text-right shrink-0 text-xs tabular-nums">

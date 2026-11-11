@@ -236,6 +236,7 @@ const AlunoDetail = () => {
               studentId={id!}
               studentProfile={studentProfile}
               onChanged={(v) => setStudentProfile((prev: any) => (prev ? { ...prev, premium_camera: v } : prev))}
+              onDepthLevelChanged={(v) => setStudentProfile((prev: any) => (prev ? { ...prev, camera_depth_level: v } : prev))}
             />
           </TabsContent>
 
