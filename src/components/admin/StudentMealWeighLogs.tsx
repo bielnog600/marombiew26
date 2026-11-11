@@ -1,0 +1,101 @@
+import React, { useEffect, useState } from 'react';
+import { Card, CardContent } from '@/components/ui/card';
+import { Skeleton } from '@/components/ui/skeleton';
+import { ChevronDown, Scale } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
+import { formatFoodComparison, type FoodComparison, type WeighedItem } from '@/lib/mealWeigh';
+
+interface WeighLog {
+  id: string;
+  log_date: string;
+  meal_name: string;
+  meal_time: string | null;
+  items: WeighedItem[] | null;
+  total_kcal: number;
+  total_p: number;
+  total_c: number;
+  total_g: number;
+  planned: { kcal?: number; p?: number; c?: number; g?: number; comparacao?: FoodComparison[] } | null;
+  created_at: string;
+}
+
+const n = (v: unknown) => Math.round(Number(v) || 0);
+const fmtDate = (d: string) => {
+  const [y, m, day] = d.split('-');
+  return y && m && day ? `${day}/${m}/${y}` : d;
+};
+
+/** Lista "Refeições pesadas" na ficha do aluno (somente leitura). */
+export default function StudentMealWeighLogs({ studentId }: { studentId: string }) {
+  const [rows, setRows] = useState<WeighLog[] | null>(null);
+  const [open, setOpen] = useState<string | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    supabase
+      .from('meal_weigh_logs')
+      .select('id, log_date, meal_name, meal_time, items, total_kcal, total_p, total_c, total_g, planned, created_at')
+      .eq('student_id', studentId)
+      .order('log_date', { ascending: false })
+      .order('created_at', { ascending: false })
+      .limit(30)
+      .then(({ data }) => { if (!cancelled) setRows((data as unknown as WeighLog[] | null) ?? []); });
+    return () => { cancelled = true; };
+  }, [studentId]);
+
+  return (
+    <Card className="glass-card" data-testid="student-meal-weigh-logs">
+      <CardContent className="p-4 space-y-2">
+        <h3 className="font-semibold flex items-center gap-2"><Scale className="h-4 w-4 text-primary" /> Refeições pesadas</h3>
+        {rows === null ? (
+          <div className="space-y-2"><Skeleton className="h-14 w-full" /><Skeleton className="h-14 w-full" /></div>
+        ) : rows.length === 0 ? (
+          <p className="text-sm text-muted-foreground">Nenhuma refeição pesada ainda.</p>
+        ) : (
+          <ul className="space-y-2">
+            {rows.map((r) => {
+              const planned = r.planned ?? {};
+              const diff = n(r.total_kcal) - n(planned.kcal);
+              const expanded = open === r.id;
+              return (
+                <li key={r.id} className="rounded-xl border border-border bg-secondary/40">
+                  <button type="button" onClick={() => setOpen(expanded ? null : r.id)} className="w-full p-3 text-left flex items-start gap-2">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-semibold truncate">{r.meal_time ? `${r.meal_time} · ` : ''}{r.meal_name || 'Refeição'}</p>
+                      <p className="text-xs text-muted-foreground">{fmtDate(r.log_date)} · {(r.items ?? []).length} itens</p>
+                    </div>
+                    <div className="text-right shrink-0 text-xs tabular-nums">
+                      <p><span className="font-bold text-primary">{n(r.total_kcal)}</span> / {n(planned.kcal)} kcal</p>
+                      <p className={diff > 0 ? 'text-primary' : 'text-muted-foreground'}>{diff > 0 ? '+' : ''}{diff} kcal</p>
+                    </div>
+                    <ChevronDown className={`h-4 w-4 mt-0.5 shrink-0 text-muted-foreground transition-transform ${expanded ? 'rotate-180' : ''}`} />
+                  </button>
+                  {expanded && (
+                    <div className="border-t border-border/50 px-3 pb-3 pt-2 space-y-2 text-xs">
+                      <p className="tabular-nums">
+                        Pesado: P {n(r.total_p)} · C {n(r.total_c)} · G {n(r.total_g)} g
+                        <span className="text-muted-foreground"> · Previsto: P {n(planned.p)} · C {n(planned.c)} · G {n(planned.g)} g</span>
+                      </p>
+                      <ul className="space-y-0.5">
+                        {(r.items ?? []).map((it, i) => (
+                          <li key={i} className="flex justify-between gap-2">
+                            <span className="min-w-0 truncate">{it.alimento}{it.editado_pelo_aluno ? <span className="text-muted-foreground"> · corrigido</span> : null}</span>
+                            <span className="shrink-0 tabular-nums">{n(it.gramas)} g · {n(it.kcal)} kcal</span>
+                          </li>
+                        ))}
+                      </ul>
+                      {(planned.comparacao ?? []).length > 0 && (
+                        <div className="text-muted-foreground space-y-0.5">
+                          {(planned.comparacao ?? []).map((c, i) => <p key={i}>{formatFoodComparison(c)}</p>)}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
