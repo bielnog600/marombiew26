@@ -134,7 +134,7 @@ const SIZE_WORD: Record<UnitSize, [string, string]> = { pequeno: ['pequeno', 'pe
 /** "Banana média ≈ 120 g" / "Ovo médio ≈ 50 g" */
 export function unitLabel(name: string, size: UnitSize, grams: number): string {
   const first = String(name ?? '').trim().split(/\s+/)[0] ?? '';
-  const feminine = /a$/i.test(first) || /^p[aã]o de forma/i.test(name) ? /a$/i.test(first) : false;
+  const feminine = /(a|ã)$/i.test(first);
   return `${name} ${SIZE_WORD[size][feminine ? 1 : 0]} ≈ ${Math.round(grams)} g`;
 }
 

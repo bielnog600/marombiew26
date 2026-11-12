@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from 'react';
-import { Check, ChevronDown, Plus, SlidersHorizontal, Trash2, ArrowRightLeft, X, UtensilsCrossed, Scale, Pencil, Sparkles } from 'lucide-react';
+import { Check, ChevronDown, Plus, SlidersHorizontal, Trash2, ArrowRightLeft, X, UtensilsCrossed, Scale, Pencil, Sparkles, ScanBarcode } from 'lucide-react';
 import { toast } from 'sonner';
 import type { ParsedFood, ParsedMeal } from '@/lib/dietResultParser';
 import { scaleFood, parseNumeric } from '@/lib/dailyDietRebalance';
@@ -35,9 +35,16 @@ const EstimatedWeighBadge: React.FC = () => (
   </span>
 );
 
+const ScannedWeighBadge: React.FC = () => (
+  <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-primary/50 bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold text-primary">
+    <ScanBarcode className="h-3 w-3" /> Escaneado
+  </span>
+);
+
 const WeighBadge: React.FC<{ weigh: DayFoodWeigh }> = ({ weigh }) => {
   // "Prato pronto": gramas estimadas pela foto, selo diferente de "Pesado".
   if (weigh.status === 'pesado' && weigh.estimado) return <EstimatedWeighBadge />;
+  if (weigh.status === 'pesado' && weigh.escaneado) return <ScannedWeighBadge />;
   if (weigh.status === 'pesado') {
     return (
       <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-primary/50 bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold text-primary">
@@ -275,6 +282,7 @@ const StudentMealCard: React.FC<StudentMealCardProps> = ({
                         <p className={`truncate text-sm font-medium ${weigh?.status === 'nao_comeu' ? 'text-muted-foreground line-through' : 'text-foreground'}`}>{show(food.food)}</p>
                         {weigh && <WeighBadge weigh={weigh} />}
                         {weigh?.status === 'fora_do_plano' && weigh.estimado && <EstimatedWeighBadge />}
+                        {weigh?.status === 'fora_do_plano' && weigh.escaneado && <ScannedWeighBadge />}
                       </div>
                       {weigh && (weigh.status === 'pesado' || weigh.status === 'fora_do_plano' || weigh.status === 'nao_comeu') && (
                         <p className="mt-0.5 text-[11px] font-semibold text-primary" data-testid="meal-food-weigh-label">{formatDayWeighLabel(weigh)}</p>
