@@ -9,7 +9,7 @@ import {
   buildWeighedItem, pendingPlanFoods, resolveScanWeigh, round1,
   type PlannedMeal, type WeighFood, type WeighedItem,
 } from './index';
-import { NO_CALIBRATION, applyCalibration, newEstimateId, type CalibrationFactor, type FactorScope, type PromptCorrection } from './calibration';
+import { NO_CALIBRATION, applyCalibration, newEstimateId, type CalibrationFactor, type PromptCorrection } from './calibration';
 
 export const PLATE_HINT = 'Foto de cima, com o prato inteiro. Um garfo ou a mão perto ajuda a IA a medir.';
 export const ESTIMATED_WARNING = 'Gramas estimadas pela foto — para precisão, use a balança.';
