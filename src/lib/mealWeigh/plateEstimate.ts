@@ -9,6 +9,7 @@ import {
   buildWeighedItem, pendingPlanFoods, resolveScanWeigh, round1,
   type PlannedMeal, type WeighFood, type WeighedItem,
 } from './index';
+import { NO_CALIBRATION, applyCalibration, newEstimateId, type CalibrationFactor, type FactorScope, type PromptCorrection } from './calibration';
 
 export const PLATE_HINT = 'Foto de cima, com o prato inteiro. Um garfo ou a mão perto ajuda a IA a medir.';
 export const ESTIMATED_WARNING = 'Gramas estimadas pela foto — para precisão, use a balança.';
@@ -26,6 +27,8 @@ export interface PlateAiResult {
   peso_total_lido: number | null;
   prato_tarado: boolean | null;
   observacao: string;
+  /** A IA viu uma balança, mas o visor não aparecia/não dava para ler. */
+  balanca_sem_visor: boolean;
 }
 
 const num = (v: unknown): number | null => {
@@ -62,6 +65,7 @@ export function normalizePlateEstimate(raw: unknown): PlateAiResult | null {
     peso_total_lido: hasTotal ? round1(total!) : null,
     prato_tarado: hasTotal && typeof o.prato_tarado === 'boolean' ? o.prato_tarado : null,
     observacao: String(o.observacao ?? '').trim(),
+    balanca_sem_visor: !hasTotal && o.balanca_sem_visor === true,
   };
 }
 
@@ -126,10 +130,14 @@ export interface PlateRow {
   aiName: string;
   aiAlternatives: string[];
   confianca: number;
-  /** Estimativa original da IA (peso na distribuição do total). */
+  /** Gramas ORIGINAIS da IA (base das correções). */
+  aiEstimate: number;
+  /** Estimativa sugerida: a da IA já calibrada (peso na distribuição do total). */
   estimate: number;
-  /** Faixa original da IA. */
+  /** Faixa da IA, calibrada junto. */
   faixa: [number, number] | null;
+  /** Calibração aplicada (fator 1 = sem ajuste). */
+  calibration: CalibrationFactor;
   food: WeighFood | null;
   planIndex: number | null;
   alternatives: WeighFood[];
@@ -151,24 +159,34 @@ const asItem = (row: PlateRow): WeighedItem | null => {
  * alimento do plano. `existing` = itens já salvos na refeição (pesagem
  * incremental).
  */
-export function resolvePlateRows(ai: PlateAiResult, foods: WeighFood[], planned: PlannedMeal, existing: WeighedItem[] = []): PlateRow[] {
+export function resolvePlateRows(
+  ai: PlateAiResult,
+  foods: WeighFood[],
+  planned: PlannedMeal,
+  existing: WeighedItem[] = [],
+  factorFor?: ((food: WeighFood | null, aiName: string) => CalibrationFactor) | null,
+): PlateRow[] {
   const context: WeighedItem[] = [...existing];
   return ai.itens.map((it, i) => {
     const res = resolveScanWeigh(
       { alimento: it.alimento, alimento_alternativas: it.alternativas, confianca_alimento: it.confianca },
       foods, planned, context,
     );
+    const calibration = (factorFor && it.gramas_estimadas > 0 ? factorFor(res.food, it.alimento) : null) ?? NO_CALIBRATION;
+    const adjusted = applyCalibration(it.gramas_estimadas, it.faixa_gramas, calibration.factor);
     const row: PlateRow = {
       key: `ia-${i}`,
       aiName: it.alimento,
       aiAlternatives: it.alternativas,
       confianca: it.confianca,
-      estimate: it.gramas_estimadas,
-      faixa: it.faixa_gramas,
+      aiEstimate: it.gramas_estimadas,
+      estimate: adjusted.grams,
+      faixa: adjusted.range,
+      calibration,
       food: res.food,
       planIndex: res.planIndex,
       alternatives: res.alternatives,
-      grams: it.gramas_estimadas > 0 ? String(it.gramas_estimadas) : '',
+      grams: adjusted.grams > 0 ? String(adjusted.grams) : '',
       gramsEdited: false,
       foodEdited: false,
     };
@@ -214,7 +232,7 @@ export function formatPlateRange(grams: number, range: [number, number] | null):
 export const plateRowValid = (r: PlateRow) => !!r.food && Number(String(r.grams).replace(',', '.')) > 0;
 
 /** Itens do prato prontos para entrar na refeição, todos com origem = 'estimado'. */
-export function buildEstimatedItems(rows: PlateRow[]): WeighedItem[] {
+export function buildEstimatedItems(rows: PlateRow[], newId: () => string = newEstimateId): WeighedItem[] {
   return rows.filter(plateRowValid).map((r) => {
     const g = Number(String(r.grams).replace(',', '.'));
     const item = buildWeighedItem(r.food!, g, {
@@ -226,6 +244,14 @@ export function buildEstimatedItems(rows: PlateRow[]): WeighedItem[] {
     if (r.foodEdited && r.aiName) item.alimento_corrigido = true;
     item.origem = 'estimado';
     item.faixa_gramas = plateRowRange(r);
+    // Só estimativas da IA aprendem: guarda a original, a sugerida e se o aluno mexeu nas gramas.
+    if (r.aiName && r.aiEstimate > 0) {
+      item.estimativa_id = newId();
+      item.gramas_estimadas = r.aiEstimate;
+      item.gramas_ajustadas = r.estimate;
+      item.fator_calibracao = r.calibration.factor;
+      item.gramas_corrigidas = r.gramsEdited;
+    }
     return item;
   });
 }
@@ -233,7 +259,7 @@ export function buildEstimatedItems(rows: PlateRow[]): WeighedItem[] {
 /** Linha nova "Adicionar alimento que faltou". */
 export function blankPlateRow(key: string): PlateRow {
   return {
-    key, aiName: '', aiAlternatives: [], confianca: 1, estimate: 0, faixa: null,
+    key, aiName: '', aiAlternatives: [], confianca: 1, aiEstimate: 0, estimate: 0, faixa: null, calibration: NO_CALIBRATION,
     food: null, planIndex: null, alternatives: [], grams: '', gramsEdited: true, foodEdited: true,
   };
 }
@@ -245,7 +271,7 @@ export function freePlanIndexesForRow(planned: PlannedMeal, existing: WeighedIte
 }
 
 /** Corpo da chamada `plate_estimate` (previstos e já registrados como contexto). */
-export function buildPlateEstimateRequest(input: { photo: string; mealName: string; planned: PlannedMeal; items: WeighedItem[] }) {
+export function buildPlateEstimateRequest(input: { photo: string; mealName: string; planned: PlannedMeal; items: WeighedItem[]; corrections?: PromptCorrection[] }) {
   return {
     action: 'plate_estimate' as const,
     image: input.photo,
@@ -253,5 +279,7 @@ export function buildPlateEstimateRequest(input: { photo: string; mealName: stri
     planFoods: (input.planned?.alimentos ?? []).map((f) => f.alimento).filter(Boolean),
     pendingPlanFoods: pendingPlanFoods(input.planned, input.items).map((p) => p.food.alimento),
     addedFoods: (input.items ?? []).map((i) => ({ alimento: i.alimento, gramas: i.gramas })),
+    /** Últimas correções do aluno, como exemplos para a IA estimar melhor. */
+    corrections: (input.corrections ?? []).slice(0, 5),
   };
 }
