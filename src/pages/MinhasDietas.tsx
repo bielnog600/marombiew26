@@ -25,7 +25,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { useDailyTracking } from '@/hooks/useDailyTracking';
 import { fetchWithCache, setCache } from '@/lib/offlineCache';
-import { latestWeighLogs, overlayDayWeighLogs, type WeighLogRecord } from '@/lib/mealWeigh';
+import { latestWeighLogs, overlayDayWeighLogs, weighLogKey, type WeighLogRecord } from '@/lib/mealWeigh';
 import ProtocolsDialog from '@/components/diet/ProtocolsDialog';
 import { protocolsToKeys, type SavedProtocols, type ProtocolKey } from '@/lib/dietProtocols';
 import { ListChecks, ScanBarcode } from 'lucide-react';
@@ -491,7 +491,7 @@ const MinhasDietas = () => {
   const isSelectedDayTraining = trainingDayIndices.includes(selectedWeekday);
   const [showScanner, setShowScanner] = useState(false);
   const premiumScale = usePremiumScale(user?.id);
-  const [weighTarget, setWeighTarget] = useState<{ meal: number; food?: number } | null>(null);
+  const [weighTarget, setWeighTarget] = useState<{ meal: number; food?: number; edit?: boolean } | null>(null);
   const [confirmReweigh, setConfirmReweigh] = useState<{ meal: number; food?: number } | null>(null);
   const weekRange = getWeekRange();
   const selectedDate = weekRange.dates[selectedWeekday];
@@ -947,6 +947,13 @@ const MinhasDietas = () => {
     setWeighTarget(target);
   }, [ensureCanRegister, weighedIndexes]);
 
+  /** "Editar pesagem": abre a pesagem salva do dia já no resumo editável (sem refazer as fotos). */
+  const openEditWeigh = useCallback((meal: number) => {
+    if (!ensureCanRegister()) return;
+    if (!latestLogs.get(weighLogKey(selectedDate, meal))) return;
+    setWeighTarget({ meal, edit: true });
+  }, [ensureCanRegister, latestLogs, selectedDate]);
+
   const waterMl = waterCurrentMl;
   const waterGoalMl = waterTargetMl;
 
@@ -995,6 +1002,7 @@ const MinhasDietas = () => {
             dietPlanId={planId}
             initialMode={weighTarget.food != null ? 'plan' : undefined}
             startFoodIndex={weighTarget.food}
+            editLog={weighTarget.edit ? latestLogs.get(weighLogKey(selectedDate, weighTarget.meal)) ?? null : null}
             onClose={() => setWeighTarget(null)}
             onSaved={handleWeighSaved}
           />
@@ -1316,6 +1324,7 @@ const MinhasDietas = () => {
                   onMoveFood={(food, targetIndex) => handleMoveFood(i, food, targetIndex)}
                   onWeigh={premiumScale ? () => openWeigh({ meal: i }) : undefined}
                   onWeighFood={premiumScale ? (food) => openWeigh({ meal: i, food }) : undefined}
+                  onEditWeigh={premiumScale && weighedIndexes.includes(i) ? () => openEditWeigh(i) : undefined}
                 />
               );
             })}

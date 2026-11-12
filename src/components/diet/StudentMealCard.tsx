@@ -90,6 +90,7 @@ const StudentMealCard: React.FC<StudentMealCardProps> = ({
   onWeighFood,
   displayText,
   weighed,
+  onEditWeigh,
 }) => {
   const show = displayText ?? ((text: string) => text);
   const [adjustMode, setAdjustMode] = useState(false);
