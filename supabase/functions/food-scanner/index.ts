@@ -130,6 +130,75 @@ Responda SOMENTE JSON:
 {"alimento":string,"alimento_alternativas":[string,string,string],"gramas_lidas":number|null,"confianca_alimento":number,"confianca_leitura":number,"visor_legivel":boolean,"observacao":string}`;
 }
 
+/** Normaliza o JSON do "Prato pronto"; null quando a IA não devolveu itens num objeto. */
+function parsePlateJson(text: string) {
+  const raw = text.match(/\{[\s\S]*\}/)?.[0];
+  if (!raw) return null;
+  let o: any;
+  try { o = JSON.parse(raw); } catch { return null; }
+  if (!o || typeof o !== 'object' || !Array.isArray(o.itens)) return null;
+  const num = (v: unknown) => {
+    if (v === null || v === undefined || v === '') return null;
+    const n = typeof v === 'string' ? Number(v.replace(',', '.').replace(/[^\d.]/g, '')) : Number(v);
+    return Number.isFinite(n) ? n : null;
+  };
+  const conf = (v: unknown) => {
+    let n = num(v) ?? 0;
+    if (n > 1) n = n / 100;
+    return Math.max(0, Math.min(1, n));
+  };
+  const itens = o.itens
+    .map((it: any) => {
+      const grams = Math.max(0, Math.round(num(it?.gramas_estimadas) ?? 0));
+      const f = Array.isArray(it?.faixa_gramas) ? it.faixa_gramas.map((x: unknown) => num(x)) : [];
+      const lo = f[0] != null && f[0] > 0 ? Math.round(f[0]) : null;
+      const hi = f[1] != null && f[1] > 0 ? Math.round(f[1]) : null;
+      return {
+        alimento: String(it?.alimento ?? '').replace(/\s+/g, ' ').trim().slice(0, 120),
+        alternativas: (Array.isArray(it?.alternativas) ? it.alternativas : [])
+          .map((x: unknown) => String(x ?? '').trim().slice(0, 120)).filter(Boolean).slice(0, 3),
+        gramas_estimadas: grams,
+        faixa_gramas: lo != null && hi != null ? [Math.min(lo, hi), Math.max(lo, hi)] : null,
+        confianca: conf(it?.confianca),
+      };
+    })
+    .filter((it: any) => it.alimento)
+    .slice(0, 12);
+  const total = num(o.peso_total_lido);
+  return {
+    itens,
+    peso_total_lido: total != null && total > 0 ? Math.round(total * 10) / 10 : null,
+    prato_tarado: total != null && total > 0 && typeof o.prato_tarado === 'boolean' ? o.prato_tarado : null,
+    observacao: String(o.observacao ?? '').trim().slice(0, 240),
+  };
+}
+
+function platePrompt(
+  mealName: string,
+  planFoods: string[],
+  pendingFoods: string[],
+  added: { alimento: string; gramas: number }[],
+  baseFoods: string[],
+) {
+  return `Você recebeu UMA foto de um prato pronto (a refeição já montada), de cima ou levemente inclinada. Identifique CADA alimento do prato e estime as gramas de cada um.
+Refeição: ${mealName || 'não informada'}.
+Alimentos previstos no plano desta refeição (quando o alimento do prato for compatível, use EXATAMENTE um destes nomes): ${planFoods.length ? planFoods.join('; ') : 'nenhum informado'}.
+Previstos ainda não registrados: ${pendingFoods.length ? pendingFoods.join('; ') : 'nenhum'}.
+Já registrados nesta refeição (não repita, a menos que estejam claramente neste prato): ${added.length ? added.map((a) => a.alimento).join('; ') : 'nenhum'}.
+Base de alimentos do app (fora do plano, prefira um destes nomes): ${baseFoods.length ? baseFoods.join('; ') : 'não informada'}.
+Regras:
+- Um item por alimento visível. Um preparo misturado conta como um item (ex.: "Strogonoff de frango"). Molho ou tempero só se for uma porção relevante.
+- Se aparecer uma balança com o visor legível, leia o número em peso_total_lido (gramas; converta kg, oz ou lb). Em prato_tarado diga se o visor mostra só a comida (true, balança zerada com o prato), comida + prato (false) ou se não dá para saber (null). Sem balança ou visor ilegível: peso_total_lido null e prato_tarado null.
+- gramas_estimadas: gramas do alimento pronto, pelo tamanho visual (tipo e diâmetro do prato — raso ~26 cm, sobremesa ~20 cm —, talheres, mão por perto e porções típicas). Com peso_total_lido, faça a soma das gramas combinar com ele (descontando o prato quando prato_tarado for false).
+- faixa_gramas: [mínimo, máximo] plausível para cada alimento.
+- confianca de 0 a 1.
+- alternativas: 3 outros nomes prováveis, do mais ao menos provável.
+- Nomes simples em português do Brasil, como numa tabela de alimentos (ex.: "Arroz branco cozido", "Peito de frango grelhado").
+- observacao: curta ou "".
+Responda SOMENTE JSON:
+{"itens":[{"alimento":string,"alternativas":[string,string,string],"gramas_estimadas":number,"faixa_gramas":[number,number],"confianca":number}],"peso_total_lido":number|null,"prato_tarado":boolean|null,"observacao":string}`;
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
   try {
@@ -259,6 +328,35 @@ Responda SOMENTE JSON:
       const text = await anthropic(content, 400);
       const result = parseWeighJson(text);
       if (!result) return json({ error: 'Não consegui analisar a foto. Tira outra.' }, 422);
+      return json({ result });
+    }
+
+    if (action === 'plate_estimate') {
+      // Prato pronto (Premium): uma foto do prato montado; a IA identifica cada alimento e estima as gramas.
+      const { data: allowed, error: permErr } = await admin.rpc('has_premium_scale', { _user_id: u.user.id });
+      if (permErr || allowed !== true) return json({ error: 'Pesar refeição é um recurso Premium.' }, 403);
+      const current = parseImage(body.image);
+      if (!current) return json({ error: 'Imagem inválida' }, 400);
+      const planFoods = cleanNames(body.planFoods, 40);
+      const pendingFoods = cleanNames(body.pendingPlanFoods, 40);
+      const added = cleanAdded(body.addedFoods);
+      const mealName = String(body.mealName ?? '').replace(/\s+/g, ' ').trim().slice(0, 80);
+      let baseFoods: string[] = [];
+      try {
+        const { data } = await admin.from('foods').select('name').order('name').limit(600);
+        baseFoods = cleanNames((data ?? []).map((f: any) => f?.name), 600);
+      } catch {
+        baseFoods = [];
+      }
+      const text = await anthropic(
+        [
+          { type: 'image', source: { type: 'base64', ...current } },
+          { type: 'text', text: platePrompt(mealName, planFoods, pendingFoods, added, baseFoods) },
+        ],
+        900,
+      );
+      const result = parsePlateJson(text);
+      if (!result || result.itens.length === 0) return json({ error: 'Não consegui ver os alimentos do prato. Tira outra foto de cima, com o prato inteiro.' }, 422);
       return json({ result });
     }
 
