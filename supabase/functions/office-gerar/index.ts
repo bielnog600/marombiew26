@@ -8,7 +8,7 @@ import { z } from 'npm:zod@3'
 import * as core from '../_shared/generated/officeCore.js'
 import { safeEqual, resolveStudent } from './lib.ts'
 import { analisar, loadVigente, loadRascunhoBase, runAjusteTreino, runAjusteDieta, runAjusteCardio, publicarAjusteTreino } from './ajustar.ts'
-import { aiFetch, setAiUsageStudent, setAiUsageStudentFrom, withAiUsage } from '../_shared/aiUsage.ts'
+import { setAiUsageStudentFrom, withAiUsage } from '../_shared/aiUsage.ts'
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } })
@@ -438,7 +438,7 @@ Deno.serve(withAiUsage("office_ia", "office-gerar", async (req) => {
   const token = req.headers.get('x-office-token') ?? ''
   if (!secret || !token || !safeEqual(token, secret)) return json({ error: 'Unauthorized' }, 401)
 
-  const raw = await req.json().catch(() => null)
+  const raw = setAiUsageStudentFrom(await req.json().catch(() => null))
   const parsed = Body.safeParse(raw)
   if (!parsed.success) return json({ error: 'entrada_invalida', detalhes: parsed.error.flatten() }, 400)
   const b = parsed.data

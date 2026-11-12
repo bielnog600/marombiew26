@@ -1,5 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { aiFetch, setAiUsageStudent, setAiUsageStudentFrom, withAiUsage } from "../_shared/aiUsage.ts";
+import { aiFetch, setAiUsageStudentFrom, withAiUsage } from "../_shared/aiUsage.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -36,7 +36,7 @@ serve(withAiUsage("postura_ia", "posture-ai-analysis", async (req) => {
       );
     }
 
-    const body = (await req.json()) as RequestBody;
+    const body = setAiUsageStudentFrom((await req.json()) as RequestBody);
     const { photos, heightCm, sex, angles, regionScores, notes } = body || ({} as RequestBody);
 
     if (!photos || (!photos.front && !photos.side && !photos.back)) {

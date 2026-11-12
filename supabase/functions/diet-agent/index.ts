@@ -64,7 +64,7 @@ import {
   type GlobalDietTarget,
 } from "../_shared/globalDietTarget.ts";
 import { FOOD_CONTRACT_VERSION } from "../_shared/nutritionCore.ts";
-import { aiFetch, setAiUsageStudent, setAiUsageStudentFrom, withAiUsage } from "../_shared/aiUsage.ts";
+import { setAiUsageStudentFrom, withAiUsage } from "../_shared/aiUsage.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -574,7 +574,7 @@ serve(withAiUsage("dieta_ia", "diet-agent", async (req) => {
       allowedUnresolvedFoodNames: rawAllowedUnresolvedFoodNames,
       allowedUnresolvedFoods: rawAllowedUnresolvedFoods,
       canonicalTargets: rawCanonicalTargets,
-    } = await req.json();
+    } = setAiUsageStudentFrom(await req.json());
     // Dias com ±kcal mas macros globais: a diferença calórica vai para o carbo do dia.
     if (dietConfig && typeof dietConfig === "object" && dietConfig.carbCyclingEnabled !== true && dietConfig.weeklyEnergySchedule) {
       const norm = normalizeScheduleMacros(dietConfig.weeklyEnergySchedule);

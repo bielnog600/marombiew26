@@ -56,12 +56,14 @@ export function setAiUsageStudent(id: unknown) {
 }
 
 /** Looks for the usual student id fields of a request body. */
-export function setAiUsageStudentFrom(body: any) {
-  if (!body || typeof body !== 'object') return;
-  const ctx = body.studentContext && typeof body.studentContext === 'object' ? body.studentContext : {};
-  for (const v of [body.studentId, body.student_id, body.alunoId, ctx.studentId, ctx.student_id, ctx.user_id]) {
-    if (typeof v === 'string' && UUID.test(v)) { setAiUsageStudent(v); return; }
+export function setAiUsageStudentFrom<T>(body: T): T {
+  if (!body || typeof body !== 'object') return body;
+  const b = body as any;
+  const ctx = b.studentContext && typeof b.studentContext === 'object' ? b.studentContext : {};
+  for (const v of [b.studentId, b.student_id, b.alunoId, b.aluno_id, ctx.studentId, ctx.student_id, ctx.user_id]) {
+    if (typeof v === 'string' && UUID.test(v)) { setAiUsageStudent(v); break; }
   }
+  return body;
 }
 
 /** Caller already authenticated by the function: skips resolving the token again. */

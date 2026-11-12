@@ -69,7 +69,7 @@ import {
   isRetryableUpstreamStatus,
 } from "../_shared/trainerRoutingPolicy.ts";
 import { sanitizeStructuredPrompt } from "../_shared/structuredPromptSanitizer.ts";
-import { aiFetch, setAiUsageStudent, setAiUsageStudentFrom, withAiUsage } from "../_shared/aiUsage.ts";
+import { setAiUsageStudentFrom, withAiUsage } from "../_shared/aiUsage.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -1474,7 +1474,7 @@ serve(withAiUsage("treino_ia", "trainer-agent", async (req) => {
       phase,
       exercise_profile,
       available_equipment,
-    } = await req.json();
+    } = setAiUsageStudentFrom(await req.json());
     const exerciseProfile = normalizeExerciseProfile(exercise_profile);
     // Disponibilidade real de equipamento: hard gate determinístico (nunca fuzzy).
     const availableEquipment = mapMachineIdsToEquipmentCapabilities(available_equipment);

@@ -21,7 +21,7 @@
 // endpoint cannot serve reviews on anything else.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
-import { aiFetch, setAiUsageStudent, setAiUsageStudentFrom, withAiUsage } from "../_shared/aiUsage.ts";
+import { aiFetch, withAiUsage } from "../_shared/aiUsage.ts";
 
 const PILOT_SELECTION_ID = "pilot-2c-2026-07-12-02";
 const CLASSIFIER_RUN_ID = "793c8800-a0c2-4acc-ac4d-2d374ecd2076";

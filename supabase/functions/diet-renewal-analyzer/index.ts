@@ -2,7 +2,7 @@ import { anthropicChat, anthropicFailure, anthropicErrorStatus, PRESCRIPTION_MOD
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { authorizePrivilegedRequest, unauthorizedResponse } from "../_shared/authorizePrivilegedRequest.ts";
-import { aiFetch, setAiUsageStudent, setAiUsageStudentFrom, withAiUsage } from "../_shared/aiUsage.ts";
+import { setAiUsageStudent, withAiUsage } from "../_shared/aiUsage.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -21,6 +21,7 @@ function daysBetween(a: Date, b: Date) {
 
 async function gatherContext(supabase: any, plan: any) {
   const studentId = plan.student_id;
+  setAiUsageStudent(studentId);
   const created = new Date(plan.created_at);
   const cycleDays = plan.cycle_days ?? 45;
   const now = new Date();
@@ -203,6 +204,7 @@ function actionToCycleStatus(action: string): string {
  * has enough data to produce a coherent renewed diet.
  */
 async function buildStudentContextForAgent(supabase: any, studentId: string) {
+  setAiUsageStudent(studentId);
   const [{ data: profile }, { data: sp }, { data: assessment }] = await Promise.all([
     supabase.from("profiles").select("nome").eq("user_id", studentId).maybeSingle(),
     supabase

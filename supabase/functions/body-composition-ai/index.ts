@@ -2,7 +2,7 @@ import { AI_MODELS } from "../_shared/aiModelRouter.ts";
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { z } from 'npm:zod@3';
-import { aiFetch, setAiUsageStudent, setAiUsageStudentFrom, withAiUsage } from '../_shared/aiUsage.ts';
+import { aiFetch, setAiUsageStudentFrom, withAiUsage } from '../_shared/aiUsage.ts';
 
 const j = (status: number, body: unknown) =>
   new Response(JSON.stringify(body), {
@@ -204,7 +204,7 @@ Deno.serve(withAiUsage("composicao_corporal_ia", "body-composition-ai", async (r
     const apiKey = Deno.env.get("OPENAI_API_KEY");
     if (!apiKey) return j(500, { error: "OPENAI_API_KEY não configurada." });
 
-    const body = (await req.json()) as Body;
+    const body = setAiUsageStudentFrom((await req.json()) as Body);
     let scanMeasures: Record<string, number> = {};
     if (body.scanId || body.scanPhotos || body.scanMeasurements) {
       const image = z.string().max(6000000).regex(/^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/);
