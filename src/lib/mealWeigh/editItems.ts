@@ -139,3 +139,55 @@ export function startFromWeighLog(log: WeighLogRecord, fallback: PlannedMeal = p
   }
   return { planned, items, photos: items.map(() => ''), choices };
 }
+
+/* ---------- Refeição já pesada: pesagem incremental ---------- */
+
+/**
+ * O que fazer ao tocar em pesar numa refeição do dia:
+ * - ainda não pesada → pesagem nova;
+ * - já pesada, pela refeição → perguntar (Adicionar alimento / Refazer do zero);
+ * - já pesada, pelo ícone da balança num alimento → só atualizar/adicionar aquele item.
+ */
+export type WeighEntry = { kind: 'fresh' } | { kind: 'ask' } | { kind: 'add_food'; food: number };
+
+export function weighEntry(alreadyWeighed: boolean, food?: number | null): WeighEntry {
+  if (!alreadyWeighed) return { kind: 'fresh' };
+  if (typeof food === 'number' && food >= 0) return { kind: 'add_food', food };
+  return { kind: 'ask' };
+}
+
+/**
+ * Entra um item pesado na lista, sem perder os outros: um alimento do plano
+ * (indice_plano) substitui só o item daquele mesmo alimento; o resto é somado.
+ * Um alimento que estava "Comi sem pesar"/"Não comi" passa a pesado porque
+ * deixa de estar pendente (os não pesados vêm sempre dos pendentes).
+ */
+export function upsertWeighedItem(
+  items: WeighedItem[],
+  photos: string[],
+  item: WeighedItem,
+  photo: string,
+): { items: WeighedItem[]; photos: string[] } {
+  const idx = item.indice_plano;
+  const keep = (items ?? [])
+    .map((it, i) => ({ it, photo: photos?.[i] ?? '' }))
+    .filter(({ it }) => typeof idx !== 'number' || it.indice_plano !== idx);
+  return { items: [...keep.map((k) => k.it), item], photos: [...keep.map((k) => k.photo), photo] };
+}
+
+/**
+ * "Concluir refeição": a pergunta sobre os não pesados só aparece quando falta
+ * resposta. Numa pesagem incremental as respostas da pesagem salva continuam
+ * valendo, então vai direto ao resumo (o "Voltar" ainda leva à pergunta).
+ */
+export function finishPhase(
+  planned: PlannedMeal,
+  items: WeighedItem[],
+  choices: Record<number, UnweighedChoice | undefined>,
+  incremental: boolean,
+): 'review' | 'summary' {
+  const pending = pendingPlanFoods(planned, items);
+  if (pending.length === 0) return 'summary';
+  if (!incremental) return 'review';
+  return pending.every((p) => choices?.[p.index] != null) ? 'summary' : 'review';
+}
