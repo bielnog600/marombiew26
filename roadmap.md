@@ -1,15 +1,15 @@
 # Roadmap
 
 ## Custos de IA por uso
-- [ ] Registro de cada chamada de IA (Claude, OpenAI, IA do Lovable, ElevenLabs) com tokens/caracteres/imagens e custo pela tabela de preços editável.
-- [ ] Tela "Custos de IA" (períodos, aluno, por funcionalidade, médio por uso, top alunos, por aluno ativo/mês, gráfico diário, projeção, USD/EUR, calculadora de margem) e card na ficha do aluno.
+- [x] Registro de cada chamada de IA (Claude, OpenAI, IA do Lovable, ElevenLabs) com tokens/caracteres/imagens e custo pela tabela de preços editável.
+- [x] Tela "Custos de IA" (períodos, aluno, por funcionalidade, médio por uso, top alunos, por aluno ativo/mês, gráfico diário, projeção, USD/EUR, calculadora de margem) e card na ficha do aluno.
 - [ ] Conferir com uso real — nenhuma chamada real à IA feita aqui.
 
 ## Pesagens — previsto da refeição
-- [ ] Todos os modos gravam o previsto da refeição do dia (refeição esvaziada pelo aluno usa a da dieta publicada) e logs de 12/11 do Fabiew recalculados.
+- [x] Todos os modos gravam o previsto da refeição do dia (refeição esvaziada pelo aluno usa a da dieta publicada) e logs de 12/11 do Fabiew recalculados.
 
 ## Calibração — correções de 12/11
-- [ ] Lançar iogurte 150 → 161 g e pasta de amendoim 35 → 49 g (admin) e conferir as 3 correções na tela.
+- [x] Lançar iogurte 150 → 161 g e pasta de amendoim 35 → 49 g (admin) e conferir as 3 correções na tela.
 
 ## Pesar refeição (Premium)
 - [x] Permissão premium_scale (só admin), interruptor e selo na ficha, ativado para Fabiew Aires; "Testar Pesar refeição" no Dashboard.
