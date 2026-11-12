@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { AlertTriangle, Check, Plus, RotateCcw, Search, Sparkles, Trash2 } from 'lucide-react';
+import { AlertTriangle, Check, Plus, RotateCcw, Scale, Search, Sparkles, Trash2, TrendingUp } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { filterFoodsBySearch } from '@/lib/foodSearch';
@@ -9,6 +9,7 @@ import {
   freePlanIndexesForRow, plateFoodTotal, plateNeedsTareQuestion, plateRowRange, plateRowValid, resolvePlateRows,
   suggestedPlateGrams, type PlateAiResult, type PlateRow, type PlateTareAnswer,
 } from '@/lib/mealWeigh/plateEstimate';
+import { PLATE_SCALE_DISPLAY_HINT, calibrationFactor, foodKey, formatCalibrationLine, type CalibrationSamples } from '@/lib/mealWeigh/calibration';
 import { MacroLine } from './WeighItemEditSheet';
 
 /** Selo dos itens com gramas estimadas pela foto (diferente de "Pesado"). */
@@ -22,6 +23,8 @@ interface Props {
   header: React.ReactNode;
   photo: string;
   ai: PlateAiResult;
+  /** Correções do histórico (null = calibração desligada ou indisponível). */
+  samples?: CalibrationSamples | null;
   planned: PlannedMeal;
   /** Itens já registrados na refeição (pesagem incremental). */
   existing: WeighedItem[];
@@ -33,11 +36,15 @@ interface Props {
 const gramsOf = (r: PlateRow) => Number(String(r.grams).replace(',', '.')) || 0;
 
 /** Revisão do "Prato pronto": cada alimento identificado, trocável, com gramas estimadas editáveis. */
-const PlateReview: React.FC<Props> = ({ header, photo, ai, planned, existing, foods, onRetake, onConfirm }) => {
+const PlateReview: React.FC<Props> = ({ header, photo, ai, samples = null, planned, existing, foods, onRetake, onConfirm }) => {
   const needsTare = plateNeedsTareQuestion(ai);
   const [answer, setAnswer] = useState<PlateTareAnswer | null>(null);
   const [plateGrams, setPlateGrams] = useState(() => String(suggestedPlateGrams(ai)));
-  const [rows, setRows] = useState<PlateRow[]>(() => applyPlateTotal(resolvePlateRows(ai, foods, planned, existing), plateFoodTotal(ai, null)));
+  const [rows, setRows] = useState<PlateRow[]>(() => {
+    // Estimativa já ajustada pelo histórico de correções; com peso lido, as ajustadas também se redistribuem.
+    const factorFor = samples ? (food: WeighFood | null, aiName: string) => calibrationFactor(foodKey(food?.id ?? null, food?.name ?? aiName), samples) : null;
+    return applyPlateTotal(resolvePlateRows(ai, foods, planned, existing, factorFor), plateFoodTotal(ai, null));
+  });
   const [searchRow, setSearchRow] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [added, setAdded] = useState(0);
@@ -87,6 +94,12 @@ const PlateReview: React.FC<Props> = ({ header, photo, ai, planned, existing, fo
           <Sparkles className="h-4 w-4 shrink-0 text-primary" /> <p>{ESTIMATED_WARNING}</p>
         </div>
 
+        {ai.balanca_sem_visor && ai.peso_total_lido == null && (
+          <div role="note" className="rounded-xl border border-border bg-secondary/30 p-3 text-xs flex gap-2" data-testid="meal-weigh-plate-scale-hint">
+            <Scale className="h-4 w-4 shrink-0 text-primary" /> <p>{PLATE_SCALE_DISPLAY_HINT}</p>
+          </div>
+        )}
+
         {ai.peso_total_lido != null && (
           <div className="rounded-xl border border-border bg-secondary/30 p-3 text-sm space-y-2" data-testid="meal-weigh-plate-total">
             <p><span className="font-semibold">Balança: {Math.round(ai.peso_total_lido)} g no visor</span>
@@ -126,6 +139,7 @@ const PlateReview: React.FC<Props> = ({ header, photo, ai, planned, existing, fo
             const g = gramsOf(r);
             const macros = r.food && g > 0 ? macrosForGrams(r.food, g) : null;
             const open = searchRow === r.key;
+            const calibLine = r.aiName ? formatCalibrationLine(r.calibration) : null;
             return (
               <li key={r.key} className="rounded-2xl border border-border bg-secondary/30 p-3 space-y-2" data-testid="plate-row" aria-label={name}>
                 <div className="flex items-start gap-2">
@@ -135,6 +149,11 @@ const PlateReview: React.FC<Props> = ({ header, photo, ai, planned, existing, fo
                       <EstimatedBadge />
                     </div>
                     {r.aiName && g > 0 && <p className="text-[11px] text-muted-foreground tabular-nums">{formatPlateRange(g, range)}</p>}
+                    {calibLine && (
+                      <p className="text-[11px] font-semibold text-primary flex items-center gap-1" data-testid="plate-row-calibration">
+                        <TrendingUp className="h-3 w-3" /> {calibLine}
+                      </p>
+                    )}
                     {!r.food && <p className="text-[11px] text-primary">Escolha o alimento abaixo.</p>}
                   </div>
                   <button type="button" aria-label={`Apagar ${name}`} onClick={() => removeRow(i)}
