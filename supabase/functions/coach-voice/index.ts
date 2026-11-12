@@ -1,6 +1,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
 import { createCoachVoiceHandler } from './handler.ts';
+import { aiFetch, withAiUsage } from '../_shared/aiUsage.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
 const ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY') ?? '';
@@ -22,7 +23,8 @@ const handler = createCoachVoiceHandler({
     return !error && data === true;
   },
   apiKey: () => Deno.env.get('ELEVENLABS_API_KEY') || null,
-  fetch: (url, init) => fetch(url, init),
+  // Text-to-speech calls are logged in Custos de IA (characters sent); listing voices/models is not billed.
+  fetch: (url, init) => aiFetch(url, init),
   async loadConfig() {
     const { data } = await service.from('coach_voice_config')
       .select('voice_id, model_id, stability, similarity_boost, language_code').eq('id', true).maybeSingle();
@@ -47,4 +49,4 @@ const handler = createCoachVoiceHandler({
   log: (message, extra) => console.error(message, extra ?? ''),
 });
 
-Deno.serve(handler);
+Deno.serve(withAiUsage('voz_elevenlabs', 'coach-voice', handler));

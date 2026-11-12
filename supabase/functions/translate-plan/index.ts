@@ -1,5 +1,6 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
+import { aiFetch, setAiUsageStudent, withAiUsage } from '../_shared/aiUsage.ts';
 import { createTranslatePlanHandler, type TranslatablePlan } from './handler.ts';
 import { isValidPairs, parseTranslatedTexts, translationMaxTokens, translationSystemPrompt } from './texts.ts';
 
@@ -17,7 +18,7 @@ const service = createClient(SUPABASE_URL, Deno.env.get('SUPABASE_SERVICE_ROLE_K
 async function anthropicTranslate(texts: string[], language: string) {
   const apiKey = Deno.env.get('ANTHROPIC_API_KEY');
   if (!apiKey) throw new Error('missing ANTHROPIC_API_KEY');
-  const res = await fetch(`${ANTHROPIC_BASE_URL}/messages`, {
+  const res = await aiFetch(`${ANTHROPIC_BASE_URL}/messages`, {
     method: 'POST',
     headers: { 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
     body: JSON.stringify({
@@ -60,10 +61,12 @@ const handler = createTranslatePlanHandler({
       auth: { persistSession: false },
     });
     const { data } = await asUser.from('ai_plans').select(PLAN_COLUMNS).eq('id', planId).maybeSingle();
+    setAiUsageStudent((data as TranslatablePlan | null)?.student_id);
     return (data as TranslatablePlan | null) ?? null;
   },
   async loadPlan(planId) {
     const { data } = await service.from('ai_plans').select(PLAN_COLUMNS).eq('id', planId).maybeSingle();
+    setAiUsageStudent((data as TranslatablePlan | null)?.student_id);
     return (data as TranslatablePlan | null) ?? null;
   },
   async studentLanguage(studentId) {
@@ -96,4 +99,4 @@ const handler = createTranslatePlanHandler({
   log: (message, extra) => console.error(message, extra ?? ''),
 });
 
-Deno.serve(handler);
+Deno.serve(withAiUsage('traducao', 'translate-plan', handler));
