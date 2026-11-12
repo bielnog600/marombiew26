@@ -45,7 +45,7 @@ beforeAll(() => {
     value: { getUserMedia: vi.fn(async () => ({ getTracks: () => [{ stop: () => {} }] })) },
   });
 });
-beforeEach(() => { mock.invoke.mockReset(); mock.insert.mockReset(); mock.shot = 0; localStorage.clear(); });
+beforeEach(() => { mock.invoke.mockReset(); mock.insert.mockReset(); mock.shot = 0; localStorage.clear(); (navigator.mediaDevices.getUserMedia as any).mockClear?.(); });
 afterEach(() => cleanup());
 
 const takePhoto = async () => {
