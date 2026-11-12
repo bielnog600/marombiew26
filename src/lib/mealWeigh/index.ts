@@ -54,6 +54,18 @@ export interface WeighedItem {
   origem?: WeighItemOrigin;
   /** Faixa plausível das gramas estimadas pela IA. */
   faixa_gramas?: [number, number] | null;
+  /** Estimado: id estável da estimativa (uma correção por estimativa). */
+  estimativa_id?: string | null;
+  /** Estimado: gramas ORIGINAIS da IA (base de toda correção). */
+  gramas_estimadas?: number | null;
+  /** Estimado: gramas sugeridas depois da calibração (antes do aluno mexer). */
+  gramas_ajustadas?: number | null;
+  /** Estimado: fator de calibração aplicado (1 = sem ajuste). */
+  fator_calibracao?: number | null;
+  /** Estimado: o aluno ou o admin mudou as gramas. */
+  gramas_corrigidas?: boolean;
+  /** Estimado: gramas corrigidas pelo admin. */
+  corrigido_por_admin?: boolean;
 }
 
 export type WeighItemOrigin = 'pesado' | 'estimado' | 'escaneado';
