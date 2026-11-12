@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
+import { aiFetch, withAiUsage } from "../_shared/aiUsage.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -30,7 +31,6 @@ serve(withAiUsage("busca_alimento_ia", "food-search-ai", async (req) => {
         model: "gpt-4o-mini",
         messages: mode === 'suggest' ? [
           {
-import { aiFetch, setAiUsageStudent, setAiUsageStudentFrom, withAiUsage } from "../_shared/aiUsage.ts";
             role: "system",
             content: `Você é um especialista em nutrição. Sua tarefa é sugerir alimentos saudáveis, ideais para dietas equilibradas, que NÃO estejam na lista fornecida pelo usuário.
             Retorne APENAS um array de objetos JSON no seguinte formato:
