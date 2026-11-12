@@ -72,6 +72,16 @@ const cleanAdded = (value: unknown) =>
     .map((v: any) => ({ alimento: String(v?.alimento ?? '').replace(/\s+/g, ' ').trim().slice(0, 120), gramas: Number(v?.gramas) }))
     .filter((v) => v.alimento)
     .slice(0, 30);
+/** Correções recentes do aluno no "Prato pronto" (estimado pela IA → real), no máximo 5. */
+const cleanCorrections = (value: unknown) =>
+  (Array.isArray(value) ? value : [])
+    .map((v: any) => ({
+      alimento: String(v?.alimento ?? '').replace(/\s+/g, ' ').trim().slice(0, 80),
+      estimado: Math.round(Number(v?.estimado)),
+      real: Math.round(Number(v?.real)),
+    }))
+    .filter((v) => v.alimento && v.estimado > 0 && v.estimado <= 5000 && v.real > 0 && v.real <= 5000)
+    .slice(0, 5);
 
 /** Normaliza o JSON da pesagem; null quando a IA não devolveu um objeto. */
 function parseWeighJson(text: string) {
@@ -170,6 +180,7 @@ function parsePlateJson(text: string) {
     peso_total_lido: total != null && total > 0 ? Math.round(total * 10) / 10 : null,
     prato_tarado: total != null && total > 0 && typeof o.prato_tarado === 'boolean' ? o.prato_tarado : null,
     observacao: String(o.observacao ?? '').trim().slice(0, 240),
+    balanca_sem_visor: !(total != null && total > 0) && o.balanca_sem_visor === true,
   };
 }
 
@@ -179,16 +190,20 @@ function platePrompt(
   pendingFoods: string[],
   added: { alimento: string; gramas: number }[],
   baseFoods: string[],
+  corrections: { alimento: string; estimado: number; real: number }[] = [],
 ) {
+  const calib = corrections.length
+    ? `\nCorreções recentes deste aluno (a estimativa da foto × o que era de verdade; use para calibrar as gramas, sem copiar números): ${corrections.map((c) => `${c.alimento}: você estimou ${c.estimado} g, era ${c.real} g`).join('; ')}.`
+    : '';
   return `Você recebeu UMA foto de um prato pronto (a refeição já montada), de cima ou levemente inclinada. Identifique CADA alimento do prato e estime as gramas de cada um.
 Refeição: ${mealName || 'não informada'}.
 Alimentos previstos no plano desta refeição (quando o alimento do prato for compatível, use EXATAMENTE um destes nomes): ${planFoods.length ? planFoods.join('; ') : 'nenhum informado'}.
 Previstos ainda não registrados: ${pendingFoods.length ? pendingFoods.join('; ') : 'nenhum'}.
 Já registrados nesta refeição (não repita, a menos que estejam claramente neste prato): ${added.length ? added.map((a) => a.alimento).join('; ') : 'nenhum'}.
-Base de alimentos do app (fora do plano, prefira um destes nomes): ${baseFoods.length ? baseFoods.join('; ') : 'não informada'}.
+Base de alimentos do app (fora do plano, prefira um destes nomes): ${baseFoods.length ? baseFoods.join('; ') : 'não informada'}.${calib}
 Regras:
 - Um item por alimento visível. Um preparo misturado conta como um item (ex.: "Strogonoff de frango"). Molho ou tempero só se for uma porção relevante.
-- Se aparecer uma balança com o visor legível, leia o número em peso_total_lido (gramas; converta kg, oz ou lb). Em prato_tarado diga se o visor mostra só a comida (true, balança zerada com o prato), comida + prato (false) ou se não dá para saber (null). Sem balança ou visor ilegível: peso_total_lido null e prato_tarado null.
+- Se aparecer uma balança com o visor legível, leia o número em peso_total_lido (gramas; converta kg, oz ou lb). Em prato_tarado diga se o visor mostra só a comida (true, balança zerada com o prato), comida + prato (false) ou se não dá para saber (null). Sem balança ou visor ilegível: peso_total_lido null e prato_tarado null. balanca_sem_visor: true só se aparece uma balança mas o visor não está na foto ou não dá para ler; senão false.
 - gramas_estimadas: gramas do alimento pronto, pelo tamanho visual (tipo e diâmetro do prato — raso ~26 cm, sobremesa ~20 cm —, talheres, mão por perto e porções típicas). Com peso_total_lido, faça a soma das gramas combinar com ele (descontando o prato quando prato_tarado for false).
 - faixa_gramas: [mínimo, máximo] plausível para cada alimento.
 - confianca de 0 a 1.
@@ -196,7 +211,7 @@ Regras:
 - Nomes simples em português do Brasil, como numa tabela de alimentos (ex.: "Arroz branco cozido", "Peito de frango grelhado").
 - observacao: curta ou "".
 Responda SOMENTE JSON:
-{"itens":[{"alimento":string,"alternativas":[string,string,string],"gramas_estimadas":number,"faixa_gramas":[number,number],"confianca":number}],"peso_total_lido":number|null,"prato_tarado":boolean|null,"observacao":string}`;
+{"itens":[{"alimento":string,"alternativas":[string,string,string],"gramas_estimadas":number,"faixa_gramas":[number,number],"confianca":number}],"peso_total_lido":number|null,"prato_tarado":boolean|null,"balanca_sem_visor":boolean,"observacao":string}`;
 }
 
 /* ---------- Scanner por foto ---------- */
@@ -424,6 +439,7 @@ Responda SOMENTE JSON:
       const planFoods = cleanNames(body.planFoods, 40);
       const pendingFoods = cleanNames(body.pendingPlanFoods, 40);
       const added = cleanAdded(body.addedFoods);
+      const corrections = cleanCorrections(body.corrections);
       const mealName = String(body.mealName ?? '').replace(/\s+/g, ' ').trim().slice(0, 80);
       let baseFoods: string[] = [];
       try {
@@ -435,7 +451,7 @@ Responda SOMENTE JSON:
       const text = await anthropic(
         [
           { type: 'image', source: { type: 'base64', ...current } },
-          { type: 'text', text: platePrompt(mealName, planFoods, pendingFoods, added, baseFoods) },
+          { type: 'text', text: platePrompt(mealName, planFoods, pendingFoods, added, baseFoods, corrections) },
         ],
         900,
       );
