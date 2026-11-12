@@ -152,4 +152,16 @@ describe('Pesar refeição — salvar entra na refeição do dia', () => {
     const fake = await screen.findByTestId('fake-weigh');
     expect(fake).toHaveTextContent('base: log-old · modo: - · alimento: -');
   });
+
+  it('balança num alimento da refeição já pesada abre só aquele alimento, sem perguntar', async () => {
+    mock.weighRows = [{ ...weighLog('log-old', '2026-10-30T08:10:00Z', 120, 107), meal_index: 0, log_date: '2026-10-30' }];
+    render(<MinhasDietas />);
+    await screen.findByText('Lanche');
+    const card = lancheCard();
+    expect(within(card).queryByRole('button', { name: /^Remover / })).toBeNull();
+    fireEvent.click(within(card).getByRole('button', { name: 'Pesar Aveia' }));
+    const fake = await screen.findByTestId('fake-weigh');
+    expect(fake).toHaveTextContent('base: log-old · modo: plan · alimento: 1');
+    expect(screen.queryByText('Essa refeição já tem alimentos pesados')).toBeNull();
+  });
 });

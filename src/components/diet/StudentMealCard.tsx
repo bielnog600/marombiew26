@@ -237,6 +237,8 @@ const StudentMealCard: React.FC<StudentMealCardProps> = ({
                 {foods.map((food, foodIndex) => {
                   const weigh = foodWeigh(food);
                   const locked = !!weighed;
+                  // Refeição já pesada: a balança continua nos alimentos do plano para pesar/atualizar só aquele item.
+                  const canWeighFood = !!onWeighFood && !adjustMode && (!locked || (!!weigh && weigh.status !== 'fora_do_plano'));
                   return (
                   <div
                     key={`${meal.name}-${food.food}-${foodIndex}`}
@@ -291,18 +293,18 @@ const StudentMealCard: React.FC<StudentMealCardProps> = ({
                         <span className="text-chart-5">G {food.g || '0'}</span>
                       </div>
                     </div>
-                    {!locked && <div className="flex shrink-0 items-center gap-1">
-                      {onWeighFood && !adjustMode && (
+                    {(!locked || canWeighFood) && <div className="flex shrink-0 items-center gap-1">
+                      {canWeighFood && (
                         <button
                           type="button"
-                          onClick={() => onWeighFood(foodIndex)}
+                          onClick={() => onWeighFood?.(foodIndex)}
                           aria-label={`Pesar ${food.food}`}
                           className="p-1.5 text-primary transition-colors hover:text-primary/80"
                         >
                           <Scale className="h-3.5 w-3.5" />
                         </button>
                       )}
-                      {moveTargets.length > 0 && (
+                      {!locked && moveTargets.length > 0 && (
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <button
@@ -327,6 +329,7 @@ const StudentMealCard: React.FC<StudentMealCardProps> = ({
                           </DropdownMenuContent>
                         </DropdownMenu>
                       )}
+                      {!locked && (
                       <button
                         type="button"
                         onClick={() => handleRemove(foodIndex)}
@@ -335,6 +338,7 @@ const StudentMealCard: React.FC<StudentMealCardProps> = ({
                       >
                         <Trash2 className="h-3.5 w-3.5" />
                       </button>
+                      )}
                     </div>}
                   </div>
                   );
