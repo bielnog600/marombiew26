@@ -108,3 +108,9 @@ export function providerForUrl(url: string): AiProvider {
   if (/api\.elevenlabs\.io/i.test(url)) return 'elevenlabs';
   return 'outro';
 }
+
+/** Who a usage row belongs to: a student's own call keeps their id; admin/system calls keep only the student they were for. */
+export function usageAttribution(role: 'aluno' | 'admin' | 'sistema', actorId: string | null, targetStudentId?: string | null) {
+  const studentId = role === 'aluno' ? actorId : null;
+  return { student_id: studentId, target_student_id: targetStudentId ?? studentId };
+}

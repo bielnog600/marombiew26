@@ -3,7 +3,7 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import {
-  computeAiCostUsd, countImageBlocks, emptyQuantities, providerForUrl, usageQuantities,
+  computeAiCostUsd, countImageBlocks, emptyQuantities, providerForUrl, usageAttribution, usageQuantities,
   type AiPrice, type AiProvider, type AiUsageQuantities,
 } from './aiCost.ts';
 
@@ -122,10 +122,8 @@ async function persist(scope: AiUsageScope | undefined, rec: AiUsageRecord) {
   const price = rec.model ? await priceFor(rec.provider, rec.model) : null;
   const q: AiUsageQuantities = { ...emptyQuantities(), ...rec };
   const cost = computeAiCostUsd(price, q);
-  const studentId = actor.role === 'aluno' ? actor.id : null;
   const { error } = await service().from('ai_usage_logs').insert({
-    student_id: studentId,
-    target_student_id: scope?.targetStudentId ?? studentId,
+    ...usageAttribution(actor.role, actor.id, scope?.targetStudentId),
     actor_id: actor.id,
     actor_role: actor.role,
     feature: rec.feature ?? scope?.feature ?? defaults.feature,
