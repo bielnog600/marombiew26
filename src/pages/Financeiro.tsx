@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import AppLayout from '@/components/AppLayout';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -139,6 +140,7 @@ const Financeiro: React.FC = () => {
     && !payments.some(p => p.billing_plan_id === pl.id && p.reference_month === selectedMonth),
   ), [plans, payments, selectedMonth]);
 
+  const navigate = useNavigate();
   return (
     <AppLayout title="Financeiro">
       <div className="space-y-6 animate-fade-in">
