@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { AlertTriangle, Camera, Check, ChevronRight, ImagePlus, ListOrdered, Loader2, Pencil, Plus, RotateCcw, Scale, ScanSearch, Search, SkipForward, X } from 'lucide-react';
+import { AlertTriangle, Camera, Check, ChevronRight, ImagePlus, ListOrdered, Loader2, Pencil, Plus, RotateCcw, Scale, ScanSearch, Search, SkipForward, UtensilsCrossed, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -27,6 +27,8 @@ import {
 import { editWeighedItem, finishPhase, removeWeighedItem, startFromWeighLog, upsertWeighedItem, type WeighItemChange } from '@/lib/mealWeigh/editItems';
 import { SCALE_DISPLAY_HINT, readAutoCapturePref, writeAutoCapturePref } from '@/lib/mealWeigh/autoCapture';
 import WeighItemEditSheet, { MacroLine } from './WeighItemEditSheet';
+import PlateReview, { EstimatedBadge } from './PlateReview';
+import { PLATE_HINT, buildPlateEstimateRequest, normalizePlateEstimate, type PlateAiResult } from '@/lib/mealWeigh/plateEstimate';
 import { useAutoCapture } from './useAutoCapture';
 
 interface Props {
@@ -38,8 +40,8 @@ interface Props {
   dietPlanId: string | null;
   /** Teste do admin: nada é salvo. */
   testMode?: boolean;
-  /** 'plan' = Pesar alimentos da dieta (só lê o peso); 'scan' = Escanear prato. Sem valor: o aluno escolhe. */
-  initialMode?: 'plan' | 'scan';
+  /** 'plan' = Pesar alimentos da dieta (só lê o peso); 'scan' = Escanear prato; 'plate' = Prato pronto. Sem valor: o aluno escolhe. */
+  initialMode?: 'plan' | 'scan' | 'plate';
   /** Alimento do plano para começar no modo 'plan'. */
   startFoodIndex?: number;
   onClose: () => void;
@@ -54,8 +56,8 @@ interface Props {
   addToLog?: WeighLogRecord | null;
 }
 
-type Phase = 'camera' | 'analyzing' | 'item' | 'list' | 'review' | 'summary';
-type Mode = 'choose' | 'plan' | 'scan';
+type Phase = 'camera' | 'analyzing' | 'item' | 'plate' | 'list' | 'review' | 'summary';
+type Mode = 'choose' | 'plan' | 'scan' | 'plate';
 
 interface PlanDraft {
   photo: string;
@@ -131,6 +133,8 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
   const [flashing, setFlashing] = useState(false);
   const guideRef = useRef<HTMLDivElement | null>(null);
   const [draft, setDraft] = useState<Draft | null>(null);
+  /** Prato pronto: foto + resposta da IA em revisão. */
+  const [plate, setPlate] = useState<{ photo: string; ai: PlateAiResult } | null>(null);
   const [foods, setFoods] = useState<WeighFood[]>([]);
   const [camError, setCamError] = useState<string | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -270,7 +274,33 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
     }
   }, [currentPlanFood]);
 
-  const runAnalysis = useCallback((photo: string) => (mode === 'plan' ? analyzePlan(photo) : analyze(photo)), [mode, analyze, analyzePlan]);
+  /** Prato pronto: uma foto do prato montado; a IA identifica cada alimento e estima as gramas. */
+  const analyzePlate = useCallback(async (photo: string) => {
+    setPendingPhoto(photo);
+    setPhase('analyzing');
+    try {
+      const body = buildPlateEstimateRequest({ photo, mealName: meal.name, planned, items: itemsRef.current });
+      const { data, error } = await supabase.functions.invoke('food-scanner', { body });
+      if (error) {
+        let msg = 'Não foi possível analisar a foto agora.';
+        try { const b = await (error as any).context?.json?.(); if (b?.error) msg = b.error; } catch { /* sem corpo */ }
+        throw new Error(msg);
+      }
+      if (data?.error) throw new Error(data.error);
+      const ai = normalizePlateEstimate(data?.result);
+      if (!ai) throw new Error('Não consegui ver os alimentos do prato. Tira outra foto de cima, com o prato inteiro.');
+      setPlate({ photo, ai });
+      setPhase('plate');
+    } catch (e) {
+      toast.error((e as Error).message || 'Não foi possível analisar a foto.');
+      setPhase('camera');
+    }
+  }, [meal.name, planned]);
+
+  const runAnalysis = useCallback(
+    (photo: string) => (mode === 'plan' ? analyzePlan(photo) : mode === 'plate' ? analyzePlate(photo) : analyze(photo)),
+    [mode, analyze, analyzePlan, analyzePlate],
+  );
 
   const capture = useCallback(() => {
     const v = videoRef.current;
@@ -354,7 +384,22 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
     toCamera();
   };
 
-  const chooseMode = (m: 'plan' | 'scan') => {
+  /** Prato pronto confirmado: os itens estimados entram na refeição (somados aos já registrados). */
+  const confirmPlate = (estimated: WeighedItem[]) => {
+    if (estimated.length === 0) return;
+    const appended = [...itemsRef.current, ...estimated];
+    const nextItems = dropStaleSubstitutions(appended, buildUnweighedEntries(pendingPlanFoods(planned, appended), choicesRef.current));
+    const nextPhotos = [...photosRef.current, ...estimated.map(() => plate?.photo ?? '')];
+    itemsRef.current = nextItems;
+    photosRef.current = nextPhotos;
+    setItems(nextItems);
+    setPhotos(nextPhotos);
+    setPlate(null);
+    setDirty(true);
+    finish(nextItems);
+  };
+
+  const chooseMode = (m: 'plan' | 'scan' | 'plate') => {
     setMode(m);
     toCamera();
   };
@@ -513,7 +558,7 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
   );
 
   /** Itens já pesados no topo: "Iogurte 154 g · Whey 26 g". */
-  const weighedChips = mode === 'scan' && items.length > 0 ? (
+  const weighedChips = (mode === 'scan' || mode === 'plate') && items.length > 0 ? (
     <div className="px-4 pb-2" data-testid="meal-weigh-weighed-chips" aria-label={`Já pesados: ${weighedChipsLabel(items)}`}>
       <div className="flex gap-1.5 overflow-x-auto [scrollbar-width:none]">
         {items.map((it, i) => (
@@ -553,6 +598,14 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
                 <span className="block text-xs text-muted-foreground">A IA identifica cada alimento que você coloca e lê o peso.</span>
               </span>
             </button>
+            <button type="button" onClick={() => chooseMode('plate')}
+              className="w-full rounded-2xl border border-border bg-secondary/40 p-4 text-left flex gap-3 items-start">
+              <span className="h-11 w-11 shrink-0 rounded-xl bg-secondary flex items-center justify-center"><UtensilsCrossed className="h-5 w-5 text-primary" /></span>
+              <span className="min-w-0">
+                <span className="block text-base font-bold">Prato pronto</span>
+                <span className="block text-xs text-muted-foreground">Uma foto do prato montado. A IA identifica cada alimento e estima as gramas.</span>
+              </span>
+            </button>
           </div>
         </div>
       )}
@@ -565,7 +618,7 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
             pendingPhoto ? <img src={pendingPhoto} alt="" className="absolute inset-0 h-full w-full object-cover" /> : <div className="absolute inset-0 bg-secondary/40" />
           )}
           <div className="absolute inset-x-0 top-0 z-10 bg-gradient-to-b from-background/90 to-transparent">
-            {header(mode === 'scan' ? scanTitle : 'Pesar refeição')}
+            {header(mode === 'scan' ? scanTitle : mode === 'plate' ? 'Prato pronto' : 'Pesar refeição')}
             {weighedChips}
           </div>
           <div className="pointer-events-none absolute inset-0 flex items-center justify-center px-6">
@@ -585,11 +638,11 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
                 </>
               )}
               <span className="absolute -top-px left-1/2 w-max max-w-[calc(100%-1rem)] -translate-x-1/2 -translate-y-1/2 rounded-2xl bg-primary px-3 py-1 text-center text-xs font-semibold text-primary-foreground" data-testid="meal-weigh-hint">
-                {mode === 'plan' ? scaleOnlyHint(currentPlanFood?.alimento ?? '') : items.length === 0 ? FIRST_ITEM_HINT : NEXT_ITEM_HINT}
+                {mode === 'plan' ? scaleOnlyHint(currentPlanFood?.alimento ?? '') : mode === 'plate' ? PLATE_HINT : items.length === 0 ? FIRST_ITEM_HINT : NEXT_ITEM_HINT}
               </span>
 
               <span className="absolute bottom-4 left-1/2 -translate-x-1/2 rounded-lg border border-primary/60 bg-background/70 px-3 py-1 text-[11px] text-primary">
-                visor da balança
+                {mode === 'plate' ? 'prato inteiro' : 'visor da balança'}
               </span>
             </div>
           </div>
@@ -597,7 +650,7 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
           {phase === 'analyzing' && (
             <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-background/70" role="status">
               <Loader2 className="h-10 w-10 animate-spin text-primary" />
-              <p className="text-sm font-semibold">Lendo a balança…</p>
+              <p className="text-sm font-semibold">{mode === 'plate' ? 'Identificando os alimentos do prato…' : 'Lendo a balança…'}</p>
             </div>
           )}
           {phase === 'camera' && (
@@ -611,7 +664,7 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
                       {autoCapture.phase === 'countdown' ? 'Não mexe…'
                         : autoCapture.phase === 'no_object' ? (autoCapture.detector === 'loading' ? 'Procurando o prato…' : 'Coloca o prato no centro da moldura')
                         : 'Segura o celular parado'}
-                      <span className="block text-[11px] font-normal text-muted-foreground">{SCALE_DISPLAY_HINT}</span>
+                      {mode !== 'plate' && <span className="block text-[11px] font-normal text-muted-foreground">{SCALE_DISPLAY_HINT}</span>}
                     </p>
                   )}
                   {autoOn && !autoArmed && (
@@ -854,6 +907,19 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
         </div>
       )}
 
+      {mode === 'plate' && phase === 'plate' && plate && (
+        <PlateReview
+          header={<>{header('Prato pronto')}{weighedChips}</>}
+          photo={plate.photo}
+          ai={plate.ai}
+          planned={planned}
+          existing={items}
+          foods={foods}
+          onRetake={() => { setPlate(null); toCamera(); }}
+          onConfirm={confirmPlate}
+        />
+      )}
+
       {mode !== 'choose' && phase === 'list' && (
         <div className="flex-1 min-h-0 flex flex-col">
           {header('Itens pesados')}
@@ -883,7 +949,7 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
               </Button>
             ) : (
               <Button variant="outline" className="flex-1 gap-1.5" onClick={toCamera}>
-                <Plus className="h-4 w-4" /> Próximo alimento
+                <Plus className="h-4 w-4" /> {mode === 'plate' ? 'Outra foto de prato' : 'Próximo alimento'}
               </Button>
             )}
             <Button className="flex-1 gap-1.5 font-semibold" disabled={items.length === 0} onClick={() => finish()}>
@@ -1039,7 +1105,10 @@ const ItemList: React.FC<{ items: WeighedItem[]; onEdit?: (i: number) => void }>
           className="w-full rounded-xl border border-border bg-secondary/30 p-3 text-left active:bg-secondary/60 disabled:cursor-default">
           <div className="flex items-start gap-2">
             <div className="min-w-0 flex-1">
-              <p className="text-sm font-semibold truncate">{it.alimento}</p>
+              <div className="flex min-w-0 items-center gap-1.5">
+                <p className="text-sm font-semibold truncate">{it.alimento}</p>
+                {it.origem === 'estimado' && <EstimatedBadge />}
+              </div>
               <p className="text-xs text-muted-foreground tabular-nums">
                 <span className="font-bold text-primary">{Math.round(it.gramas)} g</span> · {it.kcal} kcal · P {it.p} · C {it.c} · G {it.g}
               </p>
