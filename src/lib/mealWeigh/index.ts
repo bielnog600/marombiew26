@@ -50,7 +50,14 @@ export interface WeighedItem {
   substituiu?: { indice_plano: number; alimento: string } | null;
   /** Fora do plano e o aluno disse "Não, foi extra". */
   extra?: boolean;
+  /** 'estimado' = gramas estimadas pela foto ("Prato pronto"); ausente = pesado na balança. */
+  origem?: WeighItemOrigin;
+  /** Faixa plausível das gramas estimadas pela IA. */
+  faixa_gramas?: [number, number] | null;
 }
+
+export type WeighItemOrigin = 'pesado' | 'estimado';
+export const isEstimatedItem = (it: Pick<WeighedItem, 'origem'> | null | undefined) => it?.origem === 'estimado';
 
 /** Abaixo disso a leitura do visor ou o alimento são tratados como incertos. */
 export const LOW_CONFIDENCE = 0.5;
@@ -288,6 +295,8 @@ export interface FoodComparison {
   previstoQty: string;
   pesadoGramas: number;
   diffGramas: number | null;
+  /** Alguma parte veio de "Prato pronto" (gramas estimadas pela foto). */
+  estimado?: boolean;
 }
 
 export interface MealComparison {
@@ -350,7 +359,11 @@ export function compareWeighedMeal(
   const previsto: EngineMacros = { kcal: planned.kcal, p: planned.p, c: planned.c, g: planned.g };
   const itemToPlan = pairItemsToPlan(planned, items);
   const grams = new Map<number, number>();
-  itemToPlan.forEach((plan, item) => grams.set(plan, (grams.get(plan) ?? 0) + (Number(items[item].gramas) || 0)));
+  const estimated = new Set<number>();
+  itemToPlan.forEach((plan, item) => {
+    grams.set(plan, (grams.get(plan) ?? 0) + (Number(items[item].gramas) || 0));
+    if (isEstimatedItem(items[item])) estimated.add(plan);
+  });
   const answered = new Set(unweighed.map((u) => u.indice_plano));
   const alimentos: FoodComparison[] = planned.alimentos
     .map((pf, pi) => ({ pf, pi }))
@@ -363,6 +376,7 @@ export function compareWeighedMeal(
         previstoQty: pf.qty,
         pesadoGramas: pesado,
         diffGramas: pf.gramas != null ? round1(pesado - pf.gramas) : null,
+        ...(estimated.has(pi) ? { estimado: true } : {}),
       };
     });
   return {
@@ -385,7 +399,7 @@ const fmtG = (n: number) => `${Math.round(n)} g`;
 /** "Arroz: previsto 150 g, pesou 180 g" */
 export function formatFoodComparison(row: FoodComparison): string {
   const previsto = row.previstoGramas != null ? fmtG(row.previstoGramas) : row.previstoQty || '—';
-  return `${row.alimento}: previsto ${previsto}, pesou ${fmtG(row.pesadoGramas)}`;
+  return `${row.alimento}: previsto ${previsto}, ${row.estimado ? 'estimado ~' : 'pesou '}${fmtG(row.pesadoGramas)}`;
 }
 
 /* ----------------------------- Permissão -------------------------------- */
@@ -737,6 +751,8 @@ export interface DayFoodWeigh {
   previstoGramas?: number | null;
   previstoQty?: string;
   substituiu?: string | null;
+  /** Gramas estimadas pela foto ("Prato pronto"), não pesadas. */
+  estimado?: boolean;
 }
 export interface DayMealFood {
   food: string;
@@ -773,7 +789,10 @@ export function dayMealFoodsFromLog(log: WeighLogRecord): DayMealFood[] {
       out.push({
         food: pf.alimento, qty: `${Math.round(sum.gramas)} g`,
         kcal: String(Math.round(sum.kcal)), p: str(sum.p), c: str(sum.c), g: str(sum.g),
-        weigh: { status: 'pesado', gramas: sum.gramas, previstoGramas: pf.gramas, previstoQty: pf.qty },
+        weigh: {
+          status: 'pesado', gramas: sum.gramas, previstoGramas: pf.gramas, previstoQty: pf.qty,
+          ...(weighed.some(isEstimatedItem) ? { estimado: true } : {}),
+        },
       });
       return;
     }
@@ -790,7 +809,10 @@ export function dayMealFoodsFromLog(log: WeighLogRecord): DayMealFood[] {
     out.push({
       food: it.alimento, qty: `${Math.round(Number(it.gramas) || 0)} g`,
       kcal: String(Math.round(Number(it.kcal) || 0)), p: str(it.p), c: str(it.c), g: str(it.g),
-      weigh: { status: 'fora_do_plano', gramas: Number(it.gramas) || 0, substituiu: it.substituiu?.alimento ?? null },
+      weigh: {
+        status: 'fora_do_plano', gramas: Number(it.gramas) || 0, substituiu: it.substituiu?.alimento ?? null,
+        ...(isEstimatedItem(it) ? { estimado: true } : {}),
+      },
     });
   });
   return out;
@@ -800,11 +822,12 @@ export function dayMealFoodsFromLog(log: WeighLogRecord): DayMealFood[] {
 export function formatDayWeighLabel(w: DayFoodWeigh): string {
   if (w.status === 'pesado') {
     const prev = w.previstoGramas != null ? `${Math.round(w.previstoGramas)} g` : w.previstoQty || '—';
-    return `pesou ${Math.round(w.gramas ?? 0)} g (previsto ${prev})`;
+    return `${w.estimado ? 'estimado ~' : 'pesou '}${Math.round(w.gramas ?? 0)} g (previsto ${prev})`;
   }
   if (w.status === 'sem_pesar') return 'comeu sem pesar';
   if (w.status === 'nao_comeu') return 'não comeu';
-  return w.substituiu ? `no lugar de ${w.substituiu}` : `pesou ${Math.round(w.gramas ?? 0)} g`;
+  if (w.substituiu) return `no lugar de ${w.substituiu}`;
+  return `${w.estimado ? 'estimado ~' : 'pesou '}${Math.round(w.gramas ?? 0)} g`;
 }
 
 /**
