@@ -1,9 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { AlertTriangle, Camera, Check, ChevronRight, ImagePlus, ListOrdered, Loader2, Plus, RotateCcw, Scale, ScanSearch, Search, SkipForward, Trash2, X } from 'lucide-react';
+import { AlertTriangle, Camera, Check, ChevronRight, ImagePlus, ListOrdered, Loader2, Pencil, Plus, RotateCcw, Scale, ScanSearch, Search, SkipForward, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Switch } from '@/components/ui/switch';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
   AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -23,6 +24,10 @@ import {
   type PendingPlanFood, type ScanWeighResolution, type UnweighedChoice, type WeighAiResult, type WeighFood, type WeighedItem,
   type WeighLogRecord,
 } from '@/lib/mealWeigh';
+import { editWeighedItem, removeWeighedItem, startFromWeighLog, type WeighItemChange } from '@/lib/mealWeigh/editItems';
+import { SCALE_DISPLAY_HINT, readAutoCapturePref, writeAutoCapturePref } from '@/lib/mealWeigh/autoCapture';
+import WeighItemEditSheet, { MacroLine } from './WeighItemEditSheet';
+import { useAutoCapture } from './useAutoCapture';
 
 interface Props {
   meal: ParsedMeal;
@@ -40,6 +45,8 @@ interface Props {
   onClose: () => void;
   /** Pesagem salva (registro do dia da refeição). */
   onSaved?: (log: WeighLogRecord) => void;
+  /** "Editar pesagem": abre o resumo editável desta pesagem já salva; salvar cria o novo registro do dia. */
+  editLog?: WeighLogRecord | null;
 }
 
 type Phase = 'camera' | 'analyzing' | 'item' | 'list' | 'review' | 'summary';
@@ -63,7 +70,6 @@ interface Draft {
   planIndex: number | null;
   grams: string;
   unreadable: boolean;
-  tareSuggested: number | null;
   tareDismissed: boolean;
 }
 
@@ -91,29 +97,29 @@ const fileToJpeg = (file: File) =>
     img.src = url;
   });
 
-const MacroLine: React.FC<{ m: { kcal: number; p: number; c: number; g: number }; className?: string }> = ({ m, className }) => (
-  <div className={`grid grid-cols-4 gap-1 text-center ${className ?? ''}`}>
-    {([['kcal', Math.round(m.kcal), ''], ['P', round1(m.p), ' g'], ['C', round1(m.c), ' g'], ['G', round1(m.g), ' g']] as const).map(([k, v, u]) => (
-      <div key={k} className="rounded-lg bg-secondary/60 px-1 py-1.5">
-        <p className="text-[10px] uppercase text-muted-foreground">{k}</p>
-        <p className="text-sm font-bold tabular-nums">{v}{u}</p>
-      </div>
-    ))}
-  </div>
-);
-
 const signed = (n: number, unit = '') => `${n > 0 ? '+' : ''}${n}${unit}`;
 
-const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex, dietPlanId, testMode, initialMode, startFoodIndex, onClose, onSaved }) => {
+const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex, dietPlanId, testMode, initialMode, startFoodIndex, onClose, onSaved, editLog }) => {
   useHoldAppUpdate(true);
   // Tela cheia de verdade: o menu inferior some enquanto a pesagem está aberta.
   useHideBottomNav(true);
-  const [mode, setMode] = useState<Mode>(initialMode ?? 'choose');
-  const [phase, setPhase] = useState<Phase>('camera');
+  // Editar pesagem salva: parte do registro do dia (previsto guardado, itens e escolhas).
+  const [editStart] = useState(() => (editLog ? startFromWeighLog(editLog, plannedFromMeal(meal)) : null));
+  const isEdit = !!editStart;
+  const [dirty, setDirty] = useState(false);
+  const [mode, setMode] = useState<Mode>(isEdit ? 'scan' : initialMode ?? 'choose');
+  const [phase, setPhase] = useState<Phase>(isEdit ? 'summary' : 'camera');
   const [planIdx, setPlanIdx] = useState(Math.max(0, startFoodIndex ?? 0));
   const [planDraft, setPlanDraft] = useState<PlanDraft | null>(null);
-  const [items, setItems] = useState<WeighedItem[]>([]);
-  const [photos, setPhotos] = useState<string[]>([]);
+  const [items, setItems] = useState<WeighedItem[]>(() => editStart?.items ?? []);
+  const [photos, setPhotos] = useState<string[]>(() => editStart?.photos ?? []);
+  /** Item aberto no painel de edição. */
+  const [editingIndex, setEditingIndex] = useState<number | null>(null);
+  /** Foto automática: preferência (lembrada) e armada até disparar uma vez. */
+  const [autoOn, setAutoOn] = useState(() => readAutoCapturePref(typeof window !== 'undefined' ? window.localStorage : null));
+  const [autoArmed, setAutoArmed] = useState(true);
+  const [flashing, setFlashing] = useState(false);
+  const guideRef = useRef<HTMLDivElement | null>(null);
   const [draft, setDraft] = useState<Draft | null>(null);
   const [foods, setFoods] = useState<WeighFood[]>([]);
   const [camError, setCamError] = useState<string | null>(null);
@@ -123,12 +129,12 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
   const [confirmExit, setConfirmExit] = useState(false);
   const [pendingPhoto, setPendingPhoto] = useState<string | null>(null);
   /** Escolha para cada alimento do plano não pesado (padrão: comi sem pesar). */
-  const [unweighedChoices, setUnweighedChoices] = useState<Record<number, UnweighedChoice>>({});
+  const [unweighedChoices, setUnweighedChoices] = useState<Record<number, UnweighedChoice>>(() => editStart?.choices ?? {});
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const fileRef = useRef<HTMLInputElement | null>(null);
 
-  const planned = useMemo(() => plannedFromMeal(meal), [meal]);
+  const planned = useMemo(() => editStart?.planned ?? plannedFromMeal(meal), [editStart, meal]);
   const accumulated = useMemo(() => sumWeighedItems(items).gramas, [items]);
   const pending = useMemo(() => pendingPlanFoods(planned, items), [planned, items]);
   // Sempre a lista/fotos mais recentes na chamada da IA (sem closure velha).
@@ -201,15 +207,12 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
       if (!ai) throw new Error('Não consegui analisar a foto. Tira outra.');
       const resolution = resolveScanWeigh(ai, foods, planned, doneItems);
       const unreadable = isReadingUnreliable(ai);
-      const acc = sumWeighedItems(doneItems).gramas;
-      const tare = unreadable ? { notTared: false, suggestedGrams: null } : checkTare(ai.gramas_lidas, acc);
       setDraft({
         photo, ai, resolution,
         food: resolution.food,
         planIndex: resolution.planIndex,
         grams: unreadable || ai.gramas_lidas == null ? '' : String(ai.gramas_lidas),
         unreadable,
-        tareSuggested: tare.notTared ? tare.suggestedGrams : null,
         tareDismissed: false,
       });
       setSearch('');
@@ -264,6 +267,34 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
     void runAnalysis(photo);
   }, [runAnalysis]);
 
+  /** Volta para a câmera rearmando a foto automática (Próximo alimento / Tirar de novo). */
+  const toCamera = useCallback(() => {
+    setAutoArmed(true);
+    setPhase('camera');
+  }, []);
+
+  const autoCapture = useAutoCapture({
+    enabled: autoOn && autoArmed && mode !== 'choose' && phase === 'camera' && !camError && editingIndex == null && !confirmExit,
+    videoRef,
+    guideRef,
+    onFire: () => {
+      // Uma foto por vez: só dispara de novo depois de "Próximo alimento" ou "Tirar de novo".
+      setAutoArmed(false);
+      setFlashing(true);
+      capture();
+    },
+  });
+  useEffect(() => {
+    if (!flashing) return;
+    const t = window.setTimeout(() => setFlashing(false), 450);
+    return () => window.clearTimeout(t);
+  }, [flashing]);
+  const toggleAuto = (on: boolean) => {
+    setAutoOn(on);
+    if (on) setAutoArmed(true);
+    writeAutoCapturePref(typeof window !== 'undefined' ? window.localStorage : null, on);
+  };
+
   const onFile = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     e.target.value = '';
@@ -296,7 +327,7 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
   };
 
   const skipPlanFood = () => {
-    if (nextPlanIdx != null) { setPlanIdx(nextPlanIdx); setPhase('camera'); return; }
+    if (nextPlanIdx != null) { setPlanIdx(nextPlanIdx); toCamera(); return; }
     setPhase(items.length > 0 ? 'list' : 'camera');
     if (items.length === 0) toast('Esse era o último alimento da refeição.');
   };
@@ -304,12 +335,12 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
   const goNextPlanFood = () => {
     if (nextPlanIdx == null) return;
     setPlanIdx(nextPlanIdx);
-    setPhase('camera');
+    toCamera();
   };
 
   const chooseMode = (m: 'plan' | 'scan') => {
     setMode(m);
-    setPhase('camera');
+    toCamera();
   };
 
   const draftValid = !!draft?.food && gramsNum > 0;
@@ -330,7 +361,9 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
     setItems(nextItems);
     setPhotos(nextPhotos);
     setDraft(null);
+    setDirty(true);
     if (next === 'summary') finish(nextItems);
+    else if (next === 'camera') toCamera();
     else setPhase(next);
   };
 
@@ -342,9 +375,40 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
     setSearch('');
   };
 
-  const removeItem = (idx: number) => {
-    setItems((prev) => prev.filter((_, i) => i !== idx));
-    setPhotos((prev) => prev.filter((_, i) => i !== idx));
+  /** Item aberto no rascunho atual que a IA marcou como repetido: refaz a checagem com a nova lista. */
+  const refreshDraft = (nextItems: WeighedItem[]) => {
+    setDraft((d) => {
+      if (!d || !d.resolution.repeated) return d;
+      const resolution = resolveScanWeigh(d.ai, foods, planned, nextItems);
+      return d.food ? { ...d, resolution } : { ...d, resolution, food: resolution.food, planIndex: resolution.planIndex };
+    });
+  };
+
+  /** Painel do item: salvar alteração recalcula macros, totais, previsto × pesado e acumulado da tara. */
+  const applyItemEdit = (index: number, change: WeighItemChange) => {
+    const nextItems = dropStaleSubstitutions(
+      editWeighedItem(itemsRef.current, index, change),
+      buildUnweighedEntries(pendingPlanFoods(planned, editWeighedItem(itemsRef.current, index, change)), unweighedChoices),
+    );
+    itemsRef.current = nextItems;
+    setItems(nextItems);
+    setDirty(true);
+    setEditingIndex(null);
+    refreshDraft(nextItems);
+  };
+
+  const deleteItem = (index: number) => {
+    const out = removeWeighedItem(planned, itemsRef.current, photosRef.current, index, unweighedChoices);
+    const nextItems = dropStaleSubstitutions(out.items, buildUnweighedEntries(pendingPlanFoods(planned, out.items), out.choices));
+    itemsRef.current = nextItems;
+    photosRef.current = out.photos;
+    setItems(nextItems);
+    setPhotos(out.photos);
+    setUnweighedChoices(out.choices);
+    setDirty(true);
+    setEditingIndex(null);
+    refreshDraft(nextItems);
+    if (nextItems.length === 0 && (phase === 'summary' || phase === 'review' || phase === 'list')) toCamera();
   };
 
   const unweighed = useMemo(() => buildUnweighedEntries(pending, unweighedChoices), [pending, unweighedChoices]);
@@ -355,10 +419,18 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
   const swapsAnswered = swapQuestions.every((i) => items[i]?.extra === true || !!items[i]?.substituiu);
   const comparison = useMemo(() => compareWeighedMeal(planned, items, unweighed), [planned, items, unweighed]);
   const totals = useMemo(() => sumWeighedItems(items), [items]);
+  // Aviso de balança não zerada sempre pelo acumulado ATUAL (itens editados/apagados contam na hora).
+  const tare = draft && !draft.unreadable ? checkTare(draft.ai.gramas_lidas, accumulated) : { notTared: false, suggestedGrams: null };
+  const tareSuggested = tare.notTared ? tare.suggestedGrams : null;
+  // Uma edição no resumo pode criar uma troca sem resposta: volta para a pergunta.
+  useEffect(() => {
+    if (phase === 'summary' && !swapsAnswered) setPhase('review');
+  }, [phase, swapsAnswered]);
 
   const chooseUnweighed = (index: number, choice: UnweighedChoice) => {
     const nextChoices = { ...unweighedChoices, [index]: choice };
     setUnweighedChoices(nextChoices);
+    setDirty(true);
     setItems((prev) => dropStaleSubstitutions(prev, buildUnweighedEntries(pendingPlanFoods(planned, prev), nextChoices)));
   };
 
@@ -384,12 +456,15 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
     }).select('id, log_date, meal_index, items, unweighed, planned, created_at').single();
     setSaving(false);
     if (error) { toast.error('Não foi possível salvar: ' + error.message); return; }
-    toast.success('Refeição pesada salva no seu dia');
+    toast.success(isEdit ? 'Pesagem atualizada no seu dia' : 'Refeição pesada salva no seu dia');
     if (saved) onSaved?.(saved as unknown as WeighLogRecord);
     onClose();
   };
 
-  const requestClose = () => (items.length > 0 && phase !== 'summary' ? setConfirmExit(true) : onClose());
+  const requestClose = () => {
+    if (isEdit) return dirty ? setConfirmExit(true) : onClose();
+    return items.length > 0 && phase !== 'summary' ? setConfirmExit(true) : onClose();
+  };
   const progress = planned.alimentos.length > 0 ? planProgressLabel(planIdx, planned.alimentos.length) : '';
 
   const searchResults = useMemo(() => (search.trim() ? filterFoodsBySearch(foods, search).slice(0, 25) : []), [foods, search]);
@@ -422,9 +497,10 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
     <div className="px-4 pb-2" data-testid="meal-weigh-weighed-chips" aria-label={`Já pesados: ${weighedChipsLabel(items)}`}>
       <div className="flex gap-1.5 overflow-x-auto [scrollbar-width:none]">
         {items.map((it, i) => (
-          <span key={i} className="shrink-0 rounded-full border border-primary/40 bg-primary/10 px-2.5 py-1 text-[11px] font-semibold text-primary tabular-nums">
+          <button key={i} type="button" onClick={() => setEditingIndex(i)} aria-label={`Editar ${it.alimento} ${Math.round(it.gramas)} g`}
+            className="shrink-0 rounded-full border border-primary/40 bg-primary/10 px-2.5 py-1 text-[11px] font-semibold text-primary tabular-nums active:bg-primary/20">
             {it.alimento} {Math.round(it.gramas)} g
-          </span>
+          </button>
         ))}
       </div>
     </div>
@@ -473,7 +549,21 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
             {weighedChips}
           </div>
           <div className="pointer-events-none absolute inset-0 flex items-center justify-center px-6">
-            <div className="relative aspect-[3/4] w-full max-w-sm rounded-3xl border-2 border-dashed border-primary/80 shadow-[0_0_0_9999px_hsl(var(--background)/0.45)]">
+            <div ref={guideRef} data-testid="meal-weigh-guide" className="relative aspect-[3/4] w-full max-w-sm rounded-3xl border-2 border-dashed border-primary/80 shadow-[0_0_0_9999px_hsl(var(--background)/0.45)]">
+              {phase === 'camera' && autoCapture.phase === 'countdown' && autoCapture.count != null && (
+                <>
+                  <svg className="absolute -inset-1.5 h-[calc(100%+12px)] w-[calc(100%+12px)] overflow-visible" aria-hidden="true">
+                    <rect x="2" y="2" width="calc(100% - 4px)" height="calc(100% - 4px)" rx="28" pathLength={100} fill="none"
+                      className="stroke-primary" strokeWidth={5} strokeLinecap="round" strokeDasharray="100"
+                      style={{ strokeDashoffset: 100 * (1 - autoCapture.progress), transition: 'stroke-dashoffset 160ms linear' }} />
+                  </svg>
+                  <span className="absolute inset-0 flex items-center justify-center" role="timer" aria-live="assertive" data-testid="meal-weigh-countdown">
+                    <span key={autoCapture.count} className="text-8xl font-black tabular-nums text-primary drop-shadow-lg animate-in zoom-in-50 fade-in duration-300">
+                      {autoCapture.count}
+                    </span>
+                  </span>
+                </>
+              )}
               <span className="absolute -top-px left-1/2 w-max max-w-[calc(100%-1rem)] -translate-x-1/2 -translate-y-1/2 rounded-2xl bg-primary px-3 py-1 text-center text-xs font-semibold text-primary-foreground" data-testid="meal-weigh-hint">
                 {mode === 'plan' ? scaleOnlyHint(currentPlanFood?.alimento ?? '') : items.length === 0 ? FIRST_ITEM_HINT : NEXT_ITEM_HINT}
               </span>
@@ -483,6 +573,7 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
               </span>
             </div>
           </div>
+          {flashing && <div className="pointer-events-none absolute inset-0 z-30 bg-foreground animate-out fade-out-0 duration-500 fill-mode-forwards" aria-hidden="true" />}
           {phase === 'analyzing' && (
             <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-background/70" role="status">
               <Loader2 className="h-10 w-10 animate-spin text-primary" />
@@ -493,6 +584,27 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
             <div className="absolute inset-x-0 bottom-0 flex flex-col items-center gap-3 bg-gradient-to-t from-background/95 to-transparent px-6 pt-10"
               style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 20px)' }}>
               {camError && <p className="text-center text-xs text-destructive">{camError}</p>}
+              {!camError && (
+                <div className="flex w-full flex-col items-center gap-1.5" data-testid="meal-weigh-auto">
+                  {autoOn && autoArmed && autoCapture.phase !== 'off' && (
+                    <p className="rounded-full bg-background/80 px-3 py-1 text-center text-xs font-semibold" data-testid="meal-weigh-auto-status">
+                      {autoCapture.phase === 'countdown' ? 'Não mexe…'
+                        : autoCapture.phase === 'no_object' ? (autoCapture.detector === 'loading' ? 'Procurando o prato…' : 'Coloca o prato no centro da moldura')
+                        : 'Segura o celular parado'}
+                      <span className="block text-[11px] font-normal text-muted-foreground">{SCALE_DISPLAY_HINT}</span>
+                    </p>
+                  )}
+                  {autoOn && !autoArmed && (
+                    <button type="button" onClick={() => setAutoArmed(true)} className="rounded-full bg-background/80 px-3 py-1 text-xs font-semibold text-primary">
+                      Foto automática pausada · Retomar
+                    </button>
+                  )}
+                  <label className="flex items-center gap-2 rounded-full bg-background/80 px-3 py-1 text-xs font-semibold">
+                    <Switch checked={autoOn} onCheckedChange={toggleAuto} aria-label="Foto automática" />
+                    Foto automática
+                  </label>
+                </div>
+              )}
               {mode === 'plan' && progress && (
                 <p className="rounded-full bg-background/80 px-3 py-1 text-xs font-semibold text-primary tabular-nums" data-testid="meal-weigh-progress">
                   Alimento {progress}
@@ -584,7 +696,7 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
             </div>
           </div>
           <div className="border-t border-border px-4 pt-3 flex gap-2" style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 12px)' }}>
-            <Button variant="outline" className="gap-1.5" onClick={() => { setPlanDraft(null); setPhase('camera'); }}>
+            <Button variant="outline" className="gap-1.5" onClick={() => { setPlanDraft(null); toCamera(); }}>
               <RotateCcw className="h-4 w-4" /> Outra foto
             </Button>
             <Button className="flex-1 gap-1.5 font-semibold" disabled={!planFoodForDraft || !(gramsNum > 0)} onClick={confirmPlanItem}>
@@ -607,14 +719,14 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
                 <p>{UNREADABLE_MESSAGE}</p>
               </div>
             )}
-            {draft.tareSuggested != null && !draft.tareDismissed && (
+            {tareSuggested != null && !draft.tareDismissed && (
               <div role="alert" data-testid="meal-weigh-tare-warning" className="rounded-xl border border-primary/50 bg-primary/10 p-3 text-sm space-y-2">
                 <p className="font-semibold flex items-center gap-2"><AlertTriangle className="h-4 w-4 text-primary" /> {NOT_TARED_MESSAGE}</p>
                 <p className="text-xs text-muted-foreground">
                   O visor mostra {Math.round(draft.ai.gramas_lidas ?? 0)} g, mais do que tudo o que já foi pesado ({Math.round(accumulated)} g).
                 </p>
                 <div className="flex flex-wrap gap-2">
-                  <Button size="sm" onClick={() => setDraft({ ...draft, grams: String(draft.tareSuggested), tareDismissed: true })}>
+                  <Button size="sm" onClick={() => setDraft({ ...draft, grams: String(tareSuggested), tareDismissed: true })}>
                     Descontar {Math.round(accumulated)} g
                   </Button>
                   <Button size="sm" variant="outline" onClick={() => setDraft({ ...draft, tareDismissed: true })}>A balança foi zerada</Button>
@@ -700,7 +812,7 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
 
               {draftMacros ? <MacroLine m={draftMacros} /> : <p className="text-xs text-muted-foreground">Escolha o alimento e as gramas para ver os macros.</p>}
               {(() => {
-                const obs = visibleWeighObservation(draft.ai.observacao, { tareSuspected: draft.tareSuggested != null });
+                const obs = visibleWeighObservation(draft.ai.observacao, { tareSuspected: tareSuggested != null });
                 return obs ? <p className="text-[11px] text-muted-foreground" data-testid="meal-weigh-observation">Obs.: {obs}</p> : null;
               })()}
             </div>
@@ -711,7 +823,7 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
               <Plus className="h-4 w-4" /> Próximo alimento
             </Button>
             <div className="flex gap-2">
-              <Button variant="outline" className="flex-1 gap-1.5" onClick={() => { setDraft(null); setPhase('camera'); }}>
+              <Button variant="outline" className="flex-1 gap-1.5" onClick={() => { setDraft(null); toCamera(); }}>
                 <RotateCcw className="h-4 w-4" /> Tirar de novo
               </Button>
               <Button variant="outline" className="flex-1 gap-1.5" disabled={!draftValid} onClick={() => confirmItem('summary')}>
@@ -738,7 +850,7 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
                 )}
               </div>
             )}
-            <ItemList items={items} onRemove={removeItem} />
+            <ItemList items={items} onEdit={setEditingIndex} />
             <div className="rounded-2xl border border-primary/30 bg-primary/5 p-3 space-y-2">
               <p className="text-xs font-semibold">Total até agora · {Math.round(totals.gramas)} g</p>
               <MacroLine m={totals} />
@@ -750,7 +862,7 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
                 <Plus className="h-4 w-4" /> Próximo alimento da refeição
               </Button>
             ) : (
-              <Button variant="outline" className="flex-1 gap-1.5" onClick={() => setPhase('camera')}>
+              <Button variant="outline" className="flex-1 gap-1.5" onClick={toCamera}>
                 <Plus className="h-4 w-4" /> Próximo alimento
               </Button>
             )}
@@ -817,9 +929,10 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
 
       {mode !== 'choose' && phase === 'summary' && (
         <div className="flex-1 min-h-0 flex flex-col">
-          {header('Resumo da refeição')}
+          {header(isEdit ? 'Editar pesagem' : 'Resumo da refeição')}
           <div className="flex-1 min-h-0 overflow-y-auto px-4 pb-4 space-y-3" data-testid="meal-weigh-summary">
-            <ItemList items={items} />
+            {isEdit && <p className="text-xs text-muted-foreground">Toque num alimento para trocar, mudar as gramas ou apagar.</p>}
+            <ItemList items={items} onEdit={setEditingIndex} />
             <div className="rounded-2xl border border-border bg-secondary/30 p-3">
               <p className="text-xs font-semibold mb-2">Previsto × consumido</p>
               <table className="w-full text-xs tabular-nums">
@@ -855,18 +968,33 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
           </div>
           <div className="border-t border-border px-4 pt-3 flex gap-2" style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 12px)' }}>
             <Button variant="outline" onClick={() => setPhase(pending.length > 0 ? 'review' : 'list')}>Voltar</Button>
-            <Button className="flex-1 font-semibold" disabled={saving || items.length === 0} onClick={save}>
-              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : testMode ? 'Fechar teste' : 'Salvar'}
+            <Button className="flex-1 font-semibold" disabled={saving || items.length === 0 || (isEdit && !dirty)} onClick={save}>
+              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : testMode ? 'Fechar teste' : isEdit ? 'Salvar alterações' : 'Salvar'}
             </Button>
           </div>
         </div>
+      )}
+
+      {editingIndex != null && items[editingIndex] && (
+        <WeighItemEditSheet
+          key={editingIndex}
+          item={items[editingIndex]}
+          index={editingIndex}
+          items={items}
+          photo={photos[editingIndex] || null}
+          planned={planned}
+          foods={foods}
+          onSave={(change) => applyItemEdit(editingIndex, change)}
+          onDelete={() => deleteItem(editingIndex)}
+          onClose={() => setEditingIndex(null)}
+        />
       )}
 
       <AlertDialog open={confirmExit} onOpenChange={setConfirmExit}>
         <AlertDialogContent className="z-[80]">
           <AlertDialogHeader>
             <AlertDialogTitle>Sair sem salvar?</AlertDialogTitle>
-            <AlertDialogDescription>Os alimentos já pesados nesta refeição serão descartados.</AlertDialogDescription>
+            <AlertDialogDescription>{isEdit ? 'As alterações desta pesagem não serão salvas.' : 'Os alimentos já pesados nesta refeição serão descartados.'}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Continuar pesando</AlertDialogCancel>
@@ -881,23 +1009,22 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
   return typeof document !== 'undefined' ? createPortal(screen, document.body) : screen;
 };
 
-const ItemList: React.FC<{ items: WeighedItem[]; onRemove?: (i: number) => void }> = ({ items, onRemove }) => (
-  <ul className="space-y-2">
+const ItemList: React.FC<{ items: WeighedItem[]; onEdit?: (i: number) => void }> = ({ items, onEdit }) => (
+  <ul className="space-y-2" data-testid="meal-weigh-item-list">
     {items.map((it, i) => (
-      <li key={i} className="rounded-xl border border-border bg-secondary/30 p-3">
-        <div className="flex items-start gap-2">
-          <div className="min-w-0 flex-1">
-            <p className="text-sm font-semibold truncate">{it.alimento}</p>
-            <p className="text-xs text-muted-foreground tabular-nums">
-              <span className="font-bold text-primary">{Math.round(it.gramas)} g</span> · {it.kcal} kcal · P {it.p} · C {it.c} · G {it.g}
-            </p>
+      <li key={i}>
+        <button type="button" disabled={!onEdit} onClick={() => onEdit?.(i)} aria-label={`Editar ${it.alimento} ${Math.round(it.gramas)} g`}
+          className="w-full rounded-xl border border-border bg-secondary/30 p-3 text-left active:bg-secondary/60 disabled:cursor-default">
+          <div className="flex items-start gap-2">
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold truncate">{it.alimento}</p>
+              <p className="text-xs text-muted-foreground tabular-nums">
+                <span className="font-bold text-primary">{Math.round(it.gramas)} g</span> · {it.kcal} kcal · P {it.p} · C {it.c} · G {it.g}
+              </p>
+            </div>
+            {onEdit && <Pencil className="mt-1 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />}
           </div>
-          {onRemove && (
-            <button type="button" aria-label={`Remover ${it.alimento}`} onClick={() => onRemove(i)} className="h-9 w-9 rounded-full flex items-center justify-center text-muted-foreground">
-              <Trash2 className="h-4 w-4" />
-            </button>
-          )}
-        </div>
+        </button>
       </li>
     ))}
   </ul>
