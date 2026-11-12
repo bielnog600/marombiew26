@@ -62,8 +62,11 @@ export function useAutoCapture(opts: {
   videoRef: React.RefObject<HTMLVideoElement | null>;
   guideRef: React.RefObject<HTMLElement | null>;
   onFire: () => void;
+  /** false = só a estabilidade (ex.: produtos embalados, que o detector de pratos não reconhece). */
+  requireObject?: boolean;
 }): AutoCaptureView {
   const { enabled, videoRef, guideRef } = opts;
+  const requireObject = opts.requireObject !== false;
   const onFireRef = useRef(opts.onFire);
   onFireRef.current = opts.onFire;
   const [view, setView] = useState<AutoCaptureView>({ phase: 'off', count: null, progress: 0, detector: 'idle' });
@@ -89,6 +92,7 @@ export function useAutoCapture(opts: {
     }
 
     const startDetector = () => {
+      if (!requireObject) { detectorState = 'unavailable'; return; }
       if (detectorState !== 'idle') return;
       detectorState = 'loading';
       void loadDetector().then((d) => {
@@ -164,7 +168,7 @@ export function useAutoCapture(opts: {
     };
     let timer = window.setTimeout(tick, TICK_MS);
     return () => { cancelled = true; window.clearTimeout(timer); };
-  }, [enabled, videoRef, guideRef]);
+  }, [enabled, videoRef, guideRef, requireObject]);
 
   return view;
 }
