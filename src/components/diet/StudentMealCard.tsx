@@ -114,6 +114,10 @@ const StudentMealCard: React.FC<StudentMealCardProps> = ({
   const [draftQty, setDraftQty] = useState<Record<number, string>>({});
 
   const foods = meal.foods ?? [];
+  // Selo da refeição: "Escaneado"/"Estimado" quando tudo veio do scanner ou do prato pronto; senão "Pesado".
+  const registered = foods.map(foodWeigh).filter((w): w is DayFoodWeigh => !!w && (w.status === 'pesado' || w.status === 'fora_do_plano'));
+  const mealBadge = registered.length > 0 && registered.every((w) => w.escaneado) ? 'Escaneado'
+    : registered.length > 0 && registered.every((w) => w.estimado) ? 'Estimado' : 'Pesado';
   const totalKcal = foods.reduce((s, f) => s + parseNum(f.kcal), 0);
 
   const handleRemove = useCallback(
@@ -175,7 +179,7 @@ const StudentMealCard: React.FC<StudentMealCardProps> = ({
               <span className="truncate text-sm font-semibold text-foreground">{show(meal.name)}</span>
               {weighed && (
                 <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-primary/50 bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold text-primary" data-testid="meal-weighed-badge">
-                  <Scale className="h-3 w-3" /> Pesado
+                  {mealBadge === 'Escaneado' ? <ScanBarcode className="h-3 w-3" /> : mealBadge === 'Estimado' ? <Sparkles className="h-3 w-3" /> : <Scale className="h-3 w-3" />} {mealBadge}
                 </span>
               )}
             </div>
