@@ -147,6 +147,7 @@ const AiEditExerciseDialog: React.FC<Props> = ({
        }
        const { data, error } = await supabase.functions.invoke('training-edit-agent', {
          body: {
+           studentId,
            dayName,
            currentExercises,
            instruction: `Sugira 6 variações/alternativas para o exercício "${ex.exercise}" (posição ${idx}). Todas DEVEM trabalhar o MESMO grupo muscular, vir EXCLUSIVAMENTE do BANCO DE EXERCÍCIOS, e ser DIFERENTES de "${ex.exercise}" e dos outros exercícios já presentes no dia. Para cada candidato, retorne uma ação "replace" no índice ${idx} preenchendo apenas exercise.exercise (em MAIÚSCULAS). Não inclua séries/reps/pause/description. Retorne exatamente 6 ações, cada uma com um nome distinto.`,
@@ -250,6 +251,7 @@ const AiEditExerciseDialog: React.FC<Props> = ({
          try {
            const { data, error } = await supabase.functions.invoke('training-edit-agent', {
              body: {
+               studentId,
                dayName,
                currentExercises,
                instruction: `Sugira 6 variações/alternativas para o exercício "${baseName}" (posição ${idx}${kind === 'variation' ? ', campo VARIAÇÃO' : ''}). Todas DEVEM trabalhar o MESMO grupo muscular, vir EXCLUSIVAMENTE do BANCO DE EXERCÍCIOS, e ser DIFERENTES de "${baseName}"${kind === 'variation' && ex?.exercise ? ` e de "${ex.exercise}"` : ''} e dos outros exercícios já presentes no dia. Para cada candidato, retorne uma ação "replace" no índice ${idx} preenchendo apenas exercise.exercise (em MAIÚSCULAS). Não inclua séries/reps/pause/description. Retorne exatamente 6 ações, cada uma com um nome distinto.`,
@@ -343,6 +345,7 @@ const AiEditExerciseDialog: React.FC<Props> = ({
 
       const { data, error } = await supabase.functions.invoke('training-edit-agent', {
         body: {
+          studentId,
           dayName,
           currentExercises,
           instruction: text,

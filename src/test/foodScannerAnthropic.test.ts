@@ -1,10 +1,11 @@
 // Exercise the deployed entrypoint with mocked transport, without loading Deno's npm imports.
+import { AI_USAGE_TEST_STUBS } from './helpers/aiUsageStubs';
 import { readFileSync } from 'node:fs';
 import { runInNewContext } from 'node:vm';
 import { describe, it, expect, vi } from 'vitest';
 import ts from 'typescript';
 
-const source = readFileSync('supabase/functions/food-scanner/index.ts', 'utf8')
+const source = AI_USAGE_TEST_STUBS + readFileSync('supabase/functions/food-scanner/index.ts', 'utf8')
   .replace(/^import .*;\n/gm, '');
 const code = ts.transpile(source, { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.None });
 

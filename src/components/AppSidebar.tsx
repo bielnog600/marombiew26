@@ -6,7 +6,7 @@ import {
   Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel,
   SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarFooter, useSidebar,
 } from '@/components/ui/sidebar';
-import { LayoutDashboard, Users, ClipboardList, User, LogOut, Dumbbell, Target, Clock, ScanLine, Bot, Apple, Bell, Briefcase, Home, UtensilsCrossed, Settings2, Film } from 'lucide-react';
+import { LayoutDashboard, Users, ClipboardList, User, LogOut, Dumbbell, Target, Clock, ScanLine, Bot, Apple, Bell, Briefcase, Home, UtensilsCrossed, Settings2, Film, Coins } from 'lucide-react';
 import { CalendarDays } from 'lucide-react';
 import { Wallet } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -19,6 +19,7 @@ const adminItems = [
   { title: 'Consultoria', url: '/consultoria', icon: Briefcase },
   { title: 'Agenda', url: '/agenda', icon: CalendarDays },
   { title: 'Financeiro', url: '/financeiro', icon: Wallet },
+  { title: 'Custos de IA', url: '/custos-ia', icon: Coins },
   { title: 'Rede Social', url: '/rede-social', icon: Film },
 ];
 

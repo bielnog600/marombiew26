@@ -64,6 +64,7 @@ import {
   type GlobalDietTarget,
 } from "../_shared/globalDietTarget.ts";
 import { FOOD_CONTRACT_VERSION } from "../_shared/nutritionCore.ts";
+import { setAiUsageStudentFrom, withAiUsage } from "../_shared/aiUsage.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -554,7 +555,7 @@ Use EXATAMENTE este formato em blocos curtos (não escreva texto solto):
 Mostre o score de confiança (0-100) recebido no contexto e liste os FATORES recebidos (positivos com ✓, negativos com ✗, neutros com ·). Se score < 60, alerte que o nutricionista deve revisar antes de enviar.
 `;
 
-serve(async (req) => {
+serve(withAiUsage("dieta_ia", "diet-agent", async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
@@ -573,7 +574,7 @@ serve(async (req) => {
       allowedUnresolvedFoodNames: rawAllowedUnresolvedFoodNames,
       allowedUnresolvedFoods: rawAllowedUnresolvedFoods,
       canonicalTargets: rawCanonicalTargets,
-    } = await req.json();
+    } = setAiUsageStudentFrom(await req.json());
     // Dias com ±kcal mas macros globais: a diferença calórica vai para o carbo do dia.
     if (dietConfig && typeof dietConfig === "object" && dietConfig.carbCyclingEnabled !== true && dietConfig.weeklyEnergySchedule) {
       const norm = normalizeScheduleMacros(dietConfig.weeklyEnergySchedule);
@@ -1950,4 +1951,4 @@ serve(async (req) => {
       status: anthropicErrorStatus(e), headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
-});
+}));

@@ -1,5 +1,6 @@
 import { anthropicChat, anthropicFailure, anthropicErrorStatus, PRESCRIPTION_MODEL } from "../_shared/anthropic.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { setAiUsageStudentFrom, withAiUsage } from "../_shared/aiUsage.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -89,7 +90,7 @@ SAÍDA OBRIGATÓRIA
 Chame a função "generate_cardio_week" com EXATAMENTE N protocolos no array "protocols", onde N é a frequência semanal pedida.
 Use português do Brasil em todos os textos.`;
 
-serve(async (req) => {
+serve(withAiUsage("cardio_ia", "cardio-agent", async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
@@ -104,7 +105,7 @@ serve(async (req) => {
       notes = "",
       hrZones = null,
       equipment = null,
-    } = await req.json();
+    } = setAiUsageStudentFrom(await req.json());
 
     const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
     if (!ANTHROPIC_API_KEY) throw new Error("Não foi possível consultar a IA agora.");
@@ -409,4 +410,4 @@ Lembre-se:
       { status: anthropicErrorStatus(e), headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
-});
+}));

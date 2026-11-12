@@ -1,3 +1,4 @@
+import { AI_USAGE_TEST_STUBS } from './helpers/aiUsageStubs';
 import React from 'react';
 import { readFileSync } from 'node:fs';
 import { runInNewContext } from 'node:vm';
@@ -193,7 +194,7 @@ describe('Calibração — exemplos para a IA', () => {
   });
 
   it('food-scanner coloca as correções no texto do plate_estimate e devolve balanca_sem_visor', async () => {
-    const source = readFileSync('supabase/functions/food-scanner/index.ts', 'utf8').replace(/^import .*;\n/gm, '');
+    const source = AI_USAGE_TEST_STUBS + readFileSync('supabase/functions/food-scanner/index.ts', 'utf8').replace(/^import .*;\n/gm, '');
     const code = ts.transpile(source, { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.None });
     let handler: (req: Request) => Promise<Response> = async () => new Response();
     const fetch = vi.fn(async () => new Response(JSON.stringify({ content: [{ type: 'text', text: '{"itens":[{"alimento":"Iogurte natural integral","gramas_estimadas":150}],"peso_total_lido":null,"prato_tarado":null,"balanca_sem_visor":true,"observacao":""}' }] }), { status: 200 }));

@@ -1,5 +1,6 @@
 import { anthropicChat, anthropicFailure, anthropicErrorStatus, PRESCRIPTION_MODEL } from "../_shared/anthropic.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { setAiUsageStudentFrom, withAiUsage } from "../_shared/aiUsage.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -102,7 +103,7 @@ REGRAS FINAIS
 8) NUNCA RECUSE gerar o treino. Mesmo que faltem dados clínicos, gere um TABATA seguro e genérico (nível iniciante/moderado) com exercícios de baixo risco. Você SEMPRE deve retornar um treino completo no formato markdown especificado.
 9) Se não houver informações sobre lesões/restrições, assuma que o aluno é SAUDÁVEL e gere normalmente conforme a intensidade solicitada.`;
 
-serve(async (req) => {
+serve(withAiUsage("tabata_ia", "tabata-agent", async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
@@ -117,7 +118,7 @@ serve(async (req) => {
       totalDuration = 'auto',
       rounds = 'auto',
       avoidExercises = [],
-    } = await req.json();
+    } = setAiUsageStudentFrom(await req.json());
     const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
     if (!ANTHROPIC_API_KEY) throw new Error("Não foi possível consultar a IA agora.");
 
@@ -260,4 +261,4 @@ Lembre-se:
       status: anthropicErrorStatus(e), headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
-});
+}));

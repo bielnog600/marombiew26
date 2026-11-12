@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { aiFetch, withAiUsage } from "../_shared/aiUsage.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -21,7 +22,7 @@ REGRAS:
 
 Retorne via a função "organize_variations".`;
 
-serve(async (req) => {
+serve(withAiUsage("variacoes_exercicio_ia", "organize-exercise-variations", async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
   try {
@@ -88,7 +89,7 @@ Retorne os grupos via a função organize_variations.`;
       },
     };
 
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+    const response = await aiFetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${OPENAI_API_KEY}`,
@@ -156,4 +157,4 @@ Retorne os grupos via a função organize_variations.`;
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
-});
+}));

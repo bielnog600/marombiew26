@@ -152,6 +152,7 @@ const AiBodyCompositionDialog: React.FC<Props> = ({ open, onOpenChange, studentI
       const signedPhotos = await resolvePhotoUrlMap(photos);
       const { data, error } = await supabase.functions.invoke('body-composition-ai', {
         body: {
+          studentId,
           photos: signedPhotos,
           sex: sexo || null,
           ageYears: idade ? Number(idade) : null,

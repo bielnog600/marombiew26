@@ -471,6 +471,7 @@ const PostureAnalysis = () => {
       const signedPhotos = await resolvePhotoUrlMap(photos);
       const { data, error } = await supabase.functions.invoke('posture-ai-analysis', {
         body: {
+          studentId,
           photos: signedPhotos,
           heightCm: heightCm ? parseFloat(heightCm) : null,
           sex,

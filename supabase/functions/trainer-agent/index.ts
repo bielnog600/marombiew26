@@ -69,6 +69,7 @@ import {
   isRetryableUpstreamStatus,
 } from "../_shared/trainerRoutingPolicy.ts";
 import { sanitizeStructuredPrompt } from "../_shared/structuredPromptSanitizer.ts";
+import { setAiUsageStudentFrom, withAiUsage } from "../_shared/aiUsage.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -1451,7 +1452,7 @@ import {
   type WeekPhase,
 } from "../_shared/periodization.ts";
 
-serve(async (req) => {
+serve(withAiUsage("treino_ia", "trainer-agent", async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
@@ -1473,7 +1474,7 @@ serve(async (req) => {
       phase,
       exercise_profile,
       available_equipment,
-    } = await req.json();
+    } = setAiUsageStudentFrom(await req.json());
     const exerciseProfile = normalizeExerciseProfile(exercise_profile);
     // Disponibilidade real de equipamento: hard gate determinístico (nunca fuzzy).
     const availableEquipment = mapMachineIdsToEquipmentCapabilities(available_equipment);
@@ -1787,4 +1788,4 @@ PROIBIDO: trocar um exercício proibido por uma variação/sinônimo que preserv
       status: anthropicErrorStatus(e), headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
-});
+}));

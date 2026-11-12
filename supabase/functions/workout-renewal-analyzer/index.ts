@@ -9,6 +9,7 @@ import {
   snapshotToPlanColumns,
   type RenewalPeriodization,
 } from "../_shared/renewalPeriodization.ts";
+import { setAiUsageStudent, withAiUsage } from "../_shared/aiUsage.ts"
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -40,6 +41,7 @@ function trend(values: number[]): "subindo" | "descendo" | "estavel" | "sem_dado
 
 async function gatherContext(supabase: any, plan: any) {
   const studentId = plan.student_id;
+  setAiUsageStudent(studentId);
   const created = new Date(plan.created_at);
   const cycleDays = plan.cycle_days ?? 45;
   const now = new Date();
@@ -439,6 +441,7 @@ function actionToCycleStatus(action: string): string {
 }
 
 async function buildStudentContextForAgent(supabase: any, studentId: string) {
+  setAiUsageStudent(studentId);
   const [{ data: profile }, { data: sp }, { data: assessment }] = await Promise.all([
     supabase.from("profiles").select("nome").eq("user_id", studentId).maybeSingle(),
     supabase
@@ -922,7 +925,7 @@ async function analyzePlan(supabase: any, planId: string) {
   return { analysis, plan_status: newStatus, periodization: periodizationSummary };
 }
 
-serve(async (req) => {
+serve(withAiUsage("renovacao_treino_ia", "workout-renewal-analyzer", async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   // Autorização obrigatória ANTES de qualquer uso do service role.
@@ -1086,4 +1089,4 @@ serve(async (req) => {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
-});
+}));

@@ -1,10 +1,11 @@
 // Ação "weigh" do food-scanner com transporte simulado — nenhuma chamada real à IA.
+import { AI_USAGE_TEST_STUBS } from './helpers/aiUsageStubs';
 import { readFileSync } from 'node:fs';
 import { runInNewContext } from 'node:vm';
 import { describe, it, expect, vi } from 'vitest';
 import ts from 'typescript';
 
-const source = readFileSync('supabase/functions/food-scanner/index.ts', 'utf8').replace(/^import .*;\n/gm, '');
+const source = AI_USAGE_TEST_STUBS + readFileSync('supabase/functions/food-scanner/index.ts', 'utf8').replace(/^import .*;\n/gm, '');
 const code = ts.transpile(source, { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.None });
 
 const IMG = 'data:image/jpeg;base64,QUJD';

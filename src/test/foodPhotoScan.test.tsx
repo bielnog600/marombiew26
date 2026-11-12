@@ -1,3 +1,4 @@
+import { AI_USAGE_TEST_STUBS } from './helpers/aiUsageStubs';
 import React from 'react';
 import { readFileSync } from 'node:fs';
 import { runInNewContext } from 'node:vm';
@@ -224,7 +225,7 @@ describe('FoodScanner — aba Foto', () => {
 });
 
 describe('food-scanner identify_photo / find_product / search_off (transporte simulado)', () => {
-  const source = readFileSync('supabase/functions/food-scanner/index.ts', 'utf8').replace(/^import .*;\n/gm, '');
+  const source = AI_USAGE_TEST_STUBS + readFileSync('supabase/functions/food-scanner/index.ts', 'utf8').replace(/^import .*;\n/gm, '');
   const code = ts.transpile(source, { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.None });
   const setup = (aiText: string, tables: Record<string, any[]> = {}, off: any = { products: [] }) => {
     let handler: (req: Request) => Promise<Response> = async () => new Response();

@@ -1,3 +1,4 @@
+import { AI_USAGE_TEST_STUBS } from './helpers/aiUsageStubs';
 import React from 'react';
 import { readFileSync } from 'node:fs';
 import { runInNewContext } from 'node:vm';
@@ -202,7 +203,7 @@ describe('Prato pronto — tela', () => {
 });
 
 describe('food-scanner plate_estimate (transporte simulado)', () => {
-  const source = readFileSync('supabase/functions/food-scanner/index.ts', 'utf8').replace(/^import .*;\n/gm, '');
+  const source = AI_USAGE_TEST_STUBS + readFileSync('supabase/functions/food-scanner/index.ts', 'utf8').replace(/^import .*;\n/gm, '');
   const code = ts.transpile(source, { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.None });
   const setup = (premium: boolean, aiText: string) => {
     let handler: (req: Request) => Promise<Response> = async () => new Response();

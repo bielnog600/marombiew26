@@ -1,5 +1,6 @@
 import { anthropicChat, anthropicFailure, anthropicErrorStatus, PRESCRIPTION_MODEL } from "../_shared/anthropic.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { setAiUsageStudentFrom, withAiUsage } from "../_shared/aiUsage.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -163,11 +164,11 @@ async function handleMealSuggestions(payload: any, apiKey: string): Promise<Resp
   }
 }
 
-serve(async (req) => {
+serve(withAiUsage("dieta_edicao_ia", "diet-edit-agent", async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const payload = await req.json();
+    const payload = setAiUsageStudentFrom(await req.json());
     const { currentMeals, instruction, foodCatalog, studentContext, dayTotals, trainingContext } = payload;
     const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
     if (!ANTHROPIC_API_KEY) throw new Error("Não foi possível consultar a IA agora.");
@@ -277,4 +278,4 @@ serve(async (req) => {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
-});
+}));

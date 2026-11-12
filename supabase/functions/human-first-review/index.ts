@@ -21,6 +21,7 @@
 // endpoint cannot serve reviews on anything else.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
+import { aiFetch, withAiUsage } from "../_shared/aiUsage.ts";
 
 const PILOT_SELECTION_ID = "pilot-2c-2026-07-12-02";
 const CLASSIFIER_RUN_ID = "793c8800-a0c2-4acc-ac4d-2d374ecd2076";
@@ -237,7 +238,7 @@ function validateFields(
   return errors.length === 0 ? { ok: true } : { ok: false, errors };
 }
 
-Deno.serve(async (req) => {
+Deno.serve(withAiUsage("metadados_exercicio_ia", "human-first-review", async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") return j(405, { error: "method_not_allowed" });
 
@@ -676,7 +677,7 @@ Classifique os 13 campos conforme o formato JSON descrito.`;
     let aiJson: any = null;
     let aiError: string | null = null;
     try {
-      const resp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      const resp = await aiFetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -835,4 +836,4 @@ Classifique os 13 campos conforme o formato JSON descrito.`;
   }
 
   return j(400, { error: "unknown_action", action });
-});
+}));
