@@ -119,7 +119,7 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
   const isEdit = !!editStart && !!editLog;
   const isAdd = !!editStart && !editLog;
   const [dirty, setDirty] = useState(false);
-  const [mode, setMode] = useState<Mode>(isEdit ? 'scan' : initialMode ?? (isAdd ? 'scan' : 'choose'));
+  const [mode, setMode] = useState<Mode>(isEdit ? 'scan' : initialMode ?? 'choose');
   const [phase, setPhase] = useState<Phase>(isEdit ? 'summary' : 'camera');
   const [planIdx, setPlanIdx] = useState(Math.max(0, startFoodIndex ?? 0));
   const [planDraft, setPlanDraft] = useState<PlanDraft | null>(null);
@@ -581,6 +581,11 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
         <div className="flex-1 min-h-0 flex flex-col">
           {header('Pesar refeição')}
           <div className="flex-1 min-h-0 overflow-y-auto px-4 pb-6 pt-2 space-y-3" data-testid="meal-weigh-mode-choice">
+            {isAdd && items.length > 0 && (
+              <p className="rounded-xl border border-primary/40 bg-primary/10 px-3 py-2 text-xs" data-testid="meal-weigh-choose-saved">
+                Já registrados: <strong>{weighedChipsLabel(items)}</strong>. Escolha como adicionar o próximo.
+              </p>
+            )}
             <p className="text-sm text-muted-foreground">Como você quer pesar?</p>
             <button type="button" onClick={() => chooseMode('plan')} disabled={planned.alimentos.length === 0}
               className="w-full rounded-2xl border border-primary/40 bg-primary/10 p-4 text-left flex gap-3 items-start disabled:opacity-40">
@@ -1043,7 +1048,7 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
                 {comparison.alimentos.map((a) => <p key={a.alimento}>{formatFoodComparison(a)}</p>)}
                 {comparison.foraDoPlano.map((it, i) => (
                   <p key={`f${i}`} className="text-muted-foreground">
-                    {it.alimento}: fora do plano, pesou {Math.round(it.gramas)} g{formatSwapLine(it) ? ` · ${formatSwapLine(it)}` : ''}
+                    {it.alimento}: fora do plano, {it.origem === 'estimado' ? 'estimado ~' : 'pesou '}{Math.round(it.gramas)} g{formatSwapLine(it) ? ` · ${formatSwapLine(it)}` : ''}
                   </p>
                 ))}
                 {unweighed.map((u) => <p key={`u${u.indice_plano}`} className="text-muted-foreground">{formatUnweighedLine(u)}</p>)}

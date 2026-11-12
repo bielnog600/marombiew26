@@ -29,7 +29,15 @@ const foodWeigh = (food: ParsedFood): DayFoodWeigh | null => {
   return w && typeof w.status === 'string' ? w : null;
 };
 
+const EstimatedWeighBadge: React.FC = () => (
+  <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-dashed border-primary/60 px-1.5 py-0.5 text-[10px] font-semibold text-primary">
+    <Sparkles className="h-3 w-3" /> Estimado
+  </span>
+);
+
 const WeighBadge: React.FC<{ weigh: DayFoodWeigh }> = ({ weigh }) => {
+  // "Prato pronto": gramas estimadas pela foto, selo diferente de "Pesado".
+  if (weigh.status === 'pesado' && weigh.estimado) return <EstimatedWeighBadge />;
   if (weigh.status === 'pesado') {
     return (
       <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-primary/50 bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold text-primary">
@@ -266,6 +274,7 @@ const StudentMealCard: React.FC<StudentMealCardProps> = ({
                       <div className="flex min-w-0 items-center gap-1.5">
                         <p className={`truncate text-sm font-medium ${weigh?.status === 'nao_comeu' ? 'text-muted-foreground line-through' : 'text-foreground'}`}>{show(food.food)}</p>
                         {weigh && <WeighBadge weigh={weigh} />}
+                        {weigh?.status === 'fora_do_plano' && weigh.estimado && <EstimatedWeighBadge />}
                       </div>
                       {weigh && (weigh.status === 'pesado' || weigh.status === 'fora_do_plano' || weigh.status === 'nao_comeu') && (
                         <p className="mt-0.5 text-[11px] font-semibold text-primary" data-testid="meal-food-weigh-label">{formatDayWeighLabel(weigh)}</p>
