@@ -121,7 +121,9 @@ describe('Prato pronto — tela', () => {
     mock.invoke.mockResolvedValueOnce({ data: { result: plateAi({ peso_total_lido: 330, prato_tarado: true }) }, error: null });
     render(<MealWeighScreen meal={meal as any} studentId="aluno" logDate="2026-11-12" mealIndex={1} dietPlanId="plano" onClose={() => {}} />);
     const choice = await screen.findByTestId('meal-weigh-mode-choice');
-    expect(within(choice).getAllByRole('button').map((b) => b.textContent?.split(/(?=[A-Z][a-z]+ [a-z])/)[0])).toHaveLength(3);
+    const options = within(choice).getAllByRole('button');
+    expect(options).toHaveLength(3);
+    ['Pesar alimentos da dieta', 'Escanear prato', 'Prato pronto'].forEach((name, i) => expect(options[i]).toHaveTextContent(name));
     fireEvent.click(within(choice).getByRole('button', { name: /Prato pronto/ }));
     expect(await screen.findByTestId('meal-weigh-hint')).toHaveTextContent('Foto de cima, com o prato inteiro. Um garfo ou a mão perto ajuda a IA a medir.');
 
