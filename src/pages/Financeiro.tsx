@@ -152,6 +152,7 @@ const Financeiro: React.FC = () => {
           </Select>
           <Button variant="ghost" size="icon" onClick={refetchAll}><RefreshCw className="h-4 w-4" /></Button>
           <p className="text-xs text-muted-foreground">Valores em euros e reais são somados separadamente.</p>
+          <Button variant="outline" size="sm" className="ml-auto" onClick={() => navigate('/custos-ia')}>Custos de IA</Button>
         </div>
 
         {/* Summary Cards */}
