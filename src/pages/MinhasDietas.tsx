@@ -26,6 +26,8 @@ import { Button } from '@/components/ui/button';
 import { useDailyTracking } from '@/hooks/useDailyTracking';
 import { fetchWithCache, setCache } from '@/lib/offlineCache';
 import { latestWeighLogs, overlayDayWeighLogs, weighLogKey, type WeighLogRecord } from '@/lib/mealWeigh';
+import { weighEntry } from '@/lib/mealWeigh/editItems';
+import ReweighDialog from '@/components/diet/mealWeigh/ReweighDialog';
 import ProtocolsDialog from '@/components/diet/ProtocolsDialog';
 import { protocolsToKeys, type SavedProtocols, type ProtocolKey } from '@/lib/dietProtocols';
 import { ListChecks, ScanBarcode } from 'lucide-react';
