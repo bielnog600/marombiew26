@@ -33,6 +33,7 @@ import LiveCorrectionPremiumCard from '@/components/admin/LiveCorrectionPremiumC
 import MealWeighPremiumCard from '@/components/admin/MealWeighPremiumCard';
 import StudentMealWeighLogs from '@/components/admin/StudentMealWeighLogs';
 import EstimateCalibrationPanel from '@/components/admin/EstimateCalibrationPanel';
+import StudentAiCostCard from '@/components/admin/StudentAiCostCard';
 import { ScanEye } from 'lucide-react';
 import { toast } from 'sonner';
 import {
@@ -253,6 +254,7 @@ const AlunoDetail = () => {
               studentProfile={studentProfile}
               onChanged={(v) => setStudentProfile((prev: any) => (prev ? { ...prev, premium_scale: v } : prev))}
             />
+            <StudentAiCostCard studentId={id!} />
           </TabsContent>
 
           <TabsContent value="comportamento">

@@ -142,7 +142,7 @@ export default function CustosIA() {
                 sub={`${summary.premiumStudents} aluno(s) Premium`} />
             </div>
             {summary.unpricedCalls > 0 && (
-              <p className="text-xs text-warning">{summary.unpricedCalls} chamada(s) de um modelo sem preço na tabela abaixo — contam como 0 até você cadastrar o preço.</p>
+              <p className="text-xs text-primary">{summary.unpricedCalls} chamada(s) de um modelo sem preço na tabela abaixo — contam como 0 até você cadastrar o preço.</p>
             )}
 
             <Card className="glass-card">
