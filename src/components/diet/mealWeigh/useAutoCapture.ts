@@ -14,6 +14,8 @@ const TICK_MS = 150;
 const DETECT_EVERY_MS = 400;
 /** Detecção mais velha que isto não vale. */
 const DETECTION_TTL_MS = 1500;
+/** Modelo que não carrega neste tempo é tratado como indisponível. */
+const DETECTOR_TIMEOUT_MS = 10000;
 
 // Um detector por aba: carregar o modelo de novo a cada alimento seria lento.
 let detectorPromise: Promise<ObjectDetector | null> | null = null;
@@ -29,7 +31,10 @@ function loadDetector(): Promise<ObjectDetector | null> {
           scoreThreshold: 0.25,
           maxResults: 6,
         });
-        return await create('GPU').catch(() => create('CPU'));
+        const detector = create('GPU').catch(() => create('CPU'));
+        // Modelo travado (rede ruim): segue só com a estabilidade.
+        const timeout = new Promise<null>((resolve) => setTimeout(() => resolve(null), DETECTOR_TIMEOUT_MS));
+        return await Promise.race([detector, timeout]);
       } catch (e) {
         console.warn('[meal-weigh] detector indisponível, usando só a estabilidade', e);
         return null;
