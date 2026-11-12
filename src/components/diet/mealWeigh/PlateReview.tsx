@@ -96,9 +96,9 @@ const PlateReview: React.FC<Props> = ({ header, photo, ai, planned, existing, fo
               <div role="alert" className="space-y-2" data-testid="meal-weigh-plate-tare">
                 <p className="font-semibold flex items-center gap-2"><AlertTriangle className="h-4 w-4 text-primary" /> {PLATE_TARE_QUESTION}</p>
                 <div className="grid grid-cols-2 gap-2">
-                  <Button size="sm" variant={answer?.kind === 'zerada' ? 'default' : 'outline'} aria-pressed={answer?.kind === 'zerada'}
+                  <Button size="sm" className="h-auto min-h-9 whitespace-normal py-2 leading-tight" variant={answer?.kind === 'zerada' ? 'default' : 'outline'} aria-pressed={answer?.kind === 'zerada'}
                     onClick={() => answerTare({ kind: 'zerada' })}>Sim, estava zerada</Button>
-                  <Button size="sm" variant={answer?.kind === 'com_prato' ? 'default' : 'outline'} aria-pressed={answer?.kind === 'com_prato'}
+                  <Button size="sm" className="h-auto min-h-9 whitespace-normal py-2 leading-tight" variant={answer?.kind === 'com_prato' ? 'default' : 'outline'} aria-pressed={answer?.kind === 'com_prato'}
                     onClick={() => answerTare({ kind: 'com_prato', pratoGramas: Number(plateGrams) || 0 })}>Não, o prato estava junto</Button>
                 </div>
                 {answer?.kind === 'com_prato' && (
