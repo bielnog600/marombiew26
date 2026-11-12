@@ -247,8 +247,11 @@ describe('Calibração — tela', () => {
     render(<PlateReview header={null} photo="p" ai={ai} samples={samples} planned={PLAN} existing={[]} foods={FOODS as any} onRetake={() => {}} onConfirm={() => {}} />);
     expect(screen.getAllByLabelText(/^Gramas de /).map((el) => (el as HTMLInputElement).value)).toEqual(['210', '35']);
     expect(screen.queryByTestId('meal-weigh-plate-scale-hint')).toBeNull();
-    const rows = applyPlateTotal(resolvePlateRows(ai, FOODS as any, PLAN, [], () => ({ factor: 1.4, scope: 'aluno', samples: 3 })), 300);
-    expect(rows.map((r) => r.grams)).toEqual(['210', '90']); // pesos 196 × 49 → 240/60 ... ambos ×1,4
+    // 300 g lidos: sem ajuste 150 × 35 → 243/57; com o iogurte +40% os pesos viram 210 × 35 → 257/43.
+    const plain = applyPlateTotal(resolvePlateRows(ai, FOODS as any, PLAN), 300);
+    expect(plain.map((r) => r.grams)).toEqual(['243', '57']);
+    const calibrated = applyPlateTotal(resolvePlateRows(ai, FOODS as any, PLAN, [], (f) => (f?.id === 'f-iog' ? { factor: 1.4, scope: 'aluno', samples: 3 } : { factor: 1, scope: 'nenhum', samples: 0 })), 300);
+    expect(calibrated.map((r) => r.grams)).toEqual(['257', '43']);
   });
 
   it('dica do visor quando a IA viu a balança sem o visor', () => {
