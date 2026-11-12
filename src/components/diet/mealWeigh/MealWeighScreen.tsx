@@ -552,8 +552,8 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
             <div ref={guideRef} data-testid="meal-weigh-guide" className="relative aspect-[3/4] w-full max-w-sm rounded-3xl border-2 border-dashed border-primary/80 shadow-[0_0_0_9999px_hsl(var(--background)/0.45)]">
               {phase === 'camera' && autoCapture.phase === 'countdown' && autoCapture.count != null && (
                 <>
-                  <svg className="absolute -inset-1.5 h-[calc(100%+12px)] w-[calc(100%+12px)] overflow-visible" aria-hidden="true">
-                    <rect x="2" y="2" width="calc(100% - 4px)" height="calc(100% - 4px)" rx="28" pathLength={100} fill="none"
+                  <svg className="absolute -inset-1.5 h-[calc(100%+12px)] w-[calc(100%+12px)] overflow-visible" viewBox="0 0 312 412" preserveAspectRatio="none" aria-hidden="true">
+                    <rect x="3" y="3" width="306" height="406" rx="26" pathLength={100} fill="none" vectorEffect="non-scaling-stroke"
                       className="stroke-primary" strokeWidth={5} strokeLinecap="round" strokeDasharray="100"
                       style={{ strokeDashoffset: 100 * (1 - autoCapture.progress), transition: 'stroke-dashoffset 160ms linear' }} />
                   </svg>
