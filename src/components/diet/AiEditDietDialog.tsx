@@ -166,6 +166,7 @@ const AiEditDietDialog: React.FC<Props> = ({ open, onOpenChange, currentMeals, s
 
       const { data, error } = await supabase.functions.invoke('diet-edit-agent', {
         body: {
+          studentId,
           currentMeals,
           currentPlan: currentPlan ?? undefined,
           targets: targets ?? currentPlan?.targets ?? undefined,
