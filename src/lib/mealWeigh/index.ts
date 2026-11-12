@@ -573,7 +573,7 @@ export function buildScanWeighRequest(input: {
   planned: PlannedMeal;
 }) {
   const { photo, items, photos, mealName, planned } = input;
-  const previousImage = items.length > 0 ? photos[photos.length - 1] ?? null : null;
+  const previousImage = items.length > 0 ? photos[photos.length - 1] || null : null;
   return {
     action: 'weigh' as const,
     image: photo,
