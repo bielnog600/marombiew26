@@ -1,3 +1,4 @@
+import { AI_USAGE_TEST_STUBS } from "./helpers/aiUsageStubs";
 import { readFileSync } from "node:fs";
 import { runInNewContext } from "node:vm";
 import { createRequire } from "node:module";
@@ -8,7 +9,7 @@ import { ReadableStream, TransformStream } from "node:stream/web";
 
 const require = createRequire(import.meta.url);
 const Ajv = require("ajv");
-const source = readFileSync("supabase/functions/_shared/anthropic.ts", "utf8").replace(/^import .*;\n/gm, "");
+const source = AI_USAGE_TEST_STUBS + readFileSync("supabase/functions/_shared/anthropic.ts", "utf8").replace(/^import .*;\n/gm, "");
 const code = ts.transpile(source, { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS });
 const plainResponse = { content: [{ type: "text", text: "Resposta" }], stop_reason: "end_turn", usage: { input_tokens: 10, output_tokens: 5 } };
 
