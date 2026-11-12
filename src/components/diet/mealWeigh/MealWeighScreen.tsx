@@ -24,7 +24,7 @@ import {
   type PendingPlanFood, type ScanWeighResolution, type UnweighedChoice, type WeighAiResult, type WeighFood, type WeighedItem,
   type WeighLogRecord,
 } from '@/lib/mealWeigh';
-import { editWeighedItem, finishPhase, removeWeighedItem, startFromWeighLog, upsertWeighedItem, type WeighItemChange } from '@/lib/mealWeigh/editItems';
+import { editWeighedItem, finishPhase, removeWeighedItem, startFromWeighLog, type WeighItemChange } from '@/lib/mealWeigh/editItems';
 import { SCALE_DISPLAY_HINT, readAutoCapturePref, writeAutoCapturePref } from '@/lib/mealWeigh/autoCapture';
 import WeighItemEditSheet, { MacroLine } from './WeighItemEditSheet';
 import PlateReview, { EstimatedBadge } from './PlateReview';
@@ -962,6 +962,7 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
           header={<>{header('Prato pronto')}{weighedChips}</>}
           photo={plate.photo}
           ai={plate.ai}
+          samples={plate.samples}
           planned={planned}
           existing={items}
           foods={foods}
