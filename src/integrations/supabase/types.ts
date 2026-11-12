@@ -1726,6 +1726,65 @@ export type Database = {
         }
         Relationships: []
       }
+      estimate_corrections: {
+        Row: {
+          adjusted_g: number | null
+          created_at: string
+          estimate_id: string
+          estimated_g: number
+          factor: number | null
+          fonte: string
+          food_id: string | null
+          food_key: string
+          food_name: string
+          id: string
+          meal_log_id: string | null
+          real_g: number
+          student_id: string
+          updated_at: string
+        }
+        Insert: {
+          adjusted_g?: number | null
+          created_at?: string
+          estimate_id: string
+          estimated_g: number
+          factor?: number | null
+          fonte: string
+          food_id?: string | null
+          food_key: string
+          food_name?: string
+          id?: string
+          meal_log_id?: string | null
+          real_g: number
+          student_id: string
+          updated_at?: string
+        }
+        Update: {
+          adjusted_g?: number | null
+          created_at?: string
+          estimate_id?: string
+          estimated_g?: number
+          factor?: number | null
+          fonte?: string
+          food_id?: string | null
+          food_key?: string
+          food_name?: string
+          id?: string
+          meal_log_id?: string | null
+          real_g?: number
+          student_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "estimate_corrections_meal_log_id_fkey"
+            columns: ["meal_log_id"]
+            isOneToOne: false
+            referencedRelation: "meal_weigh_logs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       exercise_execution_videos: {
         Row: {
           admin_note: string | null
@@ -4481,6 +4540,14 @@ export type Database = {
         Returns: boolean
       }
       coach_voice_name_phrases_enabled: { Args: never; Returns: boolean }
+      estimate_calibration_samples: {
+        Args: { _food_keys: string[] }
+        Returns: {
+          food_key: string
+          ratio: number
+          scope: string
+        }[]
+      }
       evaluate_metadata_completeness: {
         Args: { _exercise_id: string }
         Returns: Json
