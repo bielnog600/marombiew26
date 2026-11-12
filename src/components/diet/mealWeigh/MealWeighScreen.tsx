@@ -24,7 +24,7 @@ import {
   type PendingPlanFood, type ScanWeighResolution, type UnweighedChoice, type WeighAiResult, type WeighFood, type WeighedItem,
   type WeighLogRecord,
 } from '@/lib/mealWeigh';
-import { editWeighedItem, removeWeighedItem, startFromWeighLog, type WeighItemChange } from '@/lib/mealWeigh/editItems';
+import { editWeighedItem, finishPhase, removeWeighedItem, startFromWeighLog, upsertWeighedItem, type WeighItemChange } from '@/lib/mealWeigh/editItems';
 import { SCALE_DISPLAY_HINT, readAutoCapturePref, writeAutoCapturePref } from '@/lib/mealWeigh/autoCapture';
 import WeighItemEditSheet, { MacroLine } from './WeighItemEditSheet';
 import { useAutoCapture } from './useAutoCapture';
@@ -47,6 +47,11 @@ interface Props {
   onSaved?: (log: WeighLogRecord) => void;
   /** "Editar pesagem": abre o resumo editável desta pesagem já salva; salvar cria o novo registro do dia. */
   editLog?: WeighLogRecord | null;
+  /**
+   * Refeição já pesada no dia ("Adicionar alimento" ou balança num alimento): começa com os
+   * itens salvos e salvar grava a lista mesclada (antigos + novos) como novo registro do dia.
+   */
+  addToLog?: WeighLogRecord | null;
 }
 
 type Phase = 'camera' | 'analyzing' | 'item' | 'list' | 'review' | 'summary';
@@ -99,15 +104,20 @@ const fileToJpeg = (file: File) =>
 
 const signed = (n: number, unit = '') => `${n > 0 ? '+' : ''}${n}${unit}`;
 
-const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex, dietPlanId, testMode, initialMode, startFoodIndex, onClose, onSaved, editLog }) => {
+const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex, dietPlanId, testMode, initialMode, startFoodIndex, onClose, onSaved, editLog, addToLog }) => {
   useHoldAppUpdate(true);
   // Tela cheia de verdade: o menu inferior some enquanto a pesagem está aberta.
   useHideBottomNav(true);
   // Editar pesagem salva: parte do registro do dia (previsto guardado, itens e escolhas).
-  const [editStart] = useState(() => (editLog ? startFromWeighLog(editLog, plannedFromMeal(meal)) : null));
-  const isEdit = !!editStart;
+  // Adicionar alimento: parte do mesmo registro, mas abre a câmera para pesar só o novo.
+  const [editStart] = useState(() => {
+    const base = editLog ?? addToLog ?? null;
+    return base ? startFromWeighLog(base, plannedFromMeal(meal)) : null;
+  });
+  const isEdit = !!editStart && !!editLog;
+  const isAdd = !!editStart && !editLog;
   const [dirty, setDirty] = useState(false);
-  const [mode, setMode] = useState<Mode>(isEdit ? 'scan' : initialMode ?? 'choose');
+  const [mode, setMode] = useState<Mode>(isEdit ? 'scan' : initialMode ?? (isAdd ? 'scan' : 'choose'));
   const [phase, setPhase] = useState<Phase>(isEdit ? 'summary' : 'camera');
   const [planIdx, setPlanIdx] = useState(Math.max(0, startFoodIndex ?? 0));
   const [planDraft, setPlanDraft] = useState<PlanDraft | null>(null);
@@ -140,13 +150,15 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
   // Sempre a lista/fotos mais recentes na chamada da IA (sem closure velha).
   const itemsRef = useRef<WeighedItem[]>([]);
   const photosRef = useRef<string[]>([]);
+  const choicesRef = useRef<Record<number, UnweighedChoice>>({});
   itemsRef.current = items;
   photosRef.current = photos;
+  choicesRef.current = unweighedChoices;
 
   /** "Concluir refeição": antes do resumo, pergunta sobre os alimentos do plano não pesados. */
   const finish = useCallback((list: WeighedItem[] = itemsRef.current) => {
-    setPhase(pendingPlanFoods(planned, list).length > 0 ? 'review' : 'summary');
-  }, [planned]);
+    setPhase(finishPhase(planned, list, choicesRef.current, isAdd));
+  }, [planned, isAdd]);
 
   useEffect(() => {
     let cancelled = false;
@@ -318,11 +330,15 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
     if (!planDraft || !currentPlanFood || !(gramsNum > 0)) return;
     const item = buildPlanWeighedItem(currentPlanFood, planIdx, gramsNum, foods, { readGrams: planDraft.readGrams, override: planDraft.override });
     if (!item) return;
-    // Pesar de novo o mesmo alimento substitui a pesagem anterior.
-    const keep = items.map((it, i) => ({ it, photo: photos[i] })).filter(({ it }) => it.indice_plano !== planIdx);
-    setItems([...keep.map((k) => k.it), item]);
-    setPhotos([...keep.map((k) => k.photo), planDraft.photo]);
+    // Pesar de novo o mesmo alimento substitui só aquele item; os outros (inclusive os já salvos no dia) ficam.
+    const out = upsertWeighedItem(itemsRef.current, photosRef.current, item, planDraft.photo);
+    const nextItems = dropStaleSubstitutions(out.items, buildUnweighedEntries(pendingPlanFoods(planned, out.items), choicesRef.current));
+    itemsRef.current = nextItems;
+    photosRef.current = out.photos;
+    setItems(nextItems);
+    setPhotos(out.photos);
     setPlanDraft(null);
+    setDirty(true);
     setPhase('list');
   };
 
@@ -356,7 +372,9 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
     });
     // Escolheu outro alimento no lugar do que a IA viu (ex.: IA repetiu um já pesado).
     if (!sameAsAi && draft.ai.alimento) item.alimento_corrigido = true;
-    const nextItems = [...itemsRef.current, item];
+    const appended = [...itemsRef.current, item];
+    // Um alimento antes "Não comi" agora pesado deixa de valer como trocado por outro item.
+    const nextItems = dropStaleSubstitutions(appended, buildUnweighedEntries(pendingPlanFoods(planned, appended), choicesRef.current));
     const nextPhotos = [...photosRef.current, draft.photo];
     itemsRef.current = nextItems;
     photosRef.current = nextPhotos;
@@ -458,13 +476,13 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
     }).select('id, log_date, meal_index, items, unweighed, planned, created_at').single();
     setSaving(false);
     if (error) { toast.error('Não foi possível salvar: ' + error.message); return; }
-    toast.success(isEdit ? 'Pesagem atualizada no seu dia' : 'Refeição pesada salva no seu dia');
+    toast.success(isEdit || isAdd ? 'Pesagem atualizada no seu dia' : 'Refeição pesada salva no seu dia');
     if (saved) onSaved?.(saved as unknown as WeighLogRecord);
     onClose();
   };
 
   const requestClose = () => {
-    if (isEdit) return dirty ? setConfirmExit(true) : onClose();
+    if (isEdit || isAdd) return dirty ? setConfirmExit(true) : onClose();
     return items.length > 0 && phase !== 'summary' ? setConfirmExit(true) : onClose();
   };
   const progress = planned.alimentos.length > 0 ? planProgressLabel(planIdx, planned.alimentos.length) : '';
@@ -970,7 +988,7 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
           </div>
           <div className="border-t border-border px-4 pt-3 flex gap-2" style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 12px)' }}>
             <Button variant="outline" onClick={() => setPhase(pending.length > 0 ? 'review' : 'list')}>Voltar</Button>
-            <Button className="flex-1 font-semibold" disabled={saving || items.length === 0 || (isEdit && !dirty)} onClick={save}>
+            <Button className="flex-1 font-semibold" disabled={saving || items.length === 0 || ((isEdit || isAdd) && !dirty)} onClick={save}>
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : testMode ? 'Fechar teste' : isEdit ? 'Salvar alterações' : 'Salvar'}
             </Button>
           </div>
@@ -996,7 +1014,9 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
         <AlertDialogContent className="z-[80]">
           <AlertDialogHeader>
             <AlertDialogTitle>Sair sem salvar?</AlertDialogTitle>
-            <AlertDialogDescription>{isEdit ? 'As alterações desta pesagem não serão salvas.' : 'Os alimentos já pesados nesta refeição serão descartados.'}</AlertDialogDescription>
+            <AlertDialogDescription>{isEdit ? 'As alterações desta pesagem não serão salvas.'
+              : isAdd ? 'Os alimentos novos não serão salvos. Os que já estavam pesados continuam no seu dia.'
+              : 'Os alimentos já pesados nesta refeição serão descartados.'}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Continuar pesando</AlertDialogCancel>

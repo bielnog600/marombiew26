@@ -26,6 +26,8 @@ import { Button } from '@/components/ui/button';
 import { useDailyTracking } from '@/hooks/useDailyTracking';
 import { fetchWithCache, setCache } from '@/lib/offlineCache';
 import { latestWeighLogs, overlayDayWeighLogs, weighLogKey, type WeighLogRecord } from '@/lib/mealWeigh';
+import { weighEntry } from '@/lib/mealWeigh/editItems';
+import ReweighDialog from '@/components/diet/mealWeigh/ReweighDialog';
 import ProtocolsDialog from '@/components/diet/ProtocolsDialog';
 import { protocolsToKeys, type SavedProtocols, type ProtocolKey } from '@/lib/dietProtocols';
 import { ListChecks, ScanBarcode } from 'lucide-react';
@@ -491,8 +493,8 @@ const MinhasDietas = () => {
   const isSelectedDayTraining = trainingDayIndices.includes(selectedWeekday);
   const [showScanner, setShowScanner] = useState(false);
   const premiumScale = usePremiumScale(user?.id);
-  const [weighTarget, setWeighTarget] = useState<{ meal: number; food?: number; edit?: boolean } | null>(null);
-  const [confirmReweigh, setConfirmReweigh] = useState<{ meal: number; food?: number } | null>(null);
+  const [weighTarget, setWeighTarget] = useState<{ meal: number; food?: number; edit?: boolean; add?: boolean } | null>(null);
+  const [confirmReweigh, setConfirmReweigh] = useState<{ meal: number } | null>(null);
   const weekRange = getWeekRange();
   const selectedDate = weekRange.dates[selectedWeekday];
   // Pesagens da semana ("Pesar refeição"): a mais recente de cada refeição/dia é o registro do dia.
@@ -940,10 +942,15 @@ const MinhasDietas = () => {
     if (!tracking.meals_completed.includes(key)) toggleMeal(key);
   }, [weighCacheKey, trackingDayIndex, tracking.meals_completed, toggleMeal]);
 
-  /** Refeição já pesada neste dia: pergunta antes de substituir a pesagem. */
+  /**
+   * Refeição já pesada neste dia: pela refeição pergunta (Adicionar alimento / Refazer do zero);
+   * pela balança num alimento, pesa só aquele item mesclando no registro do dia.
+   */
   const openWeigh = useCallback((target: { meal: number; food?: number }) => {
     if (!ensureCanRegister()) return;
-    if (weighedIndexes.includes(target.meal)) { setConfirmReweigh(target); return; }
+    const entry = weighEntry(weighedIndexes.includes(target.meal), target.food);
+    if (entry.kind === 'ask') { setConfirmReweigh({ meal: target.meal }); return; }
+    if (entry.kind === 'add_food') { setWeighTarget({ meal: target.meal, food: entry.food, add: true }); return; }
     setWeighTarget(target);
   }, [ensureCanRegister, weighedIndexes]);
 
@@ -1003,6 +1010,7 @@ const MinhasDietas = () => {
             initialMode={weighTarget.food != null ? 'plan' : undefined}
             startFoodIndex={weighTarget.food}
             editLog={weighTarget.edit ? latestLogs.get(weighLogKey(selectedDate, weighTarget.meal)) ?? null : null}
+            addToLog={weighTarget.add ? latestLogs.get(weighLogKey(selectedDate, weighTarget.meal)) ?? null : null}
             onClose={() => setWeighTarget(null)}
             onSaved={handleWeighSaved}
           />
@@ -1272,22 +1280,12 @@ const MinhasDietas = () => {
           </AlertDialogContent>
         </AlertDialog>
 
-        <AlertDialog open={!!confirmReweigh} onOpenChange={(o) => !o && setConfirmReweigh(null)}>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Substituir a pesagem anterior?</AlertDialogTitle>
-              <AlertDialogDescription>
-                Essa refeição já foi pesada neste dia. A nova pesagem passa a valer no lugar da anterior.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Cancelar</AlertDialogCancel>
-              <AlertDialogAction onClick={() => { setWeighTarget(confirmReweigh); setConfirmReweigh(null); }}>
-                Pesar de novo
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
+        <ReweighDialog
+          open={!!confirmReweigh}
+          onCancel={() => setConfirmReweigh(null)}
+          onAdd={() => { if (confirmReweigh) setWeighTarget({ meal: confirmReweigh.meal, add: true }); setConfirmReweigh(null); }}
+          onRestart={() => { if (confirmReweigh) setWeighTarget({ meal: confirmReweigh.meal }); setConfirmReweigh(null); }}
+        />
 
         {/* Hidratação */}
         <HydrationCard
