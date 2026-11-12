@@ -279,6 +279,21 @@ export interface PlannedMeal extends EngineMacros {
   alimentos: PlannedFood[];
 }
 
+/**
+ * Refeições do dia usadas como previsto em TODOS os modos de pesagem (balança,
+ * escanear, Prato pronto, Adicionar alimento) e no scanner por foto: a versão
+ * do aluno (editada/reajustada) quando tem alimentos; se ele esvaziou a
+ * refeição, a refeição publicada do mesmo dia (já do dia da semana/ciclo de
+ * carboidratos), para o registro nunca ficar com previsto vazio.
+ */
+export function weighPlanMeals<M extends { foods?: unknown[] }>(dayMeals: M[], publishedDayMeals: M[]): M[] {
+  return dayMeals.map((m, i) => {
+    const hasFoods = Array.isArray(m?.foods) && m.foods.length > 0;
+    const published = publishedDayMeals[i];
+    return !hasFoods && published && Array.isArray(published.foods) && published.foods.length > 0 ? { ...m, foods: published.foods } : m;
+  });
+}
+
 /** Previsto da refeição: totais somados dos alimentos (como a dieta do aluno mostra). */
 export function plannedFromMeal(meal: ParsedMeal | null | undefined): PlannedMeal {
   const alimentos: PlannedFood[] = (meal?.foods ?? []).map((f) => ({

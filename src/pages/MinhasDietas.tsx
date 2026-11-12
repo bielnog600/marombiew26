@@ -25,7 +25,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { useDailyTracking } from '@/hooks/useDailyTracking';
 import { fetchWithCache, setCache } from '@/lib/offlineCache';
-import { latestWeighLogs, overlayDayWeighLogs, weighLogKey, type WeighLogRecord } from '@/lib/mealWeigh';
+import { latestWeighLogs, overlayDayWeighLogs, weighLogKey, weighPlanMeals, type WeighLogRecord } from '@/lib/mealWeigh';
 import { weighEntry } from '@/lib/mealWeigh/editItems';
 import ReweighDialog from '@/components/diet/mealWeigh/ReweighDialog';
 import ProtocolsDialog from '@/components/diet/ProtocolsDialog';
@@ -608,14 +608,17 @@ const MinhasDietas = () => {
   // Previsto do dia (sem pesagens): é o que a tela de pesagem compara.
   const plannedDayMeals = useMemo(
     () =>
-      hasStudentEdits
-        ? rebalanceFutureMeals({
-            meals: editedMeals as any,
-            completedIndexes,
-            currentIndex: editedMealByGroup[activeGroupIndex] ?? -1,
-            dailyTarget,
-          }).meals
-        : prescribedMeals,
+      weighPlanMeals(
+        hasStudentEdits
+          ? rebalanceFutureMeals({
+              meals: editedMeals as any,
+              completedIndexes,
+              currentIndex: editedMealByGroup[activeGroupIndex] ?? -1,
+              dailyTarget,
+            }).meals
+          : prescribedMeals,
+        prescribedMeals as any,
+      ),
     [hasStudentEdits, editedMeals, completedIndexes, editedMealByGroup, activeGroupIndex, dailyTarget, prescribedMeals],
   );
 
