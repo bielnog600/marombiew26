@@ -58,7 +58,13 @@ function NutrientRow({ r }: { r: Row }) {
   );
 }
 
-export default function FoodScanResult({ scan, onChange, readOnly }: { scan: ScanRecord; onChange?: (s: ScanRecord) => void; readOnly?: boolean }) {
+export default function FoodScanResult({ scan, onChange, readOnly, renderAddToMeal }: {
+  scan: ScanRecord;
+  onChange?: (s: ScanRecord) => void;
+  readOnly?: boolean;
+  /** Aluno com dieta: "Adicionar a uma refeição" / "Só consultar" no lugar do registro solto. */
+  renderAddToMeal?: (grams: number, summary: string) => React.ReactNode;
+}) {
   const n = scan.nutriments ?? {};
   const serving = Number(n.serving_quantity) || null;
   const [grams, setGrams] = useState(String(serving ?? 100));
@@ -181,7 +187,20 @@ export default function FoodScanResult({ scan, onChange, readOnly }: { scan: Sca
         {perServ && <MacroLine label={`Porção ${serving} g`} m={perServ} />}
       </div>
 
-      {!readOnly && (
+      {!readOnly && renderAddToMeal && (
+        <>
+          <div className="glass-card-solid rounded-2xl p-4 space-y-2">
+            <p className="text-sm font-semibold">Quantidade</p>
+            <div className="flex gap-2 items-center">
+              <Input inputMode="decimal" value={grams} onChange={(e) => setGrams(e.target.value)} className="h-12 w-28" aria-label="Quantidade em gramas" />
+              <span className="text-sm text-muted-foreground">g · {chosen.kcal} kcal · P {chosen.protein} · C {chosen.carbs} · G {chosen.fat}</span>
+            </div>
+          </div>
+          {g > 0 && renderAddToMeal(g, `${g} g · ${chosen.kcal} kcal · P ${chosen.protein} · C ${chosen.carbs} · G ${chosen.fat}`)}
+        </>
+      )}
+
+      {!readOnly && !renderAddToMeal && (
         <div className="glass-card-solid rounded-2xl p-4 space-y-3">
           <p className="text-sm font-semibold">Registrar consumo</p>
           <div className="flex gap-2 items-center">
