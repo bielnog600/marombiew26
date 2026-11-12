@@ -257,7 +257,7 @@ const Alimentos: React.FC = () => {
     <AppLayout title="Alimentos">
       <Tabs value={aba} onValueChange={(v) => setSearchParams(v === 'banco' ? {} : { aba: v }, { replace: true })}>
         <div className="flex items-center justify-between gap-2 mb-4">
-          <TabsList>
+          <TabsList className="min-w-0 max-w-full justify-start overflow-x-auto">
             <TabsTrigger value="banco">Banco de alimentos</TabsTrigger>
             <TabsTrigger value="escaneados" className="gap-1.5">
               Escaneados
