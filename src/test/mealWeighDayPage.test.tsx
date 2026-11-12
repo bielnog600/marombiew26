@@ -33,6 +33,7 @@ vi.mock('@/components/diet/FoodSubstitutionDialog', () => ({ default: () => null
 vi.mock('@/components/diet/mealWeigh/MealWeighScreen', () => ({ default: (props: any) => (
   <div data-testid="fake-weigh">
     <span>previsto: {props.meal.foods.map((f: any) => `${f.food} ${f.qty}`).join(', ')}</span>
+    <span>base: {props.addToLog ? props.addToLog.id : 'nenhuma'} · modo: {props.initialMode ?? '-'} · alimento: {props.startFoodIndex ?? '-'}</span>
     <button onClick={() => { props.onSaved?.({ ...mock.nextLog, meal_index: props.mealIndex, log_date: props.logDate }); props.onClose(); }}>Salvar pesagem</button>
   </div>
 ) }));
@@ -112,7 +113,7 @@ describe('Pesar refeição — salvar entra na refeição do dia', () => {
     expect(mock.write.mock.calls.every(([w]) => w.table === 'daily_tracking')).toBe(true);
   });
 
-  it('pesar de novo no mesmo dia pergunta e substitui a pesagem anterior', async () => {
+  it('refazer do zero só depois de confirmar e a nova pesagem substitui a anterior', async () => {
     mock.weighRows = [{ ...weighLog('log-old', '2026-10-30T08:10:00Z', 120, 107), meal_index: 0, log_date: '2026-10-30' }];
     mock.nextLog = { ...weighLog('log-new', '2026-10-30T09:00:00Z', 100, 89), unweighed: [], items: [
       { alimento: 'Banana', food_id: 'f', gramas: 100, kcal: 89, p: 1, c: 23, g: 0.3, indice_plano: 0 },
@@ -123,11 +124,16 @@ describe('Pesar refeição — salvar entra na refeição do dia', () => {
     expect(within(lancheCard()).getByText('pesou 120 g (previsto 100 g)')).toBeInTheDocument();
 
     fireEvent.click(within(lancheCard()).getByRole('button', { name: /Pesar de novo/ }));
-    expect(await screen.findByText('Substituir a pesagem anterior?')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Pesar de novo' }));
+    expect(await screen.findByText('Essa refeição já tem alimentos pesados')).toBeInTheDocument();
+    expect(screen.queryByText('Substituir a pesagem anterior?')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: /Refazer do zero/ }));
+    expect(await screen.findByText('Apagar a pesagem atual desta refeição?')).toBeInTheDocument();
+    expect(screen.queryByTestId('fake-weigh')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Apagar e refazer' }));
     const fake = await screen.findByTestId('fake-weigh');
-    // O previsto é o plano do dia, não a pesagem antiga.
+    // Pesagem nova: o previsto é o plano do dia, sem partir da pesagem antiga.
     expect(fake).toHaveTextContent('previsto: Banana 100 g, Aveia 30 g');
+    expect(fake).toHaveTextContent('base: nenhuma');
     await act(async () => { fireEvent.click(within(fake).getByRole('button', { name: 'Salvar pesagem' })); });
 
     const card = lancheCard();
@@ -135,5 +141,15 @@ describe('Pesar refeição — salvar entra na refeição do dia', () => {
     expect(within(card).queryByText('pesou 120 g (previsto 100 g)')).toBeNull();
     expect(within(card).queryByText('Fora do plano')).toBeNull();
     expect(card).toHaveTextContent('Aprox. 206 kcal');
+  });
+
+  it('"Adicionar alimento" abre a pesagem com a pesagem salva do dia', async () => {
+    mock.weighRows = [{ ...weighLog('log-old', '2026-10-30T08:10:00Z', 120, 107), meal_index: 0, log_date: '2026-10-30' }];
+    render(<MinhasDietas />);
+    await screen.findByText('Lanche');
+    fireEvent.click(within(lancheCard()).getByRole('button', { name: /Pesar de novo/ }));
+    fireEvent.click(await screen.findByRole('button', { name: /Adicionar alimento/ }));
+    const fake = await screen.findByTestId('fake-weigh');
+    expect(fake).toHaveTextContent('base: log-old · modo: - · alimento: -');
   });
 });
