@@ -1,5 +1,6 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
+import { aiFetch, setAiUsageActor, withAiUsage } from '../_shared/aiUsage.ts';
 
 const FIELDS =
   'product_name,brands,image_front_url,nutriments,nutriscore_grade,nutriscore_score,nova_group,additives_tags,additives_n,ingredients_text,labels_tags,quantity,serving_size,serving_quantity';
@@ -10,12 +11,13 @@ const ANTHROPIC_BASE_URL = 'https://api.anthropic.com/v1';
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
 
-async function anthropic(content: unknown, maxTokens: number) {
+/** `feature`: which scanner use this call is billed to in Custos de IA. */
+async function anthropic(content: unknown, maxTokens: number, feature: string) {
   const apiKey = Deno.env.get('ANTHROPIC_API_KEY');
   if (!apiKey) throw new Error('Não foi possível consultar a IA agora.');
   let res: Response;
   try {
-    res = await fetch(`${ANTHROPIC_BASE_URL}/messages`, {
+    res = await aiFetch(`${ANTHROPIC_BASE_URL}/messages`, {
       method: 'POST',
       headers: {
         'x-api-key': apiKey,
@@ -23,7 +25,7 @@ async function anthropic(content: unknown, maxTokens: number) {
         'content-type': 'application/json',
       },
       body: JSON.stringify({ model: MODEL, max_tokens: maxTokens, thinking: { type: 'disabled' }, messages: [{ role: 'user', content }] }),
-    });
+    }, { feature });
   } catch {
     console.error('Anthropic error', 'network failure');
     throw new Error('Não foi possível consultar a IA agora.');
@@ -298,7 +300,7 @@ const foodRowToProduct = (f: any) => {
 
 const OFF_SEARCH_FIELDS = `code,${FIELDS}`;
 
-Deno.serve(async (req) => {
+Deno.serve(withAiUsage('scanner', 'food-scanner', async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
   try {
     const authHeader = req.headers.get('Authorization') ?? '';
@@ -308,6 +310,7 @@ Deno.serve(async (req) => {
     });
     const { data: u } = await userClient.auth.getUser(authHeader.replace('Bearer ', ''));
     if (!u?.user) return json({ error: 'Não autenticado' }, 401);
+    setAiUsageActor(u.user.id);
     const admin = createClient(url, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
 
     const body = await req.json().catch(() => ({}));
@@ -346,6 +349,7 @@ Em additives_tags liste os aditivos dos ingredientes como E-numbers (en:eXXX). U
           },
         ],
         1200,
+        'scanner_rotulo',
       );
       const raw = text.match(/\{[\s\S]*\}/)?.[0];
       if (!raw) return json({ error: 'Não consegui ler o rótulo. Tente outra foto, mais nítida.' }, 422);
@@ -372,7 +376,7 @@ Regras:
 - Separe a nota de qualidade da utilidade para o objetivo.
 - Dê UMA recomendação só e clara: se cabe ou não na dieta, em qual refeição, em qual quantidade e qual alimento da dieta ajustar. Nunca dê duas opções nem alternativas contraditórias.
 - Nunca recomende uma troca que reduza de forma relevante a proteína da refeição (ex.: trocar whey, ovos, frango ou carne por um produto com bem menos proteína). Se o produto tem pouca proteína, ele pode entrar só como complemento ou no lugar de um carboidrato ou gordura equivalente, nunca no lugar da fonte de proteína. Só chame de 'boa proteína' acima de ~8 g por 100 g.`;
-      const evaluation = await anthropic(prompt, 300);
+      const evaluation = await anthropic(prompt, 300, 'scanner_barcode_ia');
       return json({ evaluation });
     }
 
@@ -397,6 +401,7 @@ Responda SOMENTE JSON:
           },
         ],
         150,
+        'pesar_visor',
       );
       const parsed = parseWeighJson(text);
       if (!parsed) return json({ error: 'Não consegui analisar a foto. Tira outra.' }, 422);
@@ -424,7 +429,7 @@ Responda SOMENTE JSON:
           ]
         : [{ type: 'image', source: { type: 'base64', ...current } }];
       content.push({ type: 'text', text: weighPrompt(!!previous, mealName, planFoods, added, pendingFoods) });
-      const text = await anthropic(content, 400);
+      const text = await anthropic(content, 400, 'escanear_prato');
       const result = parseWeighJson(text);
       if (!result) return json({ error: 'Não consegui analisar a foto. Tira outra.' }, 422);
       return json({ result });
@@ -454,6 +459,7 @@ Responda SOMENTE JSON:
           { type: 'text', text: platePrompt(mealName, planFoods, pendingFoods, added, baseFoods, corrections) },
         ],
         900,
+        'prato_pronto',
       );
       const result = parsePlateJson(text);
       if (!result || result.itens.length === 0) return json({ error: 'Não consegui ver os alimentos do prato. Tira outra foto de cima, com o prato inteiro.' }, 422);
@@ -474,6 +480,7 @@ Responda SOMENTE JSON:
       const text = await anthropic(
         [{ type: 'image', source: { type: 'base64', ...current } }, { type: 'text', text: identifyPrompt(baseFoods) }],
         700,
+        'scanner_foto',
       );
       const result = parseIdentifyJson(text);
       if (!result || (!result.produto && !result.alimento)) return json({ error: 'Não consegui identificar. Tira outra foto, mais de perto.' }, 422);
@@ -542,4 +549,4 @@ Responda SOMENTE JSON:
     const status = (e as any)?.status && [401, 402, 429].includes((e as any).status) ? (e as any).status : 500;
     return json({ error: (e as Error).message || 'Erro inesperado' }, status);
   }
-});
+}));
