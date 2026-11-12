@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from 'react';
-import { Check, ChevronDown, Plus, SlidersHorizontal, Trash2, ArrowRightLeft, X, UtensilsCrossed, Scale, Pencil } from 'lucide-react';
+import { Check, ChevronDown, Plus, SlidersHorizontal, Trash2, ArrowRightLeft, X, UtensilsCrossed, Scale, Pencil, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 import type { ParsedFood, ParsedMeal } from '@/lib/dietResultParser';
 import { scaleFood, parseNumeric } from '@/lib/dailyDietRebalance';
