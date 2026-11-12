@@ -8,9 +8,28 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
-import { Camera, History, Loader2, ScanBarcode, X } from 'lucide-react';
+import { Camera, History, ImageIcon, Loader2, ScanBarcode, X } from 'lucide-react';
 import { computeFoodScore, type ProductData } from '@/lib/foodScore';
+import type { ParsedMeal } from '@/lib/dietResultParser';
+import type { WeighFood, WeighLogRecord, WeighedItem } from '@/lib/mealWeigh';
+import { buildScanMealLog, foodScanInsert, scannedFoodItem, scannedProductItem, type ProductSource } from '@/lib/foodPhotoScan';
 import FoodScanResult, { ScoreDot, type ScanRecord } from './FoodScanResult';
+import AddToMealPanel from './foodScan/AddToMealPanel';
+import PhotoScanTab from './foodScan/PhotoScanTab';
+
+/** Dieta do aluno no dia: o que o scanner precisa para registrar numa refeição. */
+export interface ScanMealContext {
+  meals: ParsedMeal[];
+  logDate: string;
+  dietPlanId: string | null;
+  /** Refeição do horário atual. */
+  suggested: number;
+  /** Registro do dia da refeição (pesagem/escaneamento mais recente). */
+  latestLog: (mealIndex: number) => WeighLogRecord | null;
+  /** Dias futuros etc.: false bloqueia (o próprio guard avisa). */
+  canRegister?: () => boolean;
+  onSaved: (log: WeighLogRecord) => void;
+}
 
 interface Props {
   open: boolean;
@@ -19,6 +38,8 @@ interface Props {
   /** 'admin': sem avaliação da IA; entrega o scan via onAdminScanned e fecha. */
   mode?: 'aluno' | 'admin';
   onAdminScanned?: (rec: ScanRecord) => void;
+  /** Aluno com dieta: "Adicionar a uma refeição" entra no registro do dia (selo "Escaneado"). */
+  mealContext?: ScanMealContext;
 }
 
 const fileToDataUrl = (file: File) =>
@@ -39,7 +60,7 @@ const fileToDataUrl = (file: File) =>
     img.src = url;
   });
 
-export default function FoodScanner({ open, onOpenChange, dailyKcal, mode = 'aluno', onAdminScanned }: Props) {
+export default function FoodScanner({ open, onOpenChange, dailyKcal, mode = 'aluno', onAdminScanned, mealContext }: Props) {
   const { user } = useAuth();
   const [videoEl, setVideoEl] = useState<HTMLVideoElement | null>(null);
   const controlsRef = useRef<IScannerControls | null>(null);
@@ -51,6 +72,9 @@ export default function FoodScanner({ open, onOpenChange, dailyKcal, mode = 'alu
   const [camError, setCamError] = useState<string | null>(null);
   const [notFound, setNotFound] = useState<string | null>(null);
   const [result, setResult] = useState<ScanRecord | null>(null);
+  /** Alimento da base de onde veio o produto (aprovado pelo admin), para o registro na refeição. */
+  const [resultFoodId, setResultFoodId] = useState<string | null>(null);
+  const [scanMode, setScanMode] = useState<'barcode' | 'photo'>('barcode');
   const [history, setHistory] = useState<ScanRecord[]>([]);
 
   const stopCamera = useCallback(() => {
@@ -59,23 +83,15 @@ export default function FoodScanner({ open, onOpenChange, dailyKcal, mode = 'alu
   }, []);
 
   const processProduct = useCallback(
-    async (product: ProductData, barcode: string | null, source: string) => {
+    async (product: ProductData, barcode: string | null, source: ProductSource | string, extra: { photoPaths?: string[]; foodId?: string | null } = {}) => {
       if (!user) return;
       const { score, label, additives } = computeFoodScore(product);
+      // Todo produto novo fica no histórico e em "Escaneados" (pendente) para o admin revisar.
       const { data, error } = await supabase
         .from('food_scans')
-        .insert({
-          aluno_id: user.id,
-          barcode,
-          product_name: product.product_name || 'Produto sem nome',
-          brand: product.brands ?? null,
-          image_url: product.image_front_url ?? null,
-          score,
-          score_label: label,
-          nutriments: { ...(product.nutriments ?? {}), serving_quantity: product.serving_quantity ?? null, quantity: product.quantity ?? null } as any,
-          additives: additives as any,
-          source,
-        })
+        .insert(foodScanInsert({
+          alunoId: user.id, product, barcode, source: source as ProductSource, photoPaths: extra.photoPaths, score, label, additives,
+        }) as any)
         .select()
         .single();
       if (error) throw error;
@@ -87,6 +103,7 @@ export default function FoodScanner({ open, onOpenChange, dailyKcal, mode = 'alu
         return;
       }
       setResult(rec);
+      setResultFoodId(extra.foodId ?? null);
       // Avaliação da IA em segundo plano
       supabase.functions
         .invoke('food-scanner', { body: { action: 'evaluate', product, score, label, additives, dailyKcal } })
@@ -151,7 +168,7 @@ export default function FoodScanner({ open, onOpenChange, dailyKcal, mode = 'alu
 
   // Câmera: só inicia quando o <video> já está montado no DOM
   useEffect(() => {
-    if (!open || tab !== 'scan' || result || notFound || busy || !videoEl) return;
+    if (!open || tab !== 'scan' || scanMode !== 'barcode' || result || notFound || busy || !videoEl) return;
     let cancelled = false;
     const hints = new Map();
     hints.set(DecodeHintType.POSSIBLE_FORMATS, [BarcodeFormat.EAN_13, BarcodeFormat.EAN_8, BarcodeFormat.UPC_A, BarcodeFormat.UPC_E]);
@@ -188,7 +205,7 @@ export default function FoodScanner({ open, onOpenChange, dailyKcal, mode = 'alu
       window.clearTimeout(watchdog);
       stopCamera();
     };
-  }, [open, tab, result, notFound, busy, videoEl, stopCamera, camRetry]);
+  }, [open, tab, scanMode, result, notFound, busy, videoEl, stopCamera, camRetry]);
 
   useEffect(() => {
     if (!open || tab !== 'history' || !user) return;
@@ -201,10 +218,63 @@ export default function FoodScanner({ open, onOpenChange, dailyKcal, mode = 'alu
       .then(({ data }) => setHistory((data ?? []) as unknown as ScanRecord[]));
   }, [open, tab, user, result]);
 
+  /** Item escaneado entra na refeição do dia (mesmo registro da pesagem, mesclando com o que já houver). */
+  const addItemToMeal = async (mealIndex: number, item: WeighedItem): Promise<boolean> => {
+    if (!user || !mealContext) return false;
+    if (mealContext.canRegister && !mealContext.canRegister()) return false;
+    const meal = mealContext.meals[mealIndex];
+    if (!meal) return false;
+    const row = buildScanMealLog(meal, mealContext.latestLog(mealIndex), item);
+    const { data, error } = await supabase.from('meal_weigh_logs').insert({
+      student_id: user.id, log_date: mealContext.logDate, diet_plan_id: mealContext.dietPlanId, meal_index: mealIndex,
+      meal_name: meal.name || '', meal_time: meal.time ?? null,
+      items: row.items as any, unweighed: row.unweighed as any, planned: row.planned as any,
+      total_kcal: row.total_kcal, total_p: row.total_p, total_c: row.total_c, total_g: row.total_g,
+    }).select('id, log_date, meal_index, items, unweighed, planned, created_at').single();
+    if (error || !data) { toast.error('Não foi possível adicionar à refeição.'); return false; }
+    mealContext.onSaved(data as unknown as WeighLogRecord);
+    toast.success(`Adicionado em ${meal.name}: ${item.alimento} ${Math.round(item.gramas)} g · ${item.kcal} kcal`);
+    return true;
+  };
+
+  const productAddPanel = (scan: ScanRecord) => mealContext && mode === 'aluno'
+    ? (grams: number, summary: string) => (
+      <AddToMealPanel
+        meals={mealContext.meals}
+        suggested={mealContext.suggested}
+        summary={summary}
+        onAdd={async (mi) => {
+          const ok = await addItemToMeal(mi, scannedProductItem(scan.product_name || 'Produto', scan.brand, { nutriments: scan.nutriments } as ProductData, grams, resultFoodId));
+          if (ok) {
+            const now = new Date().toISOString();
+            await supabase.from('food_scans').update({ consumed_grams: grams, consumed_at: now }).eq('id', scan.id);
+            setResult((r) => (r && r.id === scan.id ? { ...r, consumed_grams: grams, consumed_at: now } : r));
+          }
+          return ok;
+        }}
+        onConsult={() => { setResult(null); setResultFoodId(null); }}
+      />
+    )
+    : undefined;
+
+  const naturaActions = (food: WeighFood, grams: number, reset: () => void) => {
+    const item = scannedFoodItem(food, grams);
+    return mealContext && mode === 'aluno' ? (
+      <AddToMealPanel
+        meals={mealContext.meals}
+        suggested={mealContext.suggested}
+        summary={`${item.gramas} g · ${item.kcal} kcal · P ${item.p} · C ${item.c} · G ${item.g}`}
+        onAdd={(mi) => addItemToMeal(mi, item)}
+        onConsult={reset}
+      />
+    ) : null;
+  };
+
   const close = (v: boolean) => {
     if (!v) {
       stopCamera();
       setResult(null);
+      setResultFoodId(null);
       setNotFound(null);
       setManual('');
     }
@@ -226,7 +296,20 @@ export default function FoodScanner({ open, onOpenChange, dailyKcal, mode = 'alu
           </TabsList>
 
           <TabsContent value="scan" className="flex-1 min-h-0 overflow-y-auto px-4 pb-8 mt-3 space-y-4">
-            {!result && !notFound && (
+            {!result && !notFound && mode === 'aluno' && (
+              <div className="grid grid-cols-2 gap-2 rounded-xl bg-secondary/60 p-1" role="group" aria-label="Como escanear">
+                {([['barcode', 'Código de barras', ScanBarcode], ['photo', 'Foto', ImageIcon]] as const).map(([k, label, Icon]) => (
+                  <button key={k} type="button" aria-pressed={scanMode === k} onClick={() => { stopCamera(); setScanMode(k); }}
+                    className={`flex h-10 items-center justify-center gap-1.5 rounded-lg text-sm font-semibold ${scanMode === k ? 'bg-primary text-primary-foreground' : 'text-muted-foreground'}`}>
+                    <Icon className="h-4 w-4" /> {label}
+                  </button>
+                ))}
+              </div>
+            )}
+            {!result && !notFound && scanMode === 'photo' && mode === 'aluno' && (
+              <PhotoScanTab userId={user?.id ?? null} onProduct={(p, bc, src, extra) => processProduct(p, bc, src, extra)} naturaActions={naturaActions} />
+            )}
+            {!result && !notFound && (scanMode === 'barcode' || mode !== 'aluno') && (
               <>
                 <div className="relative w-full aspect-[3/4] max-h-[55dvh] rounded-2xl overflow-hidden bg-card border border-border">
                   <video ref={setVideoEl} className="w-full h-full object-cover" muted playsInline autoPlay />
@@ -261,7 +344,7 @@ export default function FoodScanner({ open, onOpenChange, dailyKcal, mode = 'alu
 
             {result && (
               <>
-                <FoodScanResult scan={result} onChange={setResult} />
+                <FoodScanResult scan={result} onChange={setResult} renderAddToMeal={productAddPanel(result)} />
                 <Button variant="outline" className="h-12 w-full" onClick={() => setResult(null)}>
                   <ScanBarcode className="h-4 w-4 mr-2" /> Escanear outro produto
                 </Button>

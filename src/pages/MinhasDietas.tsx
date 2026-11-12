@@ -999,7 +999,16 @@ const MinhasDietas = () => {
   return (
     <AppLayout title="Plano Alimentar">
       <React.Suspense fallback={null}>
-        <FoodScanner open={showScanner} onOpenChange={setShowScanner} dailyKcal={dailyTarget?.kcal || null} />
+        <FoodScanner open={showScanner} onOpenChange={setShowScanner} dailyKcal={dailyTarget?.kcal || null}
+          mealContext={plannedDayMeals.length > 0 ? {
+            meals: plannedDayMeals,
+            logDate: selectedDate,
+            dietPlanId: planId,
+            suggested: currentMealIndex,
+            latestLog: (mi) => latestLogs.get(weighLogKey(selectedDate, mi)) ?? null,
+            canRegister: ensureCanRegister,
+            onSaved: handleWeighSaved,
+          } : undefined} />
         {weighTarget && plannedDayMeals[weighTarget.meal] && user && (
           <MealWeighScreen
             meal={plannedDayMeals[weighTarget.meal]}

@@ -2297,6 +2297,7 @@ export type Database = {
           id: string
           image_url: string | null
           nutriments: Json
+          photo_paths: string[]
           product_name: string | null
           score: number | null
           score_label: string | null
@@ -2314,6 +2315,7 @@ export type Database = {
           id?: string
           image_url?: string | null
           nutriments?: Json
+          photo_paths?: string[]
           product_name?: string | null
           score?: number | null
           score_label?: string | null
@@ -2331,12 +2333,48 @@ export type Database = {
           id?: string
           image_url?: string | null
           nutriments?: Json
+          photo_paths?: string[]
           product_name?: string | null
           score?: number | null
           score_label?: string | null
           source?: string
         }
         Relationships: []
+      }
+      food_unit_weights: {
+        Row: {
+          created_at: string
+          food_id: string
+          gramas: number
+          id: string
+          tamanho: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          food_id: string
+          gramas: number
+          id?: string
+          tamanho: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          food_id?: string
+          gramas?: number
+          id?: string
+          tamanho?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "food_unit_weights_food_id_fkey"
+            columns: ["food_id"]
+            isOneToOne: false
+            referencedRelation: "foods"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       foods: {
         Row: {

@@ -13,6 +13,12 @@
 - [x] "Prato pronto": uma foto, IA identifica e estima as gramas (soma = peso da balança, pergunta da tara do prato), revisão com selo Estimado, salva com origem 'estimado' mesclando; card e admin mostram "Estimado".
 - [ ] Testar com balança e foto reais no celular — nenhuma chamada real à IA foi feita.
 
+## Scanner de alimentos por foto
+- [x] Aba "Código de barras" | "Foto" com foto automática e botão manual; embalado: código na foto → base/já escaneado → Open Food Facts (até 3) → tabela da foto/"Tira uma foto da tabela nutricional".
+- [x] In natura com peso médio por unidade (− / +, gramas, balança) e aba "Pesos por unidade" no admin; "Adicionar à refeição" com selo "Escaneado" e "Só consultar".
+- [x] Embalado novo vai para Alimentos escaneados com origem e fotos; 13 testes novos + 1 na tela da dieta.
+- [ ] Testar com produtos reais no celular — nenhuma chamada real à IA ou ao Open Food Facts foi feita.
+
 ## Correção ao vivo (Premium)
 - [x] Coluna premium_camera (só admin altera), interruptor e sessões na ficha do aluno, filtro e selo na lista de alunos; ativado para Fabiew Aires.
 - [x] Botão nos agachamentos do treino do aluno; tela cheia com câmera, esqueleto, contador, correções, voz e resumo salvo em camera_sessions.

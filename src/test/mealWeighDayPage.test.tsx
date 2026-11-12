@@ -25,7 +25,19 @@ vi.mock('@/integrations/supabase/client', () => ({ supabase: {
   channel: () => ({ on() { return this; }, subscribe() { return this; } }), removeChannel: vi.fn(),
 } }));
 vi.mock('@/components/AppLayout', () => ({ default: ({ children }: { children: React.ReactNode }) => <main>{children}</main> }));
-vi.mock('@/components/diet/FoodScanner', () => ({ default: () => null }));
+// Scanner simulado: adiciona um alimento escaneado na refeição sugerida pelo mesmo caminho do scanner real.
+vi.mock('@/components/diet/FoodScanner', async () => {
+  const { buildScanMealLog, scannedFoodItem } = await import('@/lib/foodPhotoScan');
+  const IOGURTE = { id: 'f-iog', name: 'Iogurte natural', calories: 60, protein: 4, carbs: 5, fats: 3, portion_size: 100 };
+  return { default: (props: any) => (props.open && props.mealContext ? (
+    <button onClick={() => {
+      const c = props.mealContext;
+      const mi = c.suggested;
+      const row = buildScanMealLog(c.meals[mi], c.latestLog(mi), scannedFoodItem(IOGURTE as any, 100));
+      c.onSaved({ id: 'scan-log', created_at: '2026-10-30T09:30:00Z', log_date: c.logDate, meal_index: mi, ...row });
+    }}>Adicionar escaneado ({props.mealContext.meals[props.mealContext.suggested]?.name})</button>
+  ) : null) };
+});
 vi.mock('@/components/diet/ProtocolsDialog', () => ({ default: () => null }));
 vi.mock('@/components/diet/AddFoodDialog', () => ({ default: () => null }));
 vi.mock('@/components/diet/FoodSubstitutionDialog', () => ({ default: () => null }));
@@ -163,5 +175,22 @@ describe('Pesar refeição — salvar entra na refeição do dia', () => {
     const fake = await screen.findByTestId('fake-weigh');
     expect(fake).toHaveTextContent('base: log-old · modo: plan · alimento: 1');
     expect(screen.queryByText('Essa refeição já tem alimentos pesados')).toBeNull();
+  });
+
+  it('alimento escaneado adicionado à refeição entra nos totais do dia e reajusta as próximas', async () => {
+    render(<MinhasDietas />);
+    await screen.findByText('Lanche');
+    const jantarBefore = jantarKcal();
+    fireEvent.click(screen.getByRole('button', { name: /Escanear alimento/ }));
+    // 09:00 → refeição sugerida é o Lanche (08:00).
+    await act(async () => { fireEvent.click(await screen.findByRole('button', { name: 'Adicionar escaneado (Lanche)' })); });
+    const card = lancheCard();
+    expect(within(card).getByTestId('meal-weighed-badge')).toHaveTextContent('Escaneado');
+    expect(within(card).getByText('Iogurte natural')).toBeInTheDocument();
+    expect(within(card).getAllByText('Escaneado').length).toBeGreaterThanOrEqual(2);
+    // Lanche previsto (206) "comi sem pesar" + iogurte 60 kcal.
+    expect(card).toHaveTextContent('Aprox. 266 kcal');
+    expect(screen.getByText('266')).toBeInTheDocument();
+    expect(jantarKcal()).toBeLessThan(jantarBefore);
   });
 });

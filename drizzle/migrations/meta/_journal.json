@@ -253,6 +253,13 @@
       "when": 1794439642473,
       "tag": "0035_coach_voice_name_phrases_toggle",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1794470499248,
+      "tag": "0036_food_photo_scan",
+      "breakpoints": true
     }
   ]
 }

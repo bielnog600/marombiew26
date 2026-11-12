@@ -3,7 +3,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ChevronDown, Scale } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
-import { formatFoodComparison, formatSwapLine, formatUnweighedLine, isEstimatedItem, supersededWeighLogIds, type FoodComparison, type UnweighedEntry, type WeighedItem } from '@/lib/mealWeigh';
+import { formatFoodComparison, formatSwapLine, formatUnweighedLine, isEstimatedItem, isScannedItem, supersededWeighLogIds, type FoodComparison, type UnweighedEntry, type WeighedItem } from '@/lib/mealWeigh';
 
 interface WeighLog {
   id: string;
@@ -77,7 +77,7 @@ export default function StudentMealWeighLogs({ studentId }: { studentId: string 
                   {expanded && (
                     <div className="border-t border-border/50 px-3 pb-3 pt-2 space-y-2 text-xs">
                       <p className="tabular-nums">
-                        {(r.items ?? []).some(isEstimatedItem) ? 'Consumido' : 'Pesado'}: P {n(r.total_p)} · C {n(r.total_c)} · G {n(r.total_g)} g
+                        {(r.items ?? []).some((it) => isEstimatedItem(it) || isScannedItem(it)) ? 'Consumido' : 'Pesado'}: P {n(r.total_p)} · C {n(r.total_c)} · G {n(r.total_g)} g
                         <span className="text-muted-foreground"> · Previsto: P {n(planned.p)} · C {n(planned.c)} · G {n(planned.g)} g</span>
                       </p>
                       <ul className="space-y-0.5">
@@ -85,7 +85,8 @@ export default function StudentMealWeighLogs({ studentId }: { studentId: string 
                           <li key={i} className="flex justify-between gap-2">
                             <span className="min-w-0 truncate">
                               {it.alimento}
-                              {isEstimatedItem(it) ? <span className="ml-1 rounded-full border border-dashed border-primary/60 px-1.5 py-0.5 text-[10px] font-semibold text-primary">Estimado</span>
+                              {isScannedItem(it) ? <span className="ml-1 rounded-full border border-primary/50 bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold text-primary">Escaneado</span>
+                                : isEstimatedItem(it) ? <span className="ml-1 rounded-full border border-dashed border-primary/60 px-1.5 py-0.5 text-[10px] font-semibold text-primary">Estimado</span>
                                 : <span className="ml-1 rounded-full border border-primary/40 px-1.5 py-0.5 text-[10px] text-primary">Pesado</span>}
                               {it.editado_pelo_aluno ? <span className="text-muted-foreground"> · corrigido</span> : null}
                             </span>

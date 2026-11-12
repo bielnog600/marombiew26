@@ -13,6 +13,26 @@ import { Search, Plus, EyeOff, AlertTriangle } from 'lucide-react';
 const FoodScanner = lazyWithRetry(() => import('@/components/diet/FoodScanner'));
 import type { ScanRecord } from '@/components/diet/FoodScanResult';
 import { toast } from 'sonner';
+import { PRODUCT_SOURCE_LABEL } from '@/lib/foodPhotoScan';
+
+/** Fotos tiradas pelos alunos (bucket privado): links temporários só para o admin. */
+const ScanPhotos: React.FC<{ paths: string[] }> = ({ paths }) => {
+  const { data: urls = [] } = useQuery({
+    queryKey: ['food-scan-photos', ...paths],
+    enabled: paths.length > 0,
+    staleTime: 30 * 60 * 1000,
+    queryFn: async () => {
+      const { data } = await supabase.storage.from('food-scan-photos').createSignedUrls(paths, 60 * 60);
+      return (data ?? []).map((d) => d.signedUrl).filter(Boolean) as string[];
+    },
+  });
+  if (urls.length === 0) return null;
+  return (
+    <div className="flex gap-1.5 pt-1" data-testid="scan-review-photos">
+      {urls.map((u) => <a key={u} href={u} target="_blank" rel="noreferrer"><img src={u} alt="Foto do aluno" loading="lazy" className="h-14 w-14 rounded-md object-cover bg-muted" /></a>)}
+    </div>
+  );
+};
 import {
   groupScans, mapGroupToFood, productKey, findDuplicates,
   type ProductGroup, type ReviewStatus, type FoodDraft, type ExistingFood, type ScanRow,
@@ -29,7 +49,7 @@ export function useScannedFoodsData() {
     queryKey: SCANNED_FOODS_KEY,
     queryFn: async () => {
       const [scans, reviews, foods] = await Promise.all([
-        supabase.from('food_scans').select('id,aluno_id,barcode,product_name,brand,image_url,score,score_label,nutriments,created_at').order('created_at', { ascending: false }).limit(2000),
+        supabase.from('food_scans').select('id,aluno_id,barcode,product_name,brand,image_url,score,score_label,nutriments,created_at,source,photo_paths').order('created_at', { ascending: false }).limit(2000),
         supabase.from('food_scan_reviews').select('*'),
         supabase.from('foods').select('id,name,brand,barcode'),
       ]);
@@ -200,6 +220,8 @@ const ScannedFoodsPanel: React.FC<ScannedFoodsPanelProps> = ({ scannerOpen, onSc
                   <p className="text-xs text-muted-foreground">
                     {g.count}× por {g.alunoIds.map((id) => data?.names.get(id) ?? 'Aluno').join(', ')} · último em {new Date(g.lastScanAt).toLocaleDateString('pt-BR')}
                   </p>
+                  {g.source && <Badge variant="outline" className="text-[10px]">Origem: {PRODUCT_SOURCE_LABEL[g.source] ?? g.source}</Badge>}
+                  <ScanPhotos paths={g.photoPaths} />
                   {rev?.reviewed_at && <p className="text-xs text-muted-foreground">Revisado em {new Date(rev.reviewed_at).toLocaleDateString('pt-BR')}</p>}
                   <div className="flex flex-wrap gap-2 pt-1">
                     {filter === 'pendente' && <>

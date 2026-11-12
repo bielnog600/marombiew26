@@ -5,6 +5,7 @@ import AppLayout from '@/components/AppLayout';
 import { useSearchParams } from 'react-router-dom';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import ScannedFoodsPanel, { usePendingScanCount } from '@/components/admin/ScannedFoodsPanel';
+import FoodUnitWeightsPanel from '@/components/admin/FoodUnitWeightsPanel';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -237,7 +238,8 @@ const Alimentos: React.FC = () => {
   };
 
   const [searchParams, setSearchParams] = useSearchParams();
-  const aba = searchParams.get('aba') === 'escaneados' ? 'escaneados' : 'banco';
+  const abaParam = searchParams.get('aba');
+  const aba = abaParam === 'escaneados' || abaParam === 'pesos' ? abaParam : 'banco';
   const pendingScans = usePendingScanCount();
   const [scannerOpen, setScannerOpen] = useState(false);
 
@@ -252,7 +254,7 @@ const Alimentos: React.FC = () => {
 
   return (
     <AppLayout title="Alimentos">
-      <Tabs value={aba} onValueChange={(v) => setSearchParams(v === 'escaneados' ? { aba: 'escaneados' } : {}, { replace: true })}>
+      <Tabs value={aba} onValueChange={(v) => setSearchParams(v === 'banco' ? {} : { aba: v }, { replace: true })}>
         <div className="flex items-center justify-between gap-2 mb-4">
           <TabsList>
             <TabsTrigger value="banco">Banco de alimentos</TabsTrigger>
@@ -260,6 +262,7 @@ const Alimentos: React.FC = () => {
               Escaneados
               {pendingScans > 0 && <span className="rounded-full bg-primary text-primary-foreground text-[10px] font-bold px-1.5 min-w-[18px] leading-[18px]">{pendingScans}</span>}
             </TabsTrigger>
+            <TabsTrigger value="pesos">Pesos por unidade</TabsTrigger>
           </TabsList>
           <Button variant="outline" className="gap-2 shrink-0" aria-label="Escanear produto" onClick={openScanner}>
             <ScanBarcode className="h-4 w-4" />
@@ -267,6 +270,7 @@ const Alimentos: React.FC = () => {
             <span className="sm:hidden">Escanear</span>
           </Button>
         </div>
+        <TabsContent value="pesos"><FoodUnitWeightsPanel /></TabsContent>
         <TabsContent value="escaneados"><ScannedFoodsPanel scannerOpen={scannerOpen} onScannerOpenChange={setScannerOpen} /></TabsContent>
         <TabsContent value="banco">
       <div className="space-y-4">

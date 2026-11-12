@@ -13,6 +13,10 @@ export interface ScanRow {
   score_label: string | null;
   nutriments: any;
   created_at: string;
+  /** De onde vieram os valores (openfoodfacts, openfoodfacts_busca, tabela_ia, foto_rotulo, base, cache). */
+  source?: string | null;
+  /** Fotos do aluno no bucket privado food-scan-photos. */
+  photo_paths?: string[] | null;
 }
 
 export interface Per100 { kcal: number | null; p: number | null; c: number | null; g: number | null; fibras: number | null; sal: number | null }
@@ -31,7 +35,14 @@ export interface ProductGroup {
   lastScanAt: string;
   servingQuantity: number | null;
   quantity: string | null;
+  /** Origem do scan mais recente. */
+  source: string | null;
+  /** Fotos dos alunos (até 4, mais recentes primeiro). */
+  photoPaths: string[];
 }
+
+/** Scans de um produto já aprovado na base respondem dela e não voltam para a revisão. */
+export const isReviewableScan = (s: Pick<ScanRow, 'source'>) => s.source !== 'base';
 
 export const normalizeText = (s: string | null | undefined) =>
   (s ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
@@ -65,7 +76,7 @@ export function per100(n: any): Per100 {
 
 /** Groups scans by product; newest scan supplies the displayed data. */
 export function groupScans(scans: ScanRow[]): ProductGroup[] {
-  const sorted = [...scans].sort((a, b) => b.created_at.localeCompare(a.created_at));
+  const sorted = [...scans].filter(isReviewableScan).sort((a, b) => b.created_at.localeCompare(a.created_at));
   const map = new Map<string, ProductGroup>();
   for (const s of sorted) {
     const key = productKey(s);
@@ -74,6 +85,7 @@ export function groupScans(scans: ScanRow[]): ProductGroup[] {
       g.count++;
       if (!g.alunoIds.includes(s.aluno_id)) g.alunoIds.push(s.aluno_id);
       if (!g.image_url && s.image_url) g.image_url = s.image_url;
+      for (const p of s.photo_paths ?? []) if (g.photoPaths.length < 4 && !g.photoPaths.includes(p)) g.photoPaths.push(p);
       continue;
     }
     map.set(key, {
@@ -90,6 +102,8 @@ export function groupScans(scans: ScanRow[]): ProductGroup[] {
       lastScanAt: s.created_at,
       servingQuantity: num(s.nutriments?.serving_quantity),
       quantity: s.nutriments?.quantity ?? null,
+      source: s.source ?? null,
+      photoPaths: (s.photo_paths ?? []).slice(0, 4),
     });
   }
   return [...map.values()];
@@ -124,7 +138,7 @@ export function mapGroupToFood(g: ProductGroup): FoodDraft {
     carbs: r1((g.per100.c ?? 0) * f),
     fats: r1((g.per100.g ?? 0) * f),
     brand: g.brand,
-    source: g.barcode ? 'openfoodfacts' : 'scanner_rotulo',
+    source: g.source === 'tabela_ia' ? 'tabela_ia' : g.source === 'openfoodfacts_busca' ? 'openfoodfacts' : g.barcode ? 'openfoodfacts' : 'scanner_rotulo',
     barcode: g.barcode,
     source_food_id: g.barcode,
   };

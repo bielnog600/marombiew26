@@ -199,6 +199,90 @@ Responda SOMENTE JSON:
 {"itens":[{"alimento":string,"alternativas":[string,string,string],"gramas_estimadas":number,"faixa_gramas":[number,number],"confianca":number}],"peso_total_lido":number|null,"prato_tarado":boolean|null,"observacao":string}`;
 }
 
+/* ---------- Scanner por foto ---------- */
+
+const normText = (v: unknown) =>
+  String(v ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+
+/** Normaliza a identificação da foto; null quando a IA não devolveu um objeto. */
+function parseIdentifyJson(text: string) {
+  const raw = text.match(/\{[\s\S]*\}/)?.[0];
+  if (!raw) return null;
+  let o: any;
+  try { o = JSON.parse(raw); } catch { return null; }
+  if (!o || typeof o !== 'object') return null;
+  const num = (v: unknown) => {
+    if (v === null || v === undefined || v === '') return null;
+    const n = typeof v === 'string' ? Number(v.replace(',', '.').replace(/[^\d.]/g, '')) : Number(v);
+    return Number.isFinite(n) ? n : null;
+  };
+  const conf = (v: unknown) => {
+    let n = num(v) ?? 0;
+    if (n > 1) n = n / 100;
+    return Math.max(0, Math.min(1, n));
+  };
+  const str = (v: unknown, max = 120) => String(v ?? '').replace(/\s+/g, ' ').trim().slice(0, max);
+  const macros = (m: any) => {
+    if (!m || typeof m !== 'object') return null;
+    const out = {
+      kcal: num(m.kcal), proteina: num(m.proteina), carbo: num(m.carbo), gordura: num(m.gordura),
+      acucar: num(m.acucar), fibra: num(m.fibra), sodio_mg: num(m.sodio_mg ?? m.sodio),
+    };
+    return out.kcal == null && out.proteina == null && out.carbo == null && out.gordura == null ? null : out;
+  };
+  const tipo = ['embalado', 'in_natura', 'prato'].includes(o.tipo) ? o.tipo : 'embalado';
+  const code = String(o.codigo_barras_visivel ?? '').replace(/\D/g, '');
+  const t = o.tabela && typeof o.tabela === 'object' ? o.tabela : null;
+  const tabela = t ? { porcao_g: num(t.porcao_g), por_100g: macros(t.por_100g), por_porcao: macros(t.por_porcao) } : null;
+  const tamanho = ['pequeno', 'medio', 'grande'].includes(normText(o.tamanho)) ? normText(o.tamanho) : 'medio';
+  const unidades = Math.max(1, Math.min(30, Math.round(num(o.unidades) ?? 1)));
+  const peso = num(o.peso_balanca_g);
+  return {
+    tipo,
+    marca: str(o.marca) || null,
+    produto: str(o.produto),
+    variante: str(o.variante) || null,
+    codigo_barras_visivel: code.length >= 8 && code.length <= 14 ? code : null,
+    tabela_nutricional_visivel: o.tabela_nutricional_visivel === true && !!tabela && (!!tabela.por_100g || !!tabela.por_porcao),
+    tabela: tabela && (tabela.por_100g || tabela.por_porcao) ? tabela : null,
+    alimento: str(o.alimento) || str(o.produto),
+    tamanho,
+    unidades,
+    peso_balanca_g: peso != null && peso > 0 ? Math.round(peso * 10) / 10 : null,
+    confianca: conf(o.confianca),
+  };
+}
+
+function identifyPrompt(baseFoods: string[]) {
+  return `Você recebeu UMA foto tirada por um aluno (no mercado ou em casa). Diga o que é.
+tipo: "embalado" (produto industrializado com embalagem/marca), "in_natura" (fruta, ovo, pão, batata, etc. sem embalagem de marca) ou "prato" (refeição pronta).
+Embalado: marca, produto (nome comercial), variante (sabor/versão) ou null. Se o código de barras estiver nítido, escreva só os números em codigo_barras_visivel; senão null. Se a tabela nutricional estiver legível, preencha tabela (por_100g e/ou por_porcao, porcao_g em gramas, sódio em mg) e tabela_nutricional_visivel true; senão tabela null e false. Nunca invente números da tabela.
+In natura / prato: alimento (nome simples em português do Brasil; quando possível use um destes nomes da base: ${baseFoods.length ? baseFoods.join('; ') : 'não informada'}), tamanho ("pequeno", "medio" ou "grande") e unidades (quantas há na foto). Se aparecer uma balança com o visor legível, peso_balanca_g é o número do visor em gramas; senão null.
+confianca de 0 a 1.
+Responda SOMENTE JSON:
+{"tipo":"embalado"|"in_natura"|"prato","marca":string|null,"produto":string,"variante":string|null,"codigo_barras_visivel":string|null,"tabela_nutricional_visivel":boolean,"tabela":{"porcao_g":number|null,"por_100g":{"kcal":number,"proteina":number,"carbo":number,"gordura":number,"acucar":number,"fibra":number,"sodio_mg":number}|null,"por_porcao":{"kcal":number,"proteina":number,"carbo":number,"gordura":number,"acucar":number,"fibra":number,"sodio_mg":number}|null}|null,"alimento":string,"tamanho":"pequeno"|"medio"|"grande","unidades":number,"peso_balanca_g":number|null,"confianca":number}`;
+}
+
+/** Mesmo produto: nomes normalizados iguais ou um contém o outro (ex.: produto + variante). */
+const sameProduct = (a: string, b: string) => {
+  const x = normText(a), y = normText(b);
+  return !!x && !!y && (x === y || x.includes(y) || y.includes(x));
+};
+
+/** Produto aprovado na base (foods) → formato do Open Food Facts usado pelo scanner. */
+const foodRowToProduct = (f: any) => {
+  const size = Number(f.portion_size) || 100;
+  const k = 100 / size;
+  const r1 = (v: unknown) => Math.round((Number(v) || 0) * k * 10) / 10;
+  return {
+    product_name: f.name, brands: f.brand ?? undefined,
+    nutriments: { 'energy-kcal_100g': r1(f.calories), proteins_100g: r1(f.protein), carbohydrates_100g: r1(f.carbs), fat_100g: r1(f.fats) },
+    serving_quantity: size !== 100 ? size : null,
+  };
+};
+
+const OFF_SEARCH_FIELDS = `code,${FIELDS}`;
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
   try {
@@ -358,6 +442,83 @@ Responda SOMENTE JSON:
       const result = parsePlateJson(text);
       if (!result || result.itens.length === 0) return json({ error: 'Não consegui ver os alimentos do prato. Tira outra foto de cima, com o prato inteiro.' }, 422);
       return json({ result });
+    }
+
+    if (action === 'identify_photo') {
+      // Scanner por foto: identifica produto embalado, alimento in natura ou prato.
+      const current = parseImage(body.image);
+      if (!current) return json({ error: 'Imagem inválida' }, 400);
+      let baseFoods: string[] = [];
+      try {
+        const { data } = await admin.from('foods').select('name').is('brand', null).order('name').limit(500);
+        baseFoods = cleanNames((data ?? []).map((f: any) => f?.name), 500);
+      } catch {
+        baseFoods = [];
+      }
+      const text = await anthropic(
+        [{ type: 'image', source: { type: 'base64', ...current } }, { type: 'text', text: identifyPrompt(baseFoods) }],
+        700,
+      );
+      const result = parseIdentifyJson(text);
+      if (!result || (!result.produto && !result.alimento)) return json({ error: 'Não consegui identificar. Tira outra foto, mais de perto.' }, 422);
+      return json({ result });
+    }
+
+    if (action === 'find_product') {
+      // Mesmo produto (marca + nome) já aprovado na base ou escaneado antes por qualquer aluno: responde na hora, sem IA.
+      const brand = String(body.brand ?? '').replace(/\s+/g, ' ').trim().slice(0, 120);
+      const name = [body.product, body.variant].map((v: unknown) => String(v ?? '').trim()).filter(Boolean).join(' ').slice(0, 200);
+      if (!name || !brand) return json({ found: false });
+      const like = `%${brand.replace(/[%_]/g, '')}%`;
+      const { data: foods } = await admin.from('foods')
+        .select('id, name, brand, barcode, portion_size, calories, protein, carbs, fats').ilike('brand', like).limit(80);
+      const food = (foods ?? []).find((f: any) => sameProduct(f.name, name) || sameProduct(f.name, String(body.product ?? '')));
+      if (food) return json({ found: true, source: 'base', product: foodRowToProduct(food), barcode: food.barcode ?? null, food_id: food.id });
+      const { data: scans } = await admin.from('food_scans')
+        .select('barcode, product_name, brand, image_url, nutriments, source').ilike('brand', like)
+        .order('created_at', { ascending: false }).limit(80);
+      const scan = (scans ?? []).find((sc: any) =>
+        (sameProduct(sc.product_name, name) || sameProduct(sc.product_name, String(body.product ?? '')))
+        && Number(sc.nutriments?.['energy-kcal_100g']) >= 0 && sc.nutriments?.['energy-kcal_100g'] != null);
+      if (scan) {
+        const { serving_quantity, quantity, ...nutriments } = scan.nutriments ?? {};
+        return json({
+          found: true, source: 'cache', barcode: scan.barcode ?? null,
+          product: { product_name: scan.product_name, brands: scan.brand ?? undefined, image_front_url: scan.image_url ?? undefined, nutriments, serving_quantity: serving_quantity ?? null, quantity: quantity ?? null },
+        });
+      }
+      return json({ found: false });
+    }
+
+    if (action === 'search_off') {
+      // Open Food Facts por nome + marca, primeiro no país do aluno; até 3 com tabela.
+      const terms = [body.brand, body.product, body.variant].map((v: unknown) => String(v ?? '').trim()).filter(Boolean).join(' ').slice(0, 160);
+      if (!terms) return json({ candidates: [] });
+      const cc = body.country === 'br' ? 'br' : 'pt';
+      const search = async (host: string) => {
+        const url = `https://${host}.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(terms)}&search_simple=1&action=process&json=1&page_size=8&fields=${OFF_SEARCH_FIELDS}`;
+        const r = await fetch(url, { headers: { 'User-Agent': 'Marombiew/1.0 (contato do app)' } });
+        if (!r.ok) return [];
+        const d = await r.json().catch(() => null);
+        return (Array.isArray(d?.products) ? d.products : [])
+          .filter((p: any) => p?.product_name && p?.nutriments && p.nutriments['energy-kcal_100g'] != null)
+          .slice(0, 3);
+      };
+      let products: any[] = [];
+      try {
+        products = await search(cc);
+        if (products.length === 0) products = await search('world');
+      } catch {
+        return json({ error: 'Base de produtos indisponível. Tente de novo.' }, 502);
+      }
+      const candidates = products.map((p: any) => {
+        const { code, ...product } = p;
+        return { barcode: String(code ?? '').replace(/\D/g, '') || null, product };
+      });
+      for (const c of candidates) {
+        if (c.barcode) await admin.from('products_cache').upsert({ barcode: c.barcode, data: c.product, fetched_at: new Date().toISOString() });
+      }
+      return json({ candidates });
     }
 
     return json({ error: 'Ação inválida' }, 400);
