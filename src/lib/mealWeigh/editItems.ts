@@ -56,6 +56,11 @@ export function rebuildWeighedItem(item: WeighedItem, change: WeighItemChange): 
     planIndex: change.planIndex,
   });
   const sameFood = normalizeFoodName(next.alimento) === normalizeFoodName(item.alimento);
+  // Estimado pela foto continua estimado: editar as gramas não vira pesagem na balança.
+  if (item.origem === 'estimado') {
+    next.origem = 'estimado';
+    if (item.faixa_gramas) next.faixa_gramas = item.faixa_gramas;
+  }
   // Alimento trocado pelo aluno: o que a IA viu fica só como registro, sem valer para casar/repetir.
   if (item.alimento_corrigido || (!sameFood && item.alimento_ia)) next.alimento_corrigido = true;
   // A troca "substituiu X" só continua valendo se o item segue o mesmo alimento fora do plano.

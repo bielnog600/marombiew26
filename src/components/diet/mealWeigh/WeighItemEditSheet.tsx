@@ -129,6 +129,7 @@ const WeighItemEditSheet: React.FC<Props> = ({ item, index, items, photo, planne
               <span className="text-sm text-muted-foreground">g</span>
             </div>
             {item.gramas_lidas != null && <p className="mt-1 text-[11px] text-muted-foreground">Lido no visor: {item.gramas_lidas} g</p>}
+            {item.origem === 'estimado' && <p className="mt-1 text-[11px] text-muted-foreground">Gramas estimadas pela foto do prato.</p>}
           </div>
           {macros ? <MacroLine m={macros} /> : <p className="text-xs text-muted-foreground">Digite as gramas para ver os macros.</p>}
         </div>
