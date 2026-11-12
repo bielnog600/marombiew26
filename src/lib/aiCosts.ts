@@ -90,7 +90,8 @@ export function periodRange(kind: PeriodKind, now: Date, custom?: { from: string
     to = addDays(a <= b ? b : a, 1);
     if (to > now) to = now;
   }
-  const days = Math.max(1, Math.round((startOfDay(to < now ? addDays(to, -1) : now).getTime() - from.getTime()) / 864e5) + 1);
+  const lastDay = startOfDay(new Date(Math.max(from.getTime(), to.getTime() - 1)));
+  const days = Math.max(1, Math.round((lastDay.getTime() - from.getTime()) / 864e5) + 1);
   return { from, to, days };
 }
 
