@@ -8,6 +8,7 @@ import { z } from 'npm:zod@3'
 import * as core from '../_shared/generated/officeCore.js'
 import { safeEqual, resolveStudent } from './lib.ts'
 import { analisar, loadVigente, loadRascunhoBase, runAjusteTreino, runAjusteDieta, runAjusteCardio, publicarAjusteTreino } from './ajustar.ts'
+import { aiFetch, setAiUsageStudent, setAiUsageStudentFrom, withAiUsage } from '../_shared/aiUsage.ts'
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } })
@@ -431,7 +432,7 @@ async function descartar(sb: Sb, tipo: string, id: string) {
   return json({ id, status: 'descartado' })
 }
 
-Deno.serve(async (req) => {
+Deno.serve(withAiUsage("office_ia", "office-gerar", async (req) => {
   if (req.method !== 'POST') return json({ error: 'Method not allowed' }, 405)
   const secret = Deno.env.get('OFFICE_FEED_TOKEN')
   const token = req.headers.get('x-office-token') ?? ''
@@ -464,4 +465,4 @@ Deno.serve(async (req) => {
     console.error('[office-gerar] error', e)
     return json({ error: 'erro_interno', detalhe: (e as Error).message }, 500)
   }
-})
+}))

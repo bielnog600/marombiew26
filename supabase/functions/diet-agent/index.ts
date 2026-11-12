@@ -64,6 +64,7 @@ import {
   type GlobalDietTarget,
 } from "../_shared/globalDietTarget.ts";
 import { FOOD_CONTRACT_VERSION } from "../_shared/nutritionCore.ts";
+import { aiFetch, setAiUsageStudent, setAiUsageStudentFrom, withAiUsage } from "../_shared/aiUsage.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -554,7 +555,7 @@ Use EXATAMENTE este formato em blocos curtos (não escreva texto solto):
 Mostre o score de confiança (0-100) recebido no contexto e liste os FATORES recebidos (positivos com ✓, negativos com ✗, neutros com ·). Se score < 60, alerte que o nutricionista deve revisar antes de enviar.
 `;
 
-serve(async (req) => {
+serve(withAiUsage("dieta_ia", "diet-agent", async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
@@ -1950,4 +1951,4 @@ serve(async (req) => {
       status: anthropicErrorStatus(e), headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
-});
+}));

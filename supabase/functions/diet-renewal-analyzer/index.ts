@@ -2,6 +2,7 @@ import { anthropicChat, anthropicFailure, anthropicErrorStatus, PRESCRIPTION_MOD
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { authorizePrivilegedRequest, unauthorizedResponse } from "../_shared/authorizePrivilegedRequest.ts";
+import { aiFetch, setAiUsageStudent, setAiUsageStudentFrom, withAiUsage } from "../_shared/aiUsage.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -649,7 +650,7 @@ async function analyzePlan(supabase: any, planId: string) {
   return { analysis, plan_status: newStatus };
 }
 
-serve(async (req) => {
+serve(withAiUsage("renovacao_dieta_ia", "diet-renewal-analyzer", async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   // Autorização obrigatória ANTES de qualquer uso do service role.
@@ -828,4 +829,4 @@ serve(async (req) => {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
-});
+}));

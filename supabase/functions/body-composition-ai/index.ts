@@ -2,6 +2,7 @@ import { AI_MODELS } from "../_shared/aiModelRouter.ts";
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { z } from 'npm:zod@3';
+import { aiFetch, setAiUsageStudent, setAiUsageStudentFrom, withAiUsage } from '../_shared/aiUsage.ts';
 
 const j = (status: number, body: unknown) =>
   new Response(JSON.stringify(body), {
@@ -187,7 +188,7 @@ async function callOpenAIVision(model: string, content: unknown[], apiKey: strin
     body.temperature = 0.3;
   }
 
-  const resp = await fetch("https://api.openai.com/v1/chat/completions", {
+  const resp = await aiFetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
     body: JSON.stringify(body),
@@ -196,7 +197,7 @@ async function callOpenAIVision(model: string, content: unknown[], apiKey: strin
   return { ok: resp.ok, status: resp.status, data };
 }
 
-Deno.serve(async (req) => {
+Deno.serve(withAiUsage("composicao_corporal_ia", "body-composition-ai", async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
@@ -313,4 +314,4 @@ Analise as imagens e devolva o JSON pedido, com valores coerentes entre si.`,
     console.error("body-composition-ai error", err);
     return j(500, { error: err instanceof Error ? err.message : "Erro desconhecido." });
   }
-});
+}));

@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { aiFetch, setAiUsageStudent, setAiUsageStudentFrom, withAiUsage } from "../_shared/aiUsage.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -21,7 +22,7 @@ interface RequestBody {
   notes?: string | null;
 }
 
-serve(async (req) => {
+serve(withAiUsage("postura_ia", "posture-ai-analysis", async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
@@ -95,7 +96,7 @@ Formato OBRIGATÓRIO em Markdown:
       }
     }
 
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+    const response = await aiFetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${OPENAI_API_KEY}`,
@@ -147,4 +148,4 @@ Formato OBRIGATÓRIO em Markdown:
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   }
-});
+}));

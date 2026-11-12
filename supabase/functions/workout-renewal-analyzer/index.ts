@@ -9,6 +9,7 @@ import {
   snapshotToPlanColumns,
   type RenewalPeriodization,
 } from "../_shared/renewalPeriodization.ts";
+import { aiFetch, setAiUsageStudent, setAiUsageStudentFrom, withAiUsage } from "../_shared/aiUsage.ts"
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -922,7 +923,7 @@ async function analyzePlan(supabase: any, planId: string) {
   return { analysis, plan_status: newStatus, periodization: periodizationSummary };
 }
 
-serve(async (req) => {
+serve(withAiUsage("renovacao_treino_ia", "workout-renewal-analyzer", async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   // Autorização obrigatória ANTES de qualquer uso do service role.
@@ -1086,4 +1087,4 @@ serve(async (req) => {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
-});
+}));

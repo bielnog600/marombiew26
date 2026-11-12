@@ -7,7 +7,7 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 
-serve(async (req) => {
+serve(withAiUsage("busca_alimento_ia", "food-search-ai", async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
@@ -20,7 +20,7 @@ serve(async (req) => {
       throw new Error("OPENAI_API_KEY não configurada");
     }
 
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+    const response = await aiFetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -30,6 +30,7 @@ serve(async (req) => {
         model: "gpt-4o-mini",
         messages: mode === 'suggest' ? [
           {
+import { aiFetch, setAiUsageStudent, setAiUsageStudentFrom, withAiUsage } from "../_shared/aiUsage.ts";
             role: "system",
             content: `Você é um especialista em nutrição. Sua tarefa é sugerir alimentos saudáveis, ideais para dietas equilibradas, que NÃO estejam na lista fornecida pelo usuário.
             Retorne APENAS um array de objetos JSON no seguinte formato:
@@ -103,4 +104,4 @@ serve(async (req) => {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
-});
+}));

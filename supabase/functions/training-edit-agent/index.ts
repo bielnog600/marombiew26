@@ -1,5 +1,6 @@
 import { anthropicChat, anthropicFailure, anthropicErrorStatus, PRESCRIPTION_MODEL } from "../_shared/anthropic.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { aiFetch, setAiUsageStudent, setAiUsageStudentFrom, withAiUsage } from "../_shared/aiUsage.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -71,7 +72,7 @@ REGRA ANTI-VAZIO: se a instrução do usuário for clara, NUNCA retorne "actions
 
 RETORNE APENAS O JSON. NADA MAIS.`;
 
-serve(async (req) => {
+serve(withAiUsage("treino_edicao_ia", "training-edit-agent", async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
@@ -163,4 +164,4 @@ serve(async (req) => {
       status: anthropicErrorStatus(e), headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
-});
+}));
