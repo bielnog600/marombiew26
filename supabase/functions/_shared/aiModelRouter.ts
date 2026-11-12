@@ -3,6 +3,7 @@
  * Centralizes model selection and environment overrides.
  */
 
+import { aiFetch } from "./aiUsage.ts";
 export const AI_MODELS = {
   primary: Deno.env.get("AI_PRIMARY_MODEL") ?? "gpt-5.6-luna",
   fallback: Deno.env.get("AI_FALLBACK_MODEL") ?? "gpt-5.6-terra",
@@ -144,7 +145,7 @@ export async function callAI(params: {
   }
 
   try {
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+    const response = await aiFetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
