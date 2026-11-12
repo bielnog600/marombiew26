@@ -25,6 +25,7 @@ const Dashboard = lazyWithRetry(() => import("./pages/Dashboard"));
 const CorrecaoAoVivoTeste = lazyWithRetry(() => import("./pages/CorrecaoAoVivoTeste"));
 const PesarRefeicaoTeste = lazyWithRetry(() => import("./pages/PesarRefeicaoTeste"));
 const VozCorrecaoAoVivo = lazyWithRetry(() => import("./pages/VozCorrecaoAoVivo"));
+const CustosIA = lazyWithRetry(() => import("./pages/CustosIA"));
 const Alunos = lazyWithRetry(() => import("./pages/Alunos"));
 const AlunoDetail = lazyWithRetry(() => import("./pages/AlunoDetail"));
 const NovaAvaliacao = lazyWithRetry(() => import("./pages/NovaAvaliacao"));
@@ -157,6 +158,7 @@ const App = () => {
               <Route path="/consultoria" element={<ProtectedRoute requiredRole="admin"><Consultoria /></ProtectedRoute>} />
               <Route path="/agenda" element={<ProtectedRoute requiredRole="admin"><Agenda /></ProtectedRoute>} />
               <Route path="/financeiro" element={<ProtectedRoute requiredRole="admin"><Financeiro /></ProtectedRoute>} />
+              <Route path="/custos-ia" element={<ProtectedRoute requiredRole="admin"><CustosIA /></ProtectedRoute>} />
               <Route path="/rede-social" element={<ProtectedRoute requiredRole="admin"><RedeSocial /></ProtectedRoute>} />
               
               <Route path="/minha-area" element={<ProtectedRoute requiredRole="aluno"><MinhaArea /></ProtectedRoute>} />
