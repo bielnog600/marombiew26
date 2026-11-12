@@ -55,8 +55,11 @@ export function rebuildWeighedItem(item: WeighedItem, change: WeighItemChange): 
     readGrams: item.gramas_lidas ?? null,
     planIndex: change.planIndex,
   });
+  const sameFood = normalizeFoodName(next.alimento) === normalizeFoodName(item.alimento);
+  // Alimento trocado pelo aluno: o que a IA viu fica só como registro, sem valer para casar/repetir.
+  if (item.alimento_corrigido || (!sameFood && item.alimento_ia)) next.alimento_corrigido = true;
   // A troca "substituiu X" só continua valendo se o item segue o mesmo alimento fora do plano.
-  const sameOutOfPlan = change.planIndex == null && normalizeFoodName(next.alimento) === normalizeFoodName(item.alimento);
+  const sameOutOfPlan = change.planIndex == null && sameFood;
   if (sameOutOfPlan) {
     if (item.substituiu) next.substituiu = item.substituiu;
     if (item.extra) next.extra = item.extra;

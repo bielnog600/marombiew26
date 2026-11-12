@@ -41,6 +41,8 @@ export interface WeighedItem {
   editado_pelo_aluno: boolean;
   /** O que a IA leu/identificou, para o treinador conferir. */
   alimento_ia?: string | null;
+  /** O aluno trocou o alimento que a IA identificou: o nome da IA deixa de valer para casar/repetir. */
+  alimento_corrigido?: boolean;
   gramas_lidas?: number | null;
   /** Índice do alimento no plano da refeição, quando casado com ele. */
   indice_plano?: number | null;
@@ -486,7 +488,7 @@ export interface PendingPlanFood {
 
 const isSameAsWeighed = (name: string, item: WeighedItem) =>
   foodNameSimilarity(name, item.alimento) >= NAME_MATCH_MIN ||
-  (!!item.alimento_ia && foodNameSimilarity(name, item.alimento_ia) >= NAME_MATCH_MIN);
+  (!!item.alimento_ia && !item.alimento_corrigido && foodNameSimilarity(name, item.alimento_ia) >= NAME_MATCH_MIN);
 
 /** Alimentos previstos da refeição que ainda não foram pesados (na ordem do plano). */
 export function pendingPlanFoods(planned: PlannedMeal, items: WeighedItem[]): PendingPlanFood[] {

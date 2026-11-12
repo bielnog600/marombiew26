@@ -354,6 +354,8 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
       edited, aiName: draft.ai.alimento || null, readGrams: readG,
       planIndex: draft.planIndex,
     });
+    // Escolheu outro alimento no lugar do que a IA viu (ex.: IA repetiu um já pesado).
+    if (!sameAsAi && draft.ai.alimento) item.alimento_corrigido = true;
     const nextItems = [...itemsRef.current, item];
     const nextPhotos = [...photosRef.current, draft.photo];
     itemsRef.current = nextItems;
