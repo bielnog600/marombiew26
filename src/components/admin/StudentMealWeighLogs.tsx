@@ -1,8 +1,13 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
+import { toast } from 'sonner';
 import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
-import { ChevronDown, Scale } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { ChevronDown, Pencil, Scale } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
+import { adminCorrectEstimatedItem } from '@/lib/mealWeigh/calibration';
+import { saveEstimateCorrections } from '@/components/diet/mealWeigh/calibrationApi';
 import { formatFoodComparison, formatSwapLine, formatUnweighedLine, isEstimatedItem, isScannedItem, supersededWeighLogIds, type FoodComparison, type UnweighedEntry, type WeighedItem } from '@/lib/mealWeigh';
 
 interface WeighLog {
@@ -11,6 +16,7 @@ interface WeighLog {
   meal_name: string;
   meal_time: string | null;
   meal_index: number | null;
+  diet_plan_id: string | null;
   items: WeighedItem[] | null;
   unweighed: UnweighedEntry[] | null;
   total_kcal: number;
@@ -27,22 +33,60 @@ const fmtDate = (d: string) => {
   return y && m && day ? `${day}/${m}/${y}` : d;
 };
 
-/** Lista "Refeições pesadas" na ficha do aluno (somente leitura). */
+/**
+ * Lista "Refeições pesadas" na ficha do aluno. O admin pode corrigir as gramas
+ * de um item estimado da pesagem que vale no dia: grava um registro novo (o
+ * mais recente vale) e a correção entra na calibração como fonte 'admin'.
+ */
 export default function StudentMealWeighLogs({ studentId }: { studentId: string }) {
   const [rows, setRows] = useState<WeighLog[] | null>(null);
   const [open, setOpen] = useState<string | null>(null);
+  const [editing, setEditing] = useState<{ logId: string; index: number; grams: string } | null>(null);
+  const [saving, setSaving] = useState(false);
+  const load = useCallback(() => supabase
+    .from('meal_weigh_logs')
+    .select('id, log_date, meal_name, meal_time, meal_index, diet_plan_id, items, unweighed, total_kcal, total_p, total_c, total_g, planned, created_at')
+    .eq('student_id', studentId)
+    .order('log_date', { ascending: false })
+    .order('created_at', { ascending: false })
+    .limit(30)
+    .then(({ data }) => (data as unknown as WeighLog[] | null) ?? []), [studentId]);
   useEffect(() => {
     let cancelled = false;
-    supabase
-      .from('meal_weigh_logs')
-      .select('id, log_date, meal_name, meal_time, meal_index, items, unweighed, total_kcal, total_p, total_c, total_g, planned, created_at')
-      .eq('student_id', studentId)
-      .order('log_date', { ascending: false })
-      .order('created_at', { ascending: false })
-      .limit(30)
-      .then(({ data }) => { if (!cancelled) setRows((data as unknown as WeighLog[] | null) ?? []); });
+    load().then((r) => { if (!cancelled) setRows(r); });
     return () => { cancelled = true; };
-  }, [studentId]);
+  }, [load]);
+
+  const saveAdminGrams = async (log: WeighLog) => {
+    if (!editing) return;
+    const grams = Number(String(editing.grams).replace(',', '.'));
+    const edit = adminCorrectEstimatedItem(log as any, studentId, editing.index, grams);
+    if (!edit) { toast.error('Digite as gramas.'); return; }
+    setSaving(true);
+    const { data: saved, error } = await supabase.from('meal_weigh_logs').insert({
+      student_id: studentId,
+      log_date: log.log_date,
+      diet_plan_id: log.diet_plan_id,
+      meal_index: log.meal_index,
+      meal_name: log.meal_name || '',
+      meal_time: log.meal_time,
+      items: edit.items as any,
+      unweighed: edit.unweighed as any,
+      total_kcal: edit.totals.kcal,
+      total_p: edit.totals.p,
+      total_c: edit.totals.c,
+      total_g: edit.totals.g,
+      planned: edit.planned as any,
+    }).select('id').single();
+    if (error) { setSaving(false); toast.error('Não foi possível salvar: ' + error.message); return; }
+    if (edit.correction) await saveEstimateCorrections(studentId, [{ ...edit.correction, meal_log_id: (saved as any)?.id ?? null }], [], { asAdmin: true });
+    setSaving(false);
+    setEditing(null);
+    toast.success('Gramas corrigidas — a refeição do aluno foi atualizada');
+    const next = await load();
+    setRows(next);
+    if (next[0]) setOpen(next.find((r) => r.log_date === log.log_date && r.meal_index === log.meal_index)?.id ?? null);
+  };
 
   return (
     <Card className="glass-card" data-testid="student-meal-weigh-logs">
@@ -82,7 +126,8 @@ export default function StudentMealWeighLogs({ studentId }: { studentId: string 
                       </p>
                       <ul className="space-y-0.5">
                         {(r.items ?? []).map((it, i) => (
-                          <li key={i} className="flex justify-between gap-2">
+                          <li key={i} className="space-y-1">
+                          <div className="flex justify-between gap-2">
                             <span className="min-w-0 truncate">
                               {it.alimento}
                               {isScannedItem(it) ? <span className="ml-1 rounded-full border border-primary/50 bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold text-primary">Escaneado</span>
@@ -94,7 +139,27 @@ export default function StudentMealWeighLogs({ studentId }: { studentId: string 
                               {isEstimatedItem(it) ? '~' : ''}{n(it.gramas)} g
                               {isEstimatedItem(it) && it.faixa_gramas ? <span className="text-muted-foreground"> ({it.faixa_gramas[0]}–{it.faixa_gramas[1]})</span> : null}
                               {' '}· {n(it.kcal)} kcal
+                              {isEstimatedItem(it) && !superseded.has(r.id) && (
+                                <button type="button" aria-label={`Corrigir gramas de ${it.alimento}`}
+                                  onClick={() => setEditing({ logId: r.id, index: i, grams: String(n(it.gramas)) })}
+                                  className="ml-1 inline-flex h-6 w-6 items-center justify-center rounded-full bg-secondary align-middle text-muted-foreground">
+                                  <Pencil className="h-3 w-3" />
+                                </button>
+                              )}
                             </span>
+                          </div>
+                          {isEstimatedItem(it) && it.gramas_estimadas != null && Math.round(Number(it.gramas_estimadas)) !== n(it.gramas) && (
+                            <p className="text-[11px] text-muted-foreground">IA estimou {n(it.gramas_estimadas)} g{it.corrigido_por_admin ? ' · corrigido pelo admin' : ''}</p>
+                          )}
+                          {editing?.logId === r.id && editing.index === i && (
+                            <div className="flex items-center gap-2" data-testid="admin-estimate-edit">
+                              <Input inputMode="decimal" aria-label={`Gramas corretas de ${it.alimento}`} value={editing.grams} className="h-8 w-24 tabular-nums"
+                                onChange={(e) => setEditing({ ...editing, grams: e.target.value.replace(/[^\d.,]/g, '') })} />
+                              <span className="text-muted-foreground">g</span>
+                              <Button size="sm" className="h-8" disabled={saving} onClick={() => saveAdminGrams(r)}>Salvar</Button>
+                              <Button size="sm" variant="ghost" className="h-8" onClick={() => setEditing(null)}>Cancelar</Button>
+                            </div>
+                          )}
                           </li>
                         ))}
                       </ul>
