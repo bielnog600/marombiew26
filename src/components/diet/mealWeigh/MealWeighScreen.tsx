@@ -589,7 +589,7 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
               {!camError && (
                 <div className="flex w-full flex-col items-center gap-1.5" data-testid="meal-weigh-auto">
                   {autoOn && autoArmed && autoCapture.phase !== 'off' && (
-                    <p className="rounded-full bg-background/80 px-3 py-1 text-center text-xs font-semibold" data-testid="meal-weigh-auto-status">
+                    <p className="rounded-full bg-background/80 px-3 py-1 text-center text-xs font-semibold" data-testid="meal-weigh-auto-status" data-detector={autoCapture.detector}>
                       {autoCapture.phase === 'countdown' ? 'Não mexe…'
                         : autoCapture.phase === 'no_object' ? (autoCapture.detector === 'loading' ? 'Procurando o prato…' : 'Coloca o prato no centro da moldura')
                         : 'Segura o celular parado'}
