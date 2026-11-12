@@ -72,8 +72,9 @@ export function setAiUsageActor(id: unknown) {
   if (scope && typeof id === 'string' && UUID.test(id)) scope.actorId = id;
 }
 
-let client: ReturnType<typeof createClient> | null = null;
-const service = () => {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let client: any = null;
+const service = (): any => {
   if (!client) {
     client = createClient(Deno.env.get('SUPABASE_URL') ?? '', Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '', {
       auth: { persistSession: false },
