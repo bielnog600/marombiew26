@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from 'react';
-import { Check, ChevronDown, Plus, SlidersHorizontal, Trash2, ArrowRightLeft, X, UtensilsCrossed, Scale } from 'lucide-react';
+import { Check, ChevronDown, Plus, SlidersHorizontal, Trash2, ArrowRightLeft, X, UtensilsCrossed, Scale, Pencil } from 'lucide-react';
 import { toast } from 'sonner';
 import type { ParsedFood, ParsedMeal } from '@/lib/dietResultParser';
 import { scaleFood, parseNumeric } from '@/lib/dailyDietRebalance';
@@ -72,6 +72,8 @@ interface StudentMealCardProps {
   displayText?: (text: string) => string;
   /** Refeição já pesada neste dia: mostra o consumido e trava a edição (pesar de novo substitui). */
   weighed?: boolean;
+  /** Refeição pesada: abre o resumo editável da pesagem salva. */
+  onEditWeigh?: () => void;
 }
 
 const StudentMealCard: React.FC<StudentMealCardProps> = ({
@@ -203,6 +205,16 @@ const StudentMealCard: React.FC<StudentMealCardProps> = ({
                   {adjustMode ? 'Concluir' : 'Ajustar'}
                 </button>
                 </>)}
+                {weighed && onEditWeigh && (
+                  <button
+                    type="button"
+                    onClick={onEditWeigh}
+                    className="inline-flex items-center gap-1.5 rounded-full bg-secondary/70 px-3 py-1.5 text-xs font-semibold text-foreground transition-colors hover:bg-secondary"
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                    Editar pesagem
+                  </button>
+                )}
                 {onWeigh && (
                   <button
                     type="button"
