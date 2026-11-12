@@ -50,6 +50,66 @@ export type Database = {
         }
         Relationships: []
       }
+      ai_model_prices: {
+        Row: {
+          cache_read_per_mtok: number | null
+          cache_write_per_mtok: number | null
+          created_at: string
+          id: string
+          input_per_mtok: number
+          long_cache_read_per_mtok: number | null
+          long_cache_write_per_mtok: number | null
+          long_context_threshold: number | null
+          long_input_per_mtok: number | null
+          long_output_per_mtok: number | null
+          model: string
+          notes: string
+          output_per_mtok: number
+          per_1k_chars: number | null
+          provider: string
+          source_url: string | null
+          updated_at: string
+        }
+        Insert: {
+          cache_read_per_mtok?: number | null
+          cache_write_per_mtok?: number | null
+          created_at?: string
+          id?: string
+          input_per_mtok?: number
+          long_cache_read_per_mtok?: number | null
+          long_cache_write_per_mtok?: number | null
+          long_context_threshold?: number | null
+          long_input_per_mtok?: number | null
+          long_output_per_mtok?: number | null
+          model: string
+          notes?: string
+          output_per_mtok?: number
+          per_1k_chars?: number | null
+          provider: string
+          source_url?: string | null
+          updated_at?: string
+        }
+        Update: {
+          cache_read_per_mtok?: number | null
+          cache_write_per_mtok?: number | null
+          created_at?: string
+          id?: string
+          input_per_mtok?: number
+          long_cache_read_per_mtok?: number | null
+          long_cache_write_per_mtok?: number | null
+          long_context_threshold?: number | null
+          long_input_per_mtok?: number | null
+          long_output_per_mtok?: number | null
+          model?: string
+          notes?: string
+          output_per_mtok?: number
+          per_1k_chars?: number | null
+          provider?: string
+          source_url?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       ai_plans: {
         Row: {
           block_end_date: string | null
@@ -209,6 +269,81 @@ export type Database = {
           viability_score?: number | null
           whatsapp_notified_at?: string | null
           whatsapp_notified_count?: number
+        }
+        Relationships: []
+      }
+      ai_usage_logs: {
+        Row: {
+          actor_id: string | null
+          actor_role: string
+          cache_read_tokens: number
+          cache_write_tokens: number
+          characters: number
+          cost_usd: number | null
+          created_at: string
+          duration_ms: number | null
+          error: string | null
+          feature: string
+          function_name: string
+          id: string
+          image_count: number
+          input_tokens: number
+          model: string
+          ok: boolean
+          output_tokens: number
+          price_found: boolean
+          provider: string
+          request_id: string | null
+          student_id: string | null
+          target_student_id: string | null
+        }
+        Insert: {
+          actor_id?: string | null
+          actor_role?: string
+          cache_read_tokens?: number
+          cache_write_tokens?: number
+          characters?: number
+          cost_usd?: number | null
+          created_at?: string
+          duration_ms?: number | null
+          error?: string | null
+          feature: string
+          function_name?: string
+          id?: string
+          image_count?: number
+          input_tokens?: number
+          model?: string
+          ok?: boolean
+          output_tokens?: number
+          price_found?: boolean
+          provider: string
+          request_id?: string | null
+          student_id?: string | null
+          target_student_id?: string | null
+        }
+        Update: {
+          actor_id?: string | null
+          actor_role?: string
+          cache_read_tokens?: number
+          cache_write_tokens?: number
+          characters?: number
+          cost_usd?: number | null
+          created_at?: string
+          duration_ms?: number | null
+          error?: string | null
+          feature?: string
+          function_name?: string
+          id?: string
+          image_count?: number
+          input_tokens?: number
+          model?: string
+          ok?: boolean
+          output_tokens?: number
+          price_found?: boolean
+          provider?: string
+          request_id?: string | null
+          student_id?: string | null
+          target_student_id?: string | null
         }
         Relationships: []
       }
