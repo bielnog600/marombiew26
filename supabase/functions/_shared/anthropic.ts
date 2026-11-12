@@ -1,5 +1,7 @@
 import Ajv from "npm:ajv@8";
 import { createRoutingMetadata as originalRoutingMetadata } from "./aiModelRouter.ts";
+import { aiFetch, currentAiUsageScope, recordAiUsage, type AiUsageScope } from "./aiUsage.ts";
+import { anthropicQuantities, countImageBlocks } from "./aiCost.ts";
 
 // Only imported by prescription agents; the existing OpenAI router stays unchanged.
 export const ANTHROPIC_BASE_URL = "https://api.anthropic.com/v1";
@@ -152,7 +154,9 @@ function validateOutput(schema: any, content: string) {
   if (!validate(JSON.parse(content))) throw new Error("Resposta estruturada da IA inválida.");
 }
 
-function adaptStream(response: Response, jsonMode: boolean, schema: any): Response {
+type StreamUsage = (usage: any, ok: boolean, error: string | null) => void;
+
+function adaptStream(response: Response, jsonMode: boolean, schema: any, onUsage: StreamUsage = () => {}): Response {
   if (!response.body) throw anthropicError(500, "missing response body");
   const decoder = new TextDecoder();
   const encoder = new TextEncoder();
@@ -161,6 +165,12 @@ function adaptStream(response: Response, jsonMode: boolean, schema: any): Respon
   let stopped = false;
   let reason: string | undefined;
   let usage: Record<string, number> = {};
+  let recorded = false;
+  const finish = (ok: boolean, error: string | null) => {
+    if (recorded) return;
+    recorded = true;
+    onUsage(usage, ok, error);
+  };
   const blocks = new Map<number, any>();
   const send = (controller: TransformStreamDefaultController<Uint8Array>, chunk: any) => {
     controller.enqueue(encoder.encode(`data: ${JSON.stringify(chunk)}\n\n`));
@@ -173,6 +183,7 @@ function adaptStream(response: Response, jsonMode: boolean, schema: any): Respon
       const body = JSON.stringify(chunk);
       console.error("Anthropic error", 200, body);
       const type = chunk.error?.type;
+      finish(false, String(type ?? "stream error"));
       const status = type === "rate_limit_error" ? 429 : type === "overloaded_error" ? 529
         : type === "authentication_error" ? 401 : type === "permission_error" ? 403 : 500;
       throw anthropicError(status, body);
@@ -204,6 +215,17 @@ function adaptStream(response: Response, jsonMode: boolean, schema: any): Respon
       reason = chunk.delta?.stop_reason;
     }
     if (chunk.type === "message_stop") {
+      try {
+        stopMessage(controller);
+        finish(true, null);
+      } catch (error) {
+        finish(false, error instanceof Error ? error.message : String(error));
+        throw error;
+      }
+    }
+  };
+  const stopMessage = (controller: TransformStreamDefaultController<Uint8Array>) => {
+    {
       const hasTool = !jsonMode && Array.from(blocks.values()).some((block) => block?.type === "tool_use");
       if (!text.trim() && !hasTool) {
         console.error("Anthropic error", 200, "empty response", { stop_reason: reason, content_types: Array.from(blocks.values()).map((block) => block?.type), usage });
@@ -238,7 +260,10 @@ function adaptStream(response: Response, jsonMode: boolean, schema: any): Respon
       buffer = buffer.replace(/\r\n/g, "\n");
       consume(controller);
       if (buffer.trim()) event(buffer, controller);
-      if (!stopped) throw anthropicError(500, "incomplete stream");
+      if (!stopped) {
+        finish(false, "incomplete stream");
+        throw anthropicError(500, "incomplete stream");
+      }
     },
   }));
   return new Response(stream, { headers: { "Content-Type": "text/event-stream" } });
@@ -251,9 +276,10 @@ export async function anthropicChat(init: RequestInit): Promise<Response> {
   if (!key) throw anthropicError(500, "missing key");
   const chat = JSON.parse(String(init.body)) as ChatBody;
   const { body, jsonMode, schema } = buildRequest(chat);
+  const usageScope: AiUsageScope | undefined = currentAiUsageScope();
   let response: Response;
   try {
-    response = await fetch(`${ANTHROPIC_BASE_URL}/messages`, {
+    response = await aiFetch(`${ANTHROPIC_BASE_URL}/messages`, {
       method: "POST",
       headers: { "x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json" },
       body: JSON.stringify(body),
@@ -271,7 +297,13 @@ export async function anthropicChat(init: RequestInit): Promise<Response> {
     // Keep the upstream status available to each agent's retry policy.
     return new Response(JSON.stringify({ error: mapped.message, status: mapped.status }), { status: response.status });
   }
-  if (chat.stream) return adaptStream(response, jsonMode, schema);
+  if (chat.stream) {
+    const started = Date.now();
+    const imageCount = countImageBlocks(body.messages);
+    return adaptStream(response, jsonMode, schema, (usage, ok, error) => {
+      recordAiUsage({ provider: "anthropic", model: PRESCRIPTION_MODEL, ...anthropicQuantities(usage), imageCount, ok, error, durationMs: Date.now() - started }, usageScope);
+    });
+  }
   const data = await response.json();
   logAnthropicUsage(data.usage);
   const blocks = Array.isArray(data.content) ? data.content : [];
