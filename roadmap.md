@@ -9,6 +9,7 @@
 - [x] Concluir pergunta "Comi sem pesar"/"Não comi" para os não pesados; fora do plano pergunta se substituiu algo; admin mostra "Trocou X → Y" / "Extra".
 - [x] Editar/apagar itens confirmados (chips, lista, resumo) com recálculo na hora; "Editar pesagem" na refeição salva substitui o registro do dia.
 - [x] Foto automática: imagem parada + prato na moldura → 3-2-1, anel, flash e vibração; cancela ao mexer; conferida no navegador com câmera simulada (com e sem prato).
+- [x] Refeição já pesada incremental: "Adicionar alimento" mescla com os salvos, balança num alimento atualiza só ele, "Refazer do zero" com confirmação.
 - [ ] Testar com balança e foto reais no celular — nenhuma chamada real à IA foi feita.
 
 ## Correção ao vivo (Premium)
