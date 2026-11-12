@@ -18,17 +18,22 @@ import {
   FIRST_ITEM_HINT, NEXT_ITEM_HINT, NEXT_PLAN_FOOD_HINT, NOT_TARED_MESSAGE, REPEATED_FOOD_MESSAGE, SCALE_ONLY_UNREADABLE_MESSAGE, UNREADABLE_MESSAGE,
   buildPlanWeighedItem, buildScanWeighRequest, buildWeighedItem, checkTare, compareWeighedMeal, fitWithin, formatFoodComparison, formatPlanWeighLine,
   isReadingUnreliable, macrosForGrams, matchPlanFood, nextPlanFoodIndex, pendingPlanFoods, planFoodToWeighFood, planProgressLabel, plannedFromMeal,
-  resolveScanWeigh, round1, scaleOnlyHint, sumWeighedItems, visibleWeighObservation, weighedChipsLabel,
+  isEstimatedItem, resolveScanWeigh, round1, scaleOnlyHint, sumWeighedItems, visibleWeighObservation, weighedChipsLabel,
   applySubstitution, buildUnweighedEntries, dropStaleSubstitutions, formatSwapLine, formatUnweighedLine, mealConsumedTotals,
   outOfPlanItemIndexes, substitutionQuestion,
   type PendingPlanFood, type ScanWeighResolution, type UnweighedChoice, type WeighAiResult, type WeighFood, type WeighedItem,
   type WeighLogRecord,
 } from '@/lib/mealWeigh';
-import { editWeighedItem, finishPhase, removeWeighedItem, startFromWeighLog, upsertWeighedItem, type WeighItemChange } from '@/lib/mealWeigh/editItems';
+import { editWeighedItem, finishPhase, removeWeighedItem, startFromWeighLog, type WeighItemChange } from '@/lib/mealWeigh/editItems';
 import { SCALE_DISPLAY_HINT, readAutoCapturePref, writeAutoCapturePref } from '@/lib/mealWeigh/autoCapture';
 import WeighItemEditSheet, { MacroLine } from './WeighItemEditSheet';
 import PlateReview, { EstimatedBadge } from './PlateReview';
-import { PLATE_HINT, buildPlateEstimateRequest, normalizePlateEstimate, type PlateAiResult } from '@/lib/mealWeigh/plateEstimate';
+import { PLATE_HINT, buildPlateEstimateRequest, normalizePlateEstimate, resolvePlateRows, type PlateAiResult } from '@/lib/mealWeigh/plateEstimate';
+import {
+  correctionsFromItems, foodKey, placeWeighedItem, scaleCorrectionRow,
+  type CalibrationSamples, type EstimateCorrectionRow, type PromptCorrection,
+} from '@/lib/mealWeigh/calibration';
+import { loadCalibrationEnabled, loadCalibrationSamples, loadRecentCorrections, saveEstimateCorrections } from './calibrationApi';
 import { useAutoCapture } from './useAutoCapture';
 
 interface Props {
@@ -134,7 +139,26 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
   const guideRef = useRef<HTMLDivElement | null>(null);
   const [draft, setDraft] = useState<Draft | null>(null);
   /** Prato pronto: foto + resposta da IA em revisão. */
-  const [plate, setPlate] = useState<{ photo: string; ai: PlateAiResult } | null>(null);
+  const [plate, setPlate] = useState<{ photo: string; ai: PlateAiResult; samples: CalibrationSamples | null } | null>(null);
+  /** Calibração: liga/desliga global + últimas correções do aluno (exemplos para a IA). */
+  const calibrationRef = useRef<Promise<{ enabled: boolean; recent: PromptCorrection[] }> | null>(null);
+  const loadCalibration = useCallback(() => {
+    if (!calibrationRef.current) {
+      calibrationRef.current = (async () => {
+        const enabled = await loadCalibrationEnabled();
+        return { enabled, recent: enabled ? await loadRecentCorrections(studentId) : [] };
+      })();
+    }
+    return calibrationRef.current;
+  }, [studentId]);
+  /** Estimados depois pesados na balança nesta refeição: viram correção 'balanca' ao salvar. */
+  const scaleCorrectionsRef = useRef<EstimateCorrectionRow[]>([]);
+  const pushScaleCorrection = (replaced: WeighedItem | null, weighed: WeighedItem) => {
+    if (!replaced) return;
+    const row = scaleCorrectionRow(replaced, weighed, studentId);
+    if (!row) return;
+    scaleCorrectionsRef.current = [...scaleCorrectionsRef.current.filter((r) => r.estimate_id !== row.estimate_id), row];
+  };
   const [foods, setFoods] = useState<WeighFood[]>([]);
   const [camError, setCamError] = useState<string | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -221,7 +245,8 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
       if (data?.error) throw new Error(data.error);
       const ai = data?.result as WeighAiResult;
       if (!ai) throw new Error('Não consegui analisar a foto. Tira outra.');
-      const resolution = resolveScanWeigh(ai, foods, planned, doneItems);
+      // Um alimento estimado pela foto pode ser pesado depois: não conta como repetido.
+      const resolution = resolveScanWeigh(ai, foods, planned, doneItems.filter((it) => !isEstimatedItem(it)));
       const unreadable = isReadingUnreliable(ai);
       setDraft({
         photo, ai, resolution,
@@ -279,7 +304,8 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
     setPendingPhoto(photo);
     setPhase('analyzing');
     try {
-      const body = buildPlateEstimateRequest({ photo, mealName: meal.name, planned, items: itemsRef.current });
+      const calib = await loadCalibration();
+      const body = buildPlateEstimateRequest({ photo, mealName: meal.name, planned, items: itemsRef.current, corrections: calib.recent });
       const { data, error } = await supabase.functions.invoke('food-scanner', { body });
       if (error) {
         let msg = 'Não foi possível analisar a foto agora.';
@@ -289,13 +315,18 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
       if (data?.error) throw new Error(data.error);
       const ai = normalizePlateEstimate(data?.result);
       if (!ai) throw new Error('Não consegui ver os alimentos do prato. Tira outra foto de cima, com o prato inteiro.');
-      setPlate({ photo, ai });
+      let samples: CalibrationSamples | null = null;
+      if (calib.enabled) {
+        const keys = resolvePlateRows(ai, foods, planned, itemsRef.current).map((r) => foodKey(r.food?.id ?? null, r.food?.name ?? r.aiName));
+        samples = await loadCalibrationSamples(keys);
+      }
+      setPlate({ photo, ai, samples });
       setPhase('plate');
     } catch (e) {
       toast.error((e as Error).message || 'Não foi possível analisar a foto.');
       setPhase('camera');
     }
-  }, [meal.name, planned]);
+  }, [meal.name, planned, foods, loadCalibration]);
 
   const runAnalysis = useCallback(
     (photo: string) => (mode === 'plan' ? analyzePlan(photo) : mode === 'plate' ? analyzePlate(photo) : analyze(photo)),
@@ -361,7 +392,9 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
     const item = buildPlanWeighedItem(currentPlanFood, planIdx, gramsNum, foods, { readGrams: planDraft.readGrams, override: planDraft.override });
     if (!item) return;
     // Pesar de novo o mesmo alimento substitui só aquele item; os outros (inclusive os já salvos no dia) ficam.
-    const out = upsertWeighedItem(itemsRef.current, photosRef.current, item, planDraft.photo);
+    // Se ele estava estimado pela foto, o peso da balança vira correção da estimativa.
+    const out = placeWeighedItem(itemsRef.current, photosRef.current, item, planDraft.photo, 'upsert');
+    pushScaleCorrection(out.replaced, item);
     const nextItems = dropStaleSubstitutions(out.items, buildUnweighedEntries(pendingPlanFoods(planned, out.items), choicesRef.current));
     itemsRef.current = nextItems;
     photosRef.current = out.photos;
@@ -417,10 +450,13 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
     });
     // Escolheu outro alimento no lugar do que a IA viu (ex.: IA repetiu um já pesado).
     if (!sameAsAi && draft.ai.alimento) item.alimento_corrigido = true;
-    const appended = [...itemsRef.current, item];
+    // O mesmo alimento estimado pela foto: o pesado ocupa o lugar dele e vira correção 'balanca'.
+    const placed = placeWeighedItem(itemsRef.current, photosRef.current, item, draft.photo, 'append');
+    pushScaleCorrection(placed.replaced, item);
+    const appended = placed.items;
     // Um alimento antes "Não comi" agora pesado deixa de valer como trocado por outro item.
     const nextItems = dropStaleSubstitutions(appended, buildUnweighedEntries(pendingPlanFoods(planned, appended), choicesRef.current));
-    const nextPhotos = [...photosRef.current, draft.photo];
+    const nextPhotos = placed.photos;
     itemsRef.current = nextItems;
     photosRef.current = nextPhotos;
     setItems(nextItems);
@@ -521,6 +557,15 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
     }).select('id, log_date, meal_index, items, unweighed, planned, created_at').single();
     setSaving(false);
     if (error) { toast.error('Não foi possível salvar: ' + error.message); return; }
+    if (saved) {
+      // Calibração: gramas mudadas num item estimado (e estimados pesados depois) contra a estimativa ORIGINAL.
+      const mealLogId = (saved as { id?: string }).id ?? null;
+      const { upserts, removeIds } = correctionsFromItems(items, { studentId, mealLogId, fonte: 'aluno' });
+      const scale = scaleCorrectionsRef.current.map((r) => ({ ...r, meal_log_id: mealLogId }));
+      const byId = new Map<string, EstimateCorrectionRow>();
+      [...upserts, ...scale].forEach((r) => byId.set(r.estimate_id, r));
+      void saveEstimateCorrections(studentId, [...byId.values()], removeIds.filter((id) => !byId.has(id)));
+    }
     toast.success(isEdit || isAdd ? 'Pesagem atualizada no seu dia' : 'Refeição pesada salva no seu dia');
     if (saved) onSaved?.(saved as unknown as WeighLogRecord);
     onClose();
@@ -917,6 +962,7 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
           header={<>{header('Prato pronto')}{weighedChips}</>}
           photo={plate.photo}
           ai={plate.ai}
+          samples={plate.samples}
           planned={planned}
           existing={items}
           foods={foods}

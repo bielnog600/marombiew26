@@ -13,6 +13,12 @@
 - [x] "Prato pronto": uma foto, IA identifica e estima as gramas (soma = peso da balança, pergunta da tara do prato), revisão com selo Estimado, salva com origem 'estimado' mesclando; card e admin mostram "Estimado".
 - [ ] Testar com balança e foto reais no celular — nenhuma chamada real à IA foi feita.
 
+## Calibração das estimativas (Prato pronto)
+- [x] Correções gravadas contra a estimativa original (aluno, admin, balança), absurdas e alimento trocado ignorados.
+- [x] Fator por aluno/alimento (2/3/5 amostras, 0,6–1,6, últimas 20), "Ajustado pelo seu histórico", redistribuição com peso lido, últimas 5 correções no pedido à IA, dica do visor.
+- [x] Admin: ficha do aluno e Alimentos → Calibração (correções, fator, erro antes × depois), corrigir gramas, apagar correção, "Usar calibração". 14 testes novos.
+- [ ] Conferir com fotos reais — nenhuma chamada real à IA foi feita.
+
 ## Scanner de alimentos por foto
 - [x] Aba "Código de barras" | "Foto" com foto automática e botão manual; embalado: código na foto → base/já escaneado → Open Food Facts (até 3) → tabela da foto/"Tira uma foto da tabela nutricional".
 - [x] In natura com peso médio por unidade (− / +, gramas, balança) e aba "Pesos por unidade" no admin; "Adicionar à refeição" com selo "Escaneado" e "Só consultar".

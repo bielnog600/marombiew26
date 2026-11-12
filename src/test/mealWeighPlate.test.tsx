@@ -230,7 +230,7 @@ describe('food-scanner plate_estimate (transporte simulado)', () => {
     const { result } = await res.json();
     expect(result).toEqual({
       itens: [{ alimento: 'Arroz branco cozido', alternativas: ['Arroz integral'], gramas_estimadas: 150, faixa_gramas: [120, 180], confianca: 0.8 }],
-      peso_total_lido: 520, prato_tarado: true, observacao: '',
+      peso_total_lido: 520, prato_tarado: true, observacao: '', balanca_sem_visor: false,
     });
     const body = JSON.parse(String((ctx.fetch.mock.calls[0] as any)[1].body));
     expect(body.model).toBe('claude-haiku-5-5');

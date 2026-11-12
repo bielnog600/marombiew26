@@ -32,6 +32,7 @@ import SyncFailuresCard from '@/components/admin/SyncFailuresCard';
 import LiveCorrectionPremiumCard from '@/components/admin/LiveCorrectionPremiumCard';
 import MealWeighPremiumCard from '@/components/admin/MealWeighPremiumCard';
 import StudentMealWeighLogs from '@/components/admin/StudentMealWeighLogs';
+import EstimateCalibrationPanel from '@/components/admin/EstimateCalibrationPanel';
 import { ScanEye } from 'lucide-react';
 import { toast } from 'sonner';
 import {
@@ -493,6 +494,7 @@ const AlunoDetail = () => {
               </Card>
               <StudentDietTab studentId={id!} />
               <StudentMealWeighLogs studentId={id!} />
+              <EstimateCalibrationPanel studentId={id!} />
               <StudentFoodScans studentId={id!} />
             </div>
           </TabsContent>

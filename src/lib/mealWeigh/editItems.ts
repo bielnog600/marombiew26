@@ -60,6 +60,13 @@ export function rebuildWeighedItem(item: WeighedItem, change: WeighItemChange): 
   if (item.origem === 'estimado') {
     next.origem = 'estimado';
     if (item.faixa_gramas) next.faixa_gramas = item.faixa_gramas;
+    // A estimativa ORIGINAL da IA fica no item: toda correção compara com ela.
+    if (item.estimativa_id) next.estimativa_id = item.estimativa_id;
+    if (item.gramas_estimadas != null) next.gramas_estimadas = item.gramas_estimadas;
+    if (item.gramas_ajustadas != null) next.gramas_ajustadas = item.gramas_ajustadas;
+    if (item.fator_calibracao != null) next.fator_calibracao = item.fator_calibracao;
+    if (item.corrigido_por_admin) next.corrigido_por_admin = true;
+    if (item.gramas_corrigidas || Math.abs((Number(change.grams) || 0) - (Number(item.gramas) || 0)) > 0.05) next.gramas_corrigidas = true;
   }
   // Alimento trocado pelo aluno: o que a IA viu fica só como registro, sem valer para casar/repetir.
   if (item.alimento_corrigido || (!sameFood && item.alimento_ia)) next.alimento_corrigido = true;
