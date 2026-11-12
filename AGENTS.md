@@ -45,3 +45,4 @@
 - Carb cycle: `dietCarbCycle`; day targets also in weekly_day_targets.
 - Set types live in `setTypes` (labels, %, logs); null log = work, so legacy history keeps counting.
 - Lazy routes/heavy libs; shared helpers in vendor chunk.
+- The student photo scanner reuses FoodScanner: pure `src/lib/foodPhotoScan.ts` owns lookup order, unit portions and meal-log rows; scanned items go into `meal_weigh_logs` with `origem='escaneado'` so day totals/rebalance reuse the weigh path.
