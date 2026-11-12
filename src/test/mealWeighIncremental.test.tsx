@@ -152,14 +152,23 @@ describe('Pesar refeição — Adicionar alimento numa refeição já pesada', (
     expect(row.unweighed).toEqual([expect.objectContaining({ indice_plano: 2, escolha: 'comeu_sem_pesar' })]);
   });
 
-  it('sair sem salvar avisa que os já pesados continuam no dia', async () => {
-    mock.invoke.mockResolvedValueOnce(scanAi('Banana', 95));
+  it('a tara conta os já pesados e sair com alimento novo avisa que os salvos continuam no dia', async () => {
+    mock.invoke.mockResolvedValueOnce(scanAi('Banana', 275));
     const onClose = vi.fn();
     render(<MealWeighScreen meal={meal as any} studentId="aluno" logDate="2026-11-12" mealIndex={0} dietPlanId="plano"
       addToLog={savedLog as any} onClose={onClose} />);
-    // Sem nada novo, fecha direto.
-    fireEvent.click((await screen.findAllByRole('button', { name: 'Fechar' }))[0]);
-    expect(onClose).toHaveBeenCalledTimes(1);
+    await takePhoto();
+    // 275 g no visor > 180 g já pesados (154 + 26) → balança não zerada.
+    const warn = await screen.findByTestId('meal-weigh-tare-warning');
+    expect(warn).toHaveTextContent('mais do que tudo o que já foi pesado (180 g)');
+    fireEvent.click(within(warn).getByRole('button', { name: 'Descontar 180 g' }));
+    fireEvent.click(within(screen.getByTestId('meal-weigh-item-actions')).getByRole('button', { name: /Próximo alimento/ }));
+    await screen.findByRole('button', { name: 'Tirar foto' });
+    expect(screen.getByTestId('meal-weigh-weighed-chips')).toHaveAttribute('aria-label', 'Já pesados: Iogurte natural 154 g · Whey protein 26 g · Banana 95 g');
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Fechar' })[0]);
+    expect(await screen.findByText('Os alimentos novos não serão salvos. Os que já estavam pesados continuam no seu dia.')).toBeInTheDocument();
+    expect(onClose).not.toHaveBeenCalled();
   });
 });
 
