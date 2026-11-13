@@ -18,7 +18,7 @@ import {
   FIRST_ITEM_HINT, NEXT_ITEM_HINT, NEXT_PLAN_FOOD_HINT, NOT_TARED_MESSAGE, REPEATED_FOOD_MESSAGE, SCALE_ONLY_UNREADABLE_MESSAGE, UNREADABLE_MESSAGE,
   buildPlanWeighedItem, buildScanWeighRequest, buildWeighedItem, checkTare, compareWeighedMeal, fitWithin, formatFoodComparison, formatPlanWeighLine,
   isReadingUnreliable, macrosForGrams, matchPlanFood, nextPlanFoodIndex, pendingPlanFoods, planFoodToWeighFood, planProgressLabel, plannedFromMeal,
-  isEstimatedItem, resolveScanWeigh, round1, scaleOnlyHint, sumWeighedItems, visibleWeighObservation, weighedChipsLabel,
+  isEstimatedItem, isScannedItem, resolveScanWeigh, round1, scaleOnlyHint, sumWeighedItems, visibleWeighObservation, weighedChipsLabel,
   applySubstitution, buildUnweighedEntries, dropStaleSubstitutions, formatSwapLine, formatUnweighedLine, mealConsumedTotals,
   outOfPlanItemIndexes, substitutionQuestion,
   type PendingPlanFood, type ScanWeighResolution, type UnweighedChoice, type WeighAiResult, type WeighFood, type WeighedItem,
@@ -27,6 +27,10 @@ import {
 import { editWeighedItem, finishPhase, removeWeighedItem, startFromWeighLog, type WeighItemChange } from '@/lib/mealWeigh/editItems';
 import { SCALE_DISPLAY_HINT, readAutoCapturePref, writeAutoCapturePref } from '@/lib/mealWeigh/autoCapture';
 import WeighItemEditSheet, { MacroLine } from './WeighItemEditSheet';
+import ScanApplyChoice from './ScanApplyChoice';
+import {
+  needsScanApplyChoice, readScanApplyPref, replaceMealWithScan, sessionScanItems, writeScanApplyPref, type ScanApplyMode,
+} from '@/lib/mealWeigh/scanApply';
 import PlateReview, { EstimatedBadge } from './PlateReview';
 import { PLATE_HINT, buildPlateEstimateRequest, normalizePlateEstimate, resolvePlateRows, type PlateAiResult } from '@/lib/mealWeigh/plateEstimate';
 import {
@@ -59,6 +63,8 @@ interface Props {
    * itens salvos e salvar grava a lista mesclada (antigos + novos) como novo registro do dia.
    */
   addToLog?: WeighLogRecord | null;
+  /** Com `editLog`: abre direto em "Antes de concluir" (Revisar item por item vindo do scanner). */
+  startInReview?: boolean;
 }
 
 type Phase = 'camera' | 'analyzing' | 'item' | 'plate' | 'list' | 'review' | 'summary';
@@ -111,7 +117,7 @@ const fileToJpeg = (file: File) =>
 
 const signed = (n: number, unit = '') => `${n > 0 ? '+' : ''}${n}${unit}`;
 
-const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex, dietPlanId, testMode, initialMode, startFoodIndex, onClose, onSaved, editLog, addToLog }) => {
+const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex, dietPlanId, testMode, initialMode, startFoodIndex, onClose, onSaved, editLog, addToLog, startInReview }) => {
   useHoldAppUpdate(true);
   // Tela cheia de verdade: o menu inferior some enquanto a pesagem está aberta.
   useHideBottomNav(true);
@@ -125,7 +131,14 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
   const isAdd = !!editStart && !editLog;
   const [dirty, setDirty] = useState(false);
   const [mode, setMode] = useState<Mode>(isEdit ? 'scan' : initialMode ?? 'choose');
-  const [phase, setPhase] = useState<Phase>(isEdit ? 'summary' : 'camera');
+  const [phase, setPhase] = useState<Phase>(() => {
+    if (!isEdit) return 'camera';
+    return startInReview && editStart && pendingPlanFoods(editStart.planned, editStart.items).length > 0 ? 'review' : 'summary';
+  });
+  /** Itens que vieram do registro salvo: "Substituir a refeição" tira só estes. */
+  const priorRef = useRef<Set<WeighedItem>>(new Set(editStart?.items ?? []));
+  /** Pergunta Substituir / Adicionar / Revisar ao concluir um scan. */
+  const [applyAsk, setApplyAsk] = useState(false);
   const [planIdx, setPlanIdx] = useState(Math.max(0, startFoodIndex ?? 0));
   const [planDraft, setPlanDraft] = useState<PlanDraft | null>(null);
   const [items, setItems] = useState<WeighedItem[]>(() => editStart?.items ?? []);
@@ -187,6 +200,45 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
   const finish = useCallback((list: WeighedItem[] = itemsRef.current) => {
     setPhase(finishPhase(planned, list, choicesRef.current, isAdd));
   }, [planned, isAdd]);
+
+  /**
+   * Concluir em Escanear prato / Prato pronto: numa refeição com alimentos do
+   * plano ou já pesada, pergunta antes o que fazer com o que foi escaneado.
+   */
+  const conclude = useCallback((list: WeighedItem[] = itemsRef.current) => {
+    if (!isEdit && (mode === 'scan' || mode === 'plate')) {
+      const session = sessionScanItems(list, photosRef.current, priorRef.current);
+      const prior = list.filter((it) => priorRef.current.has(it));
+      if (session.items.length > 0 && needsScanApplyChoice(planned, prior)) {
+        setPhase('list');
+        setApplyAsk(true);
+        return;
+      }
+    }
+    finish(list);
+  }, [isEdit, mode, planned, finish]);
+
+  const applyScan = (choice: ScanApplyMode) => {
+    writeScanApplyPref(typeof window !== 'undefined' ? window.localStorage : null, choice);
+    setApplyAsk(false);
+    const list = itemsRef.current;
+    if (choice === 'replace') {
+      // O escaneado vira a refeição: antigos saem, o que bate com o plano casa, o resto do plano fica "Não comi".
+      const session = sessionScanItems(list, photosRef.current, priorRef.current);
+      const r = replaceMealWithScan(planned, session.items, session.photos);
+      itemsRef.current = r.items;
+      photosRef.current = r.photos;
+      choicesRef.current = r.choices;
+      setItems(r.items);
+      setPhotos(r.photos);
+      setUnweighedChoices(r.choices);
+      setDirty(true);
+      setPhase('summary');
+      return;
+    }
+    if (choice === 'review') { setPhase(pendingPlanFoods(planned, list).length > 0 ? 'review' : 'summary'); return; }
+    finish(list);
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -429,7 +481,7 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
     setPhotos(nextPhotos);
     setPlate(null);
     setDirty(true);
-    finish(nextItems);
+    conclude(nextItems);
   };
 
   const chooseMode = (m: 'plan' | 'scan' | 'plate') => {
@@ -463,7 +515,7 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
     setPhotos(nextPhotos);
     setDraft(null);
     setDirty(true);
-    if (next === 'summary') finish(nextItems);
+    if (next === 'summary') conclude(nextItems);
     else if (next === 'camera') toCamera();
     else setPhase(next);
   };
@@ -509,10 +561,13 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
     setDirty(true);
     setEditingIndex(null);
     refreshDraft(nextItems);
-    if (nextItems.length === 0 && (phase === 'summary' || phase === 'review' || phase === 'list')) toCamera();
+    // Editar pesagem: dá para apagar tudo (os alimentos do plano ficam "Não comi") e salvar.
+    if (nextItems.length === 0 && !isEdit && (phase === 'summary' || phase === 'review' || phase === 'list')) toCamera();
   };
 
   const unweighed = useMemo(() => buildUnweighedEntries(pending, unweighedChoices), [pending, unweighedChoices]);
+  /** Editar pesagem com tudo apagado: vale salvar (a refeição fica só com o que não comeu). */
+  const canSaveEmpty = isEdit && planned.alimentos.length > 0;
   const notEaten = useMemo(() => unweighed.filter((u) => u.escolha === 'nao_comeu'), [unweighed]);
   const outOfPlan = useMemo(() => outOfPlanItemIndexes(planned, items), [planned, items]);
   /** Só pergunta "substituiu?" quando há item do plano marcado "Não comi". */
@@ -525,8 +580,8 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
   const tareSuggested = tare.notTared ? tare.suggestedGrams : null;
   // Uma edição no resumo pode criar uma troca sem resposta: volta para a pergunta.
   useEffect(() => {
-    if (phase === 'summary' && !swapsAnswered) setPhase('review');
-  }, [phase, swapsAnswered]);
+    if (phase === 'summary' && !swapsAnswered && !isEdit) setPhase('review');
+  }, [phase, swapsAnswered, isEdit]);
 
   const chooseUnweighed = (index: number, choice: UnweighedChoice) => {
     const nextChoices = { ...unweighedChoices, [index]: choice };
@@ -537,7 +592,7 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
 
   const save = async () => {
     if (testMode) { toast.success('Modo teste: nada foi salvo.'); onClose(); return; }
-    if (items.length === 0) return;
+    if (!canSaveEmpty && items.length === 0) return;
     setSaving(true);
     const consumed = mealConsumedTotals(items, unweighed);
     const { data: saved, error } = await supabase.from('meal_weigh_logs').insert({
@@ -734,7 +789,7 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
                 </p>
               )}
               {items.length > 0 && (
-                <button type="button" onClick={() => (mode === 'scan' ? finish() : setPhase('list'))}
+                <button type="button" onClick={() => (mode === 'scan' ? conclude() : setPhase('list'))}
                   className="rounded-full bg-background/80 px-3 py-1 text-xs font-semibold text-foreground">
                   {mode === 'scan' ? 'Concluir refeição' : `${items.length} ${items.length === 1 ? 'item pesado' : 'itens pesados'}`} · {Math.round(accumulated)} g
                 </button>
@@ -1003,7 +1058,7 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
                 <Plus className="h-4 w-4" /> {mode === 'plate' ? 'Outra foto de prato' : 'Próximo alimento'}
               </Button>
             )}
-            <Button className="flex-1 gap-1.5 font-semibold" disabled={items.length === 0} onClick={() => finish()}>
+            <Button className="flex-1 gap-1.5 font-semibold" disabled={items.length === 0} onClick={() => conclude()}>
               Concluir refeição <ChevronRight className="h-4 w-4" />
             </Button>
           </div>
@@ -1069,6 +1124,11 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
           {header(isEdit ? 'Editar pesagem' : 'Resumo da refeição')}
           <div className="flex-1 min-h-0 overflow-y-auto px-4 pb-4 space-y-3" data-testid="meal-weigh-summary">
             {isEdit && <p className="text-xs text-muted-foreground">Toque num alimento para trocar, mudar as gramas ou apagar.</p>}
+            {isEdit && items.length === 0 && (
+              <p className="rounded-xl border border-border bg-secondary/30 p-3 text-xs text-muted-foreground" data-testid="meal-weigh-empty-edit">
+                Nenhum item registrado. Ao salvar, os alimentos do plano ficam como "Não comi".
+              </p>
+            )}
             <ItemList items={items} onEdit={setEditingIndex} />
             <div className="rounded-2xl border border-border bg-secondary/30 p-3">
               <p className="text-xs font-semibold mb-2">Previsto × consumido</p>
@@ -1105,7 +1165,7 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
           </div>
           <div className="border-t border-border px-4 pt-3 flex gap-2" style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 12px)' }}>
             <Button variant="outline" onClick={() => setPhase(pending.length > 0 ? 'review' : 'list')}>Voltar</Button>
-            <Button className="flex-1 font-semibold" disabled={saving || items.length === 0 || ((isEdit || isAdd) && !dirty)} onClick={save}>
+            <Button className="flex-1 font-semibold" disabled={saving || (items.length === 0 && !canSaveEmpty) || ((isEdit || isAdd) && !dirty)} onClick={save}>
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : testMode ? 'Fechar teste' : isEdit ? 'Salvar alterações' : 'Salvar'}
             </Button>
           </div>
@@ -1125,6 +1185,22 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
           onDelete={() => deleteItem(editingIndex)}
           onClose={() => setEditingIndex(null)}
         />
+      )}
+
+      {applyAsk && (
+        <div className="absolute inset-0 z-[75] flex flex-col justify-end bg-background/70" data-testid="scan-apply-sheet">
+          <button type="button" aria-label="Voltar aos itens" className="flex-1" onClick={() => setApplyAsk(false)} />
+          <div role="dialog" aria-modal="true" aria-label="O que fazer com o que você escaneou"
+            className="rounded-t-3xl border-t border-border bg-card px-4 pt-4 animate-in slide-in-from-bottom duration-200"
+            style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 16px)' }}>
+            <ScanApplyChoice
+              initial={readScanApplyPref(typeof window !== 'undefined' ? window.localStorage : null)}
+              summary={weighedChipsLabel(sessionScanItems(items, photos, priorRef.current).items)}
+              onConfirm={applyScan}
+              onCancel={() => setApplyAsk(false)}
+            />
+          </div>
+        </div>
       )}
 
       <AlertDialog open={confirmExit} onOpenChange={setConfirmExit}>
@@ -1159,6 +1235,9 @@ const ItemList: React.FC<{ items: WeighedItem[]; onEdit?: (i: number) => void }>
               <div className="flex min-w-0 items-center gap-1.5">
                 <p className="text-sm font-semibold truncate">{it.alimento}</p>
                 {it.origem === 'estimado' && <EstimatedBadge />}
+                {isScannedItem(it) && (
+                  <span className="inline-flex shrink-0 items-center rounded-full border border-primary/50 bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold text-primary">Escaneado</span>
+                )}
               </div>
               <p className="text-xs text-muted-foreground tabular-nums">
                 <span className="font-bold text-primary">{Math.round(it.gramas)} g</span> · {it.kcal} kcal · P {it.p} · C {it.c} · G {it.g}

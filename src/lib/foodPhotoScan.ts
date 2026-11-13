@@ -8,11 +8,12 @@
  */
 import { macrosFor, type ProductData } from '@/lib/foodScore';
 import {
-  buildUnweighedEntries, compareWeighedMeal, macrosForGrams, matchPlanFood, matchWeighFood, mealConsumedTotals,
+  buildUnweighedEntries, buildWeighLogRow, macrosForGrams, matchPlanFood, matchWeighFood,
   pendingPlanFoods, plannedFromMeal, round1,
   type PlannedMeal, type UnweighedChoice, type WeighFood, type WeighLogRecord, type WeighedItem,
 } from '@/lib/mealWeigh';
 import { startFromWeighLog, upsertWeighedItem } from '@/lib/mealWeigh/editItems';
+import { replaceMealWithScan } from '@/lib/mealWeigh/scanApply';
 import type { ParsedMeal } from '@/lib/dietResultParser';
 
 export type PhotoKind = 'embalado' | 'in_natura' | 'prato';
@@ -197,28 +198,32 @@ export interface ScanMealLogRow {
 }
 
 /**
- * O item escaneado entra na refeição do dia como a pesagem incremental: parte
- * do registro mais recente (itens e escolhas preservados) ou, sem registro, do
- * plano com os outros alimentos como "Comi sem pesar"; um alimento do plano
- * ainda não registrado com o mesmo nome passa a ser esse item.
+ * O item escaneado entra na refeição do dia. 'add' (padrão) = pesagem
+ * incremental: parte do registro mais recente (itens e escolhas preservados)
+ * ou, sem registro, do plano com os outros alimentos como "Comi sem pesar";
+ * um alimento do plano ainda não registrado com o mesmo nome passa a ser esse
+ * item. 'replace' = o escaneado vira a refeição: os itens antigos saem e os
+ * alimentos do plano que não batem com ele ficam "Não comi".
  */
-export function buildScanMealLog(meal: ParsedMeal | null, existing: WeighLogRecord | null, item: WeighedItem): ScanMealLogRow {
+export function buildScanMealLog(
+  meal: ParsedMeal | null,
+  existing: WeighLogRecord | null,
+  item: WeighedItem,
+  mode: 'add' | 'replace' = 'add',
+): ScanMealLogRow {
   const start = existing ? startFromWeighLog(existing, plannedFromMeal(meal)) : null;
   const planned = start?.planned ?? plannedFromMeal(meal);
+  if (mode === 'replace') {
+    const r = replaceMealWithScan(planned, [{ ...item, indice_plano: null }]);
+    return buildWeighLogRow(planned, r.items, r.choices);
+  }
   const items = start?.items ?? [];
   const choices: Record<number, UnweighedChoice> = start?.choices ?? {};
   const pending = pendingPlanFoods(planned, items);
   const hit = matchPlanFood(item.alimento, pending.map((p) => p.food));
   const next: WeighedItem = { ...item, indice_plano: hit != null ? pending[hit].index : null };
   const merged = upsertWeighedItem(items, items.map(() => ''), next, '').items;
-  const unweighed = buildUnweighedEntries(pendingPlanFoods(planned, merged), choices);
-  const consumed = mealConsumedTotals(merged, unweighed);
-  const comparison = compareWeighedMeal(planned, merged, unweighed);
-  return {
-    items: merged, unweighed,
-    planned: { ...planned, comparacao: comparison.alimentos },
-    total_kcal: consumed.kcal, total_p: consumed.p, total_c: consumed.c, total_g: consumed.g,
-  };
+  return buildWeighLogRow(planned, merged, choices);
 }
 
 /** Refeição sugerida: a última cujo horário já passou (a primeira se nenhuma). */

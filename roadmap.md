@@ -5,6 +5,12 @@
 - [x] Tela "Custos de IA" (períodos, aluno, por funcionalidade, médio por uso, top alunos, por aluno ativo/mês, gráfico diário, projeção, USD/EUR, calculadora de margem) e card na ficha do aluno.
 - [ ] Conferir com uso real — nenhuma chamada real à IA feita aqui.
 
+## Pesar refeição — card da refeição do dia
+- [x] Concluir scan pergunta Substituir (padrão) / Adicionar / Revisar item por item, lembrando a última escolha (pesagem, Prato pronto e scanner por foto).
+- [x] Todo item do card registrado é tocável: trocar alimento, gramas, Não comi/Comi sem pesar, apagar; "Editar pesagem" edita/apaga estimados e escaneados (inclusive apagar todos).
+- [x] "Não comeu" do plano agrupados e recolhidos no fim do card; 12 testes novos.
+- [ ] Conferir no celular com uma refeição real — sem acesso ao login do aluno no navegador daqui.
+
 ## Pesagens — previsto da refeição
 - [x] Todos os modos gravam o previsto da refeição do dia (refeição esvaziada pelo aluno usa a da dieta publicada) e logs de 12/11 do Fabiew recalculados.
 

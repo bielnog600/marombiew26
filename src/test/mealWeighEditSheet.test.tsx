@@ -21,6 +21,7 @@ vi.mock('@/integrations/supabase/client', () => ({
 }));
 
 import MealWeighScreen from '@/components/diet/mealWeigh/MealWeighScreen';
+import { answerScanApply } from './scanApplyHelper';
 
 const meal = {
   name: 'Lanche', time: '16:00',
@@ -103,6 +104,7 @@ describe('Pesar refeição — editar e apagar itens confirmados', () => {
     fireEvent.click(within(await screen.findByTestId('meal-weigh-item-actions')).getByRole('button', { name: /Próximo alimento/ }));
     await takePhoto();
     fireEvent.click(within(await screen.findByTestId('meal-weigh-item-actions')).getByRole('button', { name: /Concluir refeição/ }));
+    await answerScanApply();
     const summary = await screen.findByTestId('meal-weigh-summary');
     expect(summary).toHaveTextContent('Whey protein: previsto 30 g, pesou 30 g');
 

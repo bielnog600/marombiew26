@@ -31,6 +31,7 @@ vi.mock('@/integrations/supabase/client', () => ({
 }));
 
 import MealWeighScreen from '@/components/diet/mealWeigh/MealWeighScreen';
+import { answerScanApply } from './scanApplyHelper';
 
 const meal = {
   name: 'Almoço', time: '12:30',
@@ -154,6 +155,7 @@ describe('Prato pronto — tela', () => {
     expect(rowGrams()).toEqual([174, 116, 40]);
 
     fireEvent.click(screen.getByRole('button', { name: /Confirmar prato/ }));
+    await answerScanApply();
     const summary = await screen.findByTestId('meal-weigh-summary');
     expect(summary).toHaveTextContent('Arroz branco cozido: previsto 150 g, estimado ~174 g');
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Salvar' })); });
@@ -192,6 +194,7 @@ describe('Prato pronto — tela', () => {
     await takePhoto();
     expect(mock.invoke.mock.lastCall?.[1].body.addedFoods).toEqual([{ alimento: 'Arroz branco cozido', gramas: 154 }]);
     fireEvent.click(await screen.findByRole('button', { name: /Confirmar prato/ }));
+    await answerScanApply();
     await screen.findByTestId('meal-weigh-summary');
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Salvar' })); });
     const row = mock.insert.mock.calls[0][0];
