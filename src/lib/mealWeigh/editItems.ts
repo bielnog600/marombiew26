@@ -68,6 +68,9 @@ export function rebuildWeighedItem(item: WeighedItem, change: WeighItemChange): 
     if (item.corrigido_por_admin) next.corrigido_por_admin = true;
     if (item.gramas_corrigidas || Math.abs((Number(change.grams) || 0) - (Number(item.gramas) || 0)) > 0.05) next.gramas_corrigidas = true;
   }
+  // Escaneado continua escaneado só com o mesmo alimento; trocado ou informado pelo aluno vira 'manual'.
+  if (item.origem === 'escaneado') next.origem = sameFood ? 'escaneado' : 'manual';
+  if (item.origem === 'manual') next.origem = 'manual';
   // Alimento trocado pelo aluno: o que a IA viu fica só como registro, sem valer para casar/repetir.
   if (item.alimento_corrigido || (!sameFood && item.alimento_ia)) next.alimento_corrigido = true;
   // A troca "substituiu X" só continua valendo se o item segue o mesmo alimento fora do plano.
