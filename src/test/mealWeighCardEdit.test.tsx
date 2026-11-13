@@ -9,6 +9,8 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vite
 
 const mock = vi.hoisted(() => ({ invoke: vi.fn(), insert: vi.fn(), shot: 0 }));
 vi.mock('@/hooks/useHoldAppUpdate', () => ({ useHoldAppUpdate: () => {} }));
+vi.mock('@/components/diet/AddFoodDialog', () => ({ default: () => null }));
+vi.mock('@/components/diet/FoodSubstitutionDialog', () => ({ default: () => null }));
 const FOODS = [
   { id: 'f-iog', name: 'Iogurte natural', calories: 60, protein: 4, carbs: 5, fats: 3, portion_size: 100 },
   { id: 'f-whey', name: 'Whey protein', calories: 400, protein: 80, carbs: 8, fats: 6, portion_size: 100 },
@@ -168,7 +170,7 @@ describe('Editar / apagar item da refeição registrada — regras', () => {
   it('item escaneado editado continua escaneado', () => {
     const scanned: WeighedItem = { ...scannedFoodItem(FOODS[0] as any, 100), indice_plano: null };
     const log = { id: 'l', log_date: 'd', meal_index: 0, created_at: 'c', ...buildWeighLogRow(PLANNED, [scanned], {}) };
-    const row = dayMealFoodsFromLog(log as any).find((r) => r.food === 'Iogurte natural')!;
+    const row = dayMealFoodsFromLog(log as any).find((r) => r.weigh.escaneado)!;
     const next = editDayRow(dayStateFromLog(log as any), dayRowRef(row.weigh), { food: FOODS[0] as any, grams: 200, planIndex: row.weigh.planIndex ?? null });
     expect(next.items[0]).toMatchObject({ origem: 'escaneado', gramas: 200, kcal: 120 });
   });
