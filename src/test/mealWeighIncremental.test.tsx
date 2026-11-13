@@ -145,7 +145,6 @@ describe('Pesar refeição — Adicionar alimento numa refeição já pesada', (
     expect(mock.invoke.mock.lastCall?.[1].body).toMatchObject({ action: 'read_weight', foodName: 'Whey protein' });
     fireEvent.click(await screen.findByRole('button', { name: /Confirmar/ }));
     fireEvent.click(await screen.findByRole('button', { name: /Concluir refeição/ }));
-    await answerScanApply();
     await screen.findByTestId('meal-weigh-summary');
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Salvar' })); });
 
