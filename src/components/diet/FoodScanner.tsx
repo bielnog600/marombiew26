@@ -12,6 +12,8 @@ import { Camera, History, ImageIcon, Loader2, ScanBarcode, X } from 'lucide-reac
 import { computeFoodScore, type ProductData } from '@/lib/foodScore';
 import type { ParsedMeal } from '@/lib/dietResultParser';
 import type { WeighFood, WeighLogRecord, WeighedItem } from '@/lib/mealWeigh';
+import { needsScanApplyChoice, type ScanApplyMode } from '@/lib/mealWeigh/scanApply';
+import { plannedFromMeal } from '@/lib/mealWeigh';
 import { buildScanMealLog, foodScanInsert, scannedFoodItem, scannedProductItem, type ProductSource } from '@/lib/foodPhotoScan';
 import FoodScanResult, { ScoreDot, type ScanRecord } from './FoodScanResult';
 import AddToMealPanel from './foodScan/AddToMealPanel';
@@ -29,6 +31,8 @@ export interface ScanMealContext {
   /** Dias futuros etc.: false bloqueia (o próprio guard avisa). */
   canRegister?: () => boolean;
   onSaved: (log: WeighLogRecord) => void;
+  /** "Revisar item por item": abre a revisão da refeição (Comi sem pesar / Não comi / troca). */
+  onReview?: (mealIndex: number) => void;
 }
 
 interface Props {
@@ -219,12 +223,12 @@ export default function FoodScanner({ open, onOpenChange, dailyKcal, mode = 'alu
   }, [open, tab, user, result]);
 
   /** Item escaneado entra na refeição do dia (mesmo registro da pesagem, mesclando com o que já houver). */
-  const addItemToMeal = async (mealIndex: number, item: WeighedItem): Promise<boolean> => {
+  const addItemToMeal = async (mealIndex: number, item: WeighedItem, mode: ScanApplyMode = 'add'): Promise<boolean> => {
     if (!user || !mealContext) return false;
     if (mealContext.canRegister && !mealContext.canRegister()) return false;
     const meal = mealContext.meals[mealIndex];
     if (!meal) return false;
-    const row = buildScanMealLog(meal, mealContext.latestLog(mealIndex), item);
+    const row = buildScanMealLog(meal, mealContext.latestLog(mealIndex), item, mode === 'replace' ? 'replace' : 'add');
     const { data, error } = await supabase.from('meal_weigh_logs').insert({
       student_id: user.id, log_date: mealContext.logDate, diet_plan_id: mealContext.dietPlanId, meal_index: mealIndex,
       meal_name: meal.name || '', meal_time: meal.time ?? null,
@@ -233,8 +237,19 @@ export default function FoodScanner({ open, onOpenChange, dailyKcal, mode = 'alu
     }).select('id, log_date, meal_index, items, unweighed, planned, created_at').single();
     if (error || !data) { toast.error('Não foi possível adicionar à refeição.'); return false; }
     mealContext.onSaved(data as unknown as WeighLogRecord);
-    toast.success(`Adicionado em ${meal.name}: ${item.alimento} ${Math.round(item.gramas)} g · ${item.kcal} kcal`);
+    toast.success(`${mode === 'replace' ? 'Refeição substituída' : 'Adicionado'} em ${meal.name}: ${item.alimento} ${Math.round(item.gramas)} g · ${item.kcal} kcal`);
+    if (mode === 'review' && mealContext.onReview) {
+      close(false);
+      mealContext.onReview(mealIndex);
+    }
     return true;
+  };
+
+  /** Refeição com alimentos do plano ou já registrada: pergunta Substituir / Adicionar / Revisar. */
+  const mealNeedsChoice = (mealIndex: number) => {
+    if (!mealContext) return false;
+    const latest = mealContext.latestLog(mealIndex);
+    return needsScanApplyChoice(plannedFromMeal(mealContext.meals[mealIndex]), latest?.items ?? (latest ? [latest] : []));
   };
 
   const productAddPanel = (scan: ScanRecord) => mealContext && mode === 'aluno'
@@ -243,8 +258,9 @@ export default function FoodScanner({ open, onOpenChange, dailyKcal, mode = 'alu
         meals={mealContext.meals}
         suggested={mealContext.suggested}
         summary={summary}
-        onAdd={async (mi) => {
-          const ok = await addItemToMeal(mi, scannedProductItem(scan.product_name || 'Produto', scan.brand, { nutriments: scan.nutriments } as ProductData, grams, resultFoodId));
+        needsChoice={mealNeedsChoice}
+        onAdd={async (mi, applyMode) => {
+          const ok = await addItemToMeal(mi, scannedProductItem(scan.product_name || 'Produto', scan.brand, { nutriments: scan.nutriments } as ProductData, grams, resultFoodId), applyMode);
           if (ok) {
             const now = new Date().toISOString();
             await supabase.from('food_scans').update({ consumed_grams: grams, consumed_at: now }).eq('id', scan.id);
@@ -264,7 +280,8 @@ export default function FoodScanner({ open, onOpenChange, dailyKcal, mode = 'alu
         meals={mealContext.meals}
         suggested={mealContext.suggested}
         summary={`${item.gramas} g · ${item.kcal} kcal · P ${item.p} · C ${item.c} · G ${item.g}`}
-        onAdd={(mi) => addItemToMeal(mi, item)}
+        needsChoice={mealNeedsChoice}
+        onAdd={(mi, applyMode) => addItemToMeal(mi, item, applyMode)}
         onConsult={reset}
       />
     ) : null;
