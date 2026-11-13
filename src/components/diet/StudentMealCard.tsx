@@ -13,6 +13,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import AddFoodDialog from './AddFoodDialog';
 import { formatDayWeighLabel, type DayFoodWeigh } from '@/lib/mealWeigh';
+import { groupDayMealFoods } from '@/lib/mealWeigh/dayEdit';
 import FoodSubstitutionDialog from './FoodSubstitutionDialog';
 
 const parseNum = (v?: string) => {
@@ -41,10 +42,17 @@ const ScannedWeighBadge: React.FC = () => (
   </span>
 );
 
+const ManualWeighBadge: React.FC = () => (
+  <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-border bg-secondary/60 px-1.5 py-0.5 text-[10px] font-semibold text-foreground">
+    <Pencil className="h-3 w-3" /> Informado
+  </span>
+);
+
 const WeighBadge: React.FC<{ weigh: DayFoodWeigh }> = ({ weigh }) => {
   // "Prato pronto": gramas estimadas pela foto, selo diferente de "Pesado".
   if (weigh.status === 'pesado' && weigh.estimado) return <EstimatedWeighBadge />;
   if (weigh.status === 'pesado' && weigh.escaneado) return <ScannedWeighBadge />;
+  if (weigh.status === 'pesado' && weigh.manual) return <ManualWeighBadge />;
   if (weigh.status === 'pesado') {
     return (
       <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-primary/50 bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold text-primary">
@@ -89,6 +97,8 @@ interface StudentMealCardProps {
   weighed?: boolean;
   /** Refeição pesada: abre o resumo editável da pesagem salva. */
   onEditWeigh?: () => void;
+  /** Refeição registrada: tocar num alimento abre o painel (trocar, gramas, Não comi/Comi sem pesar, apagar). */
+  onEditWeighedFood?: (food: ParsedFood) => void;
 }
 
 const StudentMealCard: React.FC<StudentMealCardProps> = ({
@@ -106,12 +116,14 @@ const StudentMealCard: React.FC<StudentMealCardProps> = ({
   displayText,
   weighed,
   onEditWeigh,
+  onEditWeighedFood,
 }) => {
   const show = displayText ?? ((text: string) => text);
   const [adjustMode, setAdjustMode] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
   const [subIndex, setSubIndex] = useState<number | null>(null);
   const [draftQty, setDraftQty] = useState<Record<number, string>>({});
+  const [showNotEaten, setShowNotEaten] = useState(false);
 
   const foods = meal.foods ?? [];
   // Selo da refeição: "Escaneado"/"Estimado" quando tudo veio do scanner ou do prato pronto; senão "Pesado".
@@ -150,6 +162,118 @@ const StudentMealCard: React.FC<StudentMealCardProps> = ({
     const factor = target / original;
     onFoodsChange(foods.map((f, i) => (i === foodIndex ? scaleFood(f, factor) : f)));
     toast.success('Quantidade atualizada — refeições futuras reajustadas');
+  };
+
+  const renderFood = (food: ParsedFood, foodIndex: number) => {
+    const weigh = foodWeigh(food);
+    const locked = !!weighed;
+    // Refeição já pesada: a balança continua nos alimentos do plano para pesar/atualizar só aquele item.
+    const canWeighFood = !!onWeighFood && !adjustMode && (!locked || (!!weigh && weigh.status !== 'fora_do_plano'));
+    return (
+    <div
+      key={`${meal.name}-${food.food}-${foodIndex}`}
+      className="flex items-start gap-2 border-b border-border/30 px-3 py-2.5 last:border-0"
+    >
+      <div
+        role={adjustMode || locked ? undefined : 'button'}
+        tabIndex={adjustMode || locked ? undefined : 0}
+        onClick={adjustMode || locked ? undefined : () => setSubIndex(foodIndex)}
+        onKeyDown={
+          adjustMode || locked
+            ? undefined
+            : (e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  setSubIndex(foodIndex);
+                }
+              }
+        }
+        aria-label={adjustMode || locked ? undefined : `Substituir ${food.food}`}
+        className={`min-w-0 flex-1 rounded-lg transition-colors ${
+          adjustMode || locked ? '' : 'cursor-pointer active:bg-primary/5'
+        }`}
+      >
+        <div className="flex min-w-0 items-center gap-1.5">
+          <p className={`truncate text-sm font-medium ${weigh?.status === 'nao_comeu' ? 'text-muted-foreground line-through' : 'text-foreground'}`}>{show(food.food)}</p>
+          {weigh && <WeighBadge weigh={weigh} />}
+          {weigh?.status === 'fora_do_plano' && weigh.estimado && <EstimatedWeighBadge />}
+          {weigh?.status === 'fora_do_plano' && weigh.escaneado && <ScannedWeighBadge />}
+        </div>
+        {weigh && (weigh.status === 'pesado' || weigh.status === 'fora_do_plano' || weigh.status === 'nao_comeu') && (
+          <p className="mt-0.5 text-[11px] font-semibold text-primary" data-testid="meal-food-weigh-label">{formatDayWeighLabel(weigh)}</p>
+        )}
+        <div className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[11px]">
+          {adjustMode ? (
+            <Input
+              type="number"
+              inputMode="decimal"
+              value={draftQty[foodIndex] ?? String(parseNumeric(food.qty) || '')}
+              onChange={(e) => setDraftQty((prev) => ({ ...prev, [foodIndex]: e.target.value }))}
+              onBlur={() => commitQty(foodIndex)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+              }}
+              className="h-7 w-20 px-2 text-xs"
+              aria-label={`Quantidade de ${food.food}`}
+            />
+          ) : (
+            <span className="text-muted-foreground">{food.qty || '—'}</span>
+          )}
+          <span className="font-semibold text-primary">{food.kcal ? `${food.kcal} kcal` : '—'}</span>
+          <span className="text-chart-2">P {food.p || '0'}</span>
+          <span className="text-chart-3">C {food.c || '0'}</span>
+          <span className="text-chart-5">G {food.g || '0'}</span>
+        </div>
+      </div>
+      {(!locked || canWeighFood) && <div className="flex shrink-0 items-center gap-1">
+        {canWeighFood && (
+          <button
+            type="button"
+            onClick={() => onWeighFood?.(foodIndex)}
+            aria-label={`Pesar ${food.food}`}
+            className="p-1.5 text-primary transition-colors hover:text-primary/80"
+          >
+            <Scale className="h-3.5 w-3.5" />
+          </button>
+        )}
+        {!locked && moveTargets.length > 0 && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                aria-label={`Mover ${food.food} para outra refeição`}
+                className="p-1.5 text-muted-foreground transition-colors hover:text-primary"
+              >
+                <ArrowRightLeft className="h-3.5 w-3.5" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-52">
+              <DropdownMenuLabel className="text-xs">Mover para</DropdownMenuLabel>
+              {moveTargets.map((t) => (
+                <DropdownMenuItem
+                  key={t.index}
+                  className="text-xs"
+                  onClick={() => onMoveFood(food, t.index)}
+                >
+                  {t.name}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
+        {!locked && (
+        <button
+          type="button"
+          onClick={() => handleRemove(foodIndex)}
+          aria-label={`Remover ${food.food}`}
+          className="p-1.5 text-muted-foreground transition-colors hover:text-destructive"
+        >
+          <Trash2 className="h-3.5 w-3.5" />
+        </button>
+        )}
+      </div>}
+    </div>
+    );
   };
 
   return (
@@ -253,117 +377,25 @@ const StudentMealCard: React.FC<StudentMealCardProps> = ({
                     Nenhum alimento nesta refeição.
                   </p>
                 )}
-                {foods.map((food, foodIndex) => {
-                  const weigh = foodWeigh(food);
-                  const locked = !!weighed;
-                  // Refeição já pesada: a balança continua nos alimentos do plano para pesar/atualizar só aquele item.
-                  const canWeighFood = !!onWeighFood && !adjustMode && (!locked || (!!weigh && weigh.status !== 'fora_do_plano'));
-                  return (
-                  <div
-                    key={`${meal.name}-${food.food}-${foodIndex}`}
-                    className="flex items-start gap-2 border-b border-border/30 px-3 py-2.5 last:border-0"
-                  >
-                    <div
-                      role={adjustMode || locked ? undefined : 'button'}
-                      tabIndex={adjustMode || locked ? undefined : 0}
-                      onClick={adjustMode || locked ? undefined : () => setSubIndex(foodIndex)}
-                      onKeyDown={
-                        adjustMode || locked
-                          ? undefined
-                          : (e) => {
-                              if (e.key === 'Enter' || e.key === ' ') {
-                                e.preventDefault();
-                                setSubIndex(foodIndex);
-                              }
-                            }
-                      }
-                      aria-label={adjustMode || locked ? undefined : `Substituir ${food.food}`}
-                      className={`min-w-0 flex-1 rounded-lg transition-colors ${
-                        adjustMode || locked ? '' : 'cursor-pointer active:bg-primary/5'
-                      }`}
-                    >
-                      <div className="flex min-w-0 items-center gap-1.5">
-                        <p className={`truncate text-sm font-medium ${weigh?.status === 'nao_comeu' ? 'text-muted-foreground line-through' : 'text-foreground'}`}>{show(food.food)}</p>
-                        {weigh && <WeighBadge weigh={weigh} />}
-                        {weigh?.status === 'fora_do_plano' && weigh.estimado && <EstimatedWeighBadge />}
-                        {weigh?.status === 'fora_do_plano' && weigh.escaneado && <ScannedWeighBadge />}
-                      </div>
-                      {weigh && (weigh.status === 'pesado' || weigh.status === 'fora_do_plano' || weigh.status === 'nao_comeu') && (
-                        <p className="mt-0.5 text-[11px] font-semibold text-primary" data-testid="meal-food-weigh-label">{formatDayWeighLabel(weigh)}</p>
-                      )}
-                      <div className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[11px]">
-                        {adjustMode ? (
-                          <Input
-                            type="number"
-                            inputMode="decimal"
-                            value={draftQty[foodIndex] ?? String(parseNumeric(food.qty) || '')}
-                            onChange={(e) => setDraftQty((prev) => ({ ...prev, [foodIndex]: e.target.value }))}
-                            onBlur={() => commitQty(foodIndex)}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
-                            }}
-                            className="h-7 w-20 px-2 text-xs"
-                            aria-label={`Quantidade de ${food.food}`}
-                          />
-                        ) : (
-                          <span className="text-muted-foreground">{food.qty || '—'}</span>
-                        )}
-                        <span className="font-semibold text-primary">{food.kcal ? `${food.kcal} kcal` : '—'}</span>
-                        <span className="text-chart-2">P {food.p || '0'}</span>
-                        <span className="text-chart-3">C {food.c || '0'}</span>
-                        <span className="text-chart-5">G {food.g || '0'}</span>
-                      </div>
-                    </div>
-                    {(!locked || canWeighFood) && <div className="flex shrink-0 items-center gap-1">
-                      {canWeighFood && (
-                        <button
-                          type="button"
-                          onClick={() => onWeighFood?.(foodIndex)}
-                          aria-label={`Pesar ${food.food}`}
-                          className="p-1.5 text-primary transition-colors hover:text-primary/80"
-                        >
-                          <Scale className="h-3.5 w-3.5" />
+                {(() => {
+                  // Refeição registrada: consumidos primeiro; "Não comeu" do plano agrupados e recolhidos no fim.
+                  const grouped = weighed
+                    ? groupDayMealFoods(foods.map((f) => ({ f, weigh: foodWeigh(f) })))
+                    : { consumed: foods.map((f, index) => ({ food: { f, weigh: foodWeigh(f) }, index })), notEaten: [] };
+                  return (<>
+                    {grouped.consumed.map(({ food: { f }, index }) => renderFood(f, index))}
+                    {grouped.notEaten.length > 0 && (
+                      <div className="border-t border-border/30" data-testid="meal-not-eaten-group">
+                        <button type="button" onClick={() => setShowNotEaten((v) => !v)} aria-expanded={showNotEaten}
+                          className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-xs font-semibold text-muted-foreground">
+                          <span className="flex-1">Itens do plano não consumidos ({grouped.notEaten.length})</span>
+                          <ChevronDown className={`h-4 w-4 transition-transform ${showNotEaten ? 'rotate-180' : ''}`} />
                         </button>
-                      )}
-                      {!locked && moveTargets.length > 0 && (
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <button
-                              type="button"
-                              aria-label={`Mover ${food.food} para outra refeição`}
-                              className="p-1.5 text-muted-foreground transition-colors hover:text-primary"
-                            >
-                              <ArrowRightLeft className="h-3.5 w-3.5" />
-                            </button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end" className="w-52">
-                            <DropdownMenuLabel className="text-xs">Mover para</DropdownMenuLabel>
-                            {moveTargets.map((t) => (
-                              <DropdownMenuItem
-                                key={t.index}
-                                className="text-xs"
-                                onClick={() => onMoveFood(food, t.index)}
-                              >
-                                {t.name}
-                              </DropdownMenuItem>
-                            ))}
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      )}
-                      {!locked && (
-                      <button
-                        type="button"
-                        onClick={() => handleRemove(foodIndex)}
-                        aria-label={`Remover ${food.food}`}
-                        className="p-1.5 text-muted-foreground transition-colors hover:text-destructive"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
-                      )}
-                    </div>}
-                  </div>
-                  );
-                })}
+                        {showNotEaten && grouped.notEaten.map(({ food: { f }, index }) => renderFood(f, index))}
+                      </div>
+                    )}
+                  </>);
+                })()}
               </div>
 
               {onToggleComplete && (
