@@ -50,7 +50,7 @@ export interface WeighedItem {
   substituiu?: { indice_plano: number; alimento: string } | null;
   /** Fora do plano e o aluno disse "Não, foi extra". */
   extra?: boolean;
-  /** 'estimado' = gramas estimadas pela foto ("Prato pronto"); 'escaneado' = veio do scanner de alimentos; ausente = pesado na balança. */
+  /** 'estimado' = gramas estimadas pela foto ("Prato pronto"); 'escaneado' = veio do scanner de alimentos; 'manual' = quantidade informada pelo aluno no card; ausente = pesado na balança. */
   origem?: WeighItemOrigin;
   /** Faixa plausível das gramas estimadas pela IA. */
   faixa_gramas?: [number, number] | null;
@@ -68,9 +68,10 @@ export interface WeighedItem {
   corrigido_por_admin?: boolean;
 }
 
-export type WeighItemOrigin = 'pesado' | 'estimado' | 'escaneado';
+export type WeighItemOrigin = 'pesado' | 'estimado' | 'escaneado' | 'manual';
 export const isEstimatedItem = (it: Pick<WeighedItem, 'origem'> | null | undefined) => it?.origem === 'estimado';
 export const isScannedItem = (it: Pick<WeighedItem, 'origem'> | null | undefined) => it?.origem === 'escaneado';
+export const isManualItem = (it: Pick<WeighedItem, 'origem'> | null | undefined) => it?.origem === 'manual';
 
 /** Abaixo disso a leitura do visor ou o alimento são tratados como incertos. */
 export const LOW_CONFIDENCE = 0.5;
@@ -788,6 +789,12 @@ export interface DayFoodWeigh {
   estimado?: boolean;
   /** Veio do scanner de alimentos. */
   escaneado?: boolean;
+  /** Quantidade informada pelo aluno no card (sem balança/foto). */
+  manual?: boolean;
+  /** Alimento do plano desta linha (null = fora do plano). */
+  planIndex?: number | null;
+  /** Itens do registro (meal_weigh_logs.items) que formam esta linha. */
+  itemIndexes?: number[];
 }
 export interface DayMealFood {
   food: string;
@@ -814,7 +821,11 @@ export function dayMealFoodsFromLog(log: WeighLogRecord): DayMealFood[] {
   };
   const paired = pairItemsToPlan(planned, items);
   const byPlan = new Map<number, WeighedItem[]>();
-  paired.forEach((pi, ii) => byPlan.set(pi, [...(byPlan.get(pi) ?? []), items[ii]]));
+  const idxByPlan = new Map<number, number[]>();
+  paired.forEach((pi, ii) => {
+    byPlan.set(pi, [...(byPlan.get(pi) ?? []), items[ii]]);
+    idxByPlan.set(pi, [...(idxByPlan.get(pi) ?? []), ii]);
+  });
   const choices = new Map((log.unweighed ?? []).map((u) => [u.indice_plano, u.escolha] as const));
   const out: DayMealFood[] = [];
   alimentos.forEach((pf, pi) => {
@@ -828,6 +839,8 @@ export function dayMealFoodsFromLog(log: WeighLogRecord): DayMealFood[] {
           status: 'pesado', gramas: sum.gramas, previstoGramas: pf.gramas, previstoQty: pf.qty,
           ...(weighed.some(isEstimatedItem) ? { estimado: true } : {}),
           ...(weighed.some(isScannedItem) ? { escaneado: true } : {}),
+          ...(weighed.every(isManualItem) ? { manual: true } : {}),
+          planIndex: pi, itemIndexes: idxByPlan.get(pi) ?? [],
         },
       });
       return;
@@ -837,7 +850,7 @@ export function dayMealFoodsFromLog(log: WeighLogRecord): DayMealFood[] {
       food: pf.alimento, qty: pf.qty,
       kcal: notEaten ? '0' : String(Math.round(pf.kcal)),
       p: notEaten ? '0' : str(pf.p), c: notEaten ? '0' : str(pf.c), g: notEaten ? '0' : str(pf.g),
-      weigh: { status: notEaten ? 'nao_comeu' : 'sem_pesar', previstoGramas: pf.gramas, previstoQty: pf.qty },
+      weigh: { status: notEaten ? 'nao_comeu' : 'sem_pesar', previstoGramas: pf.gramas, previstoQty: pf.qty, planIndex: pi, itemIndexes: [] },
     });
   });
   items.forEach((it, ii) => {
@@ -849,22 +862,42 @@ export function dayMealFoodsFromLog(log: WeighLogRecord): DayMealFood[] {
         status: 'fora_do_plano', gramas: Number(it.gramas) || 0, substituiu: it.substituiu?.alimento ?? null,
         ...(isEstimatedItem(it) ? { estimado: true } : {}),
         ...(isScannedItem(it) ? { escaneado: true } : {}),
+        ...(isManualItem(it) ? { manual: true } : {}),
+        planIndex: null, itemIndexes: [ii],
       },
     });
   });
   return out;
 }
 
-/** "pesou 182 g (previsto 150 g)" */
+const weighVerb = (w: DayFoodWeigh) => (w.estimado ? 'estimado ~' : w.escaneado ? 'escaneado ' : w.manual ? 'informou ' : 'pesou ');
+
+/** "pesou 182 g (previsto 150 g)" / "estimado ~118 g · no lugar de Ovo cozido" */
 export function formatDayWeighLabel(w: DayFoodWeigh): string {
   if (w.status === 'pesado') {
     const prev = w.previstoGramas != null ? `${Math.round(w.previstoGramas)} g` : w.previstoQty || '—';
-    return `${w.estimado ? 'estimado ~' : w.escaneado ? 'escaneado ' : 'pesou '}${Math.round(w.gramas ?? 0)} g (previsto ${prev})`;
+    return `${weighVerb(w)}${Math.round(w.gramas ?? 0)} g (previsto ${prev})`;
   }
   if (w.status === 'sem_pesar') return 'comeu sem pesar';
   if (w.status === 'nao_comeu') return 'não comeu';
-  if (w.substituiu) return `no lugar de ${w.substituiu}`;
-  return `${w.estimado ? 'estimado ~' : w.escaneado ? 'escaneado ' : 'pesou '}${Math.round(w.gramas ?? 0)} g`;
+  const amount = `${weighVerb(w)}${Math.round(w.gramas ?? 0)} g`;
+  return w.substituiu ? `${amount} · no lugar de ${w.substituiu}` : amount;
+}
+
+/** Linha de meal_weigh_logs (sem aluno/data/refeição) a partir do previsto, dos itens e das escolhas dos não pesados. */
+export function buildWeighLogRow(
+  planned: PlannedMeal,
+  items: WeighedItem[],
+  choices: Record<number, UnweighedChoice | undefined> = {},
+) {
+  const unweighed = buildUnweighedEntries(pendingPlanFoods(planned, items), choices);
+  const consumed = mealConsumedTotals(items, unweighed);
+  const comparison = compareWeighedMeal(planned, items, unweighed);
+  return {
+    items, unweighed,
+    planned: { ...planned, comparacao: comparison.alimentos },
+    total_kcal: consumed.kcal, total_p: consumed.p, total_c: consumed.c, total_g: consumed.g,
+  };
 }
 
 /**
