@@ -289,7 +289,7 @@ describe('Card da refeição registrada', () => {
     const log = dayLog();
     const state = dayStateFromLog(log as any);
     const rows = cardFoods();
-    const onApply = vi.fn(async () => true);
+    const onApply = vi.fn(async (_next: unknown, _message: string) => true);
     const omelete = rows.find((r) => r.food === 'Omelete')!;
     const { unmount } = render(<DayWeighFoodSheet name="Omelete" weigh={omelete.weigh} state={state} onApply={onApply} onClose={() => {}} />);
     const sheet = await screen.findByRole('dialog', { name: 'Editar Omelete' });
