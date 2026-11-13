@@ -25,7 +25,9 @@ import {
 import { Button } from '@/components/ui/button';
 import { useDailyTracking } from '@/hooks/useDailyTracking';
 import { fetchWithCache, setCache } from '@/lib/offlineCache';
-import { latestWeighLogs, overlayDayWeighLogs, weighLogKey, weighPlanMeals, type WeighLogRecord } from '@/lib/mealWeigh';
+import { latestWeighLogs, overlayDayWeighLogs, plannedFromMeal, weighLogKey, weighPlanMeals, type DayFoodWeigh, type WeighLogRecord } from '@/lib/mealWeigh';
+import { dayStateFromLog, type DayWeighState } from '@/lib/mealWeigh/dayEdit';
+import { insertDayWeighLog } from '@/components/diet/mealWeigh/dayLogApi';
 import { weighEntry } from '@/lib/mealWeigh/editItems';
 import ReweighDialog from '@/components/diet/mealWeigh/ReweighDialog';
 import ProtocolsDialog from '@/components/diet/ProtocolsDialog';
@@ -33,6 +35,7 @@ import { protocolsToKeys, type SavedProtocols, type ProtocolKey } from '@/lib/di
 import { ListChecks, ScanBarcode } from 'lucide-react';
 const FoodScanner = lazyWithRetry(() => import('@/components/diet/FoodScanner'));
 const MealWeighScreen = lazyWithRetry(() => import('@/components/diet/mealWeigh/MealWeighScreen'));
+const DayWeighFoodSheet = lazyWithRetry(() => import('@/components/diet/mealWeigh/DayWeighFoodSheet'));
 import { usePremiumScale } from '@/hooks/usePremiumScale';
 import { buildCarbCycleDays } from '@/lib/dietAiActions';
 import { parseDietPlanLoose } from '@/lib/dietSchema';
@@ -493,7 +496,10 @@ const MinhasDietas = () => {
   const isSelectedDayTraining = trainingDayIndices.includes(selectedWeekday);
   const [showScanner, setShowScanner] = useState(false);
   const premiumScale = usePremiumScale(user?.id);
-  const [weighTarget, setWeighTarget] = useState<{ meal: number; food?: number; edit?: boolean; add?: boolean } | null>(null);
+  const [weighTarget, setWeighTarget] = useState<{ meal: number; food?: number; edit?: boolean; add?: boolean; review?: boolean } | null>(null);
+  /** Alimento de uma refeição registrada aberto no painel do card. */
+  const [dayEdit, setDayEdit] = useState<{ meal: number; name: string; weigh: DayFoodWeigh } | null>(null);
+  const [dayEditSaving, setDayEditSaving] = useState(false);
   const [confirmReweigh, setConfirmReweigh] = useState<{ meal: number } | null>(null);
   const weekRange = getWeekRange();
   const selectedDate = weekRange.dates[selectedWeekday];
@@ -964,6 +970,36 @@ const MinhasDietas = () => {
     setWeighTarget({ meal, edit: true });
   }, [ensureCanRegister, latestLogs, selectedDate]);
 
+  /** Card da refeição registrada: tocar num alimento abre o painel de edição. */
+  const openDayFoodEdit = useCallback((meal: number, food: { food?: string; weigh?: DayFoodWeigh }) => {
+    if (!food?.weigh || !latestLogs.get(weighLogKey(selectedDate, meal))) return;
+    if (!ensureCanRegister()) return;
+    setDayEdit({ meal, name: String(food.food ?? ''), weigh: food.weigh });
+  }, [latestLogs, selectedDate, ensureCanRegister]);
+
+  const dayEditLog = dayEdit ? latestLogs.get(weighLogKey(selectedDate, dayEdit.meal)) ?? null : null;
+  const dayEditState = useMemo<DayWeighState | null>(
+    () => (dayEdit && dayEditLog ? dayStateFromLog(dayEditLog, plannedFromMeal(plannedDayMeals[dayEdit.meal] as any)) : null),
+    [dayEdit, dayEditLog, plannedDayMeals],
+  );
+
+  /** Salvar no painel: novo registro do dia (o mais recente vale) e totais/rebalanceamento na hora. */
+  const applyDayEdit = useCallback(async (next: DayWeighState, message: string): Promise<boolean> => {
+    if (!dayEdit || !user) return false;
+    const meal = plannedDayMeals[dayEdit.meal] ?? currentMeals[dayEdit.meal];
+    setDayEditSaving(true);
+    const { log, error } = await insertDayWeighLog({
+      studentId: user.id, logDate: selectedDate, dietPlanId: planId, mealIndex: dayEdit.meal,
+      mealName: String(meal?.name ?? ''), mealTime: (meal?.time as string | undefined) ?? null,
+    }, next);
+    setDayEditSaving(false);
+    if (!log) { toast.error('Não foi possível salvar: ' + (error ?? '')); return false; }
+    handleWeighSaved(log);
+    toast.success(message);
+    setDayEdit(null);
+    return true;
+  }, [dayEdit, user, plannedDayMeals, currentMeals, selectedDate, planId, handleWeighSaved]);
+
   const waterMl = waterCurrentMl;
   const waterGoalMl = waterTargetMl;
 
@@ -1011,6 +1047,7 @@ const MinhasDietas = () => {
             latestLog: (mi) => latestLogs.get(weighLogKey(selectedDate, mi)) ?? null,
             canRegister: ensureCanRegister,
             onSaved: handleWeighSaved,
+            onReview: (mi) => setWeighTarget({ meal: mi, edit: true, review: true }),
           } : undefined} />
         {weighTarget && plannedDayMeals[weighTarget.meal] && user && (
           <MealWeighScreen
@@ -1022,9 +1059,21 @@ const MinhasDietas = () => {
             initialMode={weighTarget.food != null ? 'plan' : undefined}
             startFoodIndex={weighTarget.food}
             editLog={weighTarget.edit ? latestLogs.get(weighLogKey(selectedDate, weighTarget.meal)) ?? null : null}
+            startInReview={!!weighTarget.review}
             addToLog={weighTarget.add ? latestLogs.get(weighLogKey(selectedDate, weighTarget.meal)) ?? null : null}
             onClose={() => setWeighTarget(null)}
             onSaved={handleWeighSaved}
+          />
+        )}
+        {dayEdit && dayEditState && (
+          <DayWeighFoodSheet
+            key={`${dayEdit.meal}-${dayEdit.name}-${dayEditLog?.id ?? ''}`}
+            name={displayText(dayEdit.name)}
+            weigh={dayEdit.weigh}
+            state={dayEditState}
+            saving={dayEditSaving}
+            onApply={applyDayEdit}
+            onClose={() => setDayEdit(null)}
           />
         )}
       </React.Suspense>
@@ -1335,6 +1384,7 @@ const MinhasDietas = () => {
                   onWeigh={premiumScale ? () => openWeigh({ meal: i }) : undefined}
                   onWeighFood={premiumScale ? (food) => openWeigh({ meal: i, food }) : undefined}
                   onEditWeigh={premiumScale && weighedIndexes.includes(i) ? () => openEditWeigh(i) : undefined}
+                  onEditWeighedFood={weighedIndexes.includes(i) ? (food) => openDayFoodEdit(i, food as any) : undefined}
                 />
               );
             })}
