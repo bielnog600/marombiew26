@@ -114,6 +114,9 @@ describe('Pesar refeição — salvar entra na refeição do dia', () => {
     expect(within(card).getByText('pesou 150 g (previsto 100 g)')).toBeInTheDocument();
     expect(within(card).getByText('Fora do plano')).toBeInTheDocument();
     expect(within(card).getByText('no lugar de Aveia')).toBeInTheDocument();
+    // "Não comeu" do plano fica agrupado e recolhido no fim do card.
+    expect(within(card).queryByText('não comeu')).toBeNull();
+    fireEvent.click(within(card).getByRole('button', { name: /Itens do plano não consumidos \(1\)/ }));
     expect(within(card).getByText('não comeu')).toBeInTheDocument();
     expect(card).toHaveTextContent('Aprox. 469 kcal');
 
@@ -171,6 +174,7 @@ describe('Pesar refeição — salvar entra na refeição do dia', () => {
     await screen.findByText('Lanche');
     const card = lancheCard();
     expect(within(card).queryByRole('button', { name: /^Remover / })).toBeNull();
+    fireEvent.click(within(card).getByRole('button', { name: /Itens do plano não consumidos/ }));
     fireEvent.click(within(card).getByRole('button', { name: 'Pesar Aveia' }));
     const fake = await screen.findByTestId('fake-weigh');
     expect(fake).toHaveTextContent('base: log-old · modo: plan · alimento: 1');
