@@ -872,7 +872,7 @@ export function dayMealFoodsFromLog(log: WeighLogRecord): DayMealFood[] {
 
 const weighVerb = (w: DayFoodWeigh) => (w.estimado ? 'estimado ~' : w.escaneado ? 'escaneado ' : w.manual ? 'informou ' : 'pesou ');
 
-/** "pesou 182 g (previsto 150 g)" / "estimado ~118 g · no lugar de Ovo cozido" */
+/** "pesou 182 g (previsto 150 g)" / "no lugar de Ovo cozido" */
 export function formatDayWeighLabel(w: DayFoodWeigh): string {
   if (w.status === 'pesado') {
     const prev = w.previstoGramas != null ? `${Math.round(w.previstoGramas)} g` : w.previstoQty || '—';
@@ -880,8 +880,8 @@ export function formatDayWeighLabel(w: DayFoodWeigh): string {
   }
   if (w.status === 'sem_pesar') return 'comeu sem pesar';
   if (w.status === 'nao_comeu') return 'não comeu';
-  const amount = `${weighVerb(w)}${Math.round(w.gramas ?? 0)} g`;
-  return w.substituiu ? `${amount} · no lugar de ${w.substituiu}` : amount;
+  if (w.substituiu) return `no lugar de ${w.substituiu}`;
+  return `${weighVerb(w)}${Math.round(w.gramas ?? 0)} g`;
 }
 
 /** Linha de meal_weigh_logs (sem aluno/data/refeição) a partir do previsto, dos itens e das escolhas dos não pesados. */
