@@ -33,6 +33,7 @@ import ReweighDialog from '@/components/diet/mealWeigh/ReweighDialog';
 import ProtocolsDialog from '@/components/diet/ProtocolsDialog';
 import { protocolsToKeys, type SavedProtocols, type ProtocolKey } from '@/lib/dietProtocols';
 import { ListChecks, ScanBarcode } from 'lucide-react';
+import { toast } from 'sonner';
 const FoodScanner = lazyWithRetry(() => import('@/components/diet/FoodScanner'));
 const MealWeighScreen = lazyWithRetry(() => import('@/components/diet/mealWeigh/MealWeighScreen'));
 const DayWeighFoodSheet = lazyWithRetry(() => import('@/components/diet/mealWeigh/DayWeighFoodSheet'));
