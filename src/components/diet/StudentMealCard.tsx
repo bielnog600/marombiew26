@@ -169,29 +169,33 @@ const StudentMealCard: React.FC<StudentMealCardProps> = ({
     const locked = !!weighed;
     // Refeição já pesada: a balança continua nos alimentos do plano para pesar/atualizar só aquele item.
     const canWeighFood = !!onWeighFood && !adjustMode && (!locked || (!!weigh && weigh.status !== 'fora_do_plano'));
+    // Livre: substituir; registrada: abre o painel do item (qualquer origem).
+    const tap: (() => void) | null = adjustMode
+      ? null
+      : locked
+        ? (onEditWeighedFood && weigh ? () => onEditWeighedFood(food) : null)
+        : () => setSubIndex(foodIndex);
     return (
     <div
       key={`${meal.name}-${food.food}-${foodIndex}`}
       className="flex items-start gap-2 border-b border-border/30 px-3 py-2.5 last:border-0"
     >
       <div
-        role={adjustMode || locked ? undefined : 'button'}
-        tabIndex={adjustMode || locked ? undefined : 0}
-        onClick={adjustMode || locked ? undefined : () => setSubIndex(foodIndex)}
+        role={tap ? 'button' : undefined}
+        tabIndex={tap ? 0 : undefined}
+        onClick={tap ?? undefined}
         onKeyDown={
-          adjustMode || locked
-            ? undefined
-            : (e) => {
+          tap
+            ? (e) => {
                 if (e.key === 'Enter' || e.key === ' ') {
                   e.preventDefault();
-                  setSubIndex(foodIndex);
+                  tap();
                 }
               }
+            : undefined
         }
-        aria-label={adjustMode || locked ? undefined : `Substituir ${food.food}`}
-        className={`min-w-0 flex-1 rounded-lg transition-colors ${
-          adjustMode || locked ? '' : 'cursor-pointer active:bg-primary/5'
-        }`}
+        aria-label={tap ? `${locked ? 'Editar' : 'Substituir'} ${food.food}` : undefined}
+        className={`min-w-0 flex-1 rounded-lg transition-colors ${tap ? 'cursor-pointer active:bg-primary/5' : ''}`}
       >
         <div className="flex min-w-0 items-center gap-1.5">
           <p className={`truncate text-sm font-medium ${weigh?.status === 'nao_comeu' ? 'text-muted-foreground line-through' : 'text-foreground'}`}>{show(food.food)}</p>
