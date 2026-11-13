@@ -20,6 +20,7 @@ vi.mock('@/integrations/supabase/client', () => ({
 }));
 
 import MealWeighScreen from '@/components/diet/mealWeigh/MealWeighScreen';
+import { answerScanApply } from './scanApplyHelper';
 
 const meal = {
   name: 'Lanche', time: '16:00',
@@ -65,6 +66,7 @@ describe('Pesar refeição — concluir com itens não pesados', () => {
     fireEvent.click(within(await screen.findByTestId('meal-weigh-item-actions')).getByRole('button', { name: /Próximo alimento/ }));
     await takePhoto();
     fireEvent.click(within(await screen.findByTestId('meal-weigh-item-actions')).getByRole('button', { name: /Concluir refeição/ }));
+    await answerScanApply();
 
     const review = await screen.findByTestId('meal-weigh-review');
     const rows = within(review).getAllByTestId('meal-weigh-unweighed-row');

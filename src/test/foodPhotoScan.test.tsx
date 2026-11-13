@@ -44,6 +44,7 @@ vi.mock('@/integrations/supabase/client', () => ({
 }));
 
 import FoodScanner from '@/components/diet/FoodScanner';
+import { answerScanApply } from './scanApplyHelper';
 
 const identity = (over: Partial<PhotoIdentity> = {}): PhotoIdentity => ({
   tipo: 'embalado', marca: 'Marilan', produto: 'Bolacha Maria', variante: null, codigo_barras_visivel: null,
@@ -215,6 +216,7 @@ describe('FoodScanner — aba Foto', () => {
     const panel = within(natura).getByTestId('scan-add-to-meal');
     expect(within(panel).getByRole('button', { name: '16:00 · Lanche' })).toHaveAttribute('aria-pressed', 'true');
     await act(async () => { fireEvent.click(within(panel).getByRole('button', { name: /Adicionar à refeição/ })); });
+    await answerScanApply();
     const row = mock.logInsert.mock.calls[0][0];
     expect(row).toMatchObject({ student_id: 'aluno-1', log_date: '2026-11-12', meal_index: 1, meal_name: 'Lanche' });
     expect(row.items).toEqual([expect.objectContaining({ alimento: 'Banana', gramas: 360, origem: 'escaneado' })]);

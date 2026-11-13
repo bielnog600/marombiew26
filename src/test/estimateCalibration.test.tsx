@@ -56,6 +56,7 @@ vi.mock('@/integrations/supabase/client', () => ({
 
 import MealWeighScreen from '@/components/diet/mealWeigh/MealWeighScreen';
 import PlateReview from '@/components/diet/mealWeigh/PlateReview';
+import { answerScanApply } from './scanApplyHelper';
 
 const meal = {
   name: 'Lanche', time: '16:00',
@@ -275,6 +276,7 @@ describe('Calibração — tela', () => {
     expect(iog.value).toBe('210');
     fireEvent.change(iog, { target: { value: '190' } });
     fireEvent.click(screen.getByRole('button', { name: /Confirmar prato/ }));
+    await answerScanApply();
     await screen.findByTestId('meal-weigh-summary');
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Salvar' })); });
     await waitFor(() => expect(mock.upsert).toHaveBeenCalled());

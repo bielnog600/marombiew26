@@ -24,6 +24,7 @@ vi.mock('@/integrations/supabase/client', () => ({
 
 import MealWeighScreen from '@/components/diet/mealWeigh/MealWeighScreen';
 import BottomNav from '@/components/BottomNav';
+import { answerScanApply } from './scanApplyHelper';
 
 const meal = {
   name: 'Lanche', time: '16:00',
@@ -120,6 +121,7 @@ describe('Pesar refeição — escanear prato item a item', () => {
     fireEvent.click(within(screen.getByTestId('meal-weigh-pending-chips')).getByRole('button', { name: 'Chia' }));
     expect(screen.getByRole('button', { name: /Concluir refeição/ })).toBeEnabled();
     fireEvent.click(screen.getByRole('button', { name: /Concluir refeição/ }));
+    await answerScanApply();
 
     const summary = await screen.findByTestId('meal-weigh-summary');
     expect(summary).toHaveTextContent('Chia');

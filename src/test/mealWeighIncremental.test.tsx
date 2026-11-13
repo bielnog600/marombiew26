@@ -23,6 +23,7 @@ vi.mock('@/integrations/supabase/client', () => ({
 
 import MealWeighScreen from '@/components/diet/mealWeigh/MealWeighScreen';
 import ReweighDialog from '@/components/diet/mealWeigh/ReweighDialog';
+import { answerScanApply } from './scanApplyHelper';
 
 const meal = {
   name: 'Lanche', time: '16:00',
@@ -120,6 +121,7 @@ describe('Pesar refeição — Adicionar alimento numa refeição já pesada', (
       { alimento: 'Iogurte natural', gramas: 154 }, { alimento: 'Whey protein', gramas: 26 },
     ]);
     fireEvent.click(within(await screen.findByTestId('meal-weigh-item-actions')).getByRole('button', { name: /Concluir refeição/ }));
+    await answerScanApply();
     await screen.findByTestId('meal-weigh-summary');
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Salvar' })); });
 
@@ -143,6 +145,7 @@ describe('Pesar refeição — Adicionar alimento numa refeição já pesada', (
     expect(mock.invoke.mock.lastCall?.[1].body).toMatchObject({ action: 'read_weight', foodName: 'Whey protein' });
     fireEvent.click(await screen.findByRole('button', { name: /Confirmar/ }));
     fireEvent.click(await screen.findByRole('button', { name: /Concluir refeição/ }));
+    await answerScanApply();
     await screen.findByTestId('meal-weigh-summary');
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Salvar' })); });
 
