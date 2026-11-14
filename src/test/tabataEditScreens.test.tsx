@@ -19,6 +19,7 @@ vi.mock('@/components/ui/select', () => ({
   SelectContent: ({ children }: any) => <>{children}</>,
   SelectItem: ({ value, children }: any) => <option value={value}>{children}</option>,
 }));
+vi.mock('hls.js', () => ({ default: { isSupported: () => false, Events: {} } }));
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn(), info: vi.fn() } }));
 
 const md = (title: string, ex: string, obs = '...') => `# ${title}\n\n**Tipo:** Moderado\n\n## Blocos\n\n### Bloco 1\n**Formato:** 8 rounds × 20s / 10s\n\n| # | Exercício | Trabalho | Descanso | Observação |\n|---|---|---|---|---|\n| 1 | ${ex} | 20s | 10s | ${obs} |\n\n**Descanso após bloco:** 1 min\n`;
@@ -158,5 +159,50 @@ describe('Editor do bloco', () => {
     fireEvent.change(screen.getByLabelText('Exercício B'), { target: { value: 'SKIPS' } });
     fireEvent.click(screen.getByRole('button', { name: 'Preencher 8 rounds' }));
     expect(last!.blocks[0].exercises.map(e => e.name)).toEqual(['BURPEES', 'SKIPS', 'BURPEES', 'SKIPS', 'BURPEES', 'SKIPS', 'BURPEES', 'SKIPS']);
+  });
+});
+
+const legacyWarmup = (title: string) =>
+  md(title, 'GLOBET SQUATS').replace('## Blocos', '## Aquecimento\n- POLICHINELO — 1 min\n- SKIPS — 1 min\n\n## Blocos');
+
+describe('Editor — Bloco 0 e intensidade', () => {
+  it('lista antiga vira Bloco 0 cronometrado editável (exercício, tempo, transição)', () => {
+    let last: ParsedTabata | null = null;
+    render(<Harness initial={parseTabata(legacyWarmup('T'))} onValue={v => { last = v; }} />);
+    fireEvent.click(screen.getByRole('button', { name: /Transformar em bloco cronometrado/ }));
+    expect(last!.warmupBlock?.exercises.map(e => e.name)).toEqual(['POLICHINELO', 'SKIPS']);
+    expect(last!.warmupBlock?.exercises.every(e => e.workSeconds === 40 && e.restSeconds === 20)).toBe(true);
+    const warm = screen.getByTestId('tabata-warmup-block');
+    fireEvent.change(within(warm).getAllByLabelText('Selecionar exercício')[1], { target: { value: 'JUMPING JACK' } });
+    expect(last!.warmupBlock?.exercises[1].name).toBe('JUMPING JACK');
+    expect(last!.blocks).toHaveLength(1);
+  });
+
+  it('intensidade do bloco e "Aplicar progressão" gravam no plano', () => {
+    let last: ParsedTabata | null = null;
+    const two = md('T', 'SKIPS').replace('**Descanso após bloco:** 1 min\n', '**Descanso após bloco:** 1 min\n\n### Bloco 2\n**Formato:** 8 rounds × 20s / 10s\n\n| # | Exercício | Trabalho | Descanso | Observação |\n|---|---|---|---|---|\n| 1 | BURPEES | 20s | 10s | ... |\n');
+    render(<Harness initial={parseTabata(two)} onValue={v => { last = v; }} />);
+    fireEvent.click(within(screen.getByRole('radiogroup', { name: 'Intensidade do Bloco 1' })).getByRole('radio', { name: /Forte/ }));
+    expect(last!.blocks[0].intensity).toBe('forte');
+    fireEvent.click(screen.getByRole('button', { name: /Aplicar progressão/ }));
+    expect(last!.blocks.map(b => b.intensity)).toEqual(['moderado', 'maximo']);
+  });
+});
+
+import TabataExecucao from '@/pages/TabataExecucao';
+
+describe('Player — Bloco 0', () => {
+  it('plano antigo mostra e começa pelo Bloco 0 — Aquecimento', () => {
+    const tabata = parseTabata(legacyWarmup('TABATA ANTIGO'));
+    render(
+      <MemoryRouter initialEntries={[{ pathname: '/tabata-execucao', state: { tabata } }]}>
+        <Routes><Route path="/tabata-execucao" element={<TabataExecucao />} /></Routes>
+      </MemoryRouter>,
+    );
+    expect(screen.getByText('Bloco 0 — Aquecimento')).toBeInTheDocument();
+    expect(screen.getByText(/Aquecimento \+ 1 blocos/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /Iniciar/ }));
+    expect(screen.getByTestId('tabata-player-block')).toHaveTextContent('Bloco 0 • Aquecimento • Ex. 1/2');
+    expect(screen.getByTestId('tabata-player-intensity')).toHaveTextContent('Leve · RPE 3–4');
   });
 });
