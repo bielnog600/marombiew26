@@ -270,3 +270,12 @@ Fora do escopo desta entrega (Fases 3-6): LOW/MEDIUM/HIGH, novo carb cycling, aj
 - [x] Gerador: ≥4 exercícios por bloco, só montagem rápida (sem barra/anilha/smith/máquina), sem repetir na semana, respeita o treino do dia
 - [x] Card do plano na aba Cardio mostra exercícios de cada bloco
 - [ ] Gerar um TABATA real com as regras novas — nenhuma chamada real à IA foi feita
+
+## TABATA — aquecimento cronometrado e progressão
+- [x] Bloco 0 — Aquecimento roda no Player (cronômetro, nome, próximo) e avança para o Bloco 1
+- [x] Intensidade por bloco (Leve/Moderado/Forte/Máximo + RPE) no editor e no Player; gerador em Moderado → Forte → Máximo
+- [x] Wizard: "Incluir bloco de aquecimento" e "Progressão de intensidade entre blocos" (ligados)
+- [x] Ajuste Rápido edita o Bloco 0 como os outros blocos e a intensidade de cada bloco
+- [x] Planos antigos: lista do aquecimento vira Bloco 0 no Player (1 min por exercício)
+- [ ] Gerar um TABATA real com aquecimento e progressão — nenhuma chamada real à IA foi feita
+
