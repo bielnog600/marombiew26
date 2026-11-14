@@ -171,7 +171,7 @@ describe('Editor — Bloco 0 e intensidade', () => {
     render(<Harness initial={parseTabata(legacyWarmup('T'))} onValue={v => { last = v; }} />);
     fireEvent.click(screen.getByRole('button', { name: /Transformar em bloco cronometrado/ }));
     expect(last!.warmupBlock?.exercises.map(e => e.name)).toEqual(['POLICHINELO', 'SKIPS']);
-    expect(last!.warmupBlock?.exercises.every(e => e.workSeconds === 40 && e.restSeconds === 20)).toBe(true);
+    expect(last!.warmupBlock?.exercises.every(e => e.workSeconds === 25 && e.restSeconds === 5)).toBe(true);
     const warm = screen.getByTestId('tabata-warmup-block');
     fireEvent.change(within(warm).getAllByLabelText('Selecionar exercício')[1], { target: { value: 'JUMPING JACK' } });
     expect(last!.warmupBlock?.exercises[1].name).toBe('JUMPING JACK');

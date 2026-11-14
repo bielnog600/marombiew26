@@ -4,6 +4,8 @@ import { serializeTabata } from '@/lib/tabataSerializer';
 import {
   tabataPlayerSteps, resolveWarmupBlock, progressionLevels, normalizeWarmupSection,
   ensureBlockIntensities, progressionWarnings, parseTabataIntensity, warmupItemName,
+  WARMUP_DEFAULT, newWarmupBlock, warmupTotalSeconds, warmupWarnings, maxWarmupExercises,
+  clampWarmupWork, clampWarmupRest, setWarmupTimes, fitWarmupBlock, warmupBlockFromList, replaceWarmupSection,
 } from '@/lib/tabataProgression';
 
 const table = (rows: [string, number, number][]) =>
