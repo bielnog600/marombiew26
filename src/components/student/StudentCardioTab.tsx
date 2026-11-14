@@ -24,6 +24,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger
 } from '@/components/ui/alert-dialog';
 import { parseCardioPayload, MODALITY_LABEL, pickProtocolForToday } from '@/lib/cardioParser';
+import CardioSessionsCard from '@/components/cardio/CardioSessionsCard';
 
 interface StudentCardioTabProps {
   studentId: string;
@@ -79,11 +80,13 @@ const StudentCardioTab: React.FC<StudentCardioTabProps> = ({ studentId }) => {
           Nenhum cardio gerado ainda. Use o Agente de Cardio para criar protocolos.
         </CardContent>
       </Card>
+      <CardioSessionsCard studentId={studentId} />
     );
   }
 
   return (
     <div className="space-y-3">
+      <CardioSessionsCard studentId={studentId} />
       {plans.map(plan => {
         const isExpanded = expandedId === plan.id;
         const payload = parseCardioPayload(plan.conteudo_json || plan.conteudo);
@@ -120,7 +123,7 @@ const StudentCardioTab: React.FC<StudentCardioTabProps> = ({ studentId }) => {
                     className="h-8 gap-1 px-2 text-xs"
                     onClick={(e) => {
                       e.stopPropagation();
-                      navigate('/cardio-execucao', { state: { protocol: todayProtocol } });
+                      navigate('/cardio-execucao', { state: { protocol: todayProtocol, planId: plan.id, preview: true } });
                     }}
                   >
                     <Play className="h-3 w-3" /> Executar
