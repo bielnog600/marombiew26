@@ -27,6 +27,8 @@ import {
   trainingDayKind, enforceQuickSetup, tabataPlanWarnings, tabataBlockExerciseNames,
   type TabataPlanRef, type TabataDayChange,
 } from '@/lib/tabataRules';
+import { normalizeWarmupSection, ensureBlockIntensities, progressionWarnings } from '@/lib/tabataProgression';
+import { Switch } from '@/components/ui/switch';
 
 type StudentCtx = Record<string, any>;
 
@@ -88,6 +90,8 @@ const TabataIA = () => {
   const [totalDuration, setTotalDuration] = useState('auto');
   const [rounds, setRounds] = useState('auto');
   const [notes, setNotes] = useState('');
+  const [includeWarmupBlock, setIncludeWarmupBlock] = useState(true);
+  const [intensityProgression, setIntensityProgression] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [result, setResult] = useState('');
   const [saving, setSaving] = useState(false);
@@ -415,6 +419,8 @@ const TabataIA = () => {
               avoidExercises: avoidForDay,
               trainingDay: dayKind,
               trainingDayName: day.fromWorkout || '',
+              warmupBlock: includeWarmupBlock,
+              progression: intensityProgression,
             }),
           }
         );
@@ -462,12 +468,16 @@ const TabataIA = () => {
 
         // Correção determinística: barra/smith/máquina → versão de montagem rápida do catálogo.
         const fixed = enforceQuickSetup(accumulated, catalogNames);
-        const parsedDay = parseTabata(fixed.markdown);
+        // Bloco 0 cronometrado (ou sem aquecimento) e Moderado → Forte → Máximo nos blocos sem intensidade.
+        let dayMarkdown = normalizeWarmupSection(fixed.markdown, includeWarmupBlock);
+        if (intensityProgression) dayMarkdown = ensureBlockIntensities(dayMarkdown);
+        const parsedDay = parseTabata(dayMarkdown);
         const warnings = [
           ...fixed.replaced.map(([from, to]) => `Trocado ${from} por ${to} (montagem rápida).`),
           ...tabataPlanWarnings(parsedDay, { dayKind, otherDaysExercises: avoidForDay }),
+          ...(intensityProgression ? progressionWarnings(parsedDay) : []),
         ];
-        results.push({ dayLabel: day.dayLabel, content: fixed.markdown, warnings });
+        results.push({ dayLabel: day.dayLabel, content: dayMarkdown, warnings });
         for (const n of tabataBlockExerciseNames(parsedDay)) {
           if (!usedExercises.includes(n)) usedExercises.push(n);
         }
@@ -717,6 +727,22 @@ const TabataIA = () => {
                 </SelectContent>
               </Select>
             </div>
+          </div>
+          <div className="space-y-2 pt-2">
+            <label className="flex items-center justify-between gap-3 p-3 rounded-lg border border-border bg-card">
+              <span>
+                <span className="block text-sm font-semibold">Incluir bloco de aquecimento</span>
+                <span className="block text-[11px] text-muted-foreground">Bloco 0 cronometrado no Player: 4 exercícios leves × 40s / 20s (~4 min).</span>
+              </span>
+              <Switch checked={includeWarmupBlock} onCheckedChange={setIncludeWarmupBlock} aria-label="Incluir bloco de aquecimento" />
+            </label>
+            <label className="flex items-center justify-between gap-3 p-3 rounded-lg border border-border bg-card">
+              <span>
+                <span className="block text-sm font-semibold">Progressão de intensidade entre blocos</span>
+                <span className="block text-[11px] text-muted-foreground">Moderado → Forte → Máximo: simples e controlados primeiro, explosivos no fim.</span>
+              </span>
+              <Switch checked={intensityProgression} onCheckedChange={setIntensityProgression} aria-label="Progressão de intensidade entre blocos" />
+            </label>
           </div>
         </div>
               )}
