@@ -178,7 +178,7 @@ describe('Editor — Bloco 0 e intensidade', () => {
     expect(last!.blocks).toHaveLength(1);
   });
 
-  it('aquecimento: trabalho 20–30s e intervalo 5–10s para todos, aviso acima de 3 min', () => {
+  it('aquecimento: trabalho 10–30s e intervalo 5–10s para todos, aviso acima de 3 min', () => {
     let last: ParsedTabata | null = null;
     render(<Harness initial={parseTabata(legacyWarmup('T'))} onValue={v => { last = v; }} />);
     fireEvent.click(screen.getByRole('button', { name: /Transformar em bloco cronometrado/ }));

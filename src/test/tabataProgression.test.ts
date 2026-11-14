@@ -6,6 +6,7 @@ import {
   ensureBlockIntensities, progressionWarnings, parseTabataIntensity, warmupItemName,
   WARMUP_DEFAULT, newWarmupBlock, warmupTotalSeconds, warmupWarnings, maxWarmupExercises,
   clampWarmupWork, clampWarmupRest, setWarmupTimes, fitWarmupBlock, warmupBlockFromList, replaceWarmupSection,
+  LEGACY_WARMUP, WARMUP_LIMITS, pairWarmupSides, splitWarmupSides, warmupSide, isSidedWarmupMobility,
 } from '@/lib/tabataProgression';
 
 const table = (rows: [string, number, number][]) =>
@@ -190,26 +191,34 @@ describe('aquecimento do gerador', () => {
 describe('aquecimento de no máximo 3 min', () => {
   const names = (n: number) => Array.from({ length: n }, (_, i) => `MOBILIDADE ${i + 1}`);
 
-  it('padrão: 6 exercícios × 25s / 5s = 3 min', () => {
-    expect(WARMUP_DEFAULT).toMatchObject({ work: 25, rest: 5, count: 6 });
-    const block = newWarmupBlock(names(6));
-    expect(warmupTotalSeconds(block)).toBe(180);
+  it('padrão do gerador: 8 exercícios × 10s / 10s = 2:40; planos antigos seguem 25s / 5s', () => {
+    expect(WARMUP_DEFAULT).toMatchObject({ work: 10, rest: 10, count: 8 });
+    expect(LEGACY_WARMUP).toEqual({ work: 25, rest: 5 });
+    const block = newWarmupBlock(names(8));
+    expect(warmupTotalSeconds(block)).toBe(160);
     expect(warmupWarnings(block)).toEqual([]);
   });
 
-  it('cabem no máximo 3 min de exercícios conforme os tempos', () => {
+  it('cabem no máximo 3 min e 10 exercícios conforme os tempos', () => {
     expect(maxWarmupExercises(25, 5)).toBe(6);
     expect(maxWarmupExercises(30, 10)).toBe(4);
     expect(maxWarmupExercises(20, 5)).toBe(7);
+    expect(maxWarmupExercises(10, 10)).toBe(9);
+    expect(maxWarmupExercises(10, 5)).toBe(10);
   });
 
-  it('trabalho fica entre 20s e 30s e intervalo entre 5s e 10s', () => {
+  it('trabalho fica entre 10s e 30s e intervalo entre 5s e 10s', () => {
+    expect(WARMUP_LIMITS).toMatchObject({ workMin: 10, workMax: 30, restMin: 5, restMax: 10, maxSeconds: 180, maxExercises: 10 });
     expect(clampWarmupWork(40)).toBe(30);
-    expect(clampWarmupWork(10)).toBe(20);
+    expect(clampWarmupWork(10)).toBe(10);
+    expect(clampWarmupWork(5)).toBe(10);
     expect(clampWarmupRest(20)).toBe(10);
     expect(clampWarmupRest(0)).toBe(5);
     const b = setWarmupTimes(newWarmupBlock(names(3)), 45, 2);
     expect(b.exercises.every(e => e.workSeconds === 30 && e.restSeconds === 5)).toBe(true);
+    const ten = setWarmupTimes(newWarmupBlock(names(3), 25, 5), 10, 10);
+    expect(ten.exercises.every(e => e.workSeconds === 10 && e.restSeconds === 10)).toBe(true);
+    expect(warmupWarnings(ten)).toEqual([]);
   });
 
   it('o gerador corta o que passar de 3 min e aplica os tempos escolhidos', () => {
@@ -227,8 +236,10 @@ describe('aquecimento de no máximo 3 min', () => {
   });
 
   it('avisa quando o aquecimento passa de 3 min', () => {
-    const w = warmupWarnings(newWarmupBlock(names(7)));
+    const w = warmupWarnings(newWarmupBlock(names(7), 25, 5));
     expect(w.some(x => /3:30 — o máximo é 3 min/.test(x))).toBe(true);
+    const many = warmupWarnings(newWarmupBlock(names(11), 10, 5));
+    expect(many.some(x => /11 exercícios — o máximo é 10/.test(x))).toBe(true);
   });
 
   it('a seção reescrita pelo gerador continua sendo lida como Bloco 0', () => {
@@ -237,5 +248,65 @@ describe('aquecimento de no máximo 3 min', () => {
     const p = parseTabata(replaceWarmupSection(timed, fit.block));
     expect(p.warmupBlock?.exercises.map(e => [e.workSeconds, e.restSeconds])).toEqual([[25, 5], [25, 5], [25, 5], [25, 5]]);
     expect(p.blocks).toHaveLength(2);
+  });
+});
+
+describe('aquecimento em par direito/esquerdo', () => {
+  const ex = (name: string, observation = '') => ({ name, workSeconds: 10, restSeconds: 10, observation });
+  const block = (list: ReturnType<typeof ex>[]) => ({ ...newWarmupBlock(['X']), exercises: list, rounds: list.length });
+
+  it('mobilidade de tornozelo, quadril e torácica são de um lado por vez; escapular e agachamento não', () => {
+    expect(isSidedWarmupMobility('MOBILIDADE DE QUADRIL')).toBe(true);
+    expect(isSidedWarmupMobility('Mob. tornozelo')).toBe(true);
+    expect(isSidedWarmupMobility('MOBILIDADE TORÁCICA')).toBe(true);
+    expect(isSidedWarmupMobility('ATIVAÇÃO ESCAPULAR')).toBe(false);
+    expect(isSidedWarmupMobility('AGACHAMENTO LIVRE')).toBe(false);
+    expect(warmupSide('Lado ESQUERDO. Gire devagar')).toBe('esquerdo');
+  });
+
+  it('gerador: exemplo do Fabiew vira 8 × (10s + 10s) = 2:40', () => {
+    const { block: b } = pairWarmupSides(block([
+      ex('MOBILIDADE DE QUADRIL', 'Círculos amplos'), ex('MOBILIDADE DE TORNOZELO'), ex('MOBILIDADE TORÁCICA'),
+      ex('ATIVAÇÃO ESCAPULAR'), ex('AGACHAMENTO LIVRE'),
+    ]));
+    expect(b.exercises.map(e => [e.name, e.observation])).toEqual([
+      ['MOBILIDADE DE QUADRIL', 'Lado DIREITO. Círculos amplos'], ['MOBILIDADE DE QUADRIL', 'Lado ESQUERDO. Círculos amplos'],
+      ['MOBILIDADE DE TORNOZELO', 'Lado DIREITO.'], ['MOBILIDADE DE TORNOZELO', 'Lado ESQUERDO.'],
+      ['MOBILIDADE TORÁCICA', 'Lado DIREITO.'], ['MOBILIDADE TORÁCICA', 'Lado ESQUERDO.'],
+      ['ATIVAÇÃO ESCAPULAR', ''], ['AGACHAMENTO LIVRE', ''],
+    ]);
+    const fit = fitWarmupBlock(b, { work: 10, rest: 10, count: 8 });
+    expect(fit.removed).toEqual([]);
+    expect(warmupTotalSeconds(fit.block)).toBe(160);
+  });
+
+  it('par que já veio certo fica igual; bilateral repetido em sequência fica uma vez', () => {
+    const ok = block([ex('MOBILIDADE DE QUADRIL', 'Lado DIREITO.'), ex('MOBILIDADE DE QUADRIL', 'Lado ESQUERDO.'), ex('AGACHAMENTO LIVRE')]);
+    expect(pairWarmupSides(ok).changed).toBe(false);
+    const rep = pairWarmupSides(block([ex('AGACHAMENTO LIVRE'), ex('AGACHAMENTO LIVRE')]));
+    expect(rep.block.exercises).toHaveLength(1);
+  });
+
+  it('corte por quantidade nunca deixa um lado sozinho', () => {
+    const b = block([ex('AGACHAMENTO LIVRE'), ex('MOBILIDADE DE QUADRIL', 'Lado DIREITO.'), ex('MOBILIDADE DE QUADRIL', 'Lado ESQUERDO.')]);
+    const fit = fitWarmupBlock(b, { count: 2 });
+    expect(fit.block.exercises.map(e => e.name)).toEqual(['AGACHAMENTO LIVRE']);
+    expect(fit.removed).toEqual(['MOBILIDADE DE QUADRIL', 'MOBILIDADE DE QUADRIL']);
+  });
+
+  it('salvar e ler de novo mantém 10s, os itens repetidos e o lado na observação', () => {
+    const b = splitWarmupSides(setWarmupTimes(newWarmupBlock(['MOBILIDADE DE QUADRIL', 'AGACHAMENTO LIVRE'], 25, 5), 10, 10), 0);
+    const parsed = parseTabata(legacy);
+    const md = serializeTabata({ ...parsed, warmupBlock: b });
+    const back = parseTabata(md);
+    expect(back.warmupBlock?.exercises.map(e => [e.name, e.workSeconds, e.restSeconds, e.observation])).toEqual([
+      ['MOBILIDADE DE QUADRIL', 10, 10, 'Lado DIREITO.'],
+      ['MOBILIDADE DE QUADRIL', 10, 10, 'Lado ESQUERDO.'],
+      ['AGACHAMENTO LIVRE', 10, 10, undefined],
+    ]);
+    const steps = tabataPlayerSteps(back).filter(s => s.isWarmup);
+    expect(steps.map(s => [s.exercise.name, s.exercise.workSeconds])).toEqual([
+      ['MOBILIDADE DE QUADRIL', 10], ['MOBILIDADE DE QUADRIL', 10], ['AGACHAMENTO LIVRE', 10],
+    ]);
   });
 });
