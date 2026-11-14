@@ -178,6 +178,26 @@ describe('Editor — Bloco 0 e intensidade', () => {
     expect(last!.blocks).toHaveLength(1);
   });
 
+  it('aquecimento: trabalho 20–30s e intervalo 5–10s para todos, aviso acima de 3 min', () => {
+    let last: ParsedTabata | null = null;
+    render(<Harness initial={parseTabata(legacyWarmup('T'))} onValue={v => { last = v; }} />);
+    fireEvent.click(screen.getByRole('button', { name: /Transformar em bloco cronometrado/ }));
+    const warm = screen.getByTestId('tabata-warmup-block');
+    const work = within(warm).getByLabelText('Trabalho do aquecimento');
+    fireEvent.change(work, { target: { value: '45' } });
+    fireEvent.blur(work);
+    expect(last!.warmupBlock?.exercises.every(e => e.workSeconds === 30)).toBe(true);
+    const rest = within(warm).getByLabelText('Intervalo do aquecimento');
+    fireEvent.change(rest, { target: { value: '2' } });
+    fireEvent.blur(rest);
+    expect(last!.warmupBlock?.exercises.every(e => e.restSeconds === 5)).toBe(true);
+    expect(within(warm).queryByRole('alert')).toBeNull();
+    // 2 × 35s = 1:10; mais 4 exercícios = 6 × 35s = 3:30 → aviso
+    for (let i = 0; i < 4; i++) fireEvent.click(within(warm).getByRole('button', { name: /Exercício/ }));
+    expect(last!.warmupBlock?.exercises).toHaveLength(6);
+    expect(within(warm).getByRole('alert')).toHaveTextContent('3:30 — o máximo é 3 min');
+  });
+
   it('intensidade do bloco e "Aplicar progressão" gravam no plano', () => {
     let last: ParsedTabata | null = null;
     const two = md('T', 'SKIPS').replace('**Descanso após bloco:** 1 min\n', '**Descanso após bloco:** 1 min\n\n### Bloco 2\n**Formato:** 8 rounds × 20s / 10s\n\n| # | Exercício | Trabalho | Descanso | Observação |\n|---|---|---|---|---|\n| 1 | BURPEES | 20s | 10s | ... |\n');
