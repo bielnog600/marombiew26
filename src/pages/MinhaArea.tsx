@@ -28,6 +28,8 @@ import {
   todayWeekdayIndex,
 } from '@/lib/studentStructuredDiet';
 import TabataDoDiaCard from '@/components/home/TabataDoDiaCard';
+import TabataEmAndamentoCard from '@/components/home/TabataEmAndamentoCard';
+import { useActiveTabataSession } from '@/hooks/useActiveTabataSession';
 import CardioDoDiaCard from '@/components/home/CardioDoDiaCard';
 import HomeCardsCarousel from '@/components/home/HomeCardsCarousel';
 import StudentWeightCard from '@/components/home/StudentWeightCard';
@@ -45,6 +47,7 @@ import { Bell, Phone, Sparkles, Zap, Clock } from 'lucide-react';
 const MinhaArea = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const { snapshot: activeTabata, discard: discardActiveTabata } = useActiveTabataSession(user?.id);
   const [profile, setProfile] = useState<any>(null);
   const [pendingWorkoutCheckin, setPendingWorkoutCheckin] = useState<any>(null);
   const [showCheckinModal, setShowCheckinModal] = useState(false);
@@ -424,6 +427,9 @@ const MinhaArea = () => {
 
         {/* Today's Training + Cardio + TABATA (carrossel horizontal) */}
         <HomeCardsCarousel>
+          {activeTabata && homeTrainingCard.mode !== 'active' ? (
+            <TabataEmAndamentoCard key="tabata-ativo" snapshot={activeTabata} onDiscard={discardActiveTabata} />
+          ) : null}
           {homeTrainingCard.mode === 'active' ? (
             <Card
               key="treino"
@@ -495,7 +501,10 @@ const MinhaArea = () => {
 
           {cardioConteudo ? <CardioDoDiaCard key="cardio" conteudo={cardioConteudo} /> : null}
 
-          {tabataConteudo ? <TabataDoDiaCard key="tabata" conteudo={tabataConteudo} planId={tabataPlanId} /> : null}
+          {activeTabata && homeTrainingCard.mode === 'active' ? (
+            <TabataEmAndamentoCard key="tabata-ativo" snapshot={activeTabata} onDiscard={discardActiveTabata} />
+          ) : null}
+          {tabataConteudo && !activeTabata ? <TabataDoDiaCard key="tabata" conteudo={tabataConteudo} planId={tabataPlanId} /> : null}
         </HomeCardsCarousel>
 
         {/* Rest day card - when student has a training plan but today is not a scheduled training day */}
