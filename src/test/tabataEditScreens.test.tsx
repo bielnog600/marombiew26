@@ -49,6 +49,7 @@ vi.mock('@/integrations/supabase/client', () => {
   return { supabase: { from: builder, auth: { getSession: async () => ({ data: { session: null } }) } } };
 });
 
+Element.prototype.scrollIntoView = vi.fn();
 import TabataIA from '@/pages/TabataIA';
 import { TabataStructuredEditor } from '@/components/tabata/TabataStructuredEditor';
 
