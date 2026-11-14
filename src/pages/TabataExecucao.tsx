@@ -5,17 +5,13 @@ import { Button } from '@/components/ui/button';
 import { X, Play, Pause, SkipForward, RotateCcw, Volume2, VolumeX, Share2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
-import type { ParsedTabata, TabataBlock, TabataExercise } from '@/lib/tabataParser';
+import type { ParsedTabata } from '@/lib/tabataParser';
 import { TabataSummaryShare } from '@/components/tabata/TabataSummaryShare';
+import { tabataPlayerSteps, resolveWarmupBlock, intensityInfo, type TabataPlayerStep } from '@/lib/tabataProgression';
 
 type Phase = 'idle' | 'prep' | 'work' | 'rest' | 'block_rest' | 'done';
 
-interface Step {
-  blockIndex: number;
-  exerciseIndex: number;
-  block: TabataBlock;
-  exercise: TabataExercise;
-}
+type Step = TabataPlayerStep;
 
 const PREP_SECONDS = 10;
 
@@ -49,6 +45,27 @@ const tokenize = (s: string) =>
 const equipmentOf = (s: string) => {
   const tokens = new Set(tokenize(s));
   return new Set(EQUIPMENT_MARKERS.filter(m => tokens.has(m)));
+};
+
+const INTENSITY_CHIP_CLASS: Record<string, string> = {
+  leve: 'bg-secondary text-secondary-foreground',
+  moderado: 'bg-primary/15 text-primary',
+  forte: 'bg-primary/30 text-primary',
+  maximo: 'bg-destructive/25 text-destructive',
+};
+
+/** Intensidade alvo do bloco atual (Leve / Moderado / Forte / Máximo + RPE). */
+const IntensityChip: React.FC<{ step: Step }> = ({ step }) => {
+  const level = intensityInfo(step.block.intensity);
+  if (!level) return null;
+  return (
+    <span
+      data-testid="tabata-player-intensity"
+      className={cn('text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full', INTENSITY_CHIP_CLASS[level.value])}
+    >
+      {level.label} · {level.rpe}
+    </span>
+  );
 };
 
 const TabataExecucao: React.FC = () => {
@@ -109,16 +126,9 @@ const TabataExecucao: React.FC = () => {
     }
   }, [phase, sessionStartMs]);
 
-  const steps: Step[] = useMemo(() => {
-    if (!tabata) return [];
-    const list: Step[] = [];
-    tabata.blocks.forEach((block, blockIndex) => {
-      block.exercises.forEach((exercise, exerciseIndex) => {
-        list.push({ blockIndex, exerciseIndex, block, exercise });
-      });
-    });
-    return list;
-  }, [tabata]);
+  // Bloco 0 (aquecimento cronometrado — ou a lista antiga convertida, 1 min por exercício) e os blocos.
+  const steps: Step[] = useMemo(() => tabataPlayerSteps(tabata), [tabata]);
+  const warmupBlock = useMemo(() => (tabata ? resolveWarmupBlock(tabata) : null), [tabata]);
 
   const currentStep = steps[stepIndex];
   const totalSteps = steps.length;
@@ -133,11 +143,13 @@ const TabataExecucao: React.FC = () => {
       block_rest: ['PAUSA ESTRATÉGICA', 'RESPIRE FUNDO', 'QUASE LÁ!', 'RECUPERE O FÔLEGO'],
       done: ['CONCLUÍDO!'],
     };
-    const list = PHRASES_MAP[phase] || [phase];
+    const WARMUP_PHRASES = ['AQUEÇA O CORPO', 'RITMO LEVE', 'SOLTE AS ARTICULAÇÕES', 'SÓ AQUECENDO'];
+    const inWarmup = phase === 'work' && steps[stepIndex]?.isWarmup;
+    const list = inWarmup ? WARMUP_PHRASES : PHRASES_MAP[phase] || [phase];
     const pick = list[Math.floor(Math.random() * list.length)];
     setPhrase(pick);
     setPhraseKey(k => k + 1);
-  }, [phase, stepIndex]);
+  }, [phase, stepIndex]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Load exercise media from DB and fuzzy-match by name
   useEffect(() => {
@@ -606,13 +618,14 @@ const TabataExecucao: React.FC = () => {
         return;
       }
 
-      if (isLastInBlock) {
-        beep(1320, 0.35, 0.3, 'transition');
-        startPhase('block_rest', step.block.restAfterBlock);
-      } else {
-        beep(1320, 0.35, 0.3, 'transition');
-        startPhase('rest', step.exercise.restSeconds);
+      const pause = isLastInBlock ? step.block.restAfterBlock : step.exercise.restSeconds;
+      if (pause <= 0) {
+        // Sem pausa (ex.: aquecimento antigo, 1 min seguido): vai direto ao próximo exercício.
+        transitionToNextPhase('rest', sourceStepIndex);
+        return;
       }
+      beep(1320, 0.35, 0.3, 'transition');
+      startPhase(isLastInBlock ? 'block_rest' : 'rest', pause);
       return;
     }
 
@@ -838,9 +851,12 @@ const TabataExecucao: React.FC = () => {
         <div className="text-center flex-1">
           <p className="text-[10px] uppercase tracking-widest text-muted-foreground">{tabata.title}</p>
           {phase !== 'idle' && phase !== 'done' && currentStep && (
-            <p className="text-xs font-semibold mt-0.5">
-              Bloco {currentStep.blockIndex + 1} • Ex. {currentStep.exerciseIndex + 1}/{currentStep.block.exercises.length}
-            </p>
+            <div className="flex items-center justify-center gap-1.5 mt-0.5">
+              <p className="text-xs font-semibold" data-testid="tabata-player-block">
+                Bloco {currentStep.blockNumber}{currentStep.isWarmup ? ' • Aquecimento' : ''} • Ex. {currentStep.exerciseIndex + 1}/{currentStep.block.exercises.length}
+              </p>
+              <IntensityChip step={currentStep} />
+            </div>
           )}
         </div>
         <Button variant="ghost" size="icon" onPointerDown={armAudioFromGesture} onTouchStart={armAudioFromGesture} onClick={toggleMute}>
@@ -888,12 +904,15 @@ const TabataExecucao: React.FC = () => {
             <p className="text-sm text-muted-foreground mb-1">{tabata.duration} • {tabata.type}</p>
             <p className="text-xs text-muted-foreground mb-4 max-w-sm">{tabata.objective}</p>
             <p className="text-[11px] uppercase tracking-wider text-muted-foreground mb-4">
-              {tabata.blocks.length} blocos • {totalSteps} exercícios
+              {warmupBlock ? 'Aquecimento + ' : ''}{tabata.blocks.length} blocos • {totalSteps} exercícios
             </p>
 
             {/* Exercise preview — agrupado por bloco, sem repetir exercícios */}
             <div className="w-full max-w-md max-h-[48vh] overflow-y-auto pr-1 space-y-3">
-              {tabata.blocks.map((block, bi) => {
+              {[...(warmupBlock ? [warmupBlock] : []), ...tabata.blocks].map((block, listIndex) => {
+                const bi = warmupBlock ? listIndex - 1 : listIndex;
+                const isWarm = bi < 0;
+                const level = intensityInfo(block.intensity);
                 const seen = new Set<string>();
                 const uniqueExercises = block.exercises.filter(ex => {
                   const k = normalizeName(ex.name);
@@ -908,17 +927,22 @@ const TabataExecucao: React.FC = () => {
                 const rest = uniqueExercises[0]?.restSeconds ?? block.restSeconds;
 
                 return (
-                  <div key={bi} className="text-left bg-card/60 backdrop-blur-sm border border-border/40 rounded-xl p-3">
-                    <div className="flex items-center justify-between mb-1">
-                      <p className="text-[10px] uppercase tracking-widest text-primary font-bold">
-                        Bloco {bi + 1}
+                  <div key={listIndex} className="text-left bg-card/60 backdrop-blur-sm border border-border/40 rounded-xl p-3">
+                    <div className="flex items-center justify-between mb-1 gap-2">
+                      <p className="text-[10px] uppercase tracking-widest text-primary font-bold flex items-center gap-1.5">
+                        {isWarm ? 'Bloco 0 — Aquecimento' : `Bloco ${bi + 1}`}
+                        {level && (
+                          <span className="normal-case tracking-normal text-[10px] font-semibold text-muted-foreground">
+                            · {level.label} ({level.rpe})
+                          </span>
+                        )}
                       </p>
                       <span className="text-[10px] font-bold text-primary bg-primary/10 px-2 py-0.5 rounded-full">
-                        {estimatedRounds}x rodadas
+                        {isWarm ? `${block.exercises.length} exercícios` : `${estimatedRounds}x rodadas`}
                       </span>
                     </div>
                     <p className="text-[10px] text-muted-foreground mb-2">
-                      {uniqueExercises.length} exercício{uniqueExercises.length > 1 ? 's' : ''} • {work}s trabalho • {rest}s descanso
+                      {uniqueExercises.length} exercício{uniqueExercises.length > 1 ? 's' : ''} • {work}s trabalho • {rest > 0 ? `${rest}s ${isWarm ? 'transição' : 'descanso'}` : 'sem pausa'}
                     </p>
                     <div className="space-y-1.5">
                       {uniqueExercises.map((ex, ei) => {
@@ -1100,7 +1124,7 @@ const TabataExecucao: React.FC = () => {
           title={tabata.title || 'Treino TABATA'}
           durationSeconds={sessionDurationSec}
           blocksCount={tabata.blocks.length}
-          exercises={steps.map((s) => {
+          exercises={steps.filter(s => !s.isWarmup).map((s) => {
             const media = findMedia(s.exercise.name);
             return { name: s.exercise.name, imageUrl: media?.imageUrl || null };
           })}
