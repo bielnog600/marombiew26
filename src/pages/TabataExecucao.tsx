@@ -1638,7 +1638,7 @@ const TabataExecucao: React.FC = () => {
     >
       <div
         className="w-full max-w-sm overflow-hidden rounded-3xl"
-        style={{ background: 'hsl(var(--tabata-panel))', boxShadow: `inset 0 0 0 2px ${toneColor('maximo', 0.0)}, 0 0 0 2px hsl(var(--tabata-brand) / 0.6)` }}
+        style={{ background: 'hsl(var(--tabata-panel))', boxShadow: '0 0 0 2px hsl(var(--tabata-brand) / 0.6)' }}
         data-testid="tabata-resume-card"
       >
         <div className="space-y-2 p-5 text-center">
