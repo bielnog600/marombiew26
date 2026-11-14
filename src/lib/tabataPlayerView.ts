@@ -215,42 +215,4 @@ export function transitionChip(from: TabataIntensity, to: TabataIntensity): stri
   return `${INTENSITY_SYMBOL[to]} Mantém a intensidade · ${label}`;
 }
 
-// ───────────────────────── Voz do Fabiew ─────────────────────────
-
-export const TABATA_VOICE_PHRASES = [
-  { key: 'tabata_preparado', text: 'Tá preparado?' },
-  { key: 'tabata_321_bora', text: '3, 2, 1… bora!' },
-  { key: 'tabata_descanse', text: 'Descanse agora!' },
-  { key: 'tabata_respira', text: 'Respira.' },
-  { key: 'tabata_proximo_bloco', text: 'Vamos para o próximo bloco.' },
-] as const;
-export type TabataVoiceKey = (typeof TABATA_VOICE_PHRASES)[number]['key'];
-export const isTabataVoiceKey = (k: string): k is TabataVoiceKey => TABATA_VOICE_PHRASES.some(p => p.key === k);
-
-/** Descanso mínimo para "Descanse agora!" sem atropelar o "3, 2, 1… bora!". */
-export const REST_CALL_MIN_SECONDS = 6;
-/** Descanso mínimo para o "Respira." no meio. */
-export const BREATHE_MIN_SECONDS = 8;
-/** "3, 2, 1… bora!" começa com 3 s para o "bora!" cair no início do trabalho. */
-export const COUNTDOWN_VOICE_AT = 3;
-
-/**
- * Fala do segundo atual (ou null). Chamada a cada segundo da fase; quem chama garante que
- * cada fala toque uma vez por fase.
- * - Fique pronto: "Tá preparado?" no início; "3, 2, 1… bora!" nos 3 s finais.
- * - Descanso: "Descanse agora!" no início (≥ 6 s), "Respira." no meio (≥ 8 s), contagem no fim.
- * - Entre blocos: "Vamos para o próximo bloco." no início, "Respira." no meio, contagem no fim.
- */
-export function voiceCueAt(phase: PlayerPhase, secondsLeft: number, total: number): TabataVoiceKey | null {
-  if (phase !== 'prep' && phase !== 'rest' && phase !== 'block_rest') return null;
-  if (secondsLeft === COUNTDOWN_VOICE_AT && total >= COUNTDOWN_VOICE_AT) return 'tabata_321_bora';
-  if (secondsLeft === total && secondsLeft > COUNTDOWN_VOICE_AT) {
-    if (phase === 'prep') return 'tabata_preparado';
-    if (phase === 'block_rest') return 'tabata_proximo_bloco';
-    return total >= REST_CALL_MIN_SECONDS ? 'tabata_descanse' : null;
-  }
-  const middle = Math.ceil(total / 2);
-  if (phase !== 'prep' && total >= BREATHE_MIN_SECONDS && secondsLeft === middle
-    && middle > COUNTDOWN_VOICE_AT && middle < total) return 'tabata_respira';
-  return null;
-}
+// A voz do Fabiew (momentos, variações e frequência) fica em tabataVoiceCues.ts.
