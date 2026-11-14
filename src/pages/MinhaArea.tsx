@@ -31,6 +31,8 @@ import TabataDoDiaCard from '@/components/home/TabataDoDiaCard';
 import TabataEmAndamentoCard from '@/components/home/TabataEmAndamentoCard';
 import { useActiveTabataSession } from '@/hooks/useActiveTabataSession';
 import CardioDoDiaCard from '@/components/home/CardioDoDiaCard';
+import CardioEmAndamentoCard from '@/components/home/CardioEmAndamentoCard';
+import { useActiveCardioSession } from '@/hooks/useActiveCardioSession';
 import HomeCardsCarousel from '@/components/home/HomeCardsCarousel';
 import StudentWeightCard from '@/components/home/StudentWeightCard';
 import { useEventTracking } from '@/hooks/useEventTracking';
@@ -48,6 +50,7 @@ const MinhaArea = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const { snapshot: activeTabata, discard: discardActiveTabata } = useActiveTabataSession(user?.id);
+  const { snapshot: activeCardio, discard: discardActiveCardio } = useActiveCardioSession(user?.id);
   const [profile, setProfile] = useState<any>(null);
   const [pendingWorkoutCheckin, setPendingWorkoutCheckin] = useState<any>(null);
   const [showCheckinModal, setShowCheckinModal] = useState(false);
@@ -60,6 +63,7 @@ const MinhaArea = () => {
   const [tabataConteudo, setTabataConteudo] = useState<string | null>(null);
   const [tabataPlanId, setTabataPlanId] = useState<string | null>(null);
   const [cardioConteudo, setCardioConteudo] = useState<string | null>(null);
+  const [cardioPlanId, setCardioPlanId] = useState<string | null>(null);
   const [dietSections, setDietSections] = useState<ParsedSection[]>([]);
   /** Refeições publicadas do dia de hoje (dieta structured). */
   const [structuredTodayMeals, setStructuredTodayMeals] = useState<ParsedMeal[] | null>(null);
@@ -149,7 +153,7 @@ const MinhaArea = () => {
           return (await supabase.from('ai_plans').select('id, conteudo').eq('student_id', user!.id).eq('tipo', 'tabata').order('created_at', { ascending: false }).limit(1).maybeSingle()).data;
         }),
         fetchWithCache(`plan:cardio:${user!.id}`, async () => {
-          return (await supabase.from('ai_plans').select('conteudo').eq('student_id', user!.id).eq('tipo', 'cardio').order('created_at', { ascending: false }).limit(1).maybeSingle()).data;
+          return (await supabase.from('ai_plans').select('id, conteudo').eq('student_id', user!.id).eq('tipo', 'cardio').order('created_at', { ascending: false }).limit(1).maybeSingle()).data;
         }),
         supabase.from('ai_plans').select('*').eq('student_id', user!.id).eq('tipo', 'treino').eq('pending_checkin', true).order('created_at', { ascending: false }).limit(1).maybeSingle()
       ]);
@@ -239,6 +243,7 @@ const MinhaArea = () => {
       setTabataConteudo(tabata?.conteudo || null);
       setTabataPlanId((tabata as any)?.id ?? null);
       setCardioConteudo(cardio?.conteudo || null);
+      setCardioPlanId((cardio as any)?.id ?? null);
     } catch (error) {
       console.error("Erro ao carregar dados:", error);
     } finally {
@@ -499,7 +504,9 @@ const MinhaArea = () => {
              </Card>
           ) : null}
 
-          {cardioConteudo ? <CardioDoDiaCard key="cardio" conteudo={cardioConteudo} /> : null}
+          {activeCardio ? (
+            <CardioEmAndamentoCard key="cardio-ativo" snapshot={activeCardio} onDiscard={discardActiveCardio} />
+          ) : cardioConteudo ? <CardioDoDiaCard key="cardio" conteudo={cardioConteudo} planId={cardioPlanId} /> : null}
 
           {activeTabata && homeTrainingCard.mode === 'active' ? (
             <TabataEmAndamentoCard key="tabata-ativo" snapshot={activeTabata} onDiscard={discardActiveTabata} />

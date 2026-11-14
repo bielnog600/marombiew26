@@ -87,13 +87,11 @@ const CardioDoDiaCard: React.FC<CardioDoDiaCardProps> = ({ conteudo, planId = nu
             <h3 className="text-sm font-bold uppercase truncate pr-6">
               {protocol.title}
             </h3>
-            {(
-              <p className="text-[11px] text-muted-foreground mt-0.5">
+            <p className="text-[11px] text-muted-foreground mt-0.5">
                 {formatDurationFromSec(totalSec)}
                 {sessionsCount > 0 ? ` • ${sessionsCount} sessões/sem` : ` • ${protocol.frequencyPerWeek}x/sem`}
                 {protocol.targetZoneSummary ? ` • ${protocol.targetZoneSummary}` : ''}
-              </p>
-            )}
+            </p>
           </div>
           <div className="h-10 w-10 rounded-full bg-primary flex items-center justify-center shadow-lg shrink-0 group-hover:scale-110 transition-transform">
             <Play className="h-4 w-4 text-primary-foreground ml-0.5" />
