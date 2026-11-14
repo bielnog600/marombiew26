@@ -1,65 +1,31 @@
-import { useEffect, useState, useCallback } from 'react';
-import type { CardioProtocol } from '@/lib/cardioParser';
+import { useCallback, useEffect, useState } from 'react';
+import { discardActiveCardio, findActiveCardio } from '@/lib/cardioSessionApi';
+import { readLocalCardioSnapshot, resumeStatus, type CardioSnapshot } from '@/lib/cardioResume';
 
-const STORAGE_KEY = 'mw_active_cardio_session';
+/** Cardio em andamento do aluno (aparelho + banco), atualizado ao voltar para o app. */
+export function useActiveCardioSession(studentId: string | null | undefined) {
+  const [snapshot, setSnapshot] = useState<CardioSnapshot | null>(() => {
+    const local = studentId ? readLocalCardioSnapshot(studentId) : null;
+    return local && resumeStatus(local, Date.now()).kind !== 'expired' ? local : null;
+  });
 
-type Phase = 'idle' | 'prep' | 'block' | 'done';
-
-export interface PersistedCardio {
-  protocol: CardioProtocol;
-  phase: Phase;
-  blockIndex: number;
-  secondsLeft: number;
-  paused: boolean;
-  anchorMs: number;
-}
-
-function read(): PersistedCardio | null {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as PersistedCardio;
-    if (!parsed || parsed.phase === 'idle' || parsed.phase === 'done') return null;
-    return parsed;
-  } catch {
-    return null;
-  }
-}
-
-export function useActiveCardioSession() {
-  const [session, setSession] = useState<PersistedCardio | null>(() => read());
-
-  const refresh = useCallback(() => setSession(read()), []);
+  const refresh = useCallback(async () => {
+    if (!studentId) { setSnapshot(null); return; }
+    try { setSnapshot(await findActiveCardio(studentId)); } catch { /* mantém */ }
+  }, [studentId]);
 
   useEffect(() => {
-    const onStorage = (e: StorageEvent) => {
-      if (!e.key || e.key === STORAGE_KEY) refresh();
-    };
-    const onFocus = () => refresh();
-    window.addEventListener('storage', onStorage);
-    window.addEventListener('focus', onFocus);
-    document.addEventListener('visibilitychange', onFocus);
-    // poll occasionally so cross-tab changes & current-tab updates without storage event reflect
-    const id = setInterval(refresh, 2000);
-    return () => {
-      window.removeEventListener('storage', onStorage);
-      window.removeEventListener('focus', onFocus);
-      document.removeEventListener('visibilitychange', onFocus);
-      clearInterval(id);
-    };
+    void refresh();
+    const onVisible = () => { if (document.visibilityState === 'visible') void refresh(); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
   }, [refresh]);
 
-  const clear = useCallback(() => {
-    try { localStorage.removeItem(STORAGE_KEY); } catch { /* ignore */ }
-    setSession(null);
-  }, []);
+  const discard = useCallback(async () => {
+    const cur = snapshot;
+    setSnapshot(null);
+    if (cur) await discardActiveCardio(cur);
+  }, [snapshot]);
 
-  return { session, refresh, clear };
-}
-
-// Compute remaining seconds for current block, accounting for elapsed wall-clock since anchor
-export function computeRemainingSec(s: PersistedCardio): number {
-  if (s.paused) return s.secondsLeft;
-  const elapsed = Math.floor((Date.now() - s.anchorMs) / 1000);
-  return Math.max(0, s.secondsLeft - elapsed);
+  return { snapshot, refresh, discard };
 }
