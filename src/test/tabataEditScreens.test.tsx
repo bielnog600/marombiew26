@@ -226,3 +226,28 @@ describe('Player — Bloco 0', () => {
     expect(screen.getByTestId('tabata-player-intensity')).toHaveTextContent('Leve · RPE 3–4');
   });
 });
+
+describe('Editor — aquecimento 10s e pares', () => {
+  it('aceita 10s de trabalho, até 10 exercícios e transforma um exercício em par direito/esquerdo', () => {
+    let last: ParsedTabata | null = null;
+    render(<Harness initial={parseTabata(legacyWarmup('T'))} onValue={v => { last = v; }} />);
+    fireEvent.click(screen.getByRole('button', { name: /Transformar em bloco cronometrado/ }));
+    const warm = screen.getByTestId('tabata-warmup-block');
+    expect(within(warm).getByText('Trabalho (10–30s)')).toBeInTheDocument();
+    const work = within(warm).getByLabelText('Trabalho do aquecimento');
+    fireEvent.change(work, { target: { value: '10' } });
+    fireEvent.blur(work);
+    expect(last!.warmupBlock?.exercises.every(e => e.workSeconds === 10)).toBe(true);
+    expect((work as HTMLInputElement).value).toBe('10');
+
+    fireEvent.click(within(warm).getByRole('button', { name: 'Fazer POLICHINELO em par direito/esquerdo' }));
+    expect(last!.warmupBlock?.exercises.map(e => [e.name, e.observation])).toEqual([
+      ['POLICHINELO', 'Lado DIREITO.'], ['POLICHINELO', 'Lado ESQUERDO.'], ['SKIPS', ''],
+    ]);
+
+    const add = within(warm).getByRole('button', { name: /Exercício/ });
+    for (let i = 0; i < 10; i++) fireEvent.click(add);
+    expect(last!.warmupBlock?.exercises).toHaveLength(10);
+    expect(add).toBeDisabled();
+  });
+});
