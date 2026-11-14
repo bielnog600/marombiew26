@@ -873,7 +873,19 @@ const TabataExecucao: React.FC = () => {
     unlockAudio(false);
     const now = Date.now();
     setSessionStartMs(now);
+    sessionStartRef.current = now;
     setSessionDurationSec(0);
+    clearResumeTimers();
+    setResumeCount(null);
+    setResumeOffer(null);
+    awayRef.current = null;
+    lastRemoteSaveRef.current = 0;
+    if (persistEnabled) {
+      // Sessão nova: qualquer outra em andamento (Recomeçar / outro plano) fecha como abandonada.
+      const id = crypto.randomUUID();
+      sessionIdRef.current = id;
+      void closeOtherActiveSessions(id);
+    }
     doneStepsRef.current = new Set();
     setDoneSteps([]);
     totalPauseMsRef.current = 0;
@@ -954,7 +966,14 @@ const TabataExecucao: React.FC = () => {
 
   const togglePause = () => {
     unlockAudio();
-    if (pausedRef.current) resume(); else pause();
+    awayRef.current = null;
+    if (pausedRef.current) {
+      resume();
+      persist('away', 'in_progress', true);
+    } else {
+      pause();
+      persist('manual', 'paused', true);
+    }
   };
 
   const toggleMute = () => {
@@ -973,6 +992,312 @@ const TabataExecucao: React.FC = () => {
       voiceRef.current?.stop();
     }
   };
+
+  // ───────── TABATA em andamento: pausa ao sair e retomada ─────────
+
+  useEffect(() => {
+    if (!persistEnabled) return;
+    const job = supabase.auth.getUser()
+      .then(r => { const id = r?.data?.user?.id ?? null; if (id) studentIdRef.current = id; return id; })
+      .catch(() => null);
+    uidPromiseRef.current = job;
+  }, [persistEnabled]);
+
+  /** Ponto exato agora (fase, passo, ms restantes). Rodando = como se parasse agora. */
+  const currentSnapshot = (reason: PauseReason, now = Date.now()): TabataSnapshot | null => {
+    const sid = sessionIdRef.current;
+    const uid = studentIdRef.current;
+    const plan = tabataRef.current;
+    if (!persistEnabled || !sid || !uid || !plan) return null;
+    const pausedAt = pausedAtRef.current ?? now;
+    return buildTabataSnapshot({
+      sessionId: sid,
+      studentId: uid,
+      planId,
+      title: plan.title || 'TABATA',
+      markdown: plan.rawMarkdown,
+      phase: phaseRef.current,
+      stepIndex: stepIndexRef.current,
+      step: stepsRef.current[stepIndexRef.current],
+      remainingMs: phaseTotalSecondsRef.current * 1000 - (pausedAt - phaseStartTimeRef.current),
+      phaseTotalSeconds: phaseTotalSecondsRef.current,
+      startedAt: sessionStartRef.current ?? now,
+      totalPauseMs: totalPauseMsRef.current,
+      doneSteps: doneStepsRef.current,
+      pausedAt,
+      reason,
+    }, now);
+  };
+
+  /** Grava no aparelho (sempre) e no banco (agora, ou no máximo a cada 20 s enquanto roda). */
+  function persist(reason: PauseReason, status: 'in_progress' | 'paused', remote: boolean | 'throttle') {
+    if (!persistEnabled) return;
+    if (!studentIdRef.current) {
+      void uidPromiseRef.current?.then(uid => { if (uid) persist(reason, status, remote); });
+      return;
+    }
+    const snap = currentSnapshot(reason);
+    if (!snap) return;
+    writeLocalTabataSnapshot(snap);
+    if (!remote) return;
+    const now = Date.now();
+    if (remote === 'throttle' && now - lastRemoteSaveRef.current < 20_000) return;
+    lastRemoteSaveRef.current = now;
+    void saveTabataProgress(snap, status);
+  }
+
+  async function closeOtherActiveSessions(keep: string) {
+    const uid = await (uidPromiseRef.current ?? Promise.resolve(studentIdRef.current));
+    if (!uid) return;
+    const local = readLocalTabataSnapshot(uid);
+    if (local && local.sessionId !== keep) {
+      clearLocalTabataSnapshot(local.sessionId);
+      await abandonTabataSession(local.sessionId);
+    }
+    const remote = await loadRemoteActiveTabata(uid);
+    for (const s of remote.snapshots ?? []) {
+      if (s.sessionId !== keep) await abandonTabataSession(s.sessionId);
+    }
+  }
+
+  function clearResumeTimers() {
+    resumeTimersRef.current.forEach(id => window.clearTimeout(id));
+    resumeTimersRef.current = [];
+  }
+
+  /** "Tá preparado?" (fala gravada) antes da contagem; sem áudio aprovado = só os bipes. */
+  const playPreparado = (): boolean => {
+    const voice = voiceRef.current;
+    if (mutedRef.current || !voice) return false;
+    const key = voice.ready('tabata_preparado')
+      ? 'tabata_preparado'
+      : pickVariation(momentCandidates(currentBank(), 'preparar'), lastVoiceRef.current.preparar);
+    if (!key) return false;
+    voice.stop();
+    void voice.play(key).catch(() => { /* bipes seguem */ });
+    return true;
+  };
+
+  /** Contagem 3, 2, 1 com bipes e segue de onde parou (o tempo parado não conta). */
+  function runResumeCountdown(withVoice: boolean) {
+    clearResumeTimers();
+    clearScheduledBeeps();
+    setResumeOffer(null);
+    awayRef.current = null;
+    let lead = 0;
+    if (withVoice) {
+      lead = playPreparado() ? 1500 : 900;
+      setResumeCount(0);
+    }
+    const at = (ms: number, fn: () => void) => { resumeTimersRef.current.push(window.setTimeout(fn, ms)); };
+    for (let i = 0; i < RESUME_COUNTDOWN_SECONDS; i++) {
+      const n = RESUME_COUNTDOWN_SECONDS - i;
+      at(lead + i * 1000, () => { setResumeCount(n); beep(880, 0.12, 0.28, 'countdown'); });
+    }
+    at(lead + RESUME_COUNTDOWN_SECONDS * 1000, () => {
+      resumeTimersRef.current = [];
+      setResumeCount(null);
+      beep(1320, 0.35, 0.3, 'transition');
+      resume();
+      persist('away', 'in_progress', true);
+    });
+  }
+
+  /** Coloca o Player parado exatamente no ponto salvo (sem tocar nada ainda). */
+  const restoreSnapshot = (snap: TabataSnapshot): boolean => {
+    const plan = snap.markdown === navTabata?.rawMarkdown ? navTabata : parseTabata(snap.markdown);
+    if (tabataPlayerSteps(plan).length <= snap.stepIndex) return false;
+    if (plan !== navTabata) setTabataOverride(plan);
+    clearResumeTimers();
+    clearScheduledBeeps();
+    voiceRef.current?.stop();
+    sessionIdRef.current = snap.sessionId;
+    if (!studentIdRef.current) studentIdRef.current = snap.studentId;
+    sessionStartRef.current = snap.startedAt;
+    setSessionStartMs(snap.startedAt);
+    setSessionDurationSec(0);
+    doneStepsRef.current = new Set(snap.doneSteps);
+    setDoneSteps([...doneStepsRef.current]);
+    totalPauseMsRef.current = snap.totalPauseMs;
+    pausedAtRef.current = snap.pausedAt;
+    setEndedEarly(false);
+    setEndElapsed(null);
+    setRpe(null);
+    setSaved(false);
+    const startAt = restoredPhaseStart(snap);
+    phaseRef.current = snap.phase;
+    stepIndexRef.current = snap.stepIndex;
+    phaseStartTimeRef.current = startAt;
+    phaseTotalSecondsRef.current = snap.phaseTotalSeconds;
+    phaseSeqRef.current += 1;
+    phaseCuesRef.current = cuePlannerRef.current.plan(snap.phase, snap.phaseTotalSeconds);
+    splitCountdownRef.current = false;
+    lastRemoteSaveRef.current = 0;
+    pausedRef.current = true;
+    setPhase(snap.phase);
+    setStepIndex(snap.stepIndex);
+    setPhaseTotalSeconds(snap.phaseTotalSeconds);
+    setSecondsLeft(restoredSecondsLeft(snap));
+    setFraction(snap.phaseTotalSeconds > 0 ? snap.remainingMs / (snap.phaseTotalSeconds * 1000) : 0);
+    setPhaseStartTime(startAt);
+    setPaused(true);
+    return true;
+  };
+
+  const continueFromOffer = () => {
+    const offer = resumeOffer;
+    if (!offer) return;
+    unlockAudio();
+    if (offer.restore && !restoreSnapshot(offer.snapshot)) {
+      setResumeOffer(null);
+      void discardActiveTabata(offer.snapshot);
+      toast.error('Não deu para retomar esse TABATA. Comece de novo.');
+      return;
+    }
+    runResumeCountdown(true);
+  };
+
+  /** Volta para a pré-tela, sem sessão (o retrato já foi descartado por quem chama). */
+  const resetToIdle = () => {
+    clearResumeTimers();
+    setResumeCount(null);
+    setResumeOffer(null);
+    awayRef.current = null;
+    pausedAtRef.current = null;
+    sessionIdRef.current = null;
+    if (navTabata) setTabataOverride(null);
+    restartAll();
+  };
+
+  const restartFromOffer = () => {
+    const offer = resumeOffer;
+    if (!offer) return;
+    unlockAudio();
+    clearLocalTabataSnapshot(offer.snapshot.sessionId);
+    void abandonTabataSession(offer.snapshot.sessionId);
+    resetToIdle();
+    start();
+  };
+
+  const discardFromOffer = () => {
+    const offer = resumeOffer;
+    if (!offer) return;
+    void discardActiveTabata(offer.snapshot);
+    resetToIdle();
+  };
+
+  const handleHidden = () => {
+    if (!persistEnabled) return;
+    const p = phaseRef.current;
+    if (p === 'idle' || p === 'done') return;
+    const counting = resumeTimersRef.current.length > 0;
+    if (counting) { clearResumeTimers(); setResumeCount(null); }
+    if (!pausedRef.current || counting || awayRef.current) {
+      if (!pausedRef.current) pause();
+      awayRef.current = { at: Date.now() };
+      persist('away', 'paused', true);
+    } else {
+      persist('manual', 'paused', true);
+    }
+  };
+
+  const handleVisible = () => {
+    if (!persistEnabled || (typeof document !== 'undefined' && document.visibilityState === 'hidden')) return;
+    const away = awayRef.current;
+    if (!away) return;
+    awayRef.current = null;
+    if (!pausedRef.current) return;
+    const now = Date.now();
+    const st = resumeStatus({ pausedAt: pausedAtRef.current ?? away.at, reason: 'away' }, now, { awayMs: now - away.at });
+    if (st.kind === 'quick') { runResumeCountdown(false); return; }
+    const snap = currentSnapshot('away', now);
+    if (st.kind === 'expired' || !snap) {
+      if (sessionIdRef.current) void discardActiveTabata({ sessionId: sessionIdRef.current });
+      resetToIdle();
+      if (st.kind === 'expired') toast.info('Esse TABATA ficou parado mais de 24 h e foi encerrado.');
+      return;
+    }
+    setResumeOffer({ snapshot: snap, stale: st.stale, restore: false });
+  };
+
+  // Ouvintes fixos chamando sempre a versão mais nova das funções.
+  const lifecycleRef = useRef({ hidden: handleHidden, visible: handleVisible });
+  lifecycleRef.current = { hidden: handleHidden, visible: handleVisible };
+  useEffect(() => {
+    if (!persistEnabled) return;
+    const onVisibility = () => {
+      if (document.visibilityState === 'hidden') lifecycleRef.current.hidden();
+      else lifecycleRef.current.visible();
+    };
+    const onHide = () => lifecycleRef.current.hidden();
+    const onShow = () => lifecycleRef.current.visible();
+    document.addEventListener('visibilitychange', onVisibility);
+    window.addEventListener('pagehide', onHide);
+    window.addEventListener('beforeunload', onHide);
+    window.addEventListener('pageshow', onShow);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibility);
+      window.removeEventListener('pagehide', onHide);
+      window.removeEventListener('beforeunload', onHide);
+      window.removeEventListener('pageshow', onShow);
+      // Saiu do Player com o treino rodando (Fechar / voltar): fica pausado para continuar depois.
+      lifecycleRef.current.hidden();
+      clearResumeTimers();
+    };
+  }, [persistEnabled]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Abriu o Player: retoma direto (Continuar da home) ou oferece o card se este plano está em andamento.
+  useEffect(() => {
+    if (!persistEnabled || !navTabata) return;
+    if (navResume) {
+      if (restoreSnapshot(navResume)) {
+        unlockAudio();
+        runResumeCountdown(true);
+      }
+      return;
+    }
+    let off = false;
+    (async () => {
+      const uid = await (uidPromiseRef.current ?? Promise.resolve(null));
+      if (!uid || off) return;
+      const found = await findActiveTabata(uid);
+      if (off || !found || phaseRef.current !== 'idle') return;
+      if (!snapshotMatchesPlan(found, planId, navTabata.rawMarkdown)) return;
+      setResumeOffer({ snapshot: found, stale: resumeStatus(found, Date.now()).stale, restore: true });
+    })();
+    return () => { off = true; };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Rodando: grava o ponto a cada fase (aparelho sempre; banco no máximo a cada 20 s).
+  useEffect(() => {
+    if (!persistEnabled || paused || phase === 'idle' || phase === 'done') return;
+    persist('away', 'in_progress', 'throttle');
+  }, [phase, stepIndex, paused]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Terminou: sai de "em andamento" (o RPE, se escolhido, completa a mesma linha).
+  useEffect(() => {
+    if (phase !== 'done') return;
+    const sid = sessionIdRef.current;
+    if (!persistEnabled || !sid) return;
+    clearLocalTabataSnapshot(sid);
+    if (!sessionDurationSec || finishedSessionRef.current === sid) return;
+    finishedSessionRef.current = sid;
+    const uid = studentIdRef.current;
+    if (!uid || !tabata) return;
+    void finishTabataSession(sid, uid, {
+      planId,
+      name: tabata.title || 'TABATA',
+      startedAt: new Date(sessionStartMs ?? Date.now()),
+      durationSeconds: sessionDurationSec,
+      pauseMs: totalPauseMsRef.current,
+      rounds: counts.rounds,
+      totalRounds: counts.totalRounds,
+      blocks: counts.blocks,
+      totalBlocks: counts.totalBlocks,
+      kcal,
+      endedEarly,
+    });
+  }, [phase, sessionDurationSec]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const counts = useMemo(() => sessionCounts(steps, doneSteps), [steps, doneSteps]);
   const kcal = useMemo(() => estimateKcal(steps, doneSteps, levels, sessionDurationSec), [steps, doneSteps, levels, sessionDurationSec]);
