@@ -22,6 +22,7 @@ import {
 import { WorkoutSummaryShare } from '@/components/training/WorkoutSummaryShare';
 import type { TrainingPhase } from '@/lib/trainingPhase';
 import { fetchWithCache } from '@/lib/offlineCache';
+import CardioSessionsCard from '@/components/cardio/CardioSessionsCard';
 
 type Period = '7d' | '1m' | '3m' | '6m' | '1y' | 'all';
 
@@ -422,6 +423,8 @@ const MeuProgresso: React.FC = () => {
               </CardContent>
             </Card>
           )}
+
+          {user?.id && <CardioSessionsCard studentId={user.id} title="Meus cardios" />}
 
           <Tabs defaultValue="cargas" className="space-y-4">
             <TabsList className="grid grid-cols-4 w-full">

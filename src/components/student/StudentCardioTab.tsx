@@ -75,12 +75,14 @@ const StudentCardioTab: React.FC<StudentCardioTabProps> = ({ studentId }) => {
 
   if (plans.length === 0) {
     return (
-      <Card className="glass-card">
-        <CardContent className="p-6 text-center text-muted-foreground">
-          Nenhum cardio gerado ainda. Use o Agente de Cardio para criar protocolos.
-        </CardContent>
-      </Card>
-      <CardioSessionsCard studentId={studentId} />
+      <div className="space-y-3">
+        <Card className="glass-card">
+          <CardContent className="p-6 text-center text-muted-foreground">
+            Nenhum cardio gerado ainda. Use o Agente de Cardio para criar protocolos.
+          </CardContent>
+        </Card>
+        <CardioSessionsCard studentId={studentId} />
+      </div>
     );
   }
 
