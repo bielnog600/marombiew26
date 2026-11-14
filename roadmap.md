@@ -264,8 +264,9 @@ Fora do escopo desta entrega (Fases 3-6): LOW/MEDIUM/HIGH, novo carb cycling, aj
 - [ ] Ouvir a voz gravada num iPhone real — não há iPhone no ambiente de teste.
 
 ## TABATA — Ajuste Rápido, editor e gerador
-- [ ] Trocar o dia em "Edição" recarrega o dia certo e sai do Editar (confirma se houver alterações)
-- [ ] Trocar o exercício do round limpa a observação antiga
-- [ ] "Repetir padrão" no bloco (2/3/4 exercícios, A-B-C-D, mantém trabalho/descanso)
-- [ ] Gerador: ≥4 exercícios por bloco, só montagem rápida (sem barra/anilha/smith/máquina), sem repetir na semana, respeita o treino do dia
-- [ ] Card do plano na aba Cardio mostra exercícios de cada bloco
+- [x] Trocar o dia em "Edição" recarrega o dia certo e sai do Editar (confirma se houver alterações)
+- [x] Trocar o exercício do round limpa a observação antiga
+- [x] "Repetir padrão" no bloco (2/3/4 exercícios, A-B-C-D, mantém trabalho/descanso)
+- [x] Gerador: ≥4 exercícios por bloco, só montagem rápida (sem barra/anilha/smith/máquina), sem repetir na semana, respeita o treino do dia
+- [x] Card do plano na aba Cardio mostra exercícios de cada bloco
+- [ ] Gerar um TABATA real com as regras novas — nenhuma chamada real à IA foi feita
