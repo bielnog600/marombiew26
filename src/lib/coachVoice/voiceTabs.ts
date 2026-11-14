@@ -5,13 +5,14 @@
 import { EXERCISE_RULE_ORDER, getExerciseRule, PLANK_KNEE_DOWN_MESSAGE, PLANK_NOT_HORIZONTAL_MESSAGE } from '@/lib/liveCorrection/exercises';
 import { voicePhraseKey, type VoiceCategory, type VoicePhrase } from '@/lib/liveCorrection/voice/phrases';
 
-export type VoiceTab = 'config' | 'numeros' | 'comandos' | 'correcoes' | 'motivacao' | 'nomes';
-export const VOICE_TABS: VoiceTab[] = ['config', 'numeros', 'comandos', 'correcoes', 'motivacao', 'nomes'];
+export type VoiceTab = 'config' | 'numeros' | 'comandos' | 'correcoes' | 'tabata' | 'motivacao' | 'nomes';
+export const VOICE_TABS: VoiceTab[] = ['config', 'numeros', 'comandos', 'correcoes', 'tabata', 'motivacao', 'nomes'];
 export const VOICE_TAB_LABELS: Record<VoiceTab, string> = {
   config: 'Configuração',
   numeros: 'Números',
   comandos: 'Comandos',
   correcoes: 'Correções',
+  tabata: 'TABATA',
   motivacao: 'Motivação',
   nomes: 'Com nome',
 };
@@ -21,6 +22,7 @@ const TAB_CATEGORIES: Partial<Record<VoiceTab, VoiceCategory[]>> = {
   numeros: ['numeros'],
   comandos: ['inicio_fim', 'posicao'],
   correcoes: ['pernas', 'bracos', 'prancha'],
+  tabata: ['tabata'],
 };
 
 /** Falas do sistema de uma aba (vazio nas abas sem falas do sistema). */

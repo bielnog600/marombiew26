@@ -13,7 +13,7 @@ import {
   type ExerciseRuleId,
 } from '../exercises';
 
-export type VoiceCategory = 'numeros' | 'inicio_fim' | 'posicao' | 'pernas' | 'bracos' | 'prancha';
+export type VoiceCategory = 'numeros' | 'inicio_fim' | 'posicao' | 'pernas' | 'bracos' | 'prancha' | 'tabata';
 
 export const VOICE_CATEGORY_ORDER: VoiceCategory[] = ['numeros', 'inicio_fim', 'posicao', 'pernas', 'bracos', 'prancha'];
 export const VOICE_CATEGORY_LABELS: Record<VoiceCategory, string> = {
@@ -23,6 +23,7 @@ export const VOICE_CATEGORY_LABELS: Record<VoiceCategory, string> = {
   pernas: 'Correções de pernas',
   bracos: 'Correções de braços/ombros',
   prancha: 'Prancha',
+  tabata: 'TABATA',
 };
 
 export interface VoicePhrase {

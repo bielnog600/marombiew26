@@ -10,6 +10,7 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/
 import { supabase } from '@/integrations/supabase/client';
 import { VOICE_CATALOG, VOICE_CATEGORY_LABELS, type VoicePhrase } from '@/lib/liveCorrection/voice/phrases';
 import { COACH_VOICE_BUCKET } from '@/lib/liveCorrection/voice/browserVoice';
+import { TABATA_VOICE_CATALOG, TABATA_VOICE_MOMENTS } from '@/lib/coachVoice/tabataVoiceCatalog';
 import {
   callCoachVoice, findOwnVoice, type CoachVoiceTake, type ElevenModelOption, type ElevenVoice,
 } from '@/lib/coachVoice/api';
@@ -134,7 +135,7 @@ const VozCorrecaoAoVivo = () => {
       let phraseRows = phraseRows0;
       // Fala nova no código entra na lista como "sem áudio".
       const known = new Set(phraseRows.map((r) => r.phrase_key));
-      const missing = VOICE_CATALOG.filter((p) => !known.has(p.key));
+      const missing = [...VOICE_CATALOG, ...TABATA_VOICE_CATALOG].filter((p) => !known.has(p.key));
       if (missing.length) {
         const { error } = await supabase.from('coach_voice_phrases').upsert(
           missing.map((p) => ({ phrase_key: p.key, texto: p.voiceText, categoria: VOICE_CATEGORY_LABELS[p.category] })),
@@ -225,6 +226,7 @@ const VozCorrecaoAoVivo = () => {
     const sys = (t: VoiceTab) => systemPhrasesForTab(VOICE_CATALOG, t).map((p) => p.key);
     return {
       numeros: sys('numeros'), comandos: sys('comandos'), correcoes: sys('correcoes'),
+      tabata: TABATA_VOICE_CATALOG.map((p) => p.key),
       motivacao: customRows.map((r) => r.phrase_key), nomes: nameKeys,
     } as Record<Exclude<VoiceTab, 'config'>, string[]>;
   }, [customRows, nameKeys]);
@@ -235,6 +237,7 @@ const VozCorrecaoAoVivo = () => {
   /** Contador geral: o que pode tocar hoje (sistema + motivação ativa + com nome se ligadas). */
   const overall = approvalCount([
     ...VOICE_CATALOG.map((p) => p.key),
+    ...TABATA_VOICE_CATALOG.map((p) => p.key),
     ...customRows.filter((r) => r.ativo).map((r) => r.phrase_key),
     ...(config.name_phrases_enabled ? nameKeys : []),
   ], statusForKey);
@@ -512,6 +515,27 @@ const VozCorrecaoAoVivo = () => {
           <TabsContent value="correcoes" className="mt-0 space-y-3">
             {toolbar('correcoes')}
             {body(corrections)}
+          </TabsContent>
+
+          <TabsContent value="tabata" className="mt-0 space-y-3">
+            {toolbar('tabata')}
+            <p className="px-1 text-xs text-muted-foreground">
+              Falas do Player do TABATA. Depois de aprovadas, tocam no celular do aluno nos momentos abaixo; sem áudio aprovado, o Player usa o bipe.
+            </p>
+            {body(() => {
+              const list = TABATA_VOICE_CATALOG.filter((p) => visible('tabata', p.key));
+              if (!list.length) return empty;
+              return (
+                <div className="space-y-2">
+                  {list.map((p) => (
+                    <div key={p.key} className="space-y-1">
+                      <p className="px-1 text-[11px] font-semibold text-muted-foreground">{TABATA_VOICE_MOMENTS[p.key]}</p>
+                      {systemCard(p)}
+                    </div>
+                  ))}
+                </div>
+              );
+            })}
           </TabsContent>
 
           <TabsContent value="motivacao" className="mt-0 space-y-3">
