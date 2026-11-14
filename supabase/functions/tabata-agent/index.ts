@@ -33,10 +33,24 @@ Você DEVE usar EXCLUSIVAMENTE os exercícios da "LISTA OFICIAL DE EXERCÍCIOS D
 - Use o NOME EXATAMENTE como aparece na lista (mesma grafia, acentuação e maiúsculas). Cópia literal.
 - É ABSOLUTAMENTE PROIBIDO inventar, adaptar, traduzir ou criar variações de exercícios que NÃO estão na lista. Se o nome não aparece na lista, ele NÃO EXISTE para este treino.
 - A lista já foi pré-filtrada pelo sistema para conter APENAS exercícios adequados a TABATA / HIIT / CROSS TRAINING (funcionais, dinâmicos, pliométricos, cardio, core, peso corporal, halteres/kettlebell explosivos).
-- Movimentos típicos de MUSCULAÇÃO/hipertrofia isolada NÃO PODEM ser usados no TABATA, mesmo que apareçam na lista por acaso. Exemplos PROIBIDOS no TABATA: STIFF, ELEVAÇÃO PÉLVICA UNILATERAL, HIP THRUST, AGACHAMENTO SUMÔ COM HALTER, REMADA CURVADA COM HALTERES, CRUCIFIXO, VOADOR, ROSCA DIRETA, TRÍCEPS TESTA, DESENVOLVIMENTO ARNOLD, PANTURRILHA SENTADA, qualquer exercício em MÁQUINA, SMITH, POLIA, CABO, CADEIRA, MESA, ou com BARRA olímpica.
+- Movimentos típicos de MUSCULAÇÃO/hipertrofia isolada NÃO PODEM ser usados no TABATA, mesmo que apareçam na lista por acaso. Exemplos PROIBIDOS no TABATA: STIFF com barra (use STIFF HALTERES), ELEVAÇÃO PÉLVICA UNILATERAL, HIP THRUST, AGACHAMENTO SUMÔ COM HALTER, REMADA CURVADA COM HALTERES, CRUCIFIXO, VOADOR, ROSCA DIRETA, TRÍCEPS TESTA, DESENVOLVIMENTO ARNOLD, PANTURRILHA SENTADA, qualquer exercício em MÁQUINA, SMITH, POLIA, CABO, CADEIRA, MESA, ou com BARRA olímpica.
 - PRIORIZE (nesta ordem): CARDIO SEM APARELHO (burpees, mountain climbers, polichinelo, skips, corda naval), ABDOMEN/CORE (pranchas, abs, bear to plank), pliométricos (jumps, saltos laterais), peso corporal (flexão de braço, agachamento, afundo alternado) e explosivos com halter/kettlebell (swing — se estiver na lista).
 - PROIBIDO usar CARDIO DE MÁQUINA no TABATA: NADA de AIR BIKE, BIKE, REMO, ESTEIRA, PASSADEIRA, ELÍPTICO, ESCADA, SKI, CORRIDA INTERVALADA. O TABATA precisa ser feito no mesmo espaço, sem obrigar o aluno a se deslocar entre aparelhos do ginásio.
 - Se a lista não tiver opção ideal para uma posição, escolha o exercício da lista MAIS PRÓXIMO em padrão de movimento — NUNCA invente e NUNCA use um exercício de musculação isolada só para "preencher".
+
+═══════════════════════════════════════════════
+SÓ EXERCÍCIOS DE MONTAGEM RÁPIDA
+═══════════════════════════════════════════════
+- Permitido: PESO CORPORAL, HALTER, KETTLEBELL, CORDA NAVAL e ELÁSTICO — tudo que se pega e começa em segundos.
+- PROIBIDO: barra em rack, barra com anilhas, anilhas, SMITH, qualquer MÁQUINA, polia/cabo, banco, caixa/step, bola, roda, TRX.
+- Exercício com barra → troque pela versão com halter ou peso corporal: AGACHAMENTO LIVRE (com barra) → GLOBET SQUATS; STIFF com barra → STIFF HALTERES; AFUNDO com barra/smith → AFUNDO HALTERES ou AFUNDO S/ PESO; SUPINO com barra → FLEXÃO DE BRAÇO (ou versão com halter).
+
+═══════════════════════════════════════════════
+COMPOSIÇÃO DE CADA BLOCO — OBRIGATÓRIO
+═══════════════════════════════════════════════
+- MÍNIMO de 4 exercícios DIFERENTES por bloco. Bloco de 8 rounds = A-B-C-D-A-B-C-D (4 exercícios repetidos em sequência). Nunca monte um bloco com 1, 2 ou 3 exercícios.
+- Uma linha da tabela por round, na ordem da sequência (Round 1 = A, Round 2 = B, Round 3 = C, Round 4 = D, Round 5 = A...).
+- Alongamento, mobilidade, liberação e respiração NÃO são rounds de bloco — ficam só no aquecimento/desaquecimento.
 
 ═══════════════════════════════════════════════
 ESTRUTURA TABATA PADRÃO
@@ -118,6 +132,8 @@ serve(withAiUsage("tabata_ia", "tabata-agent", async (req) => {
       totalDuration = 'auto',
       rounds = 'auto',
       avoidExercises = [],
+      trainingDay = 'auto',
+      trainingDayName = '',
     } = setAiUsageStudentFrom(await req.json());
     const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
     if (!ANTHROPIC_API_KEY) throw new Error("Não foi possível consultar a IA agora.");
@@ -219,6 +235,17 @@ serve(withAiUsage("tabata_ia", "tabata-agent", async (req) => {
       ? `\n\n═══════════════════════════════════════════════\nDIVERSIFICAÇÃO OBRIGATÓRIA — NÃO REPETIR EXERCÍCIOS JÁ USADOS\n═══════════════════════════════════════════════\nOs exercícios abaixo JÁ FORAM USADOS em outros dias do plano semanal deste aluno. É PROIBIDO usá-los novamente neste dia. Escolha OUTROS exercícios equivalentes da Lista Oficial para garantir variedade semanal:\n- ${avoidExercises.join('\n- ')}\n\nSe absolutamente não houver alternativa segura na lista (ex.: única opção compatível com uma restrição específica), você pode reutilizar no máximo 1 exercício, mas priorize sempre a variação.\n`
       : '';
 
+    const dayName = typeof trainingDayName === 'string' && trainingDayName.trim() ? ` ("${trainingDayName.trim()}")` : '';
+    const TRAINING_DAY_RULES: Record<string, string> = {
+      superiores: `TREINO DE MUSCULAÇÃO DO DIA: SUPERIORES${dayName}. Os braços, ombros e peito já foram trabalhados — EVITE exercícios de empurrar ou com apoio pesado de braço (burpee, flexão de braço, flexão+alpinista, bear to plank). Priorize inferiores leves, core e cardio sem apoio de mãos (polichinelo, skips, corda naval com moderação, agachamentos, abdominais).`,
+      inferiores: `TREINO DE MUSCULAÇÃO DO DIA: INFERIORES${dayName}. As pernas já foram trabalhadas — EVITE volume alto de saltos e afundos: no máximo 1 exercício de salto/afundo por bloco. Priorize core, superiores com peso corporal/halter e cardio de baixo impacto para as pernas (corda naval, mountain climbers, pranchas).`,
+      core_abs: `TREINO DE MUSCULAÇÃO DO DIA: CORE/ABDÔMEN${dayName}. Não sobrecarregue o core — equilibre com cardio e membros.`,
+      full_body: `TREINO DE MUSCULAÇÃO DO DIA: FULL BODY${dayName}. Distribua o esforço sem concentrar num só grupo.`,
+    };
+    const trainingDayBlock = TRAINING_DAY_RULES[trainingDay]
+      ? `\n\n═══════════════════════════════════════════════\nCOMPLEMENTO AO TREINO DO DIA — PRIORIDADE SOBRE O FOCO/ESTILO\n═══════════════════════════════════════════════\n${TRAINING_DAY_RULES[trainingDay]}\n`
+      : '';
+
     const userPrompt = `Gere o TABATA agora baseado no perfil completo do aluno.
 
 INTENSIDADE SOLICITADA: ${intensity.toUpperCase()} — ${intensityInstruction}
@@ -226,6 +253,7 @@ INTENSIDADE SOLICITADA: ${intensity.toUpperCase()} — ${intensityInstruction}
 ${styleInstruction}
 ${structureBlock}
 ${avoidBlock}
+${trainingDayBlock}
 ${notes ? `OBSERVAÇÕES ADICIONAIS DO COACH: ${notes}\n` : ''}
 
 Lembre-se:
@@ -233,6 +261,8 @@ Lembre-se:
 - Se houver patologias, prefira sempre a versão adaptada
 - Inclua aquecimento, blocos principais com tabela detalhada e desaquecimento
 - Garanta VARIEDADE de exercícios ao longo da semana: não repita exercícios já listados como usados
+- Cada bloco com NO MÍNIMO 4 exercícios diferentes (A-B-C-D repetido nos 8 rounds)
+- Só montagem rápida: peso corporal, halter, kettlebell, corda naval, elástico (nada de barra/anilha, smith ou máquina)
 - Escolha SEMPRE exercícios que fazem sentido no contexto TABATA (funcionais, dinâmicos, alta intensidade adequada ao perfil)
 - Gere tudo de uma vez no formato markdown especificado`;
 

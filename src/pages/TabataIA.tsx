@@ -18,6 +18,15 @@ import { cn } from '@/lib/utils';
 import AiWizard from '@/components/AiWizard';
 import { parseTrainingSections } from '@/lib/trainingResultParser';
 import { Badge } from '@/components/ui/badge';
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import {
+  tabataDayFromTitle, resolveTabataDayChange, latestTabataPlanByDay, tabataCatalogForDay,
+  trainingDayKind, enforceQuickSetup, tabataPlanWarnings, tabataBlockExerciseNames,
+  type TabataPlanRef, type TabataDayChange,
+} from '@/lib/tabataRules';
 
 type StudentCtx = Record<string, any>;
 
@@ -66,7 +75,7 @@ interface TabataDayConfig {
 const TabataIA = () => {
   const { studentId } = useParams<{ studentId: string }>();
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const editPlanId = searchParams.get('edit');
 
   const [studentCtx, setStudentCtx] = useState<StudentCtx | null>(null);
@@ -91,11 +100,19 @@ const TabataIA = () => {
   const [workoutDays, setWorkoutDays] = useState<{ dayName: string; muscleHint: string }[]>([]);
   const [hasWorkoutPlan, setHasWorkoutPlan] = useState(false);
   const [tabataDays, setTabataDays] = useState<TabataDayConfig[]>([]);
-  const [multiResults, setMultiResults] = useState<{ dayLabel: string; content: string }[]>([]);
+  const [multiResults, setMultiResults] = useState<{ dayLabel: string; content: string; warnings?: string[] }[]>([]);
   const [currentGenDay, setCurrentGenDay] = useState(0);
   const [savingAll, setSavingAll] = useState(false);
   const [editDay, setEditDay] = useState('');
   // editDay uses 'none' for no day, or a weekday name
+  // Ajuste Rápido: o que foi carregado do banco, para saber se há alterações e trocar de dia com segurança.
+  const [dayPlans, setDayPlans] = useState<TabataPlanRef[]>([]);
+  const [loadedContent, setLoadedContent] = useState('');
+  const [loadedDay, setLoadedDay] = useState('none');
+  const [editBaseline, setEditBaseline] = useState('');
+  const [planLoading, setPlanLoading] = useState(false);
+  const [pendingDay, setPendingDay] = useState<{ day: string; action: TabataDayChange } | null>(null);
+  const loadSeq = useRef(0);
 
   useEffect(() => {
     if (studentId) loadStudentData();
@@ -112,15 +129,83 @@ const TabataIA = () => {
   }, [result, multiResults]);
 
   const loadEditPlan = async () => {
-    const { data } = await supabase.from('ai_plans').select('*').eq('id', editPlanId!).maybeSingle();
+    const seq = ++loadSeq.current;
+    // Trocar de plano sempre sai do modo edição: o rascunho era do dia anterior.
+    setEditing(false);
+    setEditDraft(null);
+    setPlanLoading(true);
+    const [planRes, listRes] = await Promise.all([
+      supabase.from('ai_plans').select('*').eq('id', editPlanId!).maybeSingle(),
+      supabase.from('ai_plans').select('id, titulo, created_at')
+        .eq('student_id', studentId!).eq('tipo', 'tabata').eq('is_draft', false)
+        .order('created_at', { ascending: false }),
+    ]);
+    if (seq !== loadSeq.current) return; // resposta de um dia que já foi trocado
+    const data = planRes.data;
+    setDayPlans((listRes.data as TabataPlanRef[] | null) ?? []);
     if (data) {
+      const day = tabataDayFromTitle(data.titulo) ?? 'none';
       setResult(data.conteudo);
-      // Try to extract day from titulo like "Segunda — TABATA..."
-      const dayMatch = data.titulo?.match(new RegExp(`^(${WEEKDAYS.join('|')})`, 'i'));
-      setEditDay(dayMatch ? dayMatch[1] : '');
-      // Normalize empty to 'none' for Select compatibility
-      if (!dayMatch) setEditDay('none');
+      setLoadedContent(data.conteudo);
+      setEditDay(day);
+      setLoadedDay(day);
     }
+    setPlanLoading(false);
+  };
+
+  const hasUnsavedChanges = () =>
+    result !== loadedContent ||
+    (editDay || 'none') !== loadedDay ||
+    (editing && !!editDraft && serializeTabata(editDraft) !== editBaseline);
+
+  const applyDayChange = (day: string, action: TabataDayChange) => {
+    setPendingDay(null);
+    if (action.kind === 'load') {
+      setEditing(false);
+      setEditDraft(null);
+      setSearchParams(prev => {
+        const next = new URLSearchParams(prev);
+        next.set('edit', action.planId);
+        return next;
+      }, { replace: true });
+      return;
+    }
+    if (action.kind === 'same') {
+      setEditDay(day);
+      return;
+    }
+    // Dia sem TABATA: este plano passa para o dia escolhido quando salvar.
+    setEditing(false);
+    setEditDraft(null);
+    setEditDay(day);
+  };
+
+  const requestDayChange = (day: string) => {
+    if (day === (editDay || 'none')) return;
+    const action = resolveTabataDayChange(dayPlans, editPlanId, day);
+    if (action.kind === 'same') return applyDayChange(day, action);
+    if (action.kind === 'move' || hasUnsavedChanges()) {
+      setPendingDay({ day, action });
+      return;
+    }
+    applyDayChange(day, action);
+  };
+
+  const saveEditedPlan = async () => {
+    if (!editPlanId) return;
+    setSaving(true);
+    const p = parseTabata(result);
+    const baseName = p.title || 'TABATA';
+    const titulo = editDay && editDay !== 'none' ? `${editDay} — ${baseName} (editado)` : `${baseName} (editado)`;
+    const { error } = await supabase.from('ai_plans').update({ conteudo: result, titulo }).eq('id', editPlanId);
+    if (error) toast.error('Erro: ' + error.message);
+    else {
+      toast.success('TABATA atualizado!');
+      setLoadedContent(result);
+      setLoadedDay(editDay || 'none');
+      setDayPlans(prev => prev.map(pl => (pl.id === editPlanId ? { ...pl, titulo } : pl)));
+    }
+    setSaving(false);
   };
 
   const loadStudentData = async () => {
@@ -193,7 +278,8 @@ const TabataIA = () => {
         // Auto-configure tabata days from workout
         setTabataDays(detected.map((d, i) => ({
           dayLabel: WEEKDAYS[i] || `Dia ${i + 1}`,
-          focus: muscleToFocus(d.muscleHint),
+          // O TABATA complementa a musculação do dia (regras por dia no gerador), não repete o mesmo foco.
+          focus: 'auto',
           fromWorkout: d.dayName,
         })));
         return;
@@ -210,19 +296,7 @@ const TabataIA = () => {
   };
 
   // Helper: detect muscle group from day name like "Segunda - Inferiores (A)"
-  function detectMuscleGroup(dayName: string): string {
-    const lower = dayName.toLowerCase();
-    if (/inferior|perna|quadr[ií]cep|glút|glute|posterior|panturr/i.test(lower)) return 'inferiores';
-    if (/superior|peito|peitoral|costas|dorsal|ombro|delt[oó]id|b[ií]cep|tr[ií]cep|bra[çc]o/i.test(lower)) return 'superiores';
-    if (/abd[oô]m|core|prancha/i.test(lower)) return 'core_abs';
-    if (/full|completo|corpo todo|total/i.test(lower)) return 'full_body';
-    return 'auto';
-  }
-
-  function muscleToFocus(muscle: string): string {
-    if (FOCUS_OPTIONS.some(f => f.value === muscle)) return muscle;
-    return 'auto';
-  }
+  const detectMuscleGroup = (dayName: string): string => trainingDayKind(dayName);
 
   const addDay = () => {
     const usedDays = new Set(tabataDays.map(d => d.dayLabel));
@@ -259,33 +333,39 @@ const TabataIA = () => {
         .select('nome, grupo_muscular, video_embed')
         .not('video_embed', 'is', null);
 
-      // Whitelist estrito: só exercícios que fazem sentido em TABATA / HIIT / cross training.
-      // Nada de máquinas, barras, cadeiras, polias, isolados de musculação (stiff, elevação pélvica
-      // unilateral, sumô com halter, remada curvada com halteres, etc.).
-      // Exclui também cardio de MÁQUINA (air bike, remo, esteira, bike, elíptico, ski, escada) —
-      // no TABATA o aluno deve fazer tudo no mesmo espaço, sem depender de aparelhos distantes.
-      const FORBIDDEN = /\b(SMITH|HACK|MÁQ|MAQ|MACHINE|GRAVITON|PECK|CROSSOVER|MESA|CADEIRA|POLIA|CABO|LEG PRESS|PULL DOWN|PULLDOWN|BARRA|FIXA|STIFF|SUMO|SUMÔ|REMADA|ELEVAÇÃO PÉLVICA|PELVICA UNILATERAL|HIP THRUST|CRUCIFIXO|VOADOR|ROSCA|TRICEPS TESTA|TRÍCEPS TESTA|DESENVOLVIMENTO|ARNOLD|SHRUG|ENCOLHIMENTO|PANTURRILHA|AIR BIKE|BIKE EM PÉ|BIKE SENTADO|REMO|ESTEIRA|PASSADEIRA|ELÍPTICO|ELIPTICO|ESCADA|\bSKI\b|CORRIDA INTERVALADA)\b/i;
-      // Grupos "TABATA-friendly" — dinâmicos, funcionais, cardio, core.
-      const TABATA_GROUPS = new Set(['CARDIO', 'ABDOMEN', 'CORE', 'MOBILIDADE']);
-      // Movimentos funcionais/pliométricos aceitos mesmo fora dos grupos acima.
-      // Sem cardio de máquina — só o que dá para fazer no lugar (corda naval, saltos, corpo, halter).
-      const FUNCTIONAL_ALLOW = /\b(BURPEE|MOUTAIN|MOUNTAIN|POLICHINELO|SKIP|JUMPING|PRANCHA|FLEXÃO|FLEXAO|AGACHAMENTO(?!\s+SMITH)|AFUNDO(?!\s+SMITH)(?!\s+BARRA)(?!\s+C\/\s*BARRA)|JUMPS|SALTO|SWING|KETTLEBELL|CORDA NAVAL|BEAR TO PLANK|TESOURINHA|PALLOF|ABS|ABDOMINAL|ALONGAMENTO)\b/i;
+      // Só montagem rápida (peso corporal, halter, kettlebell, corda naval, elástico); a lista de cada dia
+      // ainda tira o apoio pesado de braço quando a musculação do dia é de superiores.
+      const catalog = (allEx || []).filter(ex => !!ex?.nome && !!ex?.video_embed);
+      const catalogNames = catalog.map(ex => ex.nome);
 
-      const availableExercises = (allEx || []).filter(ex => {
-        if (!ex?.nome || !ex?.video_embed) return false;
-        const nome = ex.nome.toUpperCase();
-        if (FORBIDDEN.test(nome)) return false;
-        const grupoOk = TABATA_GROUPS.has((ex.grupo_muscular || '').toUpperCase());
-        const nomeOk = FUNCTIONAL_ALLOW.test(nome);
-        return grupoOk || nomeOk;
+      // Semana: exercícios dos TABATAs já salvos nos outros dias (os dias gerados agora são substituídos).
+      const generatingDays = new Set(tabataDays.map(d => d.dayLabel));
+      const { data: savedPlans } = await supabase
+        .from('ai_plans')
+        .select('id, titulo, created_at, conteudo')
+        .eq('student_id', studentId!)
+        .eq('tipo', 'tabata')
+        .eq('is_draft', false)
+        .order('created_at', { ascending: false });
+      const savedByDay = latestTabataPlanByDay((savedPlans as (TabataPlanRef & { conteudo: string })[] | null) ?? []);
+      const otherWeekExercises: string[] = [];
+      savedByDay.forEach((plan, day) => {
+        if (generatingDays.has(day)) return;
+        const full = (savedPlans || []).find(p => p.id === plan.id);
+        for (const n of tabataBlockExerciseNames(parseTabata(full?.conteudo || ''))) {
+          if (!otherWeekExercises.includes(n)) otherWeekExercises.push(n);
+        }
       });
 
-      const results: { dayLabel: string; content: string }[] = [];
-      const usedExercises: string[] = [];
+      const results: { dayLabel: string; content: string; warnings?: string[] }[] = [];
+      const usedExercises: string[] = [...otherWeekExercises];
 
       for (let i = 0; i < tabataDays.length; i++) {
         const day = tabataDays[i];
         setCurrentGenDay(i);
+        const dayKind = trainingDayKind(day.fromWorkout);
+        const availableExercises = tabataCatalogForDay(catalog, dayKind);
+        const avoidForDay = [...usedExercises];
 
         // Build focus instruction for this day
         const focusMap: Record<string, string> = {
@@ -332,7 +412,9 @@ const TabataIA = () => {
               restSec,
               totalDuration,
               rounds,
-              avoidExercises: usedExercises,
+              avoidExercises: avoidForDay,
+              trainingDay: dayKind,
+              trainingDayName: day.fromWorkout || '',
             }),
           }
         );
@@ -378,16 +460,17 @@ const TabataIA = () => {
           }
         }
 
-        results.push({ dayLabel: day.dayLabel, content: accumulated });
-        try {
-          const parsedDay = parseTabata(accumulated);
-          for (const b of parsedDay.blocks) {
-            for (const ex of b.exercises) {
-              const n = (ex.name || '').trim();
-              if (n && !usedExercises.includes(n)) usedExercises.push(n);
-            }
-          }
-        } catch { /* ignore */ }
+        // Correção determinística: barra/smith/máquina → versão de montagem rápida do catálogo.
+        const fixed = enforceQuickSetup(accumulated, catalogNames);
+        const parsedDay = parseTabata(fixed.markdown);
+        const warnings = [
+          ...fixed.replaced.map(([from, to]) => `Trocado ${from} por ${to} (montagem rápida).`),
+          ...tabataPlanWarnings(parsedDay, { dayKind, otherDaysExercises: avoidForDay }),
+        ];
+        results.push({ dayLabel: day.dayLabel, content: fixed.markdown, warnings });
+        for (const n of tabataBlockExerciseNames(parsedDay)) {
+          if (!usedExercises.includes(n)) usedExercises.push(n);
+        }
         setMultiResults([...results]);
         setResult('');
       }
@@ -658,13 +741,13 @@ const TabataIA = () => {
 
         {/* Streaming current day */}
         {/* Edit single plan */}
-        {editPlanId && result && !generating && (
+        {editPlanId && (result || planLoading) && !generating && (
           <div ref={resultRef} className="space-y-3">
             <div className="flex items-center justify-between flex-wrap gap-2">
               <div className="flex items-center gap-2">
                 <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Edição</h3>
-              <Select value={editDay || 'none'} onValueChange={setEditDay}>
-                  <SelectTrigger className="w-[120px] h-8 text-xs">
+              <Select value={editDay || 'none'} onValueChange={requestDayChange} disabled={planLoading}>
+                  <SelectTrigger className="w-[120px] h-8 text-xs" aria-label="Dia do TABATA">
                     <SelectValue placeholder="Dia..." />
                   </SelectTrigger>
                   <SelectContent className="bg-popover z-50">
@@ -674,26 +757,52 @@ const TabataIA = () => {
                     ))}
                   </SelectContent>
                 </Select>
+                {planLoading && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
               </div>
               <div className="flex gap-2 flex-wrap">
                 {editing ? (
                   <>
-                    <Button onClick={() => { if (editDraft) { setResult(serializeTabata(editDraft)); toast.success('Edições aplicadas'); } setEditing(false); }} size="sm" className="gap-1"><Check className="h-4 w-4" /> Aplicar</Button>
+                    <Button onClick={() => { if (editDraft) { setResult(serializeTabata(editDraft)); toast.success('Edições aplicadas'); } setEditing(false); setEditDraft(null); }} size="sm" className="gap-1"><Check className="h-4 w-4" /> Aplicar</Button>
                     <Button onClick={() => { setEditing(false); setEditDraft(null); }} size="sm" variant="outline" className="gap-1"><X className="h-4 w-4" /> Cancelar</Button>
                   </>
                 ) : (
                   <>
-                    <Button onClick={() => { setEditDraft(parseTabata(result)); setEditing(true); }} size="sm" variant="outline" className="gap-1"><Pencil className="h-4 w-4" /> Editar</Button>
-                    <Button onClick={async () => { setSaving(true); const p = parseTabata(result); const baseName = p.title || 'TABATA'; const titulo = editDay && editDay !== 'none' ? `${editDay} — ${baseName} (editado)` : `${baseName} (editado)`; const { error } = await supabase.from('ai_plans').update({ conteudo: result, titulo }).eq('id', editPlanId); if (error) toast.error('Erro: ' + error.message); else toast.success('TABATA atualizado!'); setSaving(false); }} disabled={saving} size="sm" className="gap-1">{saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} Salvar</Button>
+                    <Button onClick={() => { const draft = parseTabata(result); setEditDraft(draft); setEditBaseline(serializeTabata(draft)); setEditing(true); }} disabled={planLoading} size="sm" variant="outline" className="gap-1"><Pencil className="h-4 w-4" /> Editar</Button>
+                    <Button onClick={saveEditedPlan} disabled={saving || planLoading} size="sm" className="gap-1">{saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} Salvar</Button>
                   </>
                 )}
               </div>
             </div>
-            {editing && editDraft ? <TabataStructuredEditor value={editDraft} onChange={setEditDraft} /> : (
-              <Card className="glass-card"><CardContent className="p-4 prose prose-sm prose-invert max-w-none"><ReactMarkdown remarkPlugins={[remarkGfm]}>{result}</ReactMarkdown></CardContent></Card>
+            {planLoading ? (
+              <Card className="glass-card"><CardContent className="p-6 flex items-center justify-center text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin mr-2" /> Carregando o TABATA do dia...</CardContent></Card>
+            ) : editing && editDraft ? <TabataStructuredEditor value={editDraft} onChange={setEditDraft} /> : (
+              <Card className="glass-card" data-testid="tabata-edit-view"><CardContent className="p-4 prose prose-sm prose-invert max-w-none"><ReactMarkdown remarkPlugins={[remarkGfm]}>{result}</ReactMarkdown></CardContent></Card>
             )}
           </div>
         )}
+
+        <AlertDialog open={!!pendingDay} onOpenChange={(open) => { if (!open) setPendingDay(null); }}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>
+                {pendingDay?.action.kind === 'load'
+                  ? `Abrir o TABATA de ${pendingDay.day}?`
+                  : pendingDay?.day === 'none' ? 'Tirar o dia deste TABATA?' : `Mover este TABATA para ${pendingDay?.day}?`}
+              </AlertDialogTitle>
+              <AlertDialogDescription>
+                {pendingDay?.action.kind === 'load'
+                  ? 'Você tem alterações que ainda não foram salvas neste dia. Elas serão descartadas.'
+                  : `${pendingDay?.day === 'none' ? 'Este TABATA fica sem dia' : `Ainda não existe TABATA de ${pendingDay?.day}. Este TABATA passa para ${pendingDay?.day}`} quando você tocar em Salvar.${editing && editDraft && serializeTabata(editDraft) !== editBaseline ? ' As edições não aplicadas serão descartadas.' : ''}`}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+              <AlertDialogAction onClick={() => pendingDay && applyDayChange(pendingDay.day, pendingDay.action)}>
+                {pendingDay?.action.kind === 'load' ? 'Descartar e abrir' : 'Mover'}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
 
         {/* Streaming current day */}
         {generating && result && (
@@ -739,6 +848,12 @@ const TabataIA = () => {
                         <Play className="h-3.5 w-3.5" /> Visualizar
                       </Button>
                     </div>
+                    {!!mr.warnings?.length && (
+                      <div className="rounded-lg border border-orange-500/30 bg-orange-500/10 p-2 space-y-0.5" data-testid="tabata-day-warnings">
+                        <p className="text-[11px] font-semibold text-orange-400">Conferir antes de salvar</p>
+                        {mr.warnings.map((w, wi) => <p key={wi} className="text-[11px] text-orange-300">{w}</p>)}
+                      </div>
+                    )}
                     <div className="prose prose-sm prose-invert max-w-none">
                       <ReactMarkdown remarkPlugins={[remarkGfm]}>{mr.content}</ReactMarkdown>
                     </div>

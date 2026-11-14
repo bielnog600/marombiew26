@@ -7,6 +7,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { Plus, Trash2, ChevronUp, ChevronDown } from 'lucide-react';
 import type { ParsedTabata, TabataBlock, TabataExercise } from '@/lib/tabataParser';
 import { ExercisePicker } from './ExercisePicker';
+import { TabataPatternFill } from './TabataPatternFill';
+import { changeRoundExercise } from '@/lib/tabataRules';
 
 interface Props {
   value: ParsedTabata;
@@ -171,12 +173,22 @@ export const TabataStructuredEditor: React.FC<Props> = ({ value, onChange }) => 
               </div>
 
               <div className="space-y-2">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-2">
                   <Label className="text-[10px] uppercase text-muted-foreground">Exercícios</Label>
                   <Button size="sm" variant="ghost" onClick={() => addExercise(bIdx)} className="gap-1 h-7">
                     <Plus className="h-3 w-3" /> Exercício
                   </Button>
                 </div>
+                <TabataPatternFill
+                  block={b}
+                  onApply={next => {
+                    const blocks = [...value.blocks];
+                    blocks[bIdx] = next.rounds === b.rounds && b.format
+                      ? next
+                      : { ...next, format: `${next.rounds} rounds × ${next.workSeconds}s / ${next.restSeconds}s` };
+                    onChange({ ...value, blocks });
+                  }}
+                />
                 {b.exercises.map((ex, eIdx) => (
                   <div key={eIdx} className="rounded-lg border border-border bg-card/50 p-2 space-y-2">
                     <div className="flex gap-2 items-start">
@@ -184,7 +196,7 @@ export const TabataStructuredEditor: React.FC<Props> = ({ value, onChange }) => 
                       <div className="flex-1">
                         <ExercisePicker
                           value={ex.name}
-                          onChange={name => updateExercise(bIdx, eIdx, { name })}
+                          onChange={name => updateExercise(bIdx, eIdx, changeRoundExercise(ex, name))}
                         />
                       </div>
                       <Button size="icon" variant="ghost" onClick={() => removeExercise(bIdx, eIdx)} className="text-destructive">

@@ -24,6 +24,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger
 } from '@/components/ui/alert-dialog';
 import { parseTabata } from '@/lib/tabataParser';
+import { blockExerciseSummary } from '@/lib/tabataRules';
 
 interface StudentTabataTabProps {
   studentId: string;
@@ -86,7 +87,8 @@ const StudentTabataTab: React.FC<StudentTabataTabProps> = ({ studentId }) => {
     <div className="space-y-3">
       {plans.map(plan => {
         const isExpanded = expandedId === plan.id;
-        const parsed = parseTabata(plan.conteudo_json || plan.conteudo);
+        const parsed = parseTabata(typeof plan.conteudo_json === 'string' && plan.conteudo_json ? plan.conteudo_json : plan.conteudo || '');
+        const blockSummary = blockExerciseSummary(parsed);
         const totalExercises = parsed.blocks.reduce((sum, b) => sum + b.exercises.length, 0);
 
         return (
@@ -166,6 +168,20 @@ const StudentTabataTab: React.FC<StudentTabataTabProps> = ({ studentId }) => {
                   {isExpanded ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
                 </div>
               </div>
+
+              {blockSummary.length > 0 && (
+                <div
+                  className="mt-3 space-y-0.5 cursor-pointer"
+                  data-testid="tabata-block-summary"
+                  onClick={() => setExpandedId(isExpanded ? null : plan.id)}
+                >
+                  {blockSummary.map(row => (
+                    <p key={row.label} className="text-[11px] leading-snug text-muted-foreground">
+                      <span className="font-semibold text-foreground/80">{row.label}:</span> {row.text}
+                    </p>
+                  ))}
+                </div>
+              )}
 
               {isExpanded && (
                 <div className="mt-4 pt-4 border-t border-border space-y-4 animate-in fade-in slide-in-from-top-2">
