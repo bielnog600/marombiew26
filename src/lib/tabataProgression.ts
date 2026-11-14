@@ -240,7 +240,10 @@ function warmupSectionRange(lines: string[]): [number, number] | null {
   return [start, end];
 }
 
-const warmupHeaderLine = (block: TabataBlock) => `## 🔥 Aquecimento (${formatWarmupClock(warmupTotalSeconds(block))} min)`;
+const warmupHeaderLine = (block: TabataBlock) => {
+  const total = warmupTotalSeconds(block);
+  return `## 🔥 Aquecimento (${total % 60 === 0 ? total / 60 : formatWarmupClock(total)} min)`;
+};
 
 /**
  * Correção determinística do aquecimento gerado: com o switch ligado, uma seção de aquecimento
