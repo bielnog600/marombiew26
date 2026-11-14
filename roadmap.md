@@ -262,3 +262,10 @@ Fora do escopo desta entrega (Fases 3-6): LOW/MEDIUM/HIGH, novo carb cycling, aj
 - [x] Tela de voz em abas (Configuração, Números, Comandos, Correções por exercício, Motivação, Com nome), filtros, contador e gerar por aba, linha compacta com versões em popover, última aba lembrada.
 - [ ] Gerar e aprovar as falas de motivação — depende do Fabiew na tela de voz (não gero áudio sem autorização).
 - [ ] Ouvir a voz gravada num iPhone real — não há iPhone no ambiente de teste.
+
+## TABATA — Ajuste Rápido, editor e gerador
+- [ ] Trocar o dia em "Edição" recarrega o dia certo e sai do Editar (confirma se houver alterações)
+- [ ] Trocar o exercício do round limpa a observação antiga
+- [ ] "Repetir padrão" no bloco (2/3/4 exercícios, A-B-C-D, mantém trabalho/descanso)
+- [ ] Gerador: ≥4 exercícios por bloco, só montagem rápida (sem barra/anilha/smith/máquina), sem repetir na semana, respeita o treino do dia
+- [ ] Card do plano na aba Cardio mostra exercícios de cada bloco
