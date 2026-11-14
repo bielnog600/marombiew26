@@ -310,3 +310,11 @@ Fora do escopo desta entrega (Fases 3-6): LOW/MEDIUM/HIGH, novo carb cycling, aj
 - [x] Card "TABATA em andamento" (home e Player) com Continuar / Recomeçar / Descartar; "Tá preparado?" + 3, 2, 1 ao continuar
 - [x] Aviso após 2 h, abandono após 24 h; tela ligada enquanto roda; tempo pausado fora do total; RPE na mesma sessão
 - [ ] Testar no iPhone real (sair/voltar, bloquear tela, som depois do Continuar da home) — não consegui entrar como aluno no navegador daqui
+
+## Cardio — HIIT exato, execução nova e Finalizar
+- [x] Picos exatos do coach (esteira/bike) aplicados no agente e na tela: ciclos forte/recuperação entre aquecimento Z1 e desaceleração; resumo "8 × (2:00 a 6 km/h + 1:00 a 4 km/h) = 24 min"; Nº de ciclos até 40
+- [x] Editor de etapas no Cardio IA (nome, tempo, tipo, intensidade, velocidade, inclinação, nível, notas) + "Repetir par forte/recuperação × N"
+- [x] Execução em tela cheia no visual do TABATA: anel mm:ss, fase X de N, barra por fase, parâmetros grandes, Zona FC, "A seguir" nos últimos 10 s, 3-2-1 + voz, anterior/pausar/próximo, Finalizar sessão
+- [x] Pausa ao sair, retomada em até 15 s, card "Cardio em andamento" (home e Player), tela ligada
+- [x] Tela Finalizar: duração editável, Como foi? (5 barras), estrelas, modalidade, distância, FC média, calorias estimadas, observação; salva e aparece na ficha (admin) e em Meu progresso
+- [ ] Testar no iPhone real (sair/voltar, bloquear tela, som) — não consegui entrar como aluno no navegador daqui
