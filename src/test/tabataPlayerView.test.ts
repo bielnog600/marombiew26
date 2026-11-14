@@ -3,7 +3,7 @@ import type { ParsedTabata, TabataBlock } from '@/lib/tabataParser';
 import { tabataPlayerSteps } from '@/lib/tabataProgression';
 import {
   WORK_PHRASES, blockIntensities, elapsedSeconds, estimateKcal, headerStepIndex, intensityChipText,
-  phaseTone, progressSegments, roundLabel, sessionCounts, totalSeconds, transitionChip, voiceCueAt, workPhrase,
+  phaseTone, progressSegments, roundLabel, sessionCounts, totalSeconds, transitionChip, workPhrase,
 } from '@/lib/tabataPlayerView';
 import { tabataSessionRow } from '@/lib/tabataSessionApi';
 
@@ -75,33 +75,6 @@ describe('topo e tempo', () => {
     expect(segs[0].seconds).toBeLessThan(segs[1].seconds);
     expect(segs[0].fill).toBe(1);
     expect(segs[2].fill).toBe(0);
-  });
-});
-
-describe('voz do Fabiew', () => {
-  it('Fique pronto: "Tá preparado?" no início e "3, 2, 1… bora!" nos 3s finais', () => {
-    expect(voiceCueAt('prep', 10, 10)).toBe('tabata_preparado');
-    expect(voiceCueAt('prep', 3, 10)).toBe('tabata_321_bora');
-    expect(voiceCueAt('prep', 5, 10)).toBeNull();
-  });
-  it('descanso de 10s: "Descanse agora!", "Respira." no meio e a contagem', () => {
-    expect(voiceCueAt('rest', 10, 10)).toBe('tabata_descanse');
-    expect(voiceCueAt('rest', 5, 10)).toBe('tabata_respira');
-    expect(voiceCueAt('rest', 3, 10)).toBe('tabata_321_bora');
-  });
-  it('descanso curto (< 8s) não fala "Respira."; transição curta (5s) só a contagem', () => {
-    expect([7, 6, 5, 4].map(s => voiceCueAt('rest', s, 7))).toEqual(['tabata_descanse', null, null, null]);
-    expect([5, 4].map(s => voiceCueAt('rest', s, 5))).toEqual([null, null]);
-    expect(voiceCueAt('rest', 3, 5)).toBe('tabata_321_bora');
-  });
-  it('entre blocos: "Vamos para o próximo bloco." e "Respira."', () => {
-    expect(voiceCueAt('block_rest', 60, 60)).toBe('tabata_proximo_bloco');
-    expect(voiceCueAt('block_rest', 30, 60)).toBe('tabata_respira');
-    expect(voiceCueAt('block_rest', 3, 60)).toBe('tabata_321_bora');
-  });
-  it('durante o exercício não fala', () => {
-    expect(voiceCueAt('work', 3, 20)).toBeNull();
-    expect(voiceCueAt('work', 20, 20)).toBeNull();
   });
 });
 

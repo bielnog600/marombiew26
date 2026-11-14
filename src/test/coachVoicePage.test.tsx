@@ -3,10 +3,9 @@ import React from 'react';
 import { render as rtlRender, screen, waitFor, fireEvent } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { VOICE_CATALOG } from '@/lib/liveCorrection/voice/phrases';
-import { TABATA_VOICE_CATALOG } from '@/lib/coachVoice/tabataVoiceCatalog';
 
-/** Falas do sistema: câmera + Player do TABATA. */
-const SYSTEM_TOTAL = VOICE_CATALOG.length + TABATA_VOICE_CATALOG.length;
+/** Falas do sistema da câmera (as do TABATA vêm do banco, não do código). */
+const SYSTEM_TOTAL = VOICE_CATALOG.length;
 
 (globalThis as any).ResizeObserver ??= class { observe() {} unobserve() {} disconnect() {} };
 
@@ -70,7 +69,8 @@ describe('Voz da Correção ao vivo — tela do admin', () => {
     render(<VozCorrecaoAoVivo />);
     await waitFor(() => expect(screen.getByTestId('coach-voice-counter')).toHaveTextContent(`0 de ${SYSTEM_TOTAL} aprovadas`));
     await waitFor(() => expect(db.phrases).toHaveLength(SYSTEM_TOTAL));
-    expect(db.phrases.filter((p) => p.categoria === 'TABATA').map((p) => p.phrase_key)).toEqual(TABATA_VOICE_CATALOG.map((p) => p.key));
+    // Variações do TABATA não são recriadas pela tela (o admin pode remover).
+    expect(db.phrases.filter((p) => p.categoria === 'TABATA')).toHaveLength(0);
     // Texto editado antes continua (não é sobrescrito pelo do código).
     expect(db.phrases.find((p) => p.phrase_key === 'desce_mais').texto).toBe('Desce mais!');
     await waitFor(() => expect(db.config).toMatchObject({ voice_id: 'fab', voice_name: 'Fabiew', model_id: 'eleven_multilingual_v2', stability: 0.4, similarity_boost: 1 }));
