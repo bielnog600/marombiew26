@@ -166,10 +166,10 @@ describe('progressão de intensidade', () => {
 });
 
 describe('aquecimento do gerador', () => {
-  it('ligado: lista de texto vira Bloco 0 de 25s / 5s', () => {
+  it('ligado: lista de texto vira Bloco 0 com o padrão do gerador (10s / 10s)', () => {
     const p = parseTabata(normalizeWarmupSection(legacy, true));
     expect(p.warmupBlock?.exercises.map(e => e.name)).toEqual(['POLICHINELO', 'AGACHAMENTO', 'ESCAPULAR']);
-    expect(p.warmupBlock?.exercises.every(e => e.workSeconds === 25 && e.restSeconds === 5)).toBe(true);
+    expect(p.warmupBlock?.exercises.every(e => e.workSeconds === 10 && e.restSeconds === 10)).toBe(true);
     expect(p.blocks).toHaveLength(2);
     expect(p.cooldown).toEqual(['Alongamento de posterior']);
   });
@@ -213,7 +213,7 @@ describe('aquecimento de no máximo 3 min', () => {
     expect(clampWarmupWork(10)).toBe(10);
     expect(clampWarmupWork(5)).toBe(10);
     expect(clampWarmupRest(20)).toBe(10);
-    expect(clampWarmupRest(0)).toBe(5);
+    expect(clampWarmupRest(2)).toBe(5);
     const b = setWarmupTimes(newWarmupBlock(names(3)), 45, 2);
     expect(b.exercises.every(e => e.workSeconds === 30 && e.restSeconds === 5)).toBe(true);
     const ten = setWarmupTimes(newWarmupBlock(names(3), 25, 5), 10, 10);
