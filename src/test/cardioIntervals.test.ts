@@ -11,7 +11,7 @@ const equipment = buildEquipment(EQ);
 
 const block = (b: Partial<CardioBlock>): CardioBlock => ({ name: 'x', type: 'principal', durationSec: 60, intensityLabel: 'moderada', ...b });
 const aiHiit = (): CardioProtocol => ({
-  title: 'HIIT esteira', modality: 'passadeira', objective: '', level: 'intermediario', intensity: 'alta',
+  title: 'HIIT esteira', modality: 'passadeira', objective: '', level: 'intermediario', intensity: 'intensa',
   structure: 'hiit', totalDurationMin: 30, frequencyPerWeek: 3,
   blocks: [
     block({ name: 'Aquecimento', type: 'aquecimento', durationSec: 300, intensityLabel: 'leve', speedKmh: 5 }),

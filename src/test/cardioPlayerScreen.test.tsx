@@ -37,7 +37,7 @@ import CardioExecucao from '@/pages/CardioExecucao';
 
 // HIIT 2:00 a 6 km/h / 1:00 a 4 km/h × 8, como sai do cardio-agent depois do ajuste
 const base: CardioProtocol = {
-  title: 'HIIT Esteira', modality: 'passadeira', objective: 'Condicionamento', level: 'intermediario', intensity: 'alta',
+  title: 'HIIT Esteira', modality: 'passadeira', objective: 'Condicionamento', level: 'intermediario', intensity: 'intensa',
   structure: 'hiit', totalDurationMin: 32, frequencyPerWeek: 3,
   blocks: [
     { name: 'Aquecimento', type: 'aquecimento', durationSec: 300, intensityLabel: 'leve', targetZone: 'Z1', speedKmh: 4 },
