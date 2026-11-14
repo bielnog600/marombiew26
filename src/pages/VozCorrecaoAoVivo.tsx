@@ -10,7 +10,7 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/
 import { supabase } from '@/integrations/supabase/client';
 import { VOICE_CATALOG, VOICE_CATEGORY_LABELS, type VoicePhrase } from '@/lib/liveCorrection/voice/phrases';
 import { COACH_VOICE_BUCKET } from '@/lib/liveCorrection/voice/browserVoice';
-import { TABATA_VOICE_CATALOG, TABATA_VOICE_MOMENTS } from '@/lib/coachVoice/tabataVoiceCatalog';
+import { isTabataVoiceKey, tabataVariationKey, type TabataVoiceGroup } from '@/lib/tabataVoiceCues';
 import {
   callCoachVoice, findOwnVoice, type CoachVoiceTake, type ElevenModelOption, type ElevenVoice,
 } from '@/lib/coachVoice/api';
@@ -28,6 +28,7 @@ import MotivationSection, { type CustomPhrasePatch } from '@/components/admin/co
 import NamePhrasesSection, { type TemplatePatch } from '@/components/admin/coachVoice/NamePhrasesSection';
 import VoiceConfigPanel, { type VoiceConfig } from '@/components/admin/coachVoice/VoiceConfigPanel';
 import VoiceTabToolbar from '@/components/admin/coachVoice/VoiceTabToolbar';
+import TabataVoiceSection from '@/components/admin/coachVoice/TabataVoiceSection';
 
 const DEFAULT_CONFIG: VoiceConfig = {
   voice_id: null, voice_name: null, model_id: null, stability: 0.4, similarity_boost: 1, language_code: 'pt',
@@ -133,9 +134,10 @@ const VozCorrecaoAoVivo = () => {
       const tpls = (tpl.data ?? []).map(toTemplate);
 
       let phraseRows = phraseRows0;
-      // Fala nova no código entra na lista como "sem áudio".
+      // Fala nova no código entra na lista como "sem áudio". As do TABATA vêm do banco
+      // (variações que o admin adiciona/remove), então não são recriadas aqui.
       const known = new Set(phraseRows.map((r) => r.phrase_key));
-      const missing = [...VOICE_CATALOG, ...TABATA_VOICE_CATALOG].filter((p) => !known.has(p.key));
+      const missing = VOICE_CATALOG.filter((p) => !known.has(p.key));
       if (missing.length) {
         const { error } = await supabase.from('coach_voice_phrases').upsert(
           missing.map((p) => ({ phrase_key: p.key, texto: p.voiceText, categoria: VOICE_CATEGORY_LABELS[p.category] })),
@@ -209,6 +211,7 @@ const VozCorrecaoAoVivo = () => {
   }, [takes]);
 
   const customRows = useMemo(() => [...rows.values()].filter((r) => r.tipo === 'personalizada'), [rows]);
+  const tabataRows = useMemo(() => [...rows.values()].filter((r) => r.tipo === 'sistema' && isTabataVoiceKey(r.phrase_key)), [rows]);
   /** Falas com nome que contam agora: modelo ativo × aluno premium, com linha criada. */
   const nameKeys = useMemo(() => {
     const keys: string[] = [];
@@ -226,10 +229,10 @@ const VozCorrecaoAoVivo = () => {
     const sys = (t: VoiceTab) => systemPhrasesForTab(VOICE_CATALOG, t).map((p) => p.key);
     return {
       numeros: sys('numeros'), comandos: sys('comandos'), correcoes: sys('correcoes'),
-      tabata: TABATA_VOICE_CATALOG.map((p) => p.key),
+      tabata: tabataRows.map((r) => r.phrase_key),
       motivacao: customRows.map((r) => r.phrase_key), nomes: nameKeys,
     } as Record<Exclude<VoiceTab, 'config'>, string[]>;
-  }, [customRows, nameKeys]);
+  }, [customRows, nameKeys, tabataRows]);
   const generatableKeys = (t: Exclude<VoiceTab, 'config'>) => {
     const keys = t === 'motivacao' ? customRows.filter((r) => r.ativo).map((r) => r.phrase_key) : tabKeys[t];
     return emptyKeys(keys, statusForKey);
@@ -237,7 +240,7 @@ const VozCorrecaoAoVivo = () => {
   /** Contador geral: o que pode tocar hoje (sistema + motivação ativa + com nome se ligadas). */
   const overall = approvalCount([
     ...VOICE_CATALOG.map((p) => p.key),
-    ...TABATA_VOICE_CATALOG.map((p) => p.key),
+    ...tabataRows.map((r) => r.phrase_key),
     ...customRows.filter((r) => r.ativo).map((r) => r.phrase_key),
     ...(config.name_phrases_enabled ? nameKeys : []),
   ], statusForKey);
@@ -302,6 +305,22 @@ const VozCorrecaoAoVivo = () => {
     const { error } = await supabase.from('coach_voice_phrases').update({ texto: clean }).eq('phrase_key', key);
     if (error) { toast.error('Não foi possível salvar o texto.'); return; }
     patchRow(key, { texto: clean });
+  };
+
+  // --- TABATA: variações por momento ---
+  const addTabata = async (group: TabataVoiceGroup, texto: string) => {
+    const row = { phrase_key: tabataVariationKey(group, crypto.randomUUID()), texto, categoria: 'TABATA', tipo: 'sistema' as const };
+    const { data, error } = await supabase.from('coach_voice_phrases').insert(row).select(PHRASE_COLUMNS).single();
+    if (error || !data) { toast.error('Não foi possível adicionar a variação.'); return false; }
+    setRows((m) => new Map(m).set(row.phrase_key, data as PhraseRow));
+    return true;
+  };
+  const deleteTabata = async (key: string) => {
+    if (!isTabataVoiceKey(key)) return;
+    const { error } = await supabase.from('coach_voice_phrases').delete().eq('phrase_key', key).eq('categoria', 'TABATA');
+    if (error) { toast.error('Não foi possível remover.'); return; }
+    setRows((m) => { const n = new Map(m); n.delete(key); return n; });
+    setTakes((list) => list.filter((t) => t.phrase_key !== key));
   };
 
   // --- Motivação (personalizadas) ---
@@ -520,22 +539,25 @@ const VozCorrecaoAoVivo = () => {
           <TabsContent value="tabata" className="mt-0 space-y-3">
             {toolbar('tabata')}
             <p className="px-1 text-xs text-muted-foreground">
-              Falas do Player do TABATA. Depois de aprovadas, tocam no celular do aluno nos momentos abaixo; sem áudio aprovado, o Player usa o bipe.
+              Falas do Player do TABATA, agrupadas por momento. O Player sorteia uma aprovada de cada grupo sem repetir a anterior; grupo sem nenhuma aprovada toca o bipe.
             </p>
-            {body(() => {
-              const list = TABATA_VOICE_CATALOG.filter((p) => visible('tabata', p.key));
-              if (!list.length) return empty;
-              return (
-                <div className="space-y-2">
-                  {list.map((p) => (
-                    <div key={p.key} className="space-y-1">
-                      <p className="px-1 text-[11px] font-semibold text-muted-foreground">{TABATA_VOICE_MOMENTS[p.key]}</p>
-                      {systemCard(p)}
-                    </div>
-                  ))}
-                </div>
-              );
-            })}
+            {body(() => (
+              <TabataVoiceSection
+                rows={tabataRows}
+                isVisible={(k) => visible('tabata', k)}
+                isApproved={(k) => statusForKey(k) === 'approved'}
+                takesByKey={takesByKey}
+                urls={urls}
+                busyKey={busyKey}
+                disabled={cardDisabled}
+                rowErrors={rowErrors}
+                onGenerate={(k) => { void generate(k).catch(() => undefined); }}
+                onApprove={approve}
+                onSaveText={saveText}
+                onAdd={addTabata}
+                onDelete={deleteTabata}
+              />
+            ))}
           </TabsContent>
 
           <TabsContent value="motivacao" className="mt-0 space-y-3">
