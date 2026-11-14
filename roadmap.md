@@ -297,3 +297,9 @@ Fora do escopo desta entrega (Fases 3-6): LOW/MEDIUM/HIGH, novo carb cycling, aj
 - [x] Aba TABATA agrupada por momento com adicionar/remover variação; grupo sem aprovada = bipe
 - [ ] Gerar e aprovar as 14 variações novas — depende do Fabiew na aba TABATA (não gero áudio sem autorização)
 
+
+## TABATA — aquecimento 10s e pares direito/esquerdo
+- [x] Editor: trabalho 10–30s, até 10 exercícios, botão para fazer o exercício em par direito/esquerdo
+- [x] Gerador: padrão 10s/10s × 8; quadril, tornozelo e torácica sempre em par; bilaterais uma vez; função de geração aceita 10s
+- [x] Player: 10s e itens repetidos rodam normalmente; lado em destaque na tela e no "A seguir"
+- [ ] Gerar um TABATA real com o aquecimento novo — nenhuma chamada real à IA foi feita
