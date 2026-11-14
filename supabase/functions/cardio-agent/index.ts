@@ -1,6 +1,7 @@
 import { anthropicChat, anthropicFailure, anthropicErrorStatus, PRESCRIPTION_MODEL } from "../_shared/anthropic.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { setAiUsageStudentFrom, withAiUsage } from "../_shared/aiUsage.ts";
+import { normalizeCardioIntervals, intervalSpecs, intervalSummary } from "../_shared/generated/officeCore.js";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -246,6 +247,15 @@ serve(withAiUsage("cardio_ia", "cardio-agent", async (req) => {
       else eqLines.push(`- Em cada bloco, escreva em "notes" a instrução exata (ex.: "30s em pé carga 8").`);
     }
     if (eq.rounds) eqLines.push(`NÚMERO DE CICLOS (pico+recuperação) nas sessões intervaladas/HIIT: ${eq.rounds}.`);
+    // Picos exatos: o coach definiu forte/recuperação — não reinterpretar.
+    // deno-lint-ignore no-explicit-any
+    const exactSpecs = (intervalSpecs(eq) as any[]).filter((s) => allowedMods.includes(s.modality));
+    if (exactSpecs.length) {
+      eqLines.push(`PICOS EXATOS DEFINIDOS PELO COACH (NÃO reinterprete, NÃO arredonde, NÃO troque valores):`);
+      for (const s of exactSpecs) eqLines.push(`- ${s.modality}: ${intervalSummary(s)}`);
+      eqLines.push(`- Cada ciclo = 1 bloco type="pico" (forte) + 1 bloco type="recuperacao", na ordem, repetidos N vezes, ENTRE um aquecimento em Z1 e uma desaceleração em Z1.`);
+      if (style === "hiit" || style === "intervalado") eqLines.push(`- Pelo menos uma sessão dessa modalidade deve ter structure="${style}" com exatamente esses ciclos.`);
+    }
     const equipmentInstr = eqLines.length ? `\n=== CONFIGURAÇÃO DE EQUIPAMENTO DEFINIDA PELO COACH ===\n${eqLines.join("\n")}\nAjuste aquecimento/desaceleração para manter a duração total coerente.\n` : "";
 
     const userPrompt = `Gere o PLANO SEMANAL DE CARDIO agora.
@@ -394,11 +404,11 @@ Lembre-se:
     // Ensure each protocol carries the weekly frequency
     for (const p of protocols) p.frequencyPerWeek = frequencyPerWeek;
 
-    const weekly = {
-      weekly: true,
-      frequencyPerWeek,
-      protocols,
-    };
+    // Pós-processamento: as sessões intervaladas recebem os ciclos exatos do coach (idempotente).
+    const weekly = normalizeCardioIntervals(
+      { weekly: true, frequencyPerWeek, protocols },
+      { style, equipment: eq, modalities: allowedMods },
+    ).payload;
 
     return new Response(JSON.stringify({ weekly }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
