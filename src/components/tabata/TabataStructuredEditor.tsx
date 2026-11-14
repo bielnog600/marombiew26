@@ -4,14 +4,15 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { Plus, Trash2, ChevronUp, ChevronDown, Timer, TrendingUp } from 'lucide-react';
+import { Plus, Trash2, ChevronUp, ChevronDown, Timer, TrendingUp, AlertTriangle } from 'lucide-react';
 import type { ParsedTabata, TabataBlock, TabataExercise } from '@/lib/tabataParser';
 import { ExercisePicker } from './ExercisePicker';
 import { TabataPatternFill } from './TabataPatternFill';
 import { changeRoundExercise } from '@/lib/tabataRules';
 import {
   TABATA_INTENSITIES, progressionLevels, newWarmupBlock, warmupItemName,
-  WARMUP_DEFAULT, type TabataIntensity,
+  WARMUP_DEFAULT, WARMUP_LIMITS, setWarmupTimes, warmupTotalSeconds, warmupWarnings,
+  formatWarmupClock, type TabataIntensity,
 } from '@/lib/tabataProgression';
 import { cn } from '@/lib/utils';
 
@@ -79,6 +80,45 @@ const IntensityPicker: React.FC<{ value?: TabataIntensity; onChange: (v: TabataI
   </div>
 );
 
+/** Campo de segundos com limite: digita livre e encaixa no intervalo ao sair do campo. */
+const BoundedSecondsInput: React.FC<{ value: number; min: number; max: number; label: string; onCommit: (v: number) => void }> = ({ value, min, max, label, onCommit }) => {
+  const [draft, setDraft] = React.useState(String(value));
+  React.useEffect(() => setDraft(String(value)), [value]);
+  const commit = () => {
+    const n = Math.round(Number(draft));
+    const next = Number.isFinite(n) && n > 0 ? Math.min(max, Math.max(min, n)) : value;
+    setDraft(String(next));
+    if (next !== value) onCommit(next);
+  };
+  return (
+    <Input
+      type="number" min={min} max={max} value={draft} aria-label={label}
+      onChange={e => setDraft(e.target.value)}
+      onBlur={commit}
+      onKeyDown={e => { if (e.key === 'Enter') commit(); }}
+    />
+  );
+};
+
+/** Duração do Bloco 0 e avisos (máximo 3 min, trabalho 20–30s, intervalo 5–10s). */
+const WarmupSummary: React.FC<{ block: TabataBlock }> = ({ block }) => {
+  const total = warmupTotalSeconds(block);
+  const warnings = warmupWarnings(block);
+  return (
+    <div className="space-y-1" data-testid="tabata-warmup-summary">
+      <p className="text-xs text-muted-foreground">
+        Duração: <span className={cn('font-semibold', total > WARMUP_LIMITS.maxSeconds ? 'text-destructive' : 'text-foreground')}>{formatWarmupClock(total)}</span> de no máximo 3:00
+        {' • '}trabalho 20–30s, intervalo 5–10s
+      </p>
+      {warnings.map(w => (
+        <p key={w} role="alert" className="flex items-start gap-1.5 text-xs text-destructive">
+          <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" /> {w}
+        </p>
+      ))}
+    </div>
+  );
+};
+
 const BlockCard: React.FC<BlockCardProps> = ({ block: b, onChange, onRemove, onMove, canMoveUp, canMoveDown, warmup }) => {
   const update = (patch: Partial<TabataBlock>) => onChange(patchBlock(b, patch));
   const updateExercise = (eIdx: number, patch: Partial<TabataExercise>) => {
@@ -86,8 +126,16 @@ const BlockCard: React.FC<BlockCardProps> = ({ block: b, onChange, onRemove, onM
     exercises[eIdx] = { ...exercises[eIdx], ...patch };
     onChange({ ...b, exercises });
   };
-  const addExercise = () => update({ exercises: [...b.exercises, emptyExercise(b.workSeconds, b.restSeconds)] });
-  const removeExercise = (eIdx: number) => update({ exercises: b.exercises.filter((_, i) => i !== eIdx) });
+  const syncWarmup = (exercises: TabataExercise[]) =>
+    onChange({ ...b, exercises, rounds: exercises.length, format: `${exercises.length} rounds × ${b.workSeconds}s / ${b.restSeconds}s` });
+  const addExercise = () => {
+    const exercises = [...b.exercises, emptyExercise(b.workSeconds, b.restSeconds)];
+    if (warmup) syncWarmup(exercises); else update({ exercises });
+  };
+  const removeExercise = (eIdx: number) => {
+    const exercises = b.exercises.filter((_, i) => i !== eIdx);
+    if (warmup) syncWarmup(exercises); else update({ exercises });
+  };
   const label = warmup ? 'Bloco 0 — Aquecimento' : b.name;
 
   return (
@@ -113,6 +161,28 @@ const BlockCard: React.FC<BlockCardProps> = ({ block: b, onChange, onRemove, onM
 
         <IntensityPicker value={b.intensity} onChange={v => update({ intensity: v })} label={label} />
 
+        {warmup ? (
+          <>
+            <div className="grid grid-cols-3 gap-2">
+              <div>
+                <Label className="text-[10px] uppercase text-muted-foreground">Trabalho (20–30s)</Label>
+                <BoundedSecondsInput value={b.workSeconds} min={WARMUP_LIMITS.workMin} max={WARMUP_LIMITS.workMax}
+                  label="Trabalho do aquecimento" onCommit={v => onChange(setWarmupTimes(b, v, b.restSeconds))} />
+              </div>
+              <div>
+                <Label className="text-[10px] uppercase text-muted-foreground">Intervalo (5–10s)</Label>
+                <BoundedSecondsInput value={b.restSeconds} min={WARMUP_LIMITS.restMin} max={WARMUP_LIMITS.restMax}
+                  label="Intervalo do aquecimento" onCommit={v => onChange(setWarmupTimes(b, b.workSeconds, v))} />
+              </div>
+              <div>
+                <Label className="text-[10px] uppercase text-muted-foreground">Pós-bloco (s)</Label>
+                <Input type="number" min={0} value={b.restAfterBlock}
+                  onChange={e => update({ restAfterBlock: Number(e.target.value) || 0 })} />
+              </div>
+            </div>
+            <WarmupSummary block={b} />
+          </>
+        ) : (
         <div className="grid grid-cols-4 gap-2">
           <div>
             <Label className="text-[10px] uppercase text-muted-foreground">Rounds</Label>
@@ -125,7 +195,7 @@ const BlockCard: React.FC<BlockCardProps> = ({ block: b, onChange, onRemove, onM
               onChange={e => update({ workSeconds: Number(e.target.value) || 1 })} />
           </div>
           <div>
-            <Label className="text-[10px] uppercase text-muted-foreground">{warmup ? 'Transição (s)' : 'Descanso (s)'}</Label>
+            <Label className="text-[10px] uppercase text-muted-foreground">Descanso (s)</Label>
             <Input type="number" min={0} value={b.restSeconds}
               onChange={e => update({ restSeconds: Number(e.target.value) || 0 })} />
           </div>
@@ -135,6 +205,7 @@ const BlockCard: React.FC<BlockCardProps> = ({ block: b, onChange, onRemove, onM
               onChange={e => update({ restAfterBlock: Number(e.target.value) || 0 })} />
           </div>
         </div>
+        )}
 
         <div className="space-y-2">
           <div className="flex items-center justify-between gap-2">
@@ -165,6 +236,13 @@ const BlockCard: React.FC<BlockCardProps> = ({ block: b, onChange, onRemove, onM
                   <Trash2 className="h-4 w-4" />
                 </Button>
               </div>
+              {warmup ? (
+                <div className="pl-7">
+                  <Label className="text-[10px] uppercase text-muted-foreground">Obs.</Label>
+                  <Input value={ex.observation || ''}
+                    onChange={e => updateExercise(eIdx, { observation: e.target.value })} />
+                </div>
+              ) : (
               <div className="grid grid-cols-3 gap-2 pl-7">
                 <div>
                   <Label className="text-[10px] uppercase text-muted-foreground">Trab. (s)</Label>
@@ -172,7 +250,7 @@ const BlockCard: React.FC<BlockCardProps> = ({ block: b, onChange, onRemove, onM
                     onChange={e => updateExercise(eIdx, { workSeconds: Number(e.target.value) || 1 })} />
                 </div>
                 <div>
-                  <Label className="text-[10px] uppercase text-muted-foreground">{warmup ? 'Trans. (s)' : 'Desc. (s)'}</Label>
+                  <Label className="text-[10px] uppercase text-muted-foreground">Desc. (s)</Label>
                   <Input type="number" min={0} value={ex.restSeconds}
                     onChange={e => updateExercise(eIdx, { restSeconds: Number(e.target.value) || 0 })} />
                 </div>
@@ -182,6 +260,7 @@ const BlockCard: React.FC<BlockCardProps> = ({ block: b, onChange, onRemove, onM
                     onChange={e => updateExercise(eIdx, { observation: e.target.value })} />
                 </div>
               </div>
+              )}
             </div>
           ))}
         </div>
@@ -215,7 +294,7 @@ export const TabataStructuredEditor: React.FC<Props> = ({ value, onChange }) => 
     onChange({ ...value, blocks: value.blocks.map((b, i) => ({ ...b, intensity: levels[i] })) });
   };
 
-  // Lista de texto → Bloco 0 cronometrado (40s / 20s de transição), com os mesmos exercícios.
+  // Lista de texto → Bloco 0 cronometrado (25s / 5s de intervalo), com os mesmos exercícios.
   const toWarmupBlock = () => {
     onChange({ ...value, warmupBlock: newWarmupBlock(value.warmup.map(warmupItemName).filter(Boolean)) });
   };
@@ -271,7 +350,7 @@ export const TabataStructuredEditor: React.FC<Props> = ({ value, onChange }) => 
               <Timer className="h-3.5 w-3.5" /> Transformar em bloco cronometrado
             </Button>
             <p className="text-[11px] text-muted-foreground">
-              No Player, esta lista já roda como Bloco 0 (1 min por exercício). Transformar permite ajustar tempos e transição.
+              No Player, esta lista já roda como Bloco 0 (25s / 5s por exercício, até 3 min). Transformar permite ajustar trabalho (20–30s) e intervalo (5–10s).
             </p>
           </CardContent>
         </Card>
