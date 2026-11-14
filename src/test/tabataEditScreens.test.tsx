@@ -220,7 +220,7 @@ describe('Player — Bloco 0', () => {
       </MemoryRouter>,
     );
     expect(screen.getByText('Bloco 0 — Aquecimento')).toBeInTheDocument();
-    expect(screen.getByText(/Aquecimento \+ 1 blocos/)).toBeInTheDocument();
+    expect(screen.getByText(/Aquecimento 1 min \+ 1 bloco/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: /Iniciar/ }));
     expect(screen.getByTestId('tabata-player-block')).toHaveTextContent('AQUECIMENTO · 1/2');
     expect(screen.getByTestId('tabata-player-intensity')).toHaveTextContent('Leve · RPE 3–4');
