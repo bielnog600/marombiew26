@@ -10,7 +10,9 @@ import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import type { ParsedTabata } from '@/lib/tabataParser';
 import { TabataSummaryShare } from '@/components/tabata/TabataSummaryShare';
-import { tabataPlayerSteps, resolveWarmupBlock, type TabataPlayerStep } from '@/lib/tabataProgression';
+import {
+  tabataPlayerSteps, resolveWarmupBlock, warmupTotalSeconds, formatWarmupClock, type TabataPlayerStep,
+} from '@/lib/tabataProgression';
 import {
   PREP_SECONDS, blockIntensities, clock, elapsedSeconds, estimateKcal, headerStepIndex, intensityChipText,
   intensityTone, pauseAfter, phaseTone, progressSegments, roundLabel, sessionCounts, stepIntensity,
@@ -945,7 +947,8 @@ const TabataExecucao: React.FC = () => {
   const level = stepIntensity(currentStep, levels);
   const nextLevel = stepIntensity(nextStep ?? undefined, levels);
   const mainBlocks = tabata.blocks;
-  const warmupMinutes = warmupBlock ? Math.max(1, Math.round(totalSeconds([], 0) + warmupBlock.exercises.reduce((s, e) => s + e.workSeconds + e.restSeconds, 0)) / 60) : 0;
+  const warmupSec = warmupBlock ? warmupTotalSeconds(warmupBlock) : 0;
+  const warmupMinutes = warmupSec % 60 === 0 ? String(warmupSec / 60) : formatWarmupClock(warmupSec);
   const exercisesPerBlock = mainBlocks.length ? uniqueExercises(mainBlocks[0]).length : 0;
 
   // ───────── Peças da tela ─────────
