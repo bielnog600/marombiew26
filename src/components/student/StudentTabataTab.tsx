@@ -24,6 +24,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger
 } from '@/components/ui/alert-dialog';
 import { parseTabata } from '@/lib/tabataParser';
+import { blockExerciseSummary } from '@/lib/tabataRules';
 
 interface StudentTabataTabProps {
   studentId: string;
@@ -86,7 +87,8 @@ const StudentTabataTab: React.FC<StudentTabataTabProps> = ({ studentId }) => {
     <div className="space-y-3">
       {plans.map(plan => {
         const isExpanded = expandedId === plan.id;
-        const parsed = parseTabata(plan.conteudo_json || plan.conteudo);
+        const parsed = parseTabata(typeof plan.conteudo_json === 'string' && plan.conteudo_json ? plan.conteudo_json : plan.conteudo || '');
+        const blockSummary = blockExerciseSummary(parsed);
         const totalExercises = parsed.blocks.reduce((sum, b) => sum + b.exercises.length, 0);
 
         return (
@@ -110,6 +112,15 @@ const StudentTabataTab: React.FC<StudentTabataTabProps> = ({ studentId }) => {
                     <p className="text-[10px] text-muted-foreground uppercase tracking-wider">
                       {new Date(plan.created_at).toLocaleDateString('pt-BR')} • {parsed.duration || `${parsed.blocks.length} blocos`}
                     </p>
+                    {blockSummary.length > 0 && (
+                      <div className="mt-1 space-y-0.5" data-testid="tabata-block-summary">
+                        {blockSummary.map(row => (
+                          <p key={row.label} className="text-[11px] leading-snug text-muted-foreground">
+                            <span className="font-semibold text-foreground/80">{row.label}:</span> {row.text}
+                          </p>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
 
