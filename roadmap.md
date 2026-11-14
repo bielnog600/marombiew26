@@ -303,3 +303,10 @@ Fora do escopo desta entrega (Fases 3-6): LOW/MEDIUM/HIGH, novo carb cycling, aj
 - [x] Gerador: padrão 10s/10s × 8; quadril, tornozelo e torácica sempre em par; bilaterais uma vez; função de geração aceita 10s
 - [x] Player: 10s e itens repetidos rodam normalmente; lado em destaque na tela e no "A seguir"
 - [ ] Gerar um TABATA real com o aquecimento novo — nenhuma chamada real à IA foi feita
+
+## TABATA — pausa ao sair e retomada
+- [x] Sair do app pausa e grava o ponto (aparelho + banco)
+- [x] Voltar em até 15 s retoma sozinho com 3, 2, 1
+- [x] Card "TABATA em andamento" (home e Player) com Continuar / Recomeçar / Descartar; "Tá preparado?" + 3, 2, 1 ao continuar
+- [x] Aviso após 2 h, abandono após 24 h; tela ligada enquanto roda; tempo pausado fora do total; RPE na mesma sessão
+- [ ] Testar no iPhone real (sair/voltar, bloquear tela, som depois do Continuar da home) — não consegui entrar como aluno no navegador daqui
