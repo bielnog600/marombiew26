@@ -4,6 +4,8 @@ import { serializeTabata } from '@/lib/tabataSerializer';
 import {
   tabataPlayerSteps, resolveWarmupBlock, progressionLevels, normalizeWarmupSection,
   ensureBlockIntensities, progressionWarnings, parseTabataIntensity, warmupItemName,
+  WARMUP_DEFAULT, newWarmupBlock, warmupTotalSeconds, warmupWarnings, maxWarmupExercises,
+  clampWarmupWork, clampWarmupRest, setWarmupTimes, fitWarmupBlock, warmupBlockFromList, replaceWarmupSection,
 } from '@/lib/tabataProgression';
 
 const table = (rows: [string, number, number][]) =>
@@ -86,11 +88,11 @@ describe('Bloco 0 — aquecimento cronometrado', () => {
     expect(steps[4].exercise.name).toBe('AGACHAMENTO ISOMETRIA');
   });
 
-  it('plano antigo com lista de texto vira Bloco 0 com 1 min por exercício', () => {
+  it('plano antigo com lista de texto vira Bloco 0 de 25s / 5s por exercício', () => {
     const p = parseTabata(legacy);
     const warm = resolveWarmupBlock(p)!;
     expect(warm.exercises.map(e => e.name)).toEqual(['POLICHINELO', 'AGACHAMENTO', 'ESCAPULAR']);
-    expect(warm.exercises.every(e => e.workSeconds === 60 && e.restSeconds === 0)).toBe(true);
+    expect(warm.exercises.every(e => e.workSeconds === 25 && e.restSeconds === 5)).toBe(true);
     const steps = tabataPlayerSteps(p);
     expect(steps.filter(s => s.isWarmup)).toHaveLength(3);
     expect(steps.filter(s => !s.isWarmup)).toHaveLength(4);
@@ -163,10 +165,10 @@ describe('progressão de intensidade', () => {
 });
 
 describe('aquecimento do gerador', () => {
-  it('ligado: lista de texto vira Bloco 0 de 40s / 20s', () => {
+  it('ligado: lista de texto vira Bloco 0 de 25s / 5s', () => {
     const p = parseTabata(normalizeWarmupSection(legacy, true));
     expect(p.warmupBlock?.exercises.map(e => e.name)).toEqual(['POLICHINELO', 'AGACHAMENTO', 'ESCAPULAR']);
-    expect(p.warmupBlock?.exercises.every(e => e.workSeconds === 40 && e.restSeconds === 20)).toBe(true);
+    expect(p.warmupBlock?.exercises.every(e => e.workSeconds === 25 && e.restSeconds === 5)).toBe(true);
     expect(p.blocks).toHaveLength(2);
     expect(p.cooldown).toEqual(['Alongamento de posterior']);
   });
@@ -182,5 +184,58 @@ describe('aquecimento do gerador', () => {
 
   it('Bloco 0 já cronometrado não é reescrito', () => {
     expect(normalizeWarmupSection(timed, true)).toBe(timed);
+  });
+});
+
+describe('aquecimento de no máximo 3 min', () => {
+  const names = (n: number) => Array.from({ length: n }, (_, i) => `MOBILIDADE ${i + 1}`);
+
+  it('padrão: 6 exercícios × 25s / 5s = 3 min', () => {
+    expect(WARMUP_DEFAULT).toMatchObject({ work: 25, rest: 5, count: 6 });
+    const block = newWarmupBlock(names(6));
+    expect(warmupTotalSeconds(block)).toBe(180);
+    expect(warmupWarnings(block)).toEqual([]);
+  });
+
+  it('cabem no máximo 3 min de exercícios conforme os tempos', () => {
+    expect(maxWarmupExercises(25, 5)).toBe(6);
+    expect(maxWarmupExercises(30, 10)).toBe(4);
+    expect(maxWarmupExercises(20, 5)).toBe(7);
+  });
+
+  it('trabalho fica entre 20s e 30s e intervalo entre 5s e 10s', () => {
+    expect(clampWarmupWork(40)).toBe(30);
+    expect(clampWarmupWork(10)).toBe(20);
+    expect(clampWarmupRest(20)).toBe(10);
+    expect(clampWarmupRest(0)).toBe(5);
+    const b = setWarmupTimes(newWarmupBlock(names(3)), 45, 2);
+    expect(b.exercises.every(e => e.workSeconds === 30 && e.restSeconds === 5)).toBe(true);
+  });
+
+  it('o gerador corta o que passar de 3 min e aplica os tempos escolhidos', () => {
+    const fit = fitWarmupBlock(newWarmupBlock(names(8), 40, 20), { work: 25, rest: 5 });
+    expect(fit.block.exercises).toHaveLength(6);
+    expect(warmupTotalSeconds(fit.block)).toBe(180);
+    expect(fit.removed).toEqual(['MOBILIDADE 7', 'MOBILIDADE 8']);
+    expect(fit.block.exercises.every(e => e.workSeconds === 25 && e.restSeconds === 5)).toBe(true);
+  });
+
+  it('plano antigo com 8 itens na lista roda só os 3 primeiros minutos', () => {
+    const warm = warmupBlockFromList(names(8).map(n => `${n} — 1 min`))!;
+    expect(warm.exercises).toHaveLength(6);
+    expect(warmupTotalSeconds(warm)).toBe(180);
+  });
+
+  it('avisa quando o aquecimento passa de 3 min', () => {
+    const w = warmupWarnings(newWarmupBlock(names(7)));
+    expect(w.some(x => /3:30 — o máximo é 3 min/.test(x))).toBe(true);
+  });
+
+  it('a seção reescrita pelo gerador continua sendo lida como Bloco 0', () => {
+    const p0 = parseTabata(timed);
+    const fit = fitWarmupBlock(p0.warmupBlock!, { work: 25, rest: 5 });
+    const p = parseTabata(replaceWarmupSection(timed, fit.block));
+    expect(p.warmupBlock?.exercises.map(e => [e.workSeconds, e.restSeconds])).toEqual([[25, 5], [25, 5], [25, 5], [25, 5]]);
+    expect(p.blocks).toHaveLength(2);
   });
 });

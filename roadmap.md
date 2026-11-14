@@ -277,5 +277,6 @@ Fora do escopo desta entrega (Fases 3-6): LOW/MEDIUM/HIGH, novo carb cycling, aj
 - [x] Wizard: "Incluir bloco de aquecimento" e "Progressão de intensidade entre blocos" (ligados)
 - [x] Ajuste Rápido edita o Bloco 0 como os outros blocos e a intensidade de cada bloco
 - [x] Planos antigos: lista do aquecimento vira Bloco 0 no Player (1 min por exercício)
+- [x] Aquecimento máximo 3 min, 25s/5s (20–30s / 5–10s), mobilidade/estabilidade/agachamento, avisos no editor e wizard
 - [ ] Gerar um TABATA real com aquecimento e progressão — nenhuma chamada real à IA foi feita
 

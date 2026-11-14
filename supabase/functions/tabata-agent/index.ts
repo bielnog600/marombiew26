@@ -58,7 +58,7 @@ ESTRUTURA TABATA PADRÃO
 - Bloco clássico: 8 rounds × (20s trabalho + 10s descanso) = 4 minutos por bloco
 - Pode adaptar para: 30s/15s, 40s/20s ou 45s/15s conforme nível
 - Múltiplos blocos com 1 a 2 minutos de descanso entre eles
-- Aquecimento de 3-5 min ANTES e desaquecimento de 3-5 min DEPOIS
+- Aquecimento de NO MÁXIMO 3 min ANTES e desaquecimento de 3-5 min DEPOIS
 
 ═══════════════════════════════════════════════
 FORMATO OBRIGATÓRIO DA RESPOSTA (MARKDOWN)
@@ -134,6 +134,9 @@ serve(withAiUsage("tabata_ia", "tabata-agent", async (req) => {
       trainingDay = 'auto',
       trainingDayName = '',
       warmupBlock = true,
+      warmupWork = 25,
+      warmupRest = 5,
+      warmupCount = 6,
       progression = true,
     } = setAiUsageStudentFrom(await req.json());
     const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
@@ -248,29 +251,39 @@ serve(withAiUsage("tabata_ia", "tabata-agent", async (req) => {
       : '';
 
     const fixedTimes = workSec !== 'auto' || restSec !== 'auto';
+    // Aquecimento: trabalho 20–30s, intervalo 5–10s e no máximo 3 min no total.
+    const wWork = Math.min(30, Math.max(20, Math.round(Number(warmupWork)) || 25));
+    const wRest = Math.min(10, Math.max(5, Math.round(Number(warmupRest)) || 5));
+    const wCount = Math.max(1, Math.min(Math.round(Number(warmupCount)) || 6, Math.floor(180 / (wWork + wRest))));
+    const wTotal = wCount * (wWork + wRest);
+    const wTotalText = wTotal % 60 === 0 ? `${wTotal / 60} min` : `${Math.floor(wTotal / 60)}:${String(wTotal % 60).padStart(2, '0')} min`;
+    const warmupRows = Array.from({ length: wCount }, (_, i) =>
+      `| ${i + 1} | ${i === 0 ? '[mobilidade leve]' : '...'} | ${wWork}s | ${wRest}s | ${i === 0 ? '[dica curta]' : '...'} |`).join('\n');
     const warmupRule = warmupBlock !== false
       ? `═══════════════════════════════════════════════
-AQUECIMENTO — BLOCO 0 CRONOMETRADO (OBRIGATÓRIO)
+AQUECIMENTO — BLOCO 0 CRONOMETRADO (OBRIGATÓRIO, MÁXIMO 3 MIN)
 ═══════════════════════════════════════════════
 O aquecimento roda no Player como um bloco cronometrado. Escreva EXATAMENTE neste formato (tabela, não lista):
 
-## 🔥 Aquecimento (4 min)
+## 🔥 Aquecimento (${wTotalText})
 
 ### Bloco 0 — Aquecimento
-**Formato:** 4 rounds × 40s trabalho / 20s transição
+**Formato:** ${wCount} rounds × ${wWork}s trabalho / ${wRest}s intervalo
 **Intensidade:** Leve (RPE 3–4)
 
 | Round | Exercício | Trabalho | Descanso | Observação |
 |-------|-----------|----------|----------|------------|
-| 1 | [exercício leve da lista] | 40s | 20s | [dica curta] |
-| 2 | ... | 40s | 20s | ... |
-| 3 | ... | 40s | 20s | ... |
-| 4 | ... | 40s | 20s | ... |
+${warmupRows}
 
-**Descanso após bloco:** 30s
+**Descanso após bloco:** 10s
 
-- 4 exercícios DIFERENTES, leves e de baixo impacto (ex.: polichinelo leve, skips leves, agachamento sem peso, mobilidade/ativação), preparando os padrões de movimento dos blocos.
-- Use nomes da Lista Oficial sempre que existir equivalente; os exercícios do aquecimento NÃO contam para a regra de "não repetir na semana".`
+- EXATAMENTE ${wCount} exercícios DIFERENTES, todos com ${wWork}s de trabalho e ${wRest}s de intervalo (total ${wTotalText}; NUNCA passe de 3 min).
+- Conteúdo, em intensidade LEVE, preparando os blocos seguintes:
+  • MOBILIDADES: quadril, tornozelo, coluna torácica e ombro/escapular;
+  • ESTABILIDADE: ex.: prancha curta, estabilidade de joelho (equilíbrio unilateral);
+  • AGACHAMENTO com peso corporal (sem carga).
+- Nada de saltos, burpees ou exercícios explosivos no aquecimento.
+- Use nomes da Lista Oficial quando existir equivalente; se não existir, escreva um nome curto em MAIÚSCULAS (ex.: MOBILIDADE DE QUADRIL, MOBILIDADE DE TORNOZELO, ROTAÇÃO TORÁCICA, ATIVAÇÃO ESCAPULAR, PRANCHA CURTA). Os exercícios do aquecimento NÃO contam para a regra de "não repetir na semana".`
       : `═══════════════════════════════════════════════
 AQUECIMENTO
 ═══════════════════════════════════════════════
@@ -306,7 +319,7 @@ ${notes ? `OBSERVAÇÕES ADICIONAIS DO COACH: ${notes}\n` : ''}
 Lembre-se:
 - Cruze CADA exercício com as lesões/restrições reportadas
 - Se houver patologias, prefira sempre a versão adaptada
-- ${warmupBlock !== false ? 'Comece pelo Bloco 0 — Aquecimento cronometrado (tabela), depois os' : 'Sem aquecimento;'} blocos principais com tabela detalhada e desaquecimento${progression !== false ? '\n- Linha **Intensidade:** em cada bloco: Moderado → Forte → Máximo, explosivos no fim' : ''}
+- ${warmupBlock !== false ? `Comece pelo Bloco 0 — Aquecimento cronometrado (tabela, ${wCount} × ${wWork}s/${wRest}s, máximo 3 min), depois os` : 'Sem aquecimento;'} blocos principais com tabela detalhada e desaquecimento${progression !== false ? '\n- Linha **Intensidade:** em cada bloco: Moderado → Forte → Máximo, explosivos no fim' : ''}
 - Garanta VARIEDADE de exercícios ao longo da semana: não repita exercícios já listados como usados
 - Cada bloco com NO MÍNIMO 4 exercícios diferentes (A-B-C-D repetido nos 8 rounds)
 - Só montagem rápida: peso corporal, halter, kettlebell, corda naval, elástico (nada de barra/anilha, smith ou máquina)

@@ -27,7 +27,14 @@ import {
   trainingDayKind, enforceQuickSetup, tabataPlanWarnings, tabataBlockExerciseNames,
   type TabataPlanRef, type TabataDayChange,
 } from '@/lib/tabataRules';
-import { normalizeWarmupSection, ensureBlockIntensities, progressionWarnings } from '@/lib/tabataProgression';
+import {
+  normalizeWarmupSection, ensureBlockIntensities, progressionWarnings, fitWarmupBlock, replaceWarmupSection,
+  maxWarmupExercises, formatWarmupClock, WARMUP_DEFAULT,
+} from '@/lib/tabataProgression';
+
+const WARMUP_WORK_OPTIONS = [20, 25, 30];
+const WARMUP_REST_OPTIONS = [5, 10];
+const WARMUP_COUNT_OPTIONS = [3, 4, 5, 6, 7, 8];
 import { Switch } from '@/components/ui/switch';
 
 type StudentCtx = Record<string, any>;
@@ -92,6 +99,12 @@ const TabataIA = () => {
   const [notes, setNotes] = useState('');
   const [includeWarmupBlock, setIncludeWarmupBlock] = useState(true);
   const [intensityProgression, setIntensityProgression] = useState(true);
+  const [warmupWork, setWarmupWork] = useState<number>(WARMUP_DEFAULT.work);
+  const [warmupRest, setWarmupRest] = useState<number>(WARMUP_DEFAULT.rest);
+  const [warmupCount, setWarmupCount] = useState<number>(WARMUP_DEFAULT.count);
+  // Aquecimento de no máximo 3 min: com esses tempos, cabe no máximo `warmupMax` exercícios.
+  const warmupMax = maxWarmupExercises(warmupWork, warmupRest);
+  const warmupCountUsed = Math.min(warmupCount, warmupMax);
   const [generating, setGenerating] = useState(false);
   const [result, setResult] = useState('');
   const [saving, setSaving] = useState(false);
@@ -420,6 +433,9 @@ const TabataIA = () => {
               trainingDay: dayKind,
               trainingDayName: day.fromWorkout || '',
               warmupBlock: includeWarmupBlock,
+              warmupWork,
+              warmupRest,
+              warmupCount: warmupCountUsed,
               progression: intensityProgression,
             }),
           }
@@ -469,10 +485,16 @@ const TabataIA = () => {
         // Correção determinística: barra/smith/máquina → versão de montagem rápida do catálogo.
         const fixed = enforceQuickSetup(accumulated, catalogNames);
         // Bloco 0 cronometrado (ou sem aquecimento) e Moderado → Forte → Máximo nos blocos sem intensidade.
-        let dayMarkdown = normalizeWarmupSection(fixed.markdown, includeWarmupBlock);
+        const warmupTarget = { work: warmupWork, rest: warmupRest, count: warmupCountUsed };
+        let dayMarkdown = normalizeWarmupSection(fixed.markdown, includeWarmupBlock, warmupTarget);
+        // Aquecimento sempre dentro de 3 min e com os tempos escolhidos (trabalho 20–30s, intervalo 5–10s).
+        const generatedWarmup = includeWarmupBlock ? parseTabata(dayMarkdown).warmupBlock : null;
+        const warmFit = generatedWarmup ? fitWarmupBlock(generatedWarmup, warmupTarget) : null;
+        if (warmFit?.changed) dayMarkdown = replaceWarmupSection(dayMarkdown, warmFit.block);
         if (intensityProgression) dayMarkdown = ensureBlockIntensities(dayMarkdown);
         const parsedDay = parseTabata(dayMarkdown);
         const warnings = [
+          ...(warmFit?.removed.length ? [`Aquecimento limitado a 3 min: saiu ${warmFit.removed.join(', ')}.`] : []),
           ...fixed.replaced.map(([from, to]) => `Trocado ${from} por ${to} (montagem rápida).`),
           ...tabataPlanWarnings(parsedDay, { dayKind, otherDaysExercises: avoidForDay }),
           ...(intensityProgression ? progressionWarnings(parsedDay) : []),
@@ -732,10 +754,51 @@ const TabataIA = () => {
             <label className="flex items-center justify-between gap-3 p-3 rounded-lg border border-border bg-card">
               <span>
                 <span className="block text-sm font-semibold">Incluir bloco de aquecimento</span>
-                <span className="block text-[11px] text-muted-foreground">Bloco 0 cronometrado no Player: 4 exercícios leves × 40s / 20s (~4 min).</span>
+                <span className="block text-[11px] text-muted-foreground">Bloco 0 cronometrado no Player, leve: mobilidade, estabilidade e agachamento livre. Máximo 3 min.</span>
               </span>
               <Switch checked={includeWarmupBlock} onCheckedChange={setIncludeWarmupBlock} aria-label="Incluir bloco de aquecimento" />
             </label>
+            {includeWarmupBlock && (
+              <div className="p-3 rounded-lg border border-border bg-card space-y-2" data-testid="tabata-wizard-warmup">
+                <div className="grid grid-cols-3 gap-2">
+                  <div>
+                    <Label className="text-[11px] text-muted-foreground">Trabalho</Label>
+                    <Select value={String(warmupWork)} onValueChange={v => setWarmupWork(Number(v))}>
+                      <SelectTrigger aria-label="Trabalho do aquecimento"><SelectValue /></SelectTrigger>
+                      <SelectContent className="bg-popover z-50">
+                        {WARMUP_WORK_OPTIONS.map(v => <SelectItem key={v} value={String(v)}>{v}s</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label className="text-[11px] text-muted-foreground">Intervalo</Label>
+                    <Select value={String(warmupRest)} onValueChange={v => setWarmupRest(Number(v))}>
+                      <SelectTrigger aria-label="Intervalo do aquecimento"><SelectValue /></SelectTrigger>
+                      <SelectContent className="bg-popover z-50">
+                        {WARMUP_REST_OPTIONS.map(v => <SelectItem key={v} value={String(v)}>{v}s</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label className="text-[11px] text-muted-foreground">Exercícios</Label>
+                    <Select value={String(warmupCount)} onValueChange={v => setWarmupCount(Number(v))}>
+                      <SelectTrigger aria-label="Exercícios do aquecimento"><SelectValue /></SelectTrigger>
+                      <SelectContent className="bg-popover z-50">
+                        {WARMUP_COUNT_OPTIONS.map(v => <SelectItem key={v} value={String(v)}>{v}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <p className="text-[11px] text-muted-foreground">
+                  {warmupCountUsed} × {warmupWork}s / {warmupRest}s = <span className="font-semibold text-foreground">{formatWarmupClock(warmupCountUsed * (warmupWork + warmupRest))}</span> (máximo 3:00)
+                </p>
+                {warmupCount > warmupMax && (
+                  <p role="alert" className="text-[11px] text-destructive">
+                    {warmupCount} exercícios passam de 3 min ({formatWarmupClock(warmupCount * (warmupWork + warmupRest))}). Com esses tempos cabem {warmupMax} — o aquecimento vai sair com {warmupMax}.
+                  </p>
+                )}
+              </div>
+            )}
             <label className="flex items-center justify-between gap-3 p-3 rounded-lg border border-border bg-card">
               <span>
                 <span className="block text-sm font-semibold">Progressão de intensidade entre blocos</span>

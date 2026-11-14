@@ -109,7 +109,7 @@ export function parseTabata(markdown: string): ParsedTabata {
       const blockName = trimmed.replace(/^###\s+/, '').trim();
       const isWarmupBlock = !result.warmupBlock && (currentSection === 'warmup' || /^bloco\s*0\b/i.test(blockName));
       currentBlock = isWarmupBlock
-        ? { name: blockName, format: '', rounds: 4, workSeconds: 40, restSeconds: 20, exercises: [], restAfterBlock: 30 }
+        ? { name: blockName, format: '', rounds: 6, workSeconds: 25, restSeconds: 5, exercises: [], restAfterBlock: 10 }
         : { name: blockName, format: '', rounds: 8, workSeconds: 20, restSeconds: 10, exercises: [], restAfterBlock: 60 };
       if (isWarmupBlock) result.warmupBlock = currentBlock;
       else result.blocks.push(currentBlock);
