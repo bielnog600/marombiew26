@@ -104,6 +104,8 @@ const TabataExecucao: React.FC = () => {
   const [showShare, setShowShare] = useState(false);
   const [doneSteps, setDoneSteps] = useState<number[]>([]);
   const [endedEarly, setEndedEarly] = useState(false);
+  /** Onde o roteiro parou ao encerrar antes do fim (topo do resumo). */
+  const [endElapsed, setEndElapsed] = useState<number | null>(null);
   const [rpe, setRpe] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -649,6 +651,12 @@ const TabataExecucao: React.FC = () => {
   };
 
   const finish = (early = false) => {
+    if (early) {
+      const left = Math.max(0, phaseTotalSecondsRef.current - Math.floor((Date.now() - phaseStartTimeRef.current) / 1000));
+      setEndElapsed(elapsedSeconds(steps, phaseRef.current, stepIndexRef.current, pausedRef.current ? secondsLeft : left));
+    } else {
+      setEndElapsed(null);
+    }
     clearScheduledBeeps();
     voiceRef.current?.stop();
     if (pausedAtRef.current) {
@@ -806,6 +814,7 @@ const TabataExecucao: React.FC = () => {
     totalPauseMsRef.current = 0;
     pausedAtRef.current = null;
     setEndedEarly(false);
+    setEndElapsed(null);
     setRpe(null);
     setSaved(false);
     stepIndexRef.current = 0;
@@ -942,7 +951,7 @@ const TabataExecucao: React.FC = () => {
   const running = phase !== 'idle' && phase !== 'done';
   const headerStep = steps[headerStepIndex(phase, stepIndex, totalSteps)];
   const tone = phaseTone(phase, steps, stepIndex, levels);
-  const elapsed = elapsedSeconds(steps, phase, stepIndex, secondsLeft);
+  const elapsed = phase === 'done' && endElapsed != null ? endElapsed : elapsedSeconds(steps, phase, stepIndex, secondsLeft);
   const segments = progressSegments(steps, levels, elapsed);
   const level = stepIntensity(currentStep, levels);
   const nextLevel = stepIntensity(nextStep ?? undefined, levels);
@@ -956,7 +965,7 @@ const TabataExecucao: React.FC = () => {
   const header = (
     <header className="shrink-0 px-3 pt-2 pb-2 space-y-2" style={{ background: 'hsl(var(--tabata-bg))' }}>
       <div className="flex items-center gap-2">
-        <Button variant="ghost" size="icon" aria-label="Fechar" onClick={() => navigate(-1)} className="h-10 w-10 rounded-full text-foreground">
+        <Button variant="ghost" size="icon" aria-label="Fechar" onClick={() => navigate(-1)} className="h-10 w-10 rounded-full text-foreground hover:bg-tabata-panel hover:text-foreground">
           <X className="h-5 w-5" />
         </Button>
         <div className="flex-1 min-w-0 text-center">
@@ -971,7 +980,7 @@ const TabataExecucao: React.FC = () => {
         <Button
           variant="ghost" size="icon" aria-label={muted ? 'Ligar som' : 'Desligar som'}
           onPointerDown={armAudioFromGesture} onTouchStart={armAudioFromGesture} onClick={toggleMute}
-          className="h-10 w-10 rounded-full text-foreground"
+          className="h-10 w-10 rounded-full text-foreground hover:bg-tabata-panel hover:text-foreground"
         >
           {muted ? <VolumeX className="h-5 w-5" /> : <Volume2 className="h-5 w-5" />}
         </Button>
@@ -1071,7 +1080,10 @@ const TabataExecucao: React.FC = () => {
     return (
       <div
         className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 px-5 text-center animate-fade-in"
-        style={{ background: `radial-gradient(circle at 50% 30%, ${toneColor(nextTone, 0.28)}, hsl(var(--tabata-bg)) 70%)` }}
+        style={{
+          backgroundColor: 'hsl(var(--tabata-bg))',
+          backgroundImage: `radial-gradient(circle at 50% 30%, ${toneColor(nextTone, 0.28)}, transparent 70%)`,
+        }}
         data-testid="tabata-block-transition"
       >
         <p className="text-xs font-black uppercase tracking-[0.2em] text-tabata-soft">
@@ -1235,7 +1247,7 @@ const TabataExecucao: React.FC = () => {
           <Button
             variant="ghost" size="icon" aria-label="Reiniciar rodada"
             onPointerDown={armAudioFromGesture} onTouchStart={armAudioFromGesture} onClick={restartRound}
-            className="h-14 w-14 rounded-full border border-tabata-border bg-tabata-panel text-foreground"
+            className="h-14 w-14 rounded-full border border-tabata-border bg-tabata-panel text-foreground hover:bg-tabata-panel hover:text-foreground active:scale-95"
           >
             <RotateCcw className="!h-5 !w-5" />
           </Button>
@@ -1249,7 +1261,7 @@ const TabataExecucao: React.FC = () => {
           <Button
             variant="ghost" size="icon" aria-label="Avançar"
             onPointerDown={armAudioFromGesture} onTouchStart={armAudioFromGesture} onClick={skip}
-            className="h-14 w-14 rounded-full border border-tabata-border bg-tabata-panel text-foreground"
+            className="h-14 w-14 rounded-full border border-tabata-border bg-tabata-panel text-foreground hover:bg-tabata-panel hover:text-foreground active:scale-95"
           >
             <SkipForward className="!h-6 !w-6 fill-current" />
           </Button>
