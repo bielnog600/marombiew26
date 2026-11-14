@@ -1,5 +1,3 @@
--- Variações da voz do Fabiew no Player do TABATA (sem áudio: o admin gera e aprova na aba TABATA).
--- As 5 falas originais (já aprovadas) continuam como estão; cada uma entra no seu grupo pela chave.
 INSERT INTO public.coach_voice_phrases (phrase_key, texto, categoria, tipo)
 VALUES
   ('tabatav_preparar_vamoscomecar', 'Preparado? Vamos começar', 'TABATA', 'sistema'),
