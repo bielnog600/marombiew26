@@ -1,12 +1,9 @@
 // Regras puras da tela de execução do cardio (mesma identidade do Player do TABATA):
 // cor/tag de intensidade por fase, parâmetros grandes da máquina, "A seguir", barra
-// segmentada, linha do tempo, kcal por MET e os momentos da voz do Fabiew. Nada aqui grava.
+// segmentada, linha do tempo e kcal por MET. Sem voz: o cardio só usa bipes. Nada aqui grava.
 import type { CardioBlock, CardioBlockIntensity, CardioModality, CardioProtocol } from './cardioParser';
 import { isHardBlock, mmss, ptNumber } from './cardioIntervals';
 import type { PhaseTone } from './tabataPlayerView';
-import {
-  BREATHE_MIN_SECONDS, COUNTDOWN_VOICE_AT, REST_CALL_MIN_SECONDS, type PhaseCue,
-} from './tabataVoiceCues';
 
 export type CardioPhase = 'idle' | 'prep' | 'block' | 'done';
 
@@ -170,53 +167,3 @@ export const EFFORT_LABELS = ['Muito fácil', 'Fácil', 'Moderado', 'Difícil', 
 export const effortLabel = (v: number | null | undefined) => (v && v >= 1 && v <= 5 ? EFFORT_LABELS[v - 1] : '');
 
 // ───────────────────────── Voz do Fabiew ─────────────────────────
-
-/**
- * Falas de cada fase (as mesmas falas aprovadas do TABATA e as mesmas regras de frequência):
- * - "Prepare-se": fala de preparar;
- * - "3, 2, 1…" nos 3 s antes de todo pico, e a largada quando o pico começa;
- * - recuperação: "Descansa um pouco" 1 a cada 2–3 (≥ 6 s) e "Respira" no meio ~1 a cada 3 (≥ 8 s).
- */
-export interface CardioCuePlanner {
-  plan(phase: 'prep' | 'block', block: CardioBlock | undefined, next: CardioBlock | undefined, total: number): PhaseCue[];
-}
-
-export function createCardioCuePlanner(rng: () => number = Math.random): CardioCuePlanner {
-  let restCallIn = Math.floor(rng() * 2);
-  let breatheIn = 1 + Math.floor(rng() * 2);
-  const middleOf = (total: number) => {
-    const m = Math.ceil(total / 2);
-    return m > COUNTDOWN_VOICE_AT && m < total ? m : null;
-  };
-  return {
-    plan(phase, block, next, total) {
-      const cues: PhaseCue[] = [];
-      if (phase === 'prep') {
-        if (total > COUNTDOWN_VOICE_AT) cues.push({ at: total, moment: 'preparar' });
-      } else if (isHardBlock(block)) {
-        if (total > 0) cues.push({ at: total, moment: 'largada' });
-      } else if (block?.type === 'recuperacao') {
-        let called = false;
-        if (total >= REST_CALL_MIN_SECONDS) {
-          if (restCallIn <= 0) {
-            cues.push({ at: total, moment: 'descanso' });
-            called = true;
-            restCallIn = 1 + Math.floor(rng() * 2);
-          } else restCallIn--;
-        }
-        if (total >= BREATHE_MIN_SECONDS) {
-          const mid = middleOf(total);
-          if (breatheIn > 0) breatheIn--;
-          if (breatheIn <= 0 && !called && mid) {
-            cues.push({ at: mid, moment: 'respira' });
-            breatheIn = 1 + Math.floor(rng() * 3);
-          }
-        }
-      }
-      if (isHardBlock(next) && total >= COUNTDOWN_VOICE_AT && !isHardBlock(block)) {
-        cues.push({ at: COUNTDOWN_VOICE_AT, moment: 'contagem' });
-      }
-      return cues;
-    },
-  };
-}
