@@ -260,11 +260,6 @@ export function repeatIntervalPair(protocol: CardioProtocol, rounds: number, wor
   const work = blocks[wi];
   const rest = blocks[wi + 1];
   if (!work || !rest || rest.type === 'desaceleracao') return null;
-  const modality = protocol.modality === 'bike' ? 'bike' : 'passadeira';
-  const step = (b: CardioBlock): IntervalStep => clean({
-    durationSec: b.durationSec, speedKmh: b.speedKmh, inclinePct: b.inclinePct,
-    resistanceLevel: b.resistanceLevel, bikePosition: b.bikePosition,
-  });
   const n = Math.max(1, Math.min(MAX_INTERVAL_ROUNDS, Math.round(rounds)));
   const { warmup, cooldown } = splitAroundIntervals(blocks);
   const pair = (i: number): CardioBlock[] => [
@@ -273,7 +268,6 @@ export function repeatIntervalPair(protocol: CardioProtocol, rounds: number, wor
   ];
   // Mantém os campos de cada bloco do par (elíptica/escada também), só repete.
   const cycles = Array.from({ length: n }, (_, k) => pair(k + 1)).flat();
-  void step; void modality;
   const out = [...warmup, ...cycles, ...cooldown];
   return { ...protocol, totalDurationMin: Math.round(out.reduce((s, b) => s + (b.durationSec || 0), 0) / 60), blocks: out };
 }
