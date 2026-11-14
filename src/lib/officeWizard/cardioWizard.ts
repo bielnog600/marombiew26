@@ -29,7 +29,8 @@ export const CARDIO_SPEEDS = ['3','4','5','5.5','6','6.5','7','7.5','8','8.5','9
 export const CARDIO_INCLINES = ['0','1','2','3','4','5','6','7','8','9','10','12','15'];
 export const CARDIO_TIMES = ['10','15','20','30','40','45','60','90','120','180','240','300'];
 export const CARDIO_BIKE_LEVELS = Array.from({ length: 20 }, (_, i) => String(i + 1));
-export const CARDIO_ROUNDS = ['4','5','6','8','10','12','15','20'];
+// Até 40 ciclos: ex. 20 × (30s + 30s) = 20 min de intervalado.
+export const CARDIO_ROUNDS = ['2','3','4','5','6','7','8','9','10','12','14','15','16','18','20','24','25','30','40'];
 export const CARDIO_BIKE_POSITIONS = ['auto', 'alternado', 'sentado', 'em_pe'];
 
 /** Campos de equipamento (chave do estado `eq` da tela → rótulo e opções). */
