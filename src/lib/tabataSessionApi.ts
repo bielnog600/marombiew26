@@ -178,16 +178,15 @@ export async function findActiveTabata(studentId: string, now = Date.now()): Pro
       local = null;
     }
   }
-  const candidates = [local, ...(remote.snapshots ?? [])];
-  let best = newestSnapshot(...candidates);
-  while (best && resumeStatus(best, now).kind === 'expired') {
-    const expired = best;
-    clearLocalTabataSnapshot(expired.sessionId);
-    void abandonTabataSession(expired.sessionId);
-    best = newestSnapshot(...candidates.filter(s => s && s.sessionId !== expired.sessionId));
-    candidates.splice(0, candidates.length, ...candidates.filter(s => s && s.sessionId !== expired.sessionId));
+  const alive: TabataSnapshot[] = [];
+  for (const s of [local, ...(remote.snapshots ?? [])]) {
+    if (!s) continue;
+    if (resumeStatus(s, now).kind === 'expired') {
+      clearLocalTabataSnapshot(s.sessionId);
+      void abandonTabataSession(s.sessionId);
+    } else alive.push(s);
   }
-  return best;
+  return newestSnapshot(...alive);
 }
 
 /** Fecha a sessão ativa (aparelho + banco). */
