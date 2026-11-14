@@ -1684,7 +1684,7 @@ const TabataExecucao: React.FC = () => {
       {resumeCount === 0 ? (
         <h2 className="text-4xl font-black tracking-wide" style={{ color: toneColor(tone) }}>TÁ PREPARADO?</h2>
       ) : (
-        <h2 key={resumeCount} className="text-8xl font-black tabular-nums animate-scale-in" style={{ color: toneColor(tone) }}>{resumeCount}</h2>
+        <h2 key={resumeCount} className="text-8xl font-black tabular-nums animate-fade-in" style={{ color: toneColor(tone) }}>{resumeCount}</h2>
       )}
       <p className="text-sm text-tabata-soft">
         {phase === 'work' ? <>Voltando · faltam <span className="font-bold text-foreground">{secondsLeft}s</span> de {nameOf(currentStep)}</> : 'Voltando ao treino'}
