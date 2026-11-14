@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
-import type { ParsedTabata } from '@/lib/tabataParser';
+import { parseTabata, type ParsedTabata } from '@/lib/tabataParser';
 import { TabataSummaryShare } from '@/components/tabata/TabataSummaryShare';
 import {
   tabataPlayerSteps, resolveWarmupBlock, warmupTotalSeconds, formatWarmupClock, type TabataPlayerStep,
@@ -25,7 +25,16 @@ import {
   type PhaseCue, type TabataMoment,
 } from '@/lib/tabataVoiceCues';
 import { createTabataVoice, type TabataVoice } from '@/lib/tabataVoicePlayer';
-import { saveTabataSession } from '@/lib/tabataSessionApi';
+import {
+  abandonTabataSession, discardActiveTabata, findActiveTabata, finishTabataSession, loadRemoteActiveTabata,
+  saveTabataProgress, saveTabataSession,
+} from '@/lib/tabataSessionApi';
+import {
+  RESUME_COUNTDOWN_SECONDS, STALE_WARMUP_TEXT, buildTabataSnapshot, clearLocalTabataSnapshot, isTabataSnapshot,
+  readLocalTabataSnapshot, restoredPhaseStart, restoredSecondsLeft, resumeStatus, snapshotLabel, snapshotMatchesPlan,
+  stoppedAgoText, writeLocalTabataSnapshot, type PauseReason, type TabataSnapshot,
+} from '@/lib/tabataResume';
+import { useScreenWakeLock } from '@/hooks/useScreenWakeLock';
 import {
   PhaseChip, RoundDots, RpePicker, SegmentedProgress, TimerRing,
 } from '@/components/tabata/player/TabataPlayerParts';
@@ -91,9 +100,16 @@ const TabataExecucao: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const navState = (location.state as any) || {};
-  const tabata = navState.tabata as ParsedTabata | undefined;
+  const navTabata = navState.tabata as ParsedTabata | undefined;
   const planId = (navState.planId as string | undefined) ?? null;
   const isPreview = navState.preview === true;
+  /** Pré-visualização do admin: nada é salvo nem pausa ao sair (comportamento de antes). */
+  const persistEnabled = !isPreview;
+  /** "Continuar" do card da home: retoma direto neste ponto. */
+  const navResume = isTabataSnapshot(navState.resumeSnapshot) ? (navState.resumeSnapshot as TabataSnapshot) : null;
+  /** Plano exato da sessão retomada (pode ser diferente do plano aberto, se ele mudou). */
+  const [tabataOverride, setTabataOverride] = useState<ParsedTabata | null>(null);
+  const tabata = tabataOverride ?? navTabata;
 
   const [phase, setPhase] = useState<Phase>('idle');
   const [stepIndex, setStepIndex] = useState(0);
@@ -115,6 +131,10 @@ const TabataExecucao: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [videoReady, setVideoReady] = useState(false);
+  /** Card "TABATA em andamento" dentro do Player (voltou depois de 15 s ou abriu de novo). */
+  const [resumeOffer, setResumeOffer] = useState<{ snapshot: TabataSnapshot; stale: boolean; restore: boolean } | null>(null);
+  /** Contagem da retomada: 3, 2, 1 (0 = "Tá preparado?" antes dos números). */
+  const [resumeCount, setResumeCount] = useState<number | null>(null);
 
   const audioCtxRef = useRef<AudioContext | null>(null);
   const htmlBeepsRef = useRef<Record<string, HTMLAudioElement[]>>({});
@@ -147,6 +167,18 @@ const TabataExecucao: React.FC = () => {
   const phaseCuesRef = useRef<PhaseCue[]>([]);
   /** Última fala de cada momento, para não repetir a mesma duas vezes seguidas. */
   const lastVoiceRef = useRef<Partial<Record<TabataMoment, string>>>({});
+  // Sessão em andamento (pausa ao sair / retomada).
+  const sessionIdRef = useRef<string | null>(null);
+  const sessionStartRef = useRef<number | null>(null);
+  const studentIdRef = useRef<string | null>(null);
+  const uidPromiseRef = useRef<Promise<string | null> | null>(null);
+  /** Saiu do app com o treino rodando (pausa automática): quando saiu. */
+  const awayRef = useRef<{ at: number } | null>(null);
+  const resumeTimersRef = useRef<number[]>([]);
+  const lastRemoteSaveRef = useRef(0);
+  const finishedSessionRef = useRef<string | null>(null);
+  const tabataRef = useRef<ParsedTabata | undefined>(tabata);
+  tabataRef.current = tabata;
 
   useEffect(() => {
     phaseRef.current = phase;
@@ -176,6 +208,8 @@ const TabataExecucao: React.FC = () => {
   }, [phase, sessionStartMs]);
 
   const steps: Step[] = useMemo(() => tabataPlayerSteps(tabata), [tabata]);
+  const stepsRef = useRef(steps);
+  stepsRef.current = steps;
   const warmupBlock = useMemo(() => (tabata ? resolveWarmupBlock(tabata) : null), [tabata]);
   const levels = useMemo(() => blockIntensities(tabata), [tabata]);
   const planTotal = useMemo(() => totalSeconds(steps), [steps]);
@@ -839,7 +873,19 @@ const TabataExecucao: React.FC = () => {
     unlockAudio(false);
     const now = Date.now();
     setSessionStartMs(now);
+    sessionStartRef.current = now;
     setSessionDurationSec(0);
+    clearResumeTimers();
+    setResumeCount(null);
+    setResumeOffer(null);
+    awayRef.current = null;
+    lastRemoteSaveRef.current = 0;
+    if (persistEnabled) {
+      // Sessão nova: qualquer outra em andamento (Recomeçar / outro plano) fecha como abandonada.
+      const id = crypto.randomUUID();
+      sessionIdRef.current = id;
+      void closeOtherActiveSessions(id);
+    }
     doneStepsRef.current = new Set();
     setDoneSteps([]);
     totalPauseMsRef.current = 0;
@@ -920,7 +966,14 @@ const TabataExecucao: React.FC = () => {
 
   const togglePause = () => {
     unlockAudio();
-    if (pausedRef.current) resume(); else pause();
+    awayRef.current = null;
+    if (pausedRef.current) {
+      resume();
+      persist('away', 'in_progress', true);
+    } else {
+      pause();
+      persist('manual', 'paused', true);
+    }
   };
 
   const toggleMute = () => {
@@ -940,8 +993,330 @@ const TabataExecucao: React.FC = () => {
     }
   };
 
+  // ───────── TABATA em andamento: pausa ao sair e retomada ─────────
+
+  useEffect(() => {
+    if (!persistEnabled) return;
+    const job = (async () => {
+      try {
+        const r = await supabase.auth.getUser();
+        const id = r?.data?.user?.id ?? null;
+        if (id) studentIdRef.current = id;
+        return id;
+      } catch { return null; }
+    })();
+    uidPromiseRef.current = job;
+  }, [persistEnabled]);
+
+  /** Ponto exato agora (fase, passo, ms restantes). Rodando = como se parasse agora. */
+  const currentSnapshot = (reason: PauseReason, now = Date.now()): TabataSnapshot | null => {
+    const sid = sessionIdRef.current;
+    const uid = studentIdRef.current;
+    const plan = tabataRef.current;
+    if (!persistEnabled || !sid || !uid || !plan) return null;
+    const pausedAt = pausedAtRef.current ?? now;
+    return buildTabataSnapshot({
+      sessionId: sid,
+      studentId: uid,
+      planId,
+      title: plan.title || 'TABATA',
+      markdown: plan.rawMarkdown,
+      phase: phaseRef.current,
+      stepIndex: stepIndexRef.current,
+      step: stepsRef.current[stepIndexRef.current],
+      remainingMs: phaseTotalSecondsRef.current * 1000 - (pausedAt - phaseStartTimeRef.current),
+      phaseTotalSeconds: phaseTotalSecondsRef.current,
+      startedAt: sessionStartRef.current ?? now,
+      totalPauseMs: totalPauseMsRef.current,
+      doneSteps: doneStepsRef.current,
+      pausedAt,
+      reason,
+    }, now);
+  };
+
+  /** Grava no aparelho (sempre) e no banco (agora, ou no máximo a cada 20 s enquanto roda). */
+  function persist(reason: PauseReason, status: 'in_progress' | 'paused', remote: boolean | 'throttle') {
+    if (!persistEnabled) return;
+    if (!studentIdRef.current) {
+      void uidPromiseRef.current?.then(uid => { if (uid) persist(reason, status, remote); });
+      return;
+    }
+    const snap = currentSnapshot(reason);
+    if (!snap) return;
+    writeLocalTabataSnapshot(snap);
+    if (!remote) return;
+    const now = Date.now();
+    if (remote === 'throttle' && now - lastRemoteSaveRef.current < 20_000) return;
+    lastRemoteSaveRef.current = now;
+    void saveTabataProgress(snap, status);
+  }
+
+  async function closeOtherActiveSessions(keep: string) {
+    const uid = await (uidPromiseRef.current ?? Promise.resolve(studentIdRef.current));
+    if (!uid) return;
+    const local = readLocalTabataSnapshot(uid);
+    if (local && local.sessionId !== keep) {
+      clearLocalTabataSnapshot(local.sessionId);
+      await abandonTabataSession(local.sessionId);
+    }
+    const remote = await loadRemoteActiveTabata(uid);
+    for (const s of remote.snapshots ?? []) {
+      if (s.sessionId !== keep) await abandonTabataSession(s.sessionId);
+    }
+  }
+
+  function clearResumeTimers() {
+    resumeTimersRef.current.forEach(id => window.clearTimeout(id));
+    resumeTimersRef.current = [];
+  }
+
+  /** "Tá preparado?" (fala gravada) antes da contagem; sem áudio aprovado = só os bipes. */
+  const playPreparado = (): boolean => {
+    const voice = voiceRef.current;
+    if (mutedRef.current || !voice) return false;
+    const key = voice.ready('tabata_preparado')
+      ? 'tabata_preparado'
+      : pickVariation(momentCandidates(currentBank(), 'preparar'), lastVoiceRef.current.preparar);
+    if (!key) return false;
+    voice.stop();
+    void voice.play(key).catch(() => { /* bipes seguem */ });
+    return true;
+  };
+
+  /** Contagem 3, 2, 1 com bipes e segue de onde parou (o tempo parado não conta). */
+  function runResumeCountdown(withVoice: boolean) {
+    clearResumeTimers();
+    clearScheduledBeeps();
+    setResumeOffer(null);
+    awayRef.current = null;
+    let lead = 0;
+    if (withVoice) {
+      lead = playPreparado() ? 1500 : 900;
+      setResumeCount(0);
+    }
+    const at = (ms: number, fn: () => void) => { resumeTimersRef.current.push(window.setTimeout(fn, ms)); };
+    for (let i = 0; i < RESUME_COUNTDOWN_SECONDS; i++) {
+      const n = RESUME_COUNTDOWN_SECONDS - i;
+      const tick = () => { setResumeCount(n); beep(880, 0.12, 0.28, 'countdown'); };
+      if (lead + i * 1000 === 0) tick(); else at(lead + i * 1000, tick);
+    }
+    at(lead + RESUME_COUNTDOWN_SECONDS * 1000, () => {
+      resumeTimersRef.current = [];
+      setResumeCount(null);
+      beep(1320, 0.35, 0.3, 'transition');
+      resume();
+      persist('away', 'in_progress', true);
+    });
+  }
+
+  /** Coloca o Player parado exatamente no ponto salvo (sem tocar nada ainda). */
+  const restoreSnapshot = (snap: TabataSnapshot): boolean => {
+    const plan = snap.markdown === navTabata?.rawMarkdown ? navTabata : parseTabata(snap.markdown);
+    if (tabataPlayerSteps(plan).length <= snap.stepIndex) return false;
+    if (plan !== navTabata) setTabataOverride(plan);
+    clearResumeTimers();
+    clearScheduledBeeps();
+    voiceRef.current?.stop();
+    sessionIdRef.current = snap.sessionId;
+    if (!studentIdRef.current) studentIdRef.current = snap.studentId;
+    sessionStartRef.current = snap.startedAt;
+    setSessionStartMs(snap.startedAt);
+    setSessionDurationSec(0);
+    doneStepsRef.current = new Set(snap.doneSteps);
+    setDoneSteps([...doneStepsRef.current]);
+    totalPauseMsRef.current = snap.totalPauseMs;
+    pausedAtRef.current = snap.pausedAt;
+    setEndedEarly(false);
+    setEndElapsed(null);
+    setRpe(null);
+    setSaved(false);
+    const startAt = restoredPhaseStart(snap);
+    phaseRef.current = snap.phase;
+    stepIndexRef.current = snap.stepIndex;
+    phaseStartTimeRef.current = startAt;
+    phaseTotalSecondsRef.current = snap.phaseTotalSeconds;
+    phaseSeqRef.current += 1;
+    phaseCuesRef.current = cuePlannerRef.current.plan(snap.phase, snap.phaseTotalSeconds);
+    splitCountdownRef.current = false;
+    lastRemoteSaveRef.current = 0;
+    pausedRef.current = true;
+    setPhase(snap.phase);
+    setStepIndex(snap.stepIndex);
+    setPhaseTotalSeconds(snap.phaseTotalSeconds);
+    setSecondsLeft(restoredSecondsLeft(snap));
+    setFraction(snap.phaseTotalSeconds > 0 ? snap.remainingMs / (snap.phaseTotalSeconds * 1000) : 0);
+    setPhaseStartTime(startAt);
+    setPaused(true);
+    return true;
+  };
+
+  const continueFromOffer = () => {
+    const offer = resumeOffer;
+    if (!offer) return;
+    unlockAudio();
+    if (offer.restore && !restoreSnapshot(offer.snapshot)) {
+      setResumeOffer(null);
+      void discardActiveTabata(offer.snapshot);
+      toast.error('Não deu para retomar esse TABATA. Comece de novo.');
+      return;
+    }
+    runResumeCountdown(true);
+  };
+
+  /** Volta para a pré-tela, sem sessão (o retrato já foi descartado por quem chama). */
+  const resetToIdle = () => {
+    clearResumeTimers();
+    setResumeCount(null);
+    setResumeOffer(null);
+    awayRef.current = null;
+    pausedAtRef.current = null;
+    sessionIdRef.current = null;
+    if (navTabata) setTabataOverride(null);
+    restartAll();
+  };
+
+  const restartFromOffer = () => {
+    const offer = resumeOffer;
+    if (!offer) return;
+    unlockAudio();
+    clearLocalTabataSnapshot(offer.snapshot.sessionId);
+    void abandonTabataSession(offer.snapshot.sessionId);
+    resetToIdle();
+    start();
+  };
+
+  const discardFromOffer = () => {
+    const offer = resumeOffer;
+    if (!offer) return;
+    void discardActiveTabata(offer.snapshot);
+    resetToIdle();
+  };
+
+  const handleHidden = () => {
+    if (!persistEnabled) return;
+    const p = phaseRef.current;
+    if (p === 'idle' || p === 'done') return;
+    const counting = resumeTimersRef.current.length > 0;
+    if (counting) { clearResumeTimers(); setResumeCount(null); }
+    if (!pausedRef.current || counting || awayRef.current) {
+      if (!pausedRef.current) pause();
+      awayRef.current = { at: Date.now() };
+      persist('away', 'paused', true);
+    } else {
+      persist('manual', 'paused', true);
+    }
+  };
+
+  const handleVisible = () => {
+    if (!persistEnabled || (typeof document !== 'undefined' && document.visibilityState === 'hidden')) return;
+    const away = awayRef.current;
+    if (!away) return;
+    awayRef.current = null;
+    if (!pausedRef.current) return;
+    const now = Date.now();
+    const st = resumeStatus({ pausedAt: pausedAtRef.current ?? away.at, reason: 'away' }, now, { awayMs: now - away.at });
+    if (st.kind === 'quick') { runResumeCountdown(false); return; }
+    const snap = currentSnapshot('away', now);
+    if (st.kind === 'expired' || !snap) {
+      if (sessionIdRef.current) void discardActiveTabata({ sessionId: sessionIdRef.current });
+      resetToIdle();
+      if (st.kind === 'expired') toast.info('Esse TABATA ficou parado mais de 24 h e foi encerrado.');
+      return;
+    }
+    setResumeOffer({ snapshot: snap, stale: st.stale, restore: false });
+  };
+
+  // Ouvintes fixos chamando sempre a versão mais nova das funções.
+  const lifecycleRef = useRef({ hidden: handleHidden, visible: handleVisible });
+  lifecycleRef.current = { hidden: handleHidden, visible: handleVisible };
+  useEffect(() => {
+    if (!persistEnabled) return;
+    const onVisibility = () => {
+      if (document.visibilityState === 'hidden') lifecycleRef.current.hidden();
+      else lifecycleRef.current.visible();
+    };
+    const onHide = () => lifecycleRef.current.hidden();
+    const onShow = () => lifecycleRef.current.visible();
+    document.addEventListener('visibilitychange', onVisibility);
+    window.addEventListener('pagehide', onHide);
+    window.addEventListener('beforeunload', onHide);
+    window.addEventListener('pageshow', onShow);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibility);
+      window.removeEventListener('pagehide', onHide);
+      window.removeEventListener('beforeunload', onHide);
+      window.removeEventListener('pageshow', onShow);
+      // Saiu do Player com o treino rodando (Fechar / voltar): fica pausado para continuar depois.
+      lifecycleRef.current.hidden();
+      clearResumeTimers();
+    };
+  }, [persistEnabled]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Retomada vinda da home no iPhone: o primeiro toque em qualquer lugar libera o som.
+  const unlockRef = useRef(unlockAudio);
+  unlockRef.current = unlockAudio;
+  useEffect(() => {
+    const onTap = () => unlockRef.current(false);
+    document.addEventListener('pointerdown', onTap, { once: true, capture: true });
+    return () => document.removeEventListener('pointerdown', onTap, { capture: true });
+  }, []);
+
+  // Abriu o Player: retoma direto (Continuar da home) ou oferece o card se este plano está em andamento.
+  useEffect(() => {
+    if (!persistEnabled || !navTabata) return;
+    if (navResume) {
+      if (restoreSnapshot(navResume)) {
+        unlockAudio();
+        runResumeCountdown(true);
+      }
+      return;
+    }
+    let off = false;
+    (async () => {
+      const uid = await (uidPromiseRef.current ?? Promise.resolve(null));
+      if (!uid || off) return;
+      const found = await findActiveTabata(uid);
+      if (off || !found || phaseRef.current !== 'idle') return;
+      if (!snapshotMatchesPlan(found, planId, navTabata.rawMarkdown)) return;
+      setResumeOffer({ snapshot: found, stale: resumeStatus(found, Date.now()).stale, restore: true });
+    })();
+    return () => { off = true; };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Rodando: grava o ponto a cada fase (aparelho sempre; banco no máximo a cada 20 s).
+  useEffect(() => {
+    if (!persistEnabled || paused || phase === 'idle' || phase === 'done') return;
+    persist('away', 'in_progress', 'throttle');
+  }, [phase, stepIndex, paused]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const counts = useMemo(() => sessionCounts(steps, doneSteps), [steps, doneSteps]);
   const kcal = useMemo(() => estimateKcal(steps, doneSteps, levels, sessionDurationSec), [steps, doneSteps, levels, sessionDurationSec]);
+
+  // Terminou: sai de "em andamento" (o RPE, se escolhido, completa a mesma linha).
+  useEffect(() => {
+    if (phase !== 'done') return;
+    const sid = sessionIdRef.current;
+    if (!persistEnabled || !sid) return;
+    clearLocalTabataSnapshot(sid);
+    if (!sessionDurationSec || finishedSessionRef.current === sid) return;
+    finishedSessionRef.current = sid;
+    const uid = studentIdRef.current;
+    if (!uid || !tabata) return;
+    void finishTabataSession(sid, uid, {
+      planId,
+      name: tabata.title || 'TABATA',
+      startedAt: new Date(sessionStartMs ?? Date.now()),
+      durationSeconds: sessionDurationSec,
+      pauseMs: totalPauseMsRef.current,
+      rounds: counts.rounds,
+      totalRounds: counts.totalRounds,
+      blocks: counts.blocks,
+      totalBlocks: counts.totalBlocks,
+      kcal,
+      endedEarly,
+    });
+  }, [phase, sessionDurationSec]); // eslint-disable-line react-hooks/exhaustive-deps
+
 
   const handleSave = useCallback(async () => {
     if (!tabata || !rpe || saving || saved) return;
@@ -960,7 +1335,7 @@ const TabataExecucao: React.FC = () => {
         kcal,
         rpe,
         endedEarly,
-      });
+      }, persistEnabled ? sessionIdRef.current : null);
       setSaved(true);
       toast.success('Enviado ao Fabiew!');
     } catch (e) {
@@ -968,7 +1343,10 @@ const TabataExecucao: React.FC = () => {
     } finally {
       setSaving(false);
     }
-  }, [tabata, rpe, saving, saved, planId, sessionStartMs, sessionDurationSec, counts, kcal, endedEarly]);
+  }, [tabata, rpe, saving, saved, planId, sessionStartMs, sessionDurationSec, counts, kcal, endedEarly, persistEnabled]);
+
+  // Tela ligada enquanto o treino roda (e na contagem de retomada); solta ao pausar/terminar.
+  useScreenWakeLock(phase !== 'idle' && phase !== 'done' && (!paused || resumeCount !== null));
 
   if (!tabata) {
     return (
@@ -1156,7 +1534,8 @@ const TabataExecucao: React.FC = () => {
     );
   })();
 
-  const pauseOverlay = paused && running && (
+  const resumeUi = resumeOffer != null || resumeCount != null;
+  const pauseOverlay = paused && running && !resumeUi && (
     <div className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-3 px-6 text-center backdrop-blur-md" style={{ background: 'hsl(var(--tabata-bg) / 0.78)' }} data-testid="tabata-paused">
       <p className="text-xs font-black tracking-[0.2em]" style={{ color: toneColor(tone) }}>{roundLabel(headerStep)}</p>
       <h2 className="text-4xl font-black tracking-wide">PAUSADO</h2>
@@ -1265,6 +1644,69 @@ const TabataExecucao: React.FC = () => {
     </div>
   );
 
+  const offerSnap = resumeOffer?.snapshot;
+  const offerSecs = offerSnap ? restoredSecondsLeft(offerSnap) : 0;
+  const resumeCard = resumeOffer && offerSnap && (
+    <div
+      className="absolute inset-0 z-40 flex items-center justify-center px-5 backdrop-blur-md animate-fade-in"
+      style={{ background: 'hsl(var(--tabata-bg) / 0.9)', paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)' }}
+    >
+      <div
+        className="w-full max-w-sm overflow-hidden rounded-3xl"
+        style={{ background: 'hsl(var(--tabata-panel))', boxShadow: '0 0 0 2px hsl(var(--tabata-brand) / 0.6)' }}
+        data-testid="tabata-resume-card"
+      >
+        <div className="space-y-2 p-5 text-center">
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-tabata-brand px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-tabata-bg">
+            <span className="h-1.5 w-1.5 rounded-full bg-tabata-bg animate-pulse" /> Em andamento
+          </span>
+          <h2 className="text-xl font-black">TABATA em andamento</h2>
+          <p className="text-sm font-bold" data-testid="tabata-resume-where">
+            {offerSnap.title}, {snapshotLabel(offerSnap)}
+          </p>
+          <p className="text-[12px] text-tabata-soft">
+            Parou {stoppedAgoText(Date.now() - offerSnap.pausedAt)} · faltavam {offerSecs}s
+            {offerSnap.phase === 'work' && offerSnap.exerciseName ? ` de ${offerSnap.exerciseName.toUpperCase()}` : offerSnap.phase === 'prep' ? ' para começar' : ' de descanso'}
+          </p>
+          {resumeOffer.stale && (
+            <p className="rounded-xl px-3 py-2 text-[12px] font-bold" style={{ color: toneColor('forte'), background: toneColor('forte', 0.12) }} data-testid="tabata-resume-stale">
+              {STALE_WARMUP_TEXT}
+            </p>
+          )}
+        </div>
+        <div className="space-y-2 px-5 pb-5">
+          <Button onPointerDown={armAudioFromGesture} onClick={continueFromOffer} className="h-12 w-full rounded-2xl font-black uppercase bg-tabata-brand text-tabata-bg hover:bg-tabata-brand/90">
+            <Play className="h-5 w-5 fill-current" /> Continuar
+          </Button>
+          <Button variant="outline" onPointerDown={armAudioFromGesture} onClick={restartFromOffer} className="h-11 w-full rounded-2xl font-bold border-tabata-border bg-tabata-panel">
+            <RotateCcw className="h-4 w-4" /> Recomeçar
+          </Button>
+          <Button variant="ghost" onClick={discardFromOffer} className="h-10 w-full rounded-2xl text-[13px] font-semibold text-tabata-soft hover:bg-transparent hover:text-destructive">
+            <X className="h-4 w-4" /> Descartar
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+
+  const resumeCountdownOverlay = resumeCount != null && running && (
+    <div
+      className="absolute inset-0 z-40 flex flex-col items-center justify-center gap-3 px-6 text-center backdrop-blur-md"
+      style={{ background: 'hsl(var(--tabata-bg) / 0.82)' }}
+      data-testid="tabata-resume-countdown"
+    >
+      <p className="text-xs font-black tracking-[0.2em]" style={{ color: toneColor(tone) }}>{roundLabel(headerStep)}</p>
+      {resumeCount === 0 ? (
+        <h2 className="text-4xl font-black tracking-wide" style={{ color: toneColor(tone) }}>TÁ PREPARADO?</h2>
+      ) : (
+        <h2 key={resumeCount} className="text-8xl font-black tabular-nums animate-fade-in" style={{ color: toneColor(tone) }}>{resumeCount}</h2>
+      )}
+      <p className="text-sm text-tabata-soft">
+        {phase === 'work' ? <>Voltando · faltam <span className="font-bold text-foreground">{secondsLeft}s</span> de {nameOf(currentStep)}</> : 'Voltando ao treino'}
+      </p>
+    </div>
+  );
+
   // Rodapé sempre com a mesma altura: botões nunca mudam de lugar entre as fases.
   const footer = (
     <footer className="shrink-0 h-24 px-6 flex items-center justify-center gap-6" style={{ background: 'hsl(var(--tabata-bg))' }}>
@@ -1343,10 +1785,12 @@ const TabataExecucao: React.FC = () => {
             </section>
             {transitionOverlay}
             {pauseOverlay}
+            {resumeCountdownOverlay}
           </div>
         ) : phase === 'idle' ? idleContent : doneContent}
         {footer}
       </div>
+      {resumeCard}
 
       {showShare && (
         <TabataSummaryShare
