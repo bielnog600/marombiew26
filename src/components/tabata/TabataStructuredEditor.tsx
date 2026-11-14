@@ -10,7 +10,7 @@ import { ExercisePicker } from './ExercisePicker';
 import { TabataPatternFill } from './TabataPatternFill';
 import { changeRoundExercise } from '@/lib/tabataRules';
 import {
-  TABATA_INTENSITIES, progressionLevels, newWarmupBlock, warmupBlockFromList, warmupItemName,
+  TABATA_INTENSITIES, progressionLevels, newWarmupBlock, warmupItemName,
   WARMUP_DEFAULT, type TabataIntensity,
 } from '@/lib/tabataProgression';
 import { cn } from '@/lib/utils';
@@ -215,22 +215,17 @@ export const TabataStructuredEditor: React.FC<Props> = ({ value, onChange }) => 
     onChange({ ...value, blocks: value.blocks.map((b, i) => ({ ...b, intensity: levels[i] })) });
   };
 
+  // Lista de texto → Bloco 0 cronometrado (40s / 20s de transição), com os mesmos exercícios.
   const toWarmupBlock = () => {
-    const block = warmupBlockFromList(value.warmup);
-    const timed = block
-      ? { ...newWarmupBlock(block.exercises.map(e => e.name)) }
-      : newWarmupBlock([]);
-    onChange({ ...value, warmupBlock: timed });
+    onChange({ ...value, warmupBlock: newWarmupBlock(value.warmup.map(warmupItemName).filter(Boolean)) });
   };
 
+  // Remover o Bloco 0 volta para a lista de texto com os exercícios dele.
   const removeWarmupBlock = () => {
-    const names = (value.warmupBlock?.exercises ?? []).map(e => e.name.trim()).filter(Boolean);
+    const wb = value.warmupBlock;
+    const names = (wb?.exercises ?? []).map(e => e.name.trim()).filter(Boolean);
     const unique = names.filter((n, i) => names.indexOf(n) === i);
-    onChange({
-      ...value,
-      warmupBlock: null,
-      warmup: unique.length ? unique.map(n => `${n} — ${value.warmupBlock?.workSeconds ?? WARMUP_DEFAULT.work}s`) : value.warmup.filter(w => warmupItemName(w)),
-    });
+    onChange({ ...value, warmupBlock: null, warmup: unique.map(n => `${n} — ${wb?.workSeconds ?? WARMUP_DEFAULT.work}s`) });
   };
 
   const listToText = (arr: string[]) => arr.join('\n');
