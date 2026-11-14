@@ -107,6 +107,10 @@ export default {
           "0%": { backgroundPosition: "-200% 0" },
           "100%": { backgroundPosition: "200% 0" },
         },
+        "tabata-pulse": {
+          "0%, 100%": { transform: "scale(1)" },
+          "50%": { transform: "scale(1.12)" },
+        },
         "route-loading": {
           "0%": { transform: "translateX(-100%)" },
           "100%": { transform: "translateX(300%)" },
@@ -120,6 +124,7 @@ export default {
         "phrase-breathe": "phrase-breathe 2.4s ease-in-out infinite",
         "shine": "shine 3s linear infinite",
         "route-loading": "route-loading 1.1s ease-in-out infinite",
+        "tabata-pulse": "tabata-pulse 1s ease-in-out infinite",
       },
     },
   },
