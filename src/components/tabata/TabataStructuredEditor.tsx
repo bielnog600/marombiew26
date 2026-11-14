@@ -1,14 +1,19 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { Plus, Trash2, ChevronUp, ChevronDown } from 'lucide-react';
+import { Plus, Trash2, ChevronUp, ChevronDown, Timer, TrendingUp } from 'lucide-react';
 import type { ParsedTabata, TabataBlock, TabataExercise } from '@/lib/tabataParser';
 import { ExercisePicker } from './ExercisePicker';
 import { TabataPatternFill } from './TabataPatternFill';
 import { changeRoundExercise } from '@/lib/tabataRules';
+import {
+  TABATA_INTENSITIES, progressionLevels, newWarmupBlock, warmupBlockFromList, warmupItemName,
+  WARMUP_DEFAULT, type TabataIntensity,
+} from '@/lib/tabataProgression';
+import { cn } from '@/lib/utils';
 
 interface Props {
   value: ParsedTabata;
@@ -32,37 +37,170 @@ const emptyBlock = (idx: number): TabataBlock => ({
   restAfterBlock: 60,
 });
 
+/** Aplica um patch ao bloco mantendo o "Formato" coerente com rounds/tempos. */
+const patchBlock = (b: TabataBlock, patch: Partial<TabataBlock>): TabataBlock => {
+  const next = { ...b, ...patch };
+  if (patch.rounds || patch.workSeconds || patch.restSeconds !== undefined) {
+    next.format = `${next.rounds} rounds × ${next.workSeconds}s / ${next.restSeconds}s`;
+  }
+  return next;
+};
+
+interface BlockCardProps {
+  block: TabataBlock;
+  onChange: (next: TabataBlock) => void;
+  onRemove: () => void;
+  onMove?: (dir: -1 | 1) => void;
+  canMoveUp?: boolean;
+  canMoveDown?: boolean;
+  warmup?: boolean;
+}
+
+const IntensityPicker: React.FC<{ value?: TabataIntensity; onChange: (v: TabataIntensity | undefined) => void; label: string }> = ({ value, onChange, label }) => (
+  <div className="space-y-1">
+    <Label className="text-[10px] uppercase text-muted-foreground">Intensidade</Label>
+    <div className="flex gap-1 flex-wrap" role="radiogroup" aria-label={`Intensidade do ${label}`}>
+      {TABATA_INTENSITIES.map(i => (
+        <button
+          key={i.value}
+          type="button"
+          role="radio"
+          aria-checked={value === i.value}
+          onClick={() => onChange(value === i.value ? undefined : i.value)}
+          className={cn(
+            'h-8 px-2.5 rounded-md border text-xs font-semibold transition-colors',
+            value === i.value ? 'border-primary bg-primary/15 text-primary' : 'border-border bg-card text-muted-foreground',
+          )}
+        >
+          {i.label} <span className="font-normal opacity-80">{i.rpe}</span>
+        </button>
+      ))}
+    </div>
+  </div>
+);
+
+const BlockCard: React.FC<BlockCardProps> = ({ block: b, onChange, onRemove, onMove, canMoveUp, canMoveDown, warmup }) => {
+  const update = (patch: Partial<TabataBlock>) => onChange(patchBlock(b, patch));
+  const updateExercise = (eIdx: number, patch: Partial<TabataExercise>) => {
+    const exercises = [...b.exercises];
+    exercises[eIdx] = { ...exercises[eIdx], ...patch };
+    onChange({ ...b, exercises });
+  };
+  const addExercise = () => update({ exercises: [...b.exercises, emptyExercise(b.workSeconds, b.restSeconds)] });
+  const removeExercise = (eIdx: number) => update({ exercises: b.exercises.filter((_, i) => i !== eIdx) });
+  const label = warmup ? 'Bloco 0 — Aquecimento' : b.name;
+
+  return (
+    <Card className={cn('glass-card', warmup ? 'border-secondary' : 'border-primary/20')} data-testid={warmup ? 'tabata-warmup-block' : undefined}>
+      <CardContent className="p-3 space-y-3">
+        <div className="flex items-center gap-2">
+          {warmup && <Timer className="h-4 w-4 text-primary shrink-0" />}
+          <Input value={b.name} onChange={e => update({ name: e.target.value })} className="font-bold" aria-label={warmup ? 'Nome do aquecimento' : 'Nome do bloco'} />
+          {onMove && (
+            <>
+              <Button size="icon" variant="ghost" onClick={() => onMove(-1)} disabled={!canMoveUp}>
+                <ChevronUp className="h-4 w-4" />
+              </Button>
+              <Button size="icon" variant="ghost" onClick={() => onMove(1)} disabled={!canMoveDown}>
+                <ChevronDown className="h-4 w-4" />
+              </Button>
+            </>
+          )}
+          <Button size="icon" variant="ghost" onClick={onRemove} className="text-destructive" aria-label={warmup ? 'Remover bloco de aquecimento' : 'Remover bloco'}>
+            <Trash2 className="h-4 w-4" />
+          </Button>
+        </div>
+
+        <IntensityPicker value={b.intensity} onChange={v => update({ intensity: v })} label={label} />
+
+        <div className="grid grid-cols-4 gap-2">
+          <div>
+            <Label className="text-[10px] uppercase text-muted-foreground">Rounds</Label>
+            <Input type="number" min={1} value={b.rounds}
+              onChange={e => update({ rounds: Number(e.target.value) || 1 })} />
+          </div>
+          <div>
+            <Label className="text-[10px] uppercase text-muted-foreground">Trabalho (s)</Label>
+            <Input type="number" min={1} value={b.workSeconds}
+              onChange={e => update({ workSeconds: Number(e.target.value) || 1 })} />
+          </div>
+          <div>
+            <Label className="text-[10px] uppercase text-muted-foreground">{warmup ? 'Transição (s)' : 'Descanso (s)'}</Label>
+            <Input type="number" min={0} value={b.restSeconds}
+              onChange={e => update({ restSeconds: Number(e.target.value) || 0 })} />
+          </div>
+          <div>
+            <Label className="text-[10px] uppercase text-muted-foreground">Pós-bloco (s)</Label>
+            <Input type="number" min={0} value={b.restAfterBlock}
+              onChange={e => update({ restAfterBlock: Number(e.target.value) || 0 })} />
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <div className="flex items-center justify-between gap-2">
+            <Label className="text-[10px] uppercase text-muted-foreground">Exercícios</Label>
+            <Button size="sm" variant="ghost" onClick={addExercise} className="gap-1 h-7">
+              <Plus className="h-3 w-3" /> Exercício
+            </Button>
+          </div>
+          {!warmup && (
+            <TabataPatternFill
+              block={b}
+              onApply={next => onChange(next.rounds === b.rounds && b.format
+                ? next
+                : { ...next, format: `${next.rounds} rounds × ${next.workSeconds}s / ${next.restSeconds}s` })}
+            />
+          )}
+          {b.exercises.map((ex, eIdx) => (
+            <div key={eIdx} className="rounded-lg border border-border bg-card/50 p-2 space-y-2">
+              <div className="flex gap-2 items-start">
+                <span className="text-xs text-muted-foreground pt-2 w-5">{eIdx + 1}.</span>
+                <div className="flex-1">
+                  <ExercisePicker
+                    value={ex.name}
+                    onChange={name => updateExercise(eIdx, changeRoundExercise(ex, name))}
+                  />
+                </div>
+                <Button size="icon" variant="ghost" onClick={() => removeExercise(eIdx)} className="text-destructive">
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+              <div className="grid grid-cols-3 gap-2 pl-7">
+                <div>
+                  <Label className="text-[10px] uppercase text-muted-foreground">Trab. (s)</Label>
+                  <Input type="number" min={1} value={ex.workSeconds}
+                    onChange={e => updateExercise(eIdx, { workSeconds: Number(e.target.value) || 1 })} />
+                </div>
+                <div>
+                  <Label className="text-[10px] uppercase text-muted-foreground">{warmup ? 'Trans. (s)' : 'Desc. (s)'}</Label>
+                  <Input type="number" min={0} value={ex.restSeconds}
+                    onChange={e => updateExercise(eIdx, { restSeconds: Number(e.target.value) || 0 })} />
+                </div>
+                <div>
+                  <Label className="text-[10px] uppercase text-muted-foreground">Obs.</Label>
+                  <Input value={ex.observation || ''}
+                    onChange={e => updateExercise(eIdx, { observation: e.target.value })} />
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  );
+};
+
 export const TabataStructuredEditor: React.FC<Props> = ({ value, onChange }) => {
   const update = (patch: Partial<ParsedTabata>) => onChange({ ...value, ...patch });
 
-  const updateBlock = (idx: number, patch: Partial<TabataBlock>) => {
+  const setBlock = (idx: number, next: TabataBlock) => {
     const blocks = [...value.blocks];
-    blocks[idx] = { ...blocks[idx], ...patch };
-    if (patch.rounds || patch.workSeconds || patch.restSeconds) {
-      const b = blocks[idx];
-      blocks[idx].format = `${b.rounds} rounds × ${b.workSeconds}s / ${b.restSeconds}s`;
-    }
+    blocks[idx] = next;
     onChange({ ...value, blocks });
   };
 
-  const updateExercise = (bIdx: number, eIdx: number, patch: Partial<TabataExercise>) => {
-    const blocks = [...value.blocks];
-    const exercises = [...blocks[bIdx].exercises];
-    exercises[eIdx] = { ...exercises[eIdx], ...patch };
-    blocks[bIdx] = { ...blocks[bIdx], exercises };
-    onChange({ ...value, blocks });
-  };
-
-  const addBlock = () => {
-    const blocks = [...value.blocks, emptyBlock(value.blocks.length + 1)];
-    onChange({ ...value, blocks });
-  };
-
-  const removeBlock = (idx: number) => {
-    const blocks = value.blocks.filter((_, i) => i !== idx);
-    onChange({ ...value, blocks });
-  };
-
+  const addBlock = () => onChange({ ...value, blocks: [...value.blocks, emptyBlock(value.blocks.length + 1)] });
+  const removeBlock = (idx: number) => onChange({ ...value, blocks: value.blocks.filter((_, i) => i !== idx) });
   const moveBlock = (idx: number, dir: -1 | 1) => {
     const target = idx + dir;
     if (target < 0 || target >= value.blocks.length) return;
@@ -71,15 +209,28 @@ export const TabataStructuredEditor: React.FC<Props> = ({ value, onChange }) => 
     onChange({ ...value, blocks });
   };
 
-  const addExercise = (bIdx: number) => {
-    const b = value.blocks[bIdx];
-    const exercises = [...b.exercises, emptyExercise(b.workSeconds, b.restSeconds)];
-    updateBlock(bIdx, { exercises });
+  /** Moderado → Forte → Máximo nos blocos, na ordem atual. */
+  const applyProgression = () => {
+    const levels = progressionLevels(value.blocks.length);
+    onChange({ ...value, blocks: value.blocks.map((b, i) => ({ ...b, intensity: levels[i] })) });
   };
 
-  const removeExercise = (bIdx: number, eIdx: number) => {
-    const exercises = value.blocks[bIdx].exercises.filter((_, i) => i !== eIdx);
-    updateBlock(bIdx, { exercises });
+  const toWarmupBlock = () => {
+    const block = warmupBlockFromList(value.warmup);
+    const timed = block
+      ? { ...newWarmupBlock(block.exercises.map(e => e.name)) }
+      : newWarmupBlock([]);
+    onChange({ ...value, warmupBlock: timed });
+  };
+
+  const removeWarmupBlock = () => {
+    const names = (value.warmupBlock?.exercises ?? []).map(e => e.name.trim()).filter(Boolean);
+    const unique = names.filter((n, i) => names.indexOf(n) === i);
+    onChange({
+      ...value,
+      warmupBlock: null,
+      warmup: unique.length ? unique.map(n => `${n} — ${value.warmupBlock?.workSeconds ?? WARMUP_DEFAULT.work}s`) : value.warmup.filter(w => warmupItemName(w)),
+    });
   };
 
   const listToText = (arr: string[]) => arr.join('\n');
@@ -110,121 +261,52 @@ export const TabataStructuredEditor: React.FC<Props> = ({ value, onChange }) => 
         </CardContent>
       </Card>
 
-      <Card className="glass-card">
-        <CardContent className="p-4 space-y-2">
-          <Label className="text-xs uppercase text-muted-foreground">Aquecimento (1 item por linha)</Label>
-          <Textarea
-            value={listToText(value.warmup)}
-            onChange={e => update({ warmup: textToList(e.target.value) })}
-            className="min-h-[80px]"
-          />
-        </CardContent>
-      </Card>
+      {value.warmupBlock ? (
+        <BlockCard block={value.warmupBlock} warmup onChange={next => update({ warmupBlock: next })} onRemove={removeWarmupBlock} />
+      ) : (
+        <Card className="glass-card">
+          <CardContent className="p-4 space-y-2">
+            <Label className="text-xs uppercase text-muted-foreground">Aquecimento (1 item por linha)</Label>
+            <Textarea
+              value={listToText(value.warmup)}
+              onChange={e => update({ warmup: textToList(e.target.value) })}
+              className="min-h-[80px]"
+            />
+            <Button size="sm" variant="outline" onClick={toWarmupBlock} className="gap-1 w-full">
+              <Timer className="h-3.5 w-3.5" /> Transformar em bloco cronometrado
+            </Button>
+            <p className="text-[11px] text-muted-foreground">
+              No Player, esta lista já roda como Bloco 0 (1 min por exercício). Transformar permite ajustar tempos e transição.
+            </p>
+          </CardContent>
+        </Card>
+      )}
 
       <div className="space-y-3">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-2">
           <Label className="text-xs uppercase text-muted-foreground">Blocos</Label>
-          <Button size="sm" variant="outline" onClick={addBlock} className="gap-1">
-            <Plus className="h-3 w-3" /> Bloco
-          </Button>
+          <div className="flex gap-2">
+            {value.blocks.length > 0 && (
+              <Button size="sm" variant="outline" onClick={applyProgression} className="gap-1">
+                <TrendingUp className="h-3 w-3" /> Aplicar progressão
+              </Button>
+            )}
+            <Button size="sm" variant="outline" onClick={addBlock} className="gap-1">
+              <Plus className="h-3 w-3" /> Bloco
+            </Button>
+          </div>
         </div>
 
         {value.blocks.map((b, bIdx) => (
-          <Card key={bIdx} className="glass-card border-primary/20">
-            <CardContent className="p-3 space-y-3">
-              <div className="flex items-center gap-2">
-                <Input
-                  value={b.name}
-                  onChange={e => updateBlock(bIdx, { name: e.target.value })}
-                  className="font-bold"
-                />
-                <Button size="icon" variant="ghost" onClick={() => moveBlock(bIdx, -1)} disabled={bIdx === 0}>
-                  <ChevronUp className="h-4 w-4" />
-                </Button>
-                <Button size="icon" variant="ghost" onClick={() => moveBlock(bIdx, 1)} disabled={bIdx === value.blocks.length - 1}>
-                  <ChevronDown className="h-4 w-4" />
-                </Button>
-                <Button size="icon" variant="ghost" onClick={() => removeBlock(bIdx)} className="text-destructive">
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              </div>
-
-              <div className="grid grid-cols-4 gap-2">
-                <div>
-                  <Label className="text-[10px] uppercase text-muted-foreground">Rounds</Label>
-                  <Input type="number" min={1} value={b.rounds}
-                    onChange={e => updateBlock(bIdx, { rounds: Number(e.target.value) || 1 })} />
-                </div>
-                <div>
-                  <Label className="text-[10px] uppercase text-muted-foreground">Trabalho (s)</Label>
-                  <Input type="number" min={1} value={b.workSeconds}
-                    onChange={e => updateBlock(bIdx, { workSeconds: Number(e.target.value) || 1 })} />
-                </div>
-                <div>
-                  <Label className="text-[10px] uppercase text-muted-foreground">Descanso (s)</Label>
-                  <Input type="number" min={0} value={b.restSeconds}
-                    onChange={e => updateBlock(bIdx, { restSeconds: Number(e.target.value) || 0 })} />
-                </div>
-                <div>
-                  <Label className="text-[10px] uppercase text-muted-foreground">Pós-bloco (s)</Label>
-                  <Input type="number" min={0} value={b.restAfterBlock}
-                    onChange={e => updateBlock(bIdx, { restAfterBlock: Number(e.target.value) || 0 })} />
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <div className="flex items-center justify-between gap-2">
-                  <Label className="text-[10px] uppercase text-muted-foreground">Exercícios</Label>
-                  <Button size="sm" variant="ghost" onClick={() => addExercise(bIdx)} className="gap-1 h-7">
-                    <Plus className="h-3 w-3" /> Exercício
-                  </Button>
-                </div>
-                <TabataPatternFill
-                  block={b}
-                  onApply={next => {
-                    const blocks = [...value.blocks];
-                    blocks[bIdx] = next.rounds === b.rounds && b.format
-                      ? next
-                      : { ...next, format: `${next.rounds} rounds × ${next.workSeconds}s / ${next.restSeconds}s` };
-                    onChange({ ...value, blocks });
-                  }}
-                />
-                {b.exercises.map((ex, eIdx) => (
-                  <div key={eIdx} className="rounded-lg border border-border bg-card/50 p-2 space-y-2">
-                    <div className="flex gap-2 items-start">
-                      <span className="text-xs text-muted-foreground pt-2 w-5">{eIdx + 1}.</span>
-                      <div className="flex-1">
-                        <ExercisePicker
-                          value={ex.name}
-                          onChange={name => updateExercise(bIdx, eIdx, changeRoundExercise(ex, name))}
-                        />
-                      </div>
-                      <Button size="icon" variant="ghost" onClick={() => removeExercise(bIdx, eIdx)} className="text-destructive">
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                    <div className="grid grid-cols-3 gap-2 pl-7">
-                      <div>
-                        <Label className="text-[10px] uppercase text-muted-foreground">Trab. (s)</Label>
-                        <Input type="number" min={1} value={ex.workSeconds}
-                          onChange={e => updateExercise(bIdx, eIdx, { workSeconds: Number(e.target.value) || 1 })} />
-                      </div>
-                      <div>
-                        <Label className="text-[10px] uppercase text-muted-foreground">Desc. (s)</Label>
-                        <Input type="number" min={0} value={ex.restSeconds}
-                          onChange={e => updateExercise(bIdx, eIdx, { restSeconds: Number(e.target.value) || 0 })} />
-                      </div>
-                      <div>
-                        <Label className="text-[10px] uppercase text-muted-foreground">Obs.</Label>
-                        <Input value={ex.observation || ''}
-                          onChange={e => updateExercise(bIdx, eIdx, { observation: e.target.value })} />
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
+          <BlockCard
+            key={bIdx}
+            block={b}
+            onChange={next => setBlock(bIdx, next)}
+            onRemove={() => removeBlock(bIdx)}
+            onMove={dir => moveBlock(bIdx, dir)}
+            canMoveUp={bIdx > 0}
+            canMoveDown={bIdx < value.blocks.length - 1}
+          />
         ))}
       </div>
 
