@@ -1274,6 +1274,9 @@ const TabataExecucao: React.FC = () => {
     persist('away', 'in_progress', 'throttle');
   }, [phase, stepIndex, paused]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const counts = useMemo(() => sessionCounts(steps, doneSteps), [steps, doneSteps]);
+  const kcal = useMemo(() => estimateKcal(steps, doneSteps, levels, sessionDurationSec), [steps, doneSteps, levels, sessionDurationSec]);
+
   // Terminou: sai de "em andamento" (o RPE, se escolhido, completa a mesma linha).
   useEffect(() => {
     if (phase !== 'done') return;
@@ -1299,8 +1302,6 @@ const TabataExecucao: React.FC = () => {
     });
   }, [phase, sessionDurationSec]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const counts = useMemo(() => sessionCounts(steps, doneSteps), [steps, doneSteps]);
-  const kcal = useMemo(() => estimateKcal(steps, doneSteps, levels, sessionDurationSec), [steps, doneSteps, levels, sessionDurationSec]);
 
   const handleSave = useCallback(async () => {
     if (!tabata || !rpe || saving || saved) return;
@@ -1319,7 +1320,7 @@ const TabataExecucao: React.FC = () => {
         kcal,
         rpe,
         endedEarly,
-      });
+      }, persistEnabled ? sessionIdRef.current : null);
       setSaved(true);
       toast.success('Enviado ao Fabiew!');
     } catch (e) {
@@ -1327,7 +1328,10 @@ const TabataExecucao: React.FC = () => {
     } finally {
       setSaving(false);
     }
-  }, [tabata, rpe, saving, saved, planId, sessionStartMs, sessionDurationSec, counts, kcal, endedEarly]);
+  }, [tabata, rpe, saving, saved, planId, sessionStartMs, sessionDurationSec, counts, kcal, endedEarly, persistEnabled]);
+
+  // Tela ligada enquanto o treino roda (e na contagem de retomada); solta ao pausar/terminar.
+  useScreenWakeLock(phase !== 'idle' && phase !== 'done' && (!paused || resumeCount !== null));
 
   if (!tabata) {
     return (
@@ -1515,7 +1519,8 @@ const TabataExecucao: React.FC = () => {
     );
   })();
 
-  const pauseOverlay = paused && running && (
+  const resumeUi = resumeOffer != null || resumeCount != null;
+  const pauseOverlay = paused && running && !resumeUi && (
     <div className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-3 px-6 text-center backdrop-blur-md" style={{ background: 'hsl(var(--tabata-bg) / 0.78)' }} data-testid="tabata-paused">
       <p className="text-xs font-black tracking-[0.2em]" style={{ color: toneColor(tone) }}>{roundLabel(headerStep)}</p>
       <h2 className="text-4xl font-black tracking-wide">PAUSADO</h2>
@@ -1624,6 +1629,69 @@ const TabataExecucao: React.FC = () => {
     </div>
   );
 
+  const offerSnap = resumeOffer?.snapshot;
+  const offerSecs = offerSnap ? restoredSecondsLeft(offerSnap) : 0;
+  const resumeCard = resumeOffer && offerSnap && (
+    <div
+      className="absolute inset-0 z-40 flex items-center justify-center px-5 backdrop-blur-md animate-fade-in"
+      style={{ background: 'hsl(var(--tabata-bg) / 0.9)', paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)' }}
+    >
+      <div
+        className="w-full max-w-sm overflow-hidden rounded-3xl"
+        style={{ background: 'hsl(var(--tabata-panel))', boxShadow: `inset 0 0 0 2px ${toneColor('maximo', 0.0)}, 0 0 0 2px hsl(var(--tabata-brand) / 0.6)` }}
+        data-testid="tabata-resume-card"
+      >
+        <div className="space-y-2 p-5 text-center">
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-tabata-brand px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-tabata-bg">
+            <span className="h-1.5 w-1.5 rounded-full bg-tabata-bg animate-pulse" /> Em andamento
+          </span>
+          <h2 className="text-xl font-black">TABATA em andamento</h2>
+          <p className="text-sm font-bold" data-testid="tabata-resume-where">
+            {offerSnap.title}, {snapshotLabel(offerSnap)}
+          </p>
+          <p className="text-[12px] text-tabata-soft">
+            Parou {stoppedAgoText(Date.now() - offerSnap.pausedAt)} · faltavam {offerSecs}s
+            {offerSnap.phase === 'work' && offerSnap.exerciseName ? ` de ${offerSnap.exerciseName.toUpperCase()}` : offerSnap.phase === 'prep' ? ' para começar' : ' de descanso'}
+          </p>
+          {resumeOffer.stale && (
+            <p className="rounded-xl px-3 py-2 text-[12px] font-bold" style={{ color: toneColor('forte'), background: toneColor('forte', 0.12) }} data-testid="tabata-resume-stale">
+              {STALE_WARMUP_TEXT}
+            </p>
+          )}
+        </div>
+        <div className="space-y-2 px-5 pb-5">
+          <Button onPointerDown={armAudioFromGesture} onClick={continueFromOffer} className="h-12 w-full rounded-2xl font-black uppercase bg-tabata-brand text-tabata-bg hover:bg-tabata-brand/90">
+            <Play className="h-5 w-5 fill-current" /> Continuar
+          </Button>
+          <Button variant="outline" onPointerDown={armAudioFromGesture} onClick={restartFromOffer} className="h-11 w-full rounded-2xl font-bold border-tabata-border bg-tabata-panel">
+            <RotateCcw className="h-4 w-4" /> Recomeçar
+          </Button>
+          <Button variant="ghost" onClick={discardFromOffer} className="h-10 w-full rounded-2xl text-[13px] font-semibold text-tabata-soft hover:bg-transparent hover:text-destructive">
+            <X className="h-4 w-4" /> Descartar
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+
+  const resumeCountdownOverlay = resumeCount != null && running && (
+    <div
+      className="absolute inset-0 z-40 flex flex-col items-center justify-center gap-3 px-6 text-center backdrop-blur-md"
+      style={{ background: 'hsl(var(--tabata-bg) / 0.82)' }}
+      data-testid="tabata-resume-countdown"
+    >
+      <p className="text-xs font-black tracking-[0.2em]" style={{ color: toneColor(tone) }}>{roundLabel(headerStep)}</p>
+      {resumeCount === 0 ? (
+        <h2 className="text-4xl font-black tracking-wide" style={{ color: toneColor(tone) }}>TÁ PREPARADO?</h2>
+      ) : (
+        <h2 key={resumeCount} className="text-8xl font-black tabular-nums animate-scale-in" style={{ color: toneColor(tone) }}>{resumeCount}</h2>
+      )}
+      <p className="text-sm text-tabata-soft">
+        {phase === 'work' ? <>Voltando · faltam <span className="font-bold text-foreground">{secondsLeft}s</span> de {nameOf(currentStep)}</> : 'Voltando ao treino'}
+      </p>
+    </div>
+  );
+
   // Rodapé sempre com a mesma altura: botões nunca mudam de lugar entre as fases.
   const footer = (
     <footer className="shrink-0 h-24 px-6 flex items-center justify-center gap-6" style={{ background: 'hsl(var(--tabata-bg))' }}>
@@ -1702,10 +1770,12 @@ const TabataExecucao: React.FC = () => {
             </section>
             {transitionOverlay}
             {pauseOverlay}
+            {resumeCountdownOverlay}
           </div>
         ) : phase === 'idle' ? idleContent : doneContent}
         {footer}
       </div>
+      {resumeCard}
 
       {showShare && (
         <TabataSummaryShare
