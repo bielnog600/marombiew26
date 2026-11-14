@@ -16,9 +16,13 @@ import {
 import {
   PREP_SECONDS, blockIntensities, clock, elapsedSeconds, estimateKcal, headerStepIndex, intensityChipText,
   intensityTone, pauseAfter, phaseTone, progressSegments, roundLabel, sessionCounts, stepIntensity,
-  toneColor, totalSeconds, transitionChip, voiceCueAt, workPhrase, REST_CHIP,
-  type PlayerPhase, type TabataVoiceKey,
+  toneColor, totalSeconds, transitionChip, workPhrase, REST_CHIP,
+  type PlayerPhase,
 } from '@/lib/tabataPlayerView';
+import {
+  COUNTDOWN_VOICE_AT, countdownMode, createCuePlanner, momentCandidates, pickVariation, voiceBank,
+  type PhaseCue, type TabataMoment,
+} from '@/lib/tabataVoiceCues';
 import { createTabataVoice, type TabataVoice } from '@/lib/tabataVoicePlayer';
 import { saveTabataSession } from '@/lib/tabataSessionApi';
 import {
@@ -132,9 +136,16 @@ const TabataExecucao: React.FC = () => {
   /** Sobe a cada fase nova: cada fala toca uma vez por fase. */
   const phaseSeqRef = useRef(0);
   const firedCuesRef = useRef<Set<string>>(new Set());
-  /** true = o "3, 2, 1… bora!" gravado cobre a contagem desta fase (sem bipes). */
+  /** true = a contagem gravada cobre a contagem desta fase (sem bipes). */
   const voiceCountdownRef = useRef(false);
+  /** true = tocou o "3, 2, 1…" separado: a largada sorteada toca quando o exercício começar. */
+  const splitCountdownRef = useRef(false);
   const voiceRef = useRef<TabataVoice | null>(null);
+  /** Sorteia o que é falado em cada fase (descanso/respira espaçados). */
+  const cuePlannerRef = useRef(createCuePlanner());
+  const phaseCuesRef = useRef<PhaseCue[]>([]);
+  /** Última fala de cada momento, para não repetir a mesma duas vezes seguidas. */
+  const lastVoiceRef = useRef<Partial<Record<TabataMoment, string>>>({});
 
   useEffect(() => {
     phaseRef.current = phase;
@@ -535,11 +546,13 @@ const TabataExecucao: React.FC = () => {
     stopScheduledAudioNodes();
   };
 
+  const currentBank = () => voiceBank(voiceRef.current?.readyKeys() ?? []);
   const voiceCoversCountdown = (forPhase: Phase, seconds: number) =>
     !mutedRef.current
     && (forPhase === 'prep' || forPhase === 'rest' || forPhase === 'block_rest')
-    && seconds >= 3
-    && !!voiceRef.current?.ready('tabata_321_bora');
+    && seconds >= COUNTDOWN_VOICE_AT
+    && phaseCuesRef.current.some(c => c.moment === 'contagem')
+    && countdownMode(currentBank()) !== 'beep';
 
   // Pré-agenda o 3-2-1 do mesmo jeito do descanso da musculação, direto no
   // relógio do Web Audio, com timer JS apenas como fallback visual/operacional.
@@ -636,6 +649,8 @@ const TabataExecucao: React.FC = () => {
     phaseStartTimeRef.current = now;
     phaseTotalSecondsRef.current = secs;
     phaseSeqRef.current += 1;
+    phaseCuesRef.current = cuePlannerRef.current.plan(newPhase, secs);
+    if (newPhase !== 'work') splitCountdownRef.current = false;
     setPhase(newPhase);
     setPhaseTotalSeconds(secs);
     setSecondsLeft(secs);
@@ -745,22 +760,37 @@ const TabataExecucao: React.FC = () => {
     }
   };
 
-  // Falas do Fabiew nos momentos certos (uma vez por fase); som desligado = nada.
+  // Falas do Fabiew nos momentos sorteados da fase (uma vez cada); som desligado = nada.
+  // Nunca sobrepõe: com uma fala tocando, a próxima é pulada (a contagem cai no bipe).
   useEffect(() => {
     if (paused || mutedRef.current) return;
-    const cue: TabataVoiceKey | null = voiceCueAt(phase, secondsLeft, phaseTotalSeconds);
+    const cue = phaseCuesRef.current.find(c => c.at === secondsLeft);
     if (!cue) return;
-    const id = `${phaseSeqRef.current}:${cue}`;
+    const id = `${phaseSeqRef.current}:${cue.moment}`;
     if (firedCuesRef.current.has(id)) return;
     firedCuesRef.current.add(id);
     const voice = voiceRef.current;
-    const isCountdown = cue === 'tabata_321_bora';
-    if (!voice?.ready(cue)) {
+    const bank = currentBank();
+    const isCountdown = cue.moment === 'contagem';
+    if (cue.moment === 'largada' && !splitCountdownRef.current) return;
+    const from = stepIntensity(steps[stepIndexRef.current], levels);
+    const to = stepIntensity(steps[stepIndexRef.current + 1], levels);
+    const key = pickVariation(momentCandidates(bank, cue.moment, { from, to }), lastVoiceRef.current[cue.moment]);
+    if (!voice || !key) {
       if (isCountdown && voiceCountdownRef.current) fallbackCountdownBeeps(secondsLeft);
       return;
     }
-    voice.play(cue).catch(() => {
-      if (isCountdown) fallbackCountdownBeeps(Math.max(1, secondsLeft - 1));
+    if (isCountdown && voice.busy()) { fallbackCountdownBeeps(secondsLeft); return; }
+    lastVoiceRef.current[cue.moment] = key;
+    if (isCountdown) splitCountdownRef.current = countdownMode(bank) === 'split';
+    if (cue.moment === 'largada') splitCountdownRef.current = false;
+    const job = cue.moment === 'largada' ? voice.playNext(key, 1200) : voice.play(key);
+    const seq = phaseSeqRef.current;
+    job.catch(() => {
+      if (isCountdown && seq === phaseSeqRef.current) {
+        splitCountdownRef.current = false;
+        fallbackCountdownBeeps(Math.max(1, secondsLeft - 1));
+      }
     });
   }, [secondsLeft, phase, paused, phaseTotalSeconds]); // eslint-disable-line react-hooks/exhaustive-deps
 
