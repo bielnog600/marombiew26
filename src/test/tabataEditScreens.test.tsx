@@ -222,7 +222,7 @@ describe('Player — Bloco 0', () => {
     expect(screen.getByText('Bloco 0 — Aquecimento')).toBeInTheDocument();
     expect(screen.getByText(/Aquecimento \+ 1 blocos/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: /Iniciar/ }));
-    expect(screen.getByTestId('tabata-player-block')).toHaveTextContent('Bloco 0 • Aquecimento • Ex. 1/2');
+    expect(screen.getByTestId('tabata-player-block')).toHaveTextContent('AQUECIMENTO · 1/2');
     expect(screen.getByTestId('tabata-player-intensity')).toHaveTextContent('Leve · RPE 3–4');
   });
 });
