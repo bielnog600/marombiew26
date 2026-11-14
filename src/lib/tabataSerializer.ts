@@ -1,5 +1,6 @@
 // Serializa uma estrutura ParsedTabata de volta para markdown compatível com o parser
 import type { ParsedTabata } from './tabataParser';
+import { tabataBlockMarkdown } from './tabataProgression';
 
 export function serializeTabata(t: ParsedTabata): string {
   const lines: string[] = [];
@@ -12,7 +13,12 @@ export function serializeTabata(t: ParsedTabata): string {
   if (t.level) lines.push(`**Nível:** ${t.level}`);
   lines.push('');
 
-  if (t.warmup.length) {
+  if (t.warmupBlock && t.warmupBlock.exercises.length) {
+    // Bloco 0 cronometrado substitui a lista de texto.
+    lines.push('## Aquecimento');
+    lines.push(...tabataBlockMarkdown(t.warmupBlock));
+    lines.push('');
+  } else if (t.warmup.length) {
     lines.push('## Aquecimento');
     t.warmup.forEach(w => lines.push(`- ${w}`));
     lines.push('');
@@ -22,22 +28,7 @@ export function serializeTabata(t: ParsedTabata): string {
     lines.push('## Blocos');
     lines.push('');
     t.blocks.forEach(b => {
-      lines.push(`### ${b.name}`);
-      const fmt = b.format || `${b.rounds} rounds × ${b.workSeconds}s / ${b.restSeconds}s`;
-      lines.push(`**Formato:** ${fmt}`);
-      lines.push('');
-      lines.push('| # | Exercício | Trabalho | Descanso | Observação |');
-      lines.push('|---|-----------|----------|----------|------------|');
-      b.exercises.forEach((ex, i) => {
-        lines.push(
-          `| ${i + 1} | ${ex.name} | ${ex.workSeconds}s | ${ex.restSeconds}s | ${ex.observation || '...'} |`
-        );
-      });
-      lines.push('');
-      const rest = b.restAfterBlock >= 60 && b.restAfterBlock % 60 === 0
-        ? `${b.restAfterBlock / 60} min`
-        : `${b.restAfterBlock}s`;
-      lines.push(`**Descanso após bloco:** ${rest}`);
+      lines.push(...tabataBlockMarkdown(b));
       lines.push('');
     });
   }
