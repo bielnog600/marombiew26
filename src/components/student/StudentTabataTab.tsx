@@ -112,15 +112,6 @@ const StudentTabataTab: React.FC<StudentTabataTabProps> = ({ studentId }) => {
                     <p className="text-[10px] text-muted-foreground uppercase tracking-wider">
                       {new Date(plan.created_at).toLocaleDateString('pt-BR')} • {parsed.duration || `${parsed.blocks.length} blocos`}
                     </p>
-                    {blockSummary.length > 0 && (
-                      <div className="mt-1 space-y-0.5" data-testid="tabata-block-summary">
-                        {blockSummary.map(row => (
-                          <p key={row.label} className="text-[11px] leading-snug text-muted-foreground">
-                            <span className="font-semibold text-foreground/80">{row.label}:</span> {row.text}
-                          </p>
-                        ))}
-                      </div>
-                    )}
                   </div>
                 </div>
 
@@ -177,6 +168,20 @@ const StudentTabataTab: React.FC<StudentTabataTabProps> = ({ studentId }) => {
                   {isExpanded ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
                 </div>
               </div>
+
+              {blockSummary.length > 0 && (
+                <div
+                  className="mt-3 space-y-0.5 cursor-pointer"
+                  data-testid="tabata-block-summary"
+                  onClick={() => setExpandedId(isExpanded ? null : plan.id)}
+                >
+                  {blockSummary.map(row => (
+                    <p key={row.label} className="text-[11px] leading-snug text-muted-foreground">
+                      <span className="font-semibold text-foreground/80">{row.label}:</span> {row.text}
+                    </p>
+                  ))}
+                </div>
+              )}
 
               {isExpanded && (
                 <div className="mt-4 pt-4 border-t border-border space-y-4 animate-in fade-in slide-in-from-top-2">
