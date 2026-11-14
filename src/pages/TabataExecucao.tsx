@@ -997,9 +997,14 @@ const TabataExecucao: React.FC = () => {
 
   useEffect(() => {
     if (!persistEnabled) return;
-    const job = supabase.auth.getUser()
-      .then(r => { const id = r?.data?.user?.id ?? null; if (id) studentIdRef.current = id; return id; })
-      .catch(() => null);
+    const job = (async () => {
+      try {
+        const r = await supabase.auth.getUser();
+        const id = r?.data?.user?.id ?? null;
+        if (id) studentIdRef.current = id;
+        return id;
+      } catch { return null; }
+    })();
     uidPromiseRef.current = job;
   }, [persistEnabled]);
 
