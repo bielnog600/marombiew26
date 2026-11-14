@@ -116,6 +116,7 @@ describe('Player do TABATA — tela nova', () => {
 
   it('pausado mostra o overlay; encerrar leva ao resumo e salva o RPE na sessão', async () => {
     open();
+    await act(async () => {});
     click(/Iniciar/); click(/Avançar/); click(/Avançar/); click(/Avançar/);
     click(/^Pausar$/);
     const paused = screen.getByTestId('tabata-paused');
@@ -334,7 +335,7 @@ describe('Player do TABATA — sair e voltar', () => {
     setVisible('visible');
     fireEvent.click(within(screen.getByTestId('tabata-resume-card')).getByRole('button', { name: /Continuar/ }));
     await advance(4100);
-    for (let i = 0; i < 6 && !screen.queryByTestId('tabata-done'); i++) click(/Avançar/);
+    for (let i = 0; i < 12 && !screen.queryByTestId('tabata-done'); i++) click(/Avançar/);
     expect(screen.getByTestId('tabata-done')).toHaveTextContent('TABATA concluído');
     await flush();
     expect(localSnapshot()).toBeNull();

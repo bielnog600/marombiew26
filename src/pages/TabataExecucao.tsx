@@ -1092,7 +1092,8 @@ const TabataExecucao: React.FC = () => {
     const at = (ms: number, fn: () => void) => { resumeTimersRef.current.push(window.setTimeout(fn, ms)); };
     for (let i = 0; i < RESUME_COUNTDOWN_SECONDS; i++) {
       const n = RESUME_COUNTDOWN_SECONDS - i;
-      at(lead + i * 1000, () => { setResumeCount(n); beep(880, 0.12, 0.28, 'countdown'); });
+      const tick = () => { setResumeCount(n); beep(880, 0.12, 0.28, 'countdown'); };
+      if (lead + i * 1000 === 0) tick(); else at(lead + i * 1000, tick);
     }
     at(lead + RESUME_COUNTDOWN_SECONDS * 1000, () => {
       resumeTimersRef.current = [];
