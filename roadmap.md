@@ -290,3 +290,10 @@ Fora do escopo desta entrega (Fases 3-6): LOW/MEDIUM/HIGH, novo carb cycling, aj
 - [x] Aba "TABATA" na tela de voz com as 5 falas; Player toca as aprovadas e cai no bipe
 - [ ] Gerar e aprovar as 5 falas do TABATA — precisa do admin logado na tela de voz (não consegui entrar como admin daqui)
 - [ ] Testar no iPhone real com vídeo e voz
+
+## TABATA — voz mais natural
+- [x] Variações por momento, sorteio sem repetir, "3, 2, 1…" separado da largada (antigo "3, 2, 1… bora!" segue até aprovar as novas)
+- [x] Frequência: contagem toda rodada; descanso ~1 a cada 2–3 (nunca nos de 5 s); "Respira" ~1 a cada 3 e sempre entre blocos; sem falas sobrepostas
+- [x] Aba TABATA agrupada por momento com adicionar/remover variação; grupo sem aprovada = bipe
+- [ ] Gerar e aprovar as 14 variações novas — depende do Fabiew na aba TABATA (não gero áudio sem autorização)
+
