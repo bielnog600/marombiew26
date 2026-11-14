@@ -156,6 +156,12 @@ const ISOLATED = /\b(STIFF UNILATERAL|SUMO|ELEVACAO PELVICA|HIP THRUST|CRUCIFIXO
 const QUICK_ALLOW = /\b(BURPEES?|MOUTAIN|MOUNTAIN|POLICHINELO|SKIPS?|JUMPING|JUMPS?|SALTO|PRANCHA|FLEXAO DE BRACO|FLEXAO\+ALPINISTA|ALPINISTA|AGACHAMENTO|SQUATS?|GLOBET|GOBLET|AFUNDO|PASSADAS?|PASSADA|SWING|KETTLEBELL|CORDA NAVAL|BEAR TO PLANK|TESOURINHA|ABS|ABDOMINAL|CANIVETE|PONTE DE GLUTEO|STIFF HALTERES|RDL HALTERES|THRUSTERS?|ELASTICO|MINI ?BAND|ISOMETRIA|ALONGAMENTO)\b/;
 const QUICK_GROUPS = new Set(['CARDIO', 'ABDOMEN', 'CORE', 'MOBILIDADE']);
 
+/** Barra/anilha, smith, máquina, cabo ou musculação isolada. */
+export const isSlowSetupExercise = (nome: string) => {
+  const n = normalizeTabataName(nome);
+  return SLOW_SETUP.test(n) || ISOLATED.test(n);
+};
+
 /** Só exercícios de montagem rápida (peso corporal, halter, kettlebell, corda naval, elástico). */
 export function isQuickSetupExercise(nome: string, grupo?: string | null): boolean {
   const n = normalizeTabataName(nome);
@@ -195,7 +201,7 @@ const REPLACEMENT_RULES: [RegExp, string][] = [
 /** Versão de montagem rápida de um exercício com barra/smith/máquina (ex.: AGACHAMENTO LIVRE → GLOBET SQUATS). */
 export function quickSetupReplacement(nome: string, catalogNames: string[]): string | null {
   const n = normalizeTabataName(nome);
-  if (!n || isQuickSetupExercise(nome)) return null;
+  if (!n || !isSlowSetupExercise(nome)) return null;
   for (const [re, target] of REPLACEMENT_RULES) {
     if (!re.test(n)) continue;
     const hit = catalogNames.find(c => normalizeTabataName(c) === target);
@@ -245,7 +251,7 @@ export function tabataPlanWarnings(parsed: ParsedTabata, ctx: TabataCheckContext
     const names = distinctBlockExercises(b).filter(n => !isFiller(n));
     const label = `Bloco ${i + 1}`;
     if (names.length < 4) warnings.push(`${label} tem ${names.length} exercício${names.length === 1 ? '' : 's'} diferente${names.length === 1 ? '' : 's'} (mínimo 4).`);
-    const slow = names.filter(n => !isQuickSetupExercise(n) && quickSetupReplacement(n, [n]) !== null);
+    const slow = names.filter(isSlowSetupExercise);
     if (slow.length) warnings.push(`${label}: ${slow.map(displayExerciseName).join(', ')} não é de montagem rápida.`);
     if (ctx.dayKind === 'superiores') {
       const arm = names.filter(isArmSupportExercise);
