@@ -1,4 +1,5 @@
 import { anthropicChat, anthropicFailure, anthropicErrorStatus, PRESCRIPTION_MODEL, AI_MODELS, createRoutingMetadata } from "../_shared/anthropic.ts";
+import { requireAdminCaller } from "../_shared/requireAdminCaller.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import {
@@ -557,6 +558,10 @@ Mostre o score de confiança (0-100) recebido no contexto e liste os FATORES rec
 
 serve(withAiUsage("dieta_ia", "diet-agent", async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+
+  // Só admin logado ou chamada interna (service role) chega à IA.
+  const denied = await requireAdminCaller(req, corsHeaders);
+  if (denied) return denied;
 
   try {
     const {

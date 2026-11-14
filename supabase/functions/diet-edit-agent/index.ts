@@ -1,4 +1,5 @@
 import { anthropicChat, anthropicFailure, anthropicErrorStatus, PRESCRIPTION_MODEL } from "../_shared/anthropic.ts";
+import { requireAdminCaller } from "../_shared/requireAdminCaller.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { setAiUsageStudentFrom, withAiUsage } from "../_shared/aiUsage.ts";
 
@@ -166,6 +167,10 @@ async function handleMealSuggestions(payload: any, apiKey: string): Promise<Resp
 
 serve(withAiUsage("dieta_edicao_ia", "diet-edit-agent", async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+
+  // Só admin logado ou chamada interna (service role) chega à IA.
+  const denied = await requireAdminCaller(req, corsHeaders);
+  if (denied) return denied;
 
   try {
     const payload = setAiUsageStudentFrom(await req.json());
