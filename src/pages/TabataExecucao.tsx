@@ -1246,6 +1246,15 @@ const TabataExecucao: React.FC = () => {
     };
   }, [persistEnabled]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Retomada vinda da home no iPhone: o primeiro toque em qualquer lugar libera o som.
+  const unlockRef = useRef(unlockAudio);
+  unlockRef.current = unlockAudio;
+  useEffect(() => {
+    const onTap = () => unlockRef.current(false);
+    document.addEventListener('pointerdown', onTap, { once: true, capture: true });
+    return () => document.removeEventListener('pointerdown', onTap, { capture: true });
+  }, []);
+
   // Abriu o Player: retoma direto (Continuar da home) ou oferece o card se este plano está em andamento.
   useEffect(() => {
     if (!persistEnabled || !navTabata) return;
