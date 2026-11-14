@@ -288,6 +288,13 @@
       "when": 1794687473194,
       "tag": "0040_tabata_voice_variations",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1794699203082,
+      "tag": "0041_cardio_session_finish_details",
+      "breakpoints": true
     }
   ]
 }

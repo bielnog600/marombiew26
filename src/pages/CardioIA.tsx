@@ -7,7 +7,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/client';
-import { ArrowLeft, Loader2, Save, HeartPulse, Sparkles, Bike, Activity, Footprints, TrendingUp } from 'lucide-react';
+import { ArrowLeft, Loader2, Save, HeartPulse, Sparkles, Bike, Activity, Footprints, TrendingUp, Pencil, Eye, Repeat } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import AiWizard from '@/components/AiWizard';
@@ -26,8 +26,10 @@ import {
 import {
   CARDIO_INTENSITIES, CARDIO_STYLES, CARDIO_FREQUENCIES, CARDIO_DURATIONS,
   CARDIO_SPEEDS, CARDIO_INCLINES, CARDIO_TIMES, CARDIO_BIKE_LEVELS, CARDIO_ROUNDS, CARDIO_BIKE_POSITIONS,
-  buildCardioRequestBody, buildCardioPlanInsert, loadCardioWizardData,
+  buildCardioRequestBody, buildCardioPlanInsert, loadCardioWizardData, buildEquipment,
 } from '@/lib/officeWizard/cardioWizard';
+import { intervalSpecs, intervalSummary, normalizeCardioIntervals } from '@/lib/cardioIntervals';
+import CardioBlocksEditor from '@/components/cardio/CardioBlocksEditor';
 
 type StudentCtx = Record<string, any>;
 
@@ -128,6 +130,10 @@ const CardioIA = () => {
         else throw new Error(data?.error || `Erro ${resp.status}`);
         return;
       }
+      // Picos definidos pelo coach: garante os ciclos exatos mesmo se a IA reinterpretar.
+      const normOpts = { style, equipment: buildEquipment(eq), modalities };
+      if (data?.weekly) data.weekly = normalizeCardioIntervals(data.weekly as CardioWeeklyPlan, normOpts).payload;
+      else if (data?.protocol) data.protocol = normalizeCardioIntervals(data.protocol as CardioProtocol, normOpts).payload;
       if (data?.weekly) {
         setPayload(data.weekly as CardioWeeklyPlan);
         toast.success(`Plano semanal gerado: ${data.weekly.protocols?.length} sessões!`);
@@ -345,6 +351,7 @@ const CardioIA = () => {
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
             <EqSelect label="Nº de ciclos (intervalado)" value={eq.rounds} onChange={v => setEqField('rounds', v)} options={ROUNDS} suffix="x" />
           </div>
+          <IntervalSummaryBox eq={eq} style={style} modalities={modalities} />
         </div>
               )}
 
@@ -383,12 +390,17 @@ const CardioIA = () => {
                 {payload.protocols.map((p, i) => (
                   <div key={i} className="space-y-1">
                     <p className="text-[11px] uppercase tracking-widest text-primary font-bold">Sessão {i + 1}</p>
-                    <CardioProtocolPreview protocol={p} />
+                    <CardioProtocolPreview
+                      protocol={p}
+                      onChange={(np) => setPayload(prev => (prev && isWeeklyPlan(prev)
+                        ? { ...prev, protocols: prev.protocols.map((x, k) => (k === i ? np : x)) }
+                        : prev))}
+                    />
                   </div>
                 ))}
               </div>
             ) : (
-              <CardioProtocolPreview protocol={payload} />
+              <CardioProtocolPreview protocol={payload} onChange={(np) => setPayload(np)} />
             )}
           </div>
         )}
@@ -397,13 +409,45 @@ const CardioIA = () => {
   );
 };
 
-const CardioProtocolPreview: React.FC<{ protocol: CardioProtocol }> = ({ protocol }) => {
+/** Resumo dos picos exatos pedidos ("8 × (2:00 a 6 km/h + 1:00 a 4 km/h) = 24 min"). */
+const IntervalSummaryBox: React.FC<{ eq: Record<string, string>; style: string; modalities: CardioModality[] }> = ({ eq, style, modalities }) => {
+  const specs = intervalSpecs(buildEquipment(eq)).filter(s => modalities.length === 0 || modalities.includes(s.modality));
+  if (!specs.length) return null;
+  const exactStyle = style === 'hiit' || style === 'intervalado';
+  return (
+    <div className="rounded-xl border border-primary/40 bg-primary/5 p-3 space-y-1.5" data-testid="cardio-interval-summary">
+      <p className="text-[11px] font-bold uppercase tracking-wider text-primary flex items-center gap-1.5">
+        <Repeat className="h-3.5 w-3.5" /> Picos definidos
+      </p>
+      {specs.map(s => (
+        <p key={s.modality} className="text-sm font-semibold">
+          {MODALITY_LABEL[s.modality]}: {intervalSummary(s)}
+        </p>
+      ))}
+      <p className="text-[11px] text-muted-foreground">
+        {exactStyle
+          ? 'Esses valores entram exatamente assim, entre o aquecimento (Z1) e a desaceleração.'
+          : 'Valem para as sessões intervaladas/HIIT. Escolha o estilo HIIT ou Intervalado para garantir uma sessão assim.'}
+      </p>
+    </div>
+  );
+};
+
+const CardioProtocolPreview: React.FC<{ protocol: CardioProtocol; onChange?: (p: CardioProtocol) => void }> = ({ protocol, onChange }) => {
   const totalSec = totalCardioDurationSec(protocol);
+  const [editing, setEditing] = useState(false);
   return (
     <Card className="glass-card border-primary/20">
       <CardContent className="p-4 space-y-4">
         <div>
-          <h2 className="text-lg font-bold">{protocol.title}</h2>
+          <div className="flex items-start justify-between gap-2">
+            <h2 className="text-lg font-bold">{protocol.title}</h2>
+            {onChange && (
+              <Button type="button" variant="outline" size="sm" className="h-8 gap-1 shrink-0" onClick={() => setEditing(v => !v)}>
+                {editing ? <><Eye className="h-3.5 w-3.5" /> Ver</> : <><Pencil className="h-3.5 w-3.5" /> Editar etapas</>}
+              </Button>
+            )}
+          </div>
           <div className="flex flex-wrap gap-2 mt-2">
             <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border border-primary/40 bg-primary/10 text-primary">
               {MODALITY_LABEL[protocol.modality]}
@@ -436,6 +480,9 @@ const CardioProtocolPreview: React.FC<{ protocol: CardioProtocol }> = ({ protoco
           </div>
         )}
 
+        {editing && onChange ? (
+          <CardioBlocksEditor protocol={protocol} onChange={onChange} />
+        ) : (
         <div className="space-y-2">
           <p className="text-xs uppercase tracking-wider text-muted-foreground font-bold">Etapas</p>
           {protocol.blocks.map((b, i) => (
@@ -458,6 +505,7 @@ const CardioProtocolPreview: React.FC<{ protocol: CardioProtocol }> = ({ protoco
             </div>
           ))}
         </div>
+        )}
 
         {protocol.executionTips && protocol.executionTips.length > 0 && (
           <div className="rounded-lg bg-secondary/50 p-3">

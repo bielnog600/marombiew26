@@ -953,13 +953,18 @@ export type Database = {
           completed_at: string | null
           completed_blocks: number
           created_at: string
+          distance_km: number | null
           duration_seconds: number
           estimated_calories: number | null
           id: string
           max_heart_rate: number | null
+          modality: string | null
+          notes: string | null
           plan_id: string | null
           protocol_id: string | null
           protocol_name: string | null
+          rating: number | null
+          rpe: number | null
           session_state: Json
           started_at: string
           status: string
@@ -973,13 +978,18 @@ export type Database = {
           completed_at?: string | null
           completed_blocks?: number
           created_at?: string
+          distance_km?: number | null
           duration_seconds?: number
           estimated_calories?: number | null
           id: string
           max_heart_rate?: number | null
+          modality?: string | null
+          notes?: string | null
           plan_id?: string | null
           protocol_id?: string | null
           protocol_name?: string | null
+          rating?: number | null
+          rpe?: number | null
           session_state?: Json
           started_at: string
           status?: string
@@ -993,13 +1003,18 @@ export type Database = {
           completed_at?: string | null
           completed_blocks?: number
           created_at?: string
+          distance_km?: number | null
           duration_seconds?: number
           estimated_calories?: number | null
           id?: string
           max_heart_rate?: number | null
+          modality?: string | null
+          notes?: string | null
           plan_id?: string | null
           protocol_id?: string | null
           protocol_name?: string | null
+          rating?: number | null
+          rpe?: number | null
           session_state?: Json
           started_at?: string
           status?: string

@@ -83,3 +83,4 @@ export {
   dietaItensProibidos,
   secaoOQueMudou,
 } from './officeAdjust';
+export { normalizeCardioIntervals, intervalSpecs, intervalSummary } from '../cardioIntervals';

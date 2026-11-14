@@ -858,7 +858,7 @@ var CARDIO_SPEEDS = ["3", "4", "5", "5.5", "6", "6.5", "7", "7.5", "8", "8.5", "
 var CARDIO_INCLINES = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "12", "15"];
 var CARDIO_TIMES = ["10", "15", "20", "30", "40", "45", "60", "90", "120", "180", "240", "300"];
 var CARDIO_BIKE_LEVELS = Array.from({ length: 20 }, (_, i) => String(i + 1));
-var CARDIO_ROUNDS = ["4", "5", "6", "8", "10", "12", "15", "20"];
+var CARDIO_ROUNDS = ["2", "3", "4", "5", "6", "7", "8", "9", "10", "12", "14", "15", "16", "18", "20", "24", "25", "30", "40"];
 var CARDIO_BIKE_POSITIONS = ["auto", "alternado", "sentado", "em_pe"];
 var CARDIO_EQUIPMENT_FIELDS = [
   { key: "tSpeedEasy", label: "Esteira: velocidade leve (km/h)", options: CARDIO_SPEEDS, modality: "passadeira" },
@@ -5924,15 +5924,15 @@ var buildWorkoutPlanUpdatePayload = (json, extras = {}) => {
   }
   const markdown = workoutPlanToMarkdown(validation.data);
   const { periodization, ...rest } = extras;
-  const clean = { ...rest };
-  if (clean.fase === null || clean.fase === void 0) delete clean.fase;
-  if (clean.fase_inicio_data === void 0) delete clean.fase_inicio_data;
-  if (periodization) Object.assign(clean, periodization);
+  const clean2 = { ...rest };
+  if (clean2.fase === null || clean2.fase === void 0) delete clean2.fase;
+  if (clean2.fase_inicio_data === void 0) delete clean2.fase_inicio_data;
+  if (periodization) Object.assign(clean2, periodization);
   const updates = {
     conteudo: markdown,
     conteudo_json: validation.data,
     migration_status: "completed",
-    ...clean
+    ...clean2
   };
   return { success: true, updates, markdown, json: validation.data };
 };
@@ -10710,6 +10710,185 @@ function secaoOQueMudou(mudancas, declaradas = []) {
   }
   return L.join("\n");
 }
+
+// src/lib/cardioIntervals.ts
+var MAX_INTERVAL_ROUNDS = 40;
+var num3 = (v) => {
+  const n = typeof v === "string" ? Number(v) : v;
+  return typeof n === "number" && Number.isFinite(n) && n > 0 ? n : void 0;
+};
+var numOrZero = (v) => {
+  const n = typeof v === "string" ? Number(v) : v;
+  return typeof n === "number" && Number.isFinite(n) && n >= 0 ? n : void 0;
+};
+var clean = (o) => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== void 0));
+function intervalSpecs(equipment) {
+  const eq = equipment && typeof equipment === "object" ? equipment : {};
+  const rounds = num3(eq.rounds);
+  const r = rounds ? Math.min(MAX_INTERVAL_ROUNDS, Math.round(rounds)) : null;
+  const out = [];
+  const t = eq.treadmill ?? {};
+  const tWork = num3(t.workSec), tRest = num3(t.restSec);
+  if (tWork && tRest) {
+    out.push({
+      modality: "passadeira",
+      work: clean({ durationSec: Math.round(tWork), speedKmh: num3(t.speedHard), inclinePct: numOrZero(t.inclineHard) }),
+      rest: clean({ durationSec: Math.round(tRest), speedKmh: num3(t.speedEasy), inclinePct: numOrZero(t.inclineEasy) }),
+      rounds: r
+    });
+  }
+  const b = eq.bike ?? {};
+  const hard = num3(b.hardSec), easy = num3(b.easySec), stand = num3(b.standSec), seat = num3(b.seatSec);
+  const bWork = hard ?? stand, bRest = easy ?? seat;
+  if (bWork && bRest) {
+    let workPos;
+    let restPos;
+    if (b.position === "sentado") {
+      workPos = "sentado";
+      restPos = "sentado";
+    } else if (b.position === "em_pe") {
+      workPos = "em_pe";
+      restPos = "em_pe";
+    } else if (!hard && stand) {
+      workPos = "em_pe";
+      restPos = "sentado";
+    }
+    out.push({
+      modality: "bike",
+      work: clean({ durationSec: Math.round(bWork), resistanceLevel: num3(b.hardLevel), bikePosition: workPos }),
+      rest: clean({ durationSec: Math.round(bRest), resistanceLevel: num3(b.easyLevel), bikePosition: restPos }),
+      rounds: r
+    });
+  }
+  return out;
+}
+var mmss = (sec) => {
+  const s = Math.max(0, Math.round(sec));
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+};
+var ptNumber = (n) => String(Math.round(n * 10) / 10).replace(".", ",");
+var POSITION_TEXT = { em_pe: "em p\xE9", sentado: "sentado", alternado: "alternado" };
+function stepText(modality, s) {
+  const parts = [mmss(s.durationSec)];
+  if (modality === "passadeira") {
+    if (s.speedKmh != null) parts.push(`a ${ptNumber(s.speedKmh)} km/h`);
+    if (s.inclinePct != null && s.inclinePct > 0) parts.push(`\xB7 ${ptNumber(s.inclinePct)}%`);
+  } else {
+    if (s.bikePosition && s.bikePosition !== "alternado") parts.push(POSITION_TEXT[s.bikePosition]);
+    if (s.resistanceLevel != null) parts.push(`n\xEDvel ${ptNumber(s.resistanceLevel)}`);
+  }
+  return parts.join(" ");
+}
+var intervalCycleSeconds = (s) => s.work.durationSec + s.rest.durationSec;
+function intervalSummary(spec) {
+  const pair = `(${stepText(spec.modality, spec.work)} + ${stepText(spec.modality, spec.rest)})`;
+  if (!spec.rounds) return `${pair} por ciclo \xB7 ${mmss(intervalCycleSeconds(spec))} cada`;
+  return `${spec.rounds} \xD7 ${pair} = ${formatDurationFromSec(spec.rounds * intervalCycleSeconds(spec))}`;
+}
+var isIntervalStructure = (s) => s === "hiit" || s === "intervalado";
+var isHardBlock = (b) => !!b && (b.type === "pico" || b.intensityLabel === "forte" || b.intensityLabel === "maxima");
+function splitAroundIntervals(blocks) {
+  let start = 0;
+  while (start < blocks.length && blocks[start]?.type === "aquecimento") start++;
+  let end = blocks.length;
+  while (end > start && blocks[end - 1]?.type === "desaceleracao") end--;
+  return { warmup: blocks.slice(0, start), middle: blocks.slice(start, end), cooldown: blocks.slice(end) };
+}
+var WORK_NAME = "Pico forte";
+var REST_NAME = "Recupera\xE7\xE3o";
+function stepFields(modality, s) {
+  return modality === "passadeira" ? clean({ speedKmh: s.speedKmh, inclinePct: s.inclinePct }) : clean({ resistanceLevel: s.resistanceLevel, bikePosition: s.bikePosition });
+}
+function applyIntervalSpec(protocol, spec) {
+  const blocks = Array.isArray(protocol.blocks) ? protocol.blocks : [];
+  const { warmup, middle, cooldown } = splitAroundIntervals(blocks);
+  const workTpl = middle.find((b) => isHardBlock(b));
+  const restTpl = middle.find((b) => b.type === "recuperacao") ?? middle.find((b) => b !== workTpl && !isHardBlock(b));
+  const aiRounds = middle.filter((b) => isHardBlock(b)).length;
+  const rounds = Math.max(1, Math.min(MAX_INTERVAL_ROUNDS, spec.rounds ?? (aiRounds || 6)));
+  const cadence = (tpl) => spec.modality === "bike" && tpl?.cadenceRpm != null ? { cadenceRpm: tpl.cadenceRpm } : {};
+  const cycles = [];
+  for (let i = 1; i <= rounds; i++) {
+    cycles.push(clean({
+      name: WORK_NAME,
+      type: "pico",
+      durationSec: spec.work.durationSec,
+      intensityLabel: workTpl?.intensityLabel === "maxima" ? "maxima" : "forte",
+      targetZone: workTpl?.targetZone || "Z4",
+      ...cadence(workTpl),
+      ...stepFields(spec.modality, spec.work),
+      notes: `Ciclo ${i} de ${rounds}`
+    }));
+    cycles.push(clean({
+      name: REST_NAME,
+      type: "recuperacao",
+      durationSec: spec.rest.durationSec,
+      intensityLabel: restTpl?.intensityLabel === "moderada" ? "moderada" : "leve",
+      targetZone: restTpl?.targetZone || "Z2",
+      ...cadence(restTpl),
+      ...stepFields(spec.modality, spec.rest),
+      notes: `Ciclo ${i} de ${rounds}`
+    }));
+  }
+  const easy = stepFields(spec.modality, spec.rest);
+  const head = warmup.length ? warmup : [clean({
+    name: "Aquecimento",
+    type: "aquecimento",
+    durationSec: 300,
+    intensityLabel: "leve",
+    targetZone: "Z1",
+    ...easy
+  })];
+  const tail = cooldown.length ? cooldown : [clean({
+    name: "Desacelera\xE7\xE3o",
+    type: "desaceleracao",
+    durationSec: 180,
+    intensityLabel: "leve",
+    targetZone: "Z1",
+    ...easy
+  })];
+  const out = [...head, ...cycles, ...tail];
+  const total = out.reduce((s, b) => s + (b.durationSec || 0), 0);
+  return {
+    ...protocol,
+    modality: spec.modality,
+    structure: isIntervalStructure(protocol.structure) ? protocol.structure : "intervalado",
+    totalDurationMin: Math.round(total / 60),
+    blocks: out
+  };
+}
+function normalizeCardioIntervals(payload, opts) {
+  const specs = intervalSpecs(opts.equipment);
+  if (!specs.length || !payload) return { payload, changed: [] };
+  const weekly = isWeeklyPlan(payload);
+  const list2 = weekly ? [...payload.protocols] : [payload];
+  const allowed = (opts.modalities ?? []).filter(Boolean);
+  const intervalStyle = isIntervalStructure(opts.style);
+  const changed = /* @__PURE__ */ new Set();
+  const taken = /* @__PURE__ */ new Set();
+  for (const spec of specs) {
+    if (allowed.length && !allowed.includes(spec.modality)) continue;
+    let targets = list2.map((p, i) => ({ p, i })).filter(({ p, i }) => !taken.has(i) && p?.modality === spec.modality && isIntervalStructure(p.structure)).map(({ i }) => i);
+    if (!targets.length && intervalStyle) {
+      const sameMod = list2.findIndex((p, i) => !taken.has(i) && p?.modality === spec.modality);
+      const anyInterval = list2.findIndex((p, i) => !taken.has(i) && isIntervalStructure(p?.structure));
+      const fallback = list2.findIndex((_p, i) => !taken.has(i));
+      const pick = sameMod >= 0 ? sameMod : anyInterval >= 0 ? anyInterval : fallback;
+      if (pick >= 0) {
+        targets = [pick];
+        list2[pick] = { ...list2[pick], structure: opts.style === "hiit" ? "hiit" : "intervalado" };
+      }
+    }
+    for (const i of targets) {
+      taken.add(i);
+      const next = applyIntervalSpec(list2[i], spec);
+      if (JSON.stringify(next) !== JSON.stringify(list2[i])) changed.add(i);
+      list2[i] = next;
+    }
+  }
+  const out = weekly ? { ...payload, protocols: list2 } : list2[0];
+  return { payload: out, changed: [...changed].sort((a, b) => a - b) };
+}
 export {
   AJUSTE_CATEGORIAS,
   REGRAS_MAROMBIEW_DIETA,
@@ -10745,6 +10924,8 @@ export {
   dietaItensProibidos,
   diffWorkoutPlans,
   finalizeDietAgentPlan,
+  intervalSpecs,
+  intervalSummary,
   loadActiveTrainingMarkdown,
   loadCardioWizardData,
   loadDietFoodRecords,
@@ -10753,6 +10934,7 @@ export {
   mudancasDieta,
   mudancasTexto,
   mudancasTreino,
+  normalizeCardioIntervals,
   normalizeWorkoutPlan,
   parseAjusteResposta,
   parseCardioPayload,
