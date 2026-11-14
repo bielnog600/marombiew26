@@ -74,14 +74,13 @@ FORMATO OBRIGATÓRIO DA RESPOSTA (MARKDOWN)
 ## ⚠️ Considerações de Segurança
 [Liste em bullets as adaptações feitas para o perfil do aluno. Se sem restrições, escreva "Sem restrições identificadas - treino em intensidade plena."]
 
-## 🔥 Aquecimento (X min)
-- Exercício 1 — duração
-- Exercício 2 — duração
+[SEÇÃO DE AQUECIMENTO — siga a regra de AQUECIMENTO do pedido]
 
 ## 💪 Bloco Principal
 
 ### Bloco 1 — [Nome do bloco]
 **Formato:** 8 rounds × 20s trabalho / 10s descanso (4 min)
+**Intensidade:** [Moderado (RPE 6–7) | Forte (RPE 8) | Máximo (RPE 9–10) — siga a regra de PROGRESSÃO do pedido]
 
 | Round | Exercício | Trabalho | Descanso | Observação |
 |-------|-----------|----------|----------|------------|
@@ -111,7 +110,7 @@ REGRAS FINAIS
 2) Sempre cruze CADA exercício escolhido com as restrições reportadas
 3) Em caso de dúvida sobre segurança, opte sempre pela alternativa mais conservadora
 4) Use SEMPRE os nomes EXATOS da Lista Oficial (case-sensitive, com acentos)
-5) Inclua sempre aquecimento e desaquecimento
+5) Inclua sempre desaquecimento; o aquecimento segue a regra de AQUECIMENTO do pedido
 6) Mantenha o markdown limpo e bem estruturado para boa visualização
 7) Gere TUDO de uma vez (sem perguntas) — você já tem o contexto completo do aluno
 8) NUNCA RECUSE gerar o treino. Mesmo que faltem dados clínicos, gere um TABATA seguro e genérico (nível iniciante/moderado) com exercícios de baixo risco. Você SEMPRE deve retornar um treino completo no formato markdown especificado.
@@ -134,6 +133,8 @@ serve(withAiUsage("tabata_ia", "tabata-agent", async (req) => {
       avoidExercises = [],
       trainingDay = 'auto',
       trainingDayName = '',
+      warmupBlock = true,
+      progression = true,
     } = setAiUsageStudentFrom(await req.json());
     const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
     if (!ANTHROPIC_API_KEY) throw new Error("Não foi possível consultar a IA agora.");
@@ -246,6 +247,48 @@ serve(withAiUsage("tabata_ia", "tabata-agent", async (req) => {
       ? `\n\n═══════════════════════════════════════════════\nCOMPLEMENTO AO TREINO DO DIA — PRIORIDADE SOBRE O FOCO/ESTILO\n═══════════════════════════════════════════════\n${TRAINING_DAY_RULES[trainingDay]}\n`
       : '';
 
+    const fixedTimes = workSec !== 'auto' || restSec !== 'auto';
+    const warmupRule = warmupBlock !== false
+      ? `═══════════════════════════════════════════════
+AQUECIMENTO — BLOCO 0 CRONOMETRADO (OBRIGATÓRIO)
+═══════════════════════════════════════════════
+O aquecimento roda no Player como um bloco cronometrado. Escreva EXATAMENTE neste formato (tabela, não lista):
+
+## 🔥 Aquecimento (4 min)
+
+### Bloco 0 — Aquecimento
+**Formato:** 4 rounds × 40s trabalho / 20s transição
+**Intensidade:** Leve (RPE 3–4)
+
+| Round | Exercício | Trabalho | Descanso | Observação |
+|-------|-----------|----------|----------|------------|
+| 1 | [exercício leve da lista] | 40s | 20s | [dica curta] |
+| 2 | ... | 40s | 20s | ... |
+| 3 | ... | 40s | 20s | ... |
+| 4 | ... | 40s | 20s | ... |
+
+**Descanso após bloco:** 30s
+
+- 4 exercícios DIFERENTES, leves e de baixo impacto (ex.: polichinelo leve, skips leves, agachamento sem peso, mobilidade/ativação), preparando os padrões de movimento dos blocos.
+- Use nomes da Lista Oficial sempre que existir equivalente; os exercícios do aquecimento NÃO contam para a regra de "não repetir na semana".`
+      : `═══════════════════════════════════════════════
+AQUECIMENTO
+═══════════════════════════════════════════════
+NÃO inclua seção de aquecimento neste TABATA (o coach desligou o bloco de aquecimento).`;
+
+    const progressionRule = progression !== false
+      ? `═══════════════════════════════════════════════
+PROGRESSÃO DE INTENSIDADE ENTRE BLOCOS (OBRIGATÓRIA)
+═══════════════════════════════════════════════
+- Escreva a linha **Intensidade:** logo abaixo do **Formato:** de cada bloco principal.
+- Ordem: Bloco 1 = Moderado (RPE 6–7) → Bloco 2 = Forte (RPE 8) → Bloco 3 = Máximo (RPE 9–10). Com 2 blocos: Moderado → Máximo. Com 4 ou mais: Moderado, Forte..., e o ÚLTIMO sempre Máximo. Com 1 bloco: Forte.
+- Os blocos iniciais usam exercícios mais SIMPLES e CONTROLADOS (isometria, agachamento, prancha, core, afundo controlado); os mais EXPLOSIVOS/METABÓLICOS ficam no FIM (burpees, saltos, jumps, corda naval, skips rápidos, mountain climbers).
+${fixedTimes ? '- Mantenha os tempos fixos pedidos pelo coach em todos os blocos.' : '- Pode variar o tempo entre os blocos (ex.: Bloco 1 30s/15s mais controlado; bloco final 20s/10s com os exercícios mais intensos).'}`
+      : `═══════════════════════════════════════════════
+INTENSIDADE DOS BLOCOS
+═══════════════════════════════════════════════
+Progressão de intensidade desligada pelo coach: NÃO escreva a linha **Intensidade:** nos blocos.`;
+
     const userPrompt = `Gere o TABATA agora baseado no perfil completo do aluno.
 
 INTENSIDADE SOLICITADA: ${intensity.toUpperCase()} — ${intensityInstruction}
@@ -254,12 +297,16 @@ ${styleInstruction}
 ${structureBlock}
 ${avoidBlock}
 ${trainingDayBlock}
+
+${warmupRule}
+
+${progressionRule}
 ${notes ? `OBSERVAÇÕES ADICIONAIS DO COACH: ${notes}\n` : ''}
 
 Lembre-se:
 - Cruze CADA exercício com as lesões/restrições reportadas
 - Se houver patologias, prefira sempre a versão adaptada
-- Inclua aquecimento, blocos principais com tabela detalhada e desaquecimento
+- ${warmupBlock !== false ? 'Comece pelo Bloco 0 — Aquecimento cronometrado (tabela), depois os' : 'Sem aquecimento;'} blocos principais com tabela detalhada e desaquecimento${progression !== false ? '\n- Linha **Intensidade:** em cada bloco: Moderado → Forte → Máximo, explosivos no fim' : ''}
 - Garanta VARIEDADE de exercícios ao longo da semana: não repita exercícios já listados como usados
 - Cada bloco com NO MÍNIMO 4 exercícios diferentes (A-B-C-D repetido nos 8 rounds)
 - Só montagem rápida: peso corporal, halter, kettlebell, corda naval, elástico (nada de barra/anilha, smith ou máquina)
