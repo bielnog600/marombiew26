@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
-import type { ParsedTabata } from '@/lib/tabataParser';
+import { parseTabata, type ParsedTabata } from '@/lib/tabataParser';
 import { TabataSummaryShare } from '@/components/tabata/TabataSummaryShare';
 import {
   tabataPlayerSteps, resolveWarmupBlock, warmupTotalSeconds, formatWarmupClock, type TabataPlayerStep,
@@ -25,7 +25,16 @@ import {
   type PhaseCue, type TabataMoment,
 } from '@/lib/tabataVoiceCues';
 import { createTabataVoice, type TabataVoice } from '@/lib/tabataVoicePlayer';
-import { saveTabataSession } from '@/lib/tabataSessionApi';
+import {
+  abandonTabataSession, discardActiveTabata, findActiveTabata, finishTabataSession, loadRemoteActiveTabata,
+  saveTabataProgress, saveTabataSession,
+} from '@/lib/tabataSessionApi';
+import {
+  RESUME_COUNTDOWN_SECONDS, STALE_WARMUP_TEXT, buildTabataSnapshot, clearLocalTabataSnapshot, isTabataSnapshot,
+  readLocalTabataSnapshot, restoredPhaseStart, restoredSecondsLeft, resumeStatus, snapshotLabel, snapshotMatchesPlan,
+  stoppedAgoText, writeLocalTabataSnapshot, type PauseReason, type TabataSnapshot,
+} from '@/lib/tabataResume';
+import { useScreenWakeLock } from '@/hooks/useScreenWakeLock';
 import {
   PhaseChip, RoundDots, RpePicker, SegmentedProgress, TimerRing,
 } from '@/components/tabata/player/TabataPlayerParts';
@@ -91,9 +100,16 @@ const TabataExecucao: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const navState = (location.state as any) || {};
-  const tabata = navState.tabata as ParsedTabata | undefined;
+  const navTabata = navState.tabata as ParsedTabata | undefined;
   const planId = (navState.planId as string | undefined) ?? null;
   const isPreview = navState.preview === true;
+  /** Pré-visualização do admin: nada é salvo nem pausa ao sair (comportamento de antes). */
+  const persistEnabled = !isPreview;
+  /** "Continuar" do card da home: retoma direto neste ponto. */
+  const navResume = isTabataSnapshot(navState.resumeSnapshot) ? (navState.resumeSnapshot as TabataSnapshot) : null;
+  /** Plano exato da sessão retomada (pode ser diferente do plano aberto, se ele mudou). */
+  const [tabataOverride, setTabataOverride] = useState<ParsedTabata | null>(null);
+  const tabata = tabataOverride ?? navTabata;
 
   const [phase, setPhase] = useState<Phase>('idle');
   const [stepIndex, setStepIndex] = useState(0);
@@ -115,6 +131,10 @@ const TabataExecucao: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [videoReady, setVideoReady] = useState(false);
+  /** Card "TABATA em andamento" dentro do Player (voltou depois de 15 s ou abriu de novo). */
+  const [resumeOffer, setResumeOffer] = useState<{ snapshot: TabataSnapshot; stale: boolean; restore: boolean } | null>(null);
+  /** Contagem da retomada: 3, 2, 1 (0 = "Tá preparado?" antes dos números). */
+  const [resumeCount, setResumeCount] = useState<number | null>(null);
 
   const audioCtxRef = useRef<AudioContext | null>(null);
   const htmlBeepsRef = useRef<Record<string, HTMLAudioElement[]>>({});
@@ -147,6 +167,18 @@ const TabataExecucao: React.FC = () => {
   const phaseCuesRef = useRef<PhaseCue[]>([]);
   /** Última fala de cada momento, para não repetir a mesma duas vezes seguidas. */
   const lastVoiceRef = useRef<Partial<Record<TabataMoment, string>>>({});
+  // Sessão em andamento (pausa ao sair / retomada).
+  const sessionIdRef = useRef<string | null>(null);
+  const sessionStartRef = useRef<number | null>(null);
+  const studentIdRef = useRef<string | null>(null);
+  const uidPromiseRef = useRef<Promise<string | null> | null>(null);
+  /** Saiu do app com o treino rodando (pausa automática): quando saiu. */
+  const awayRef = useRef<{ at: number } | null>(null);
+  const resumeTimersRef = useRef<number[]>([]);
+  const lastRemoteSaveRef = useRef(0);
+  const finishedSessionRef = useRef<string | null>(null);
+  const tabataRef = useRef<ParsedTabata | undefined>(tabata);
+  tabataRef.current = tabata;
 
   useEffect(() => {
     phaseRef.current = phase;
@@ -176,6 +208,8 @@ const TabataExecucao: React.FC = () => {
   }, [phase, sessionStartMs]);
 
   const steps: Step[] = useMemo(() => tabataPlayerSteps(tabata), [tabata]);
+  const stepsRef = useRef(steps);
+  stepsRef.current = steps;
   const warmupBlock = useMemo(() => (tabata ? resolveWarmupBlock(tabata) : null), [tabata]);
   const levels = useMemo(() => blockIntensities(tabata), [tabata]);
   const planTotal = useMemo(() => totalSeconds(steps), [steps]);
