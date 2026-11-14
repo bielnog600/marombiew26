@@ -1,4 +1,6 @@
 // Parser para extrair blocos TABATA estruturados do markdown gerado pela IA
+import { parseTabataIntensity, type TabataIntensity } from './tabataProgression';
+
 export interface TabataExercise {
   name: string;
   workSeconds: number;
@@ -14,6 +16,8 @@ export interface TabataBlock {
   restSeconds: number;
   exercises: TabataExercise[];
   restAfterBlock: number;
+  /** Intensidade alvo do bloco (linha **Intensidade:**); planos antigos não têm. */
+  intensity?: TabataIntensity;
 }
 
 export interface ParsedTabata {
@@ -23,6 +27,8 @@ export interface ParsedTabata {
   objective: string;
   level: string;
   warmup: string[];
+  /** "Bloco 0 — Aquecimento" cronometrado (tabela dentro da seção de aquecimento). */
+  warmupBlock?: TabataBlock | null;
   blocks: TabataBlock[];
   cooldown: string[];
   rawMarkdown: string;
@@ -38,6 +44,7 @@ export function parseTabata(markdown: string): ParsedTabata {
     objective: '',
     level: '',
     warmup: [],
+    warmupBlock: null,
     blocks: [],
     cooldown: [],
     rawMarkdown: markdown,
@@ -77,15 +84,15 @@ export function parseTabata(markdown: string): ParsedTabata {
       continue;
     }
 
-    // Section headers
-    if (/^##\s+.*aquecimento/i.test(trimmed)) {
-      currentSection = 'warmup';
+    // Section headers (desaquecimento antes: "Desaquecimento" também contém "aquecimento")
+    if (/^##\s+.*(desaquecimento|alongamento)/i.test(trimmed)) {
+      currentSection = 'cooldown';
       currentBlock = null;
       inTable = false;
       continue;
     }
-    if (/^##\s+.*desaquecimento|alongamento/i.test(trimmed)) {
-      currentSection = 'cooldown';
+    if (/^##\s+.*aquecimento/i.test(trimmed)) {
+      currentSection = 'warmup';
       currentBlock = null;
       inTable = false;
       continue;
@@ -100,16 +107,12 @@ export function parseTabata(markdown: string): ParsedTabata {
     // Block header (### Bloco N)
     if (/^###\s+/.test(trimmed)) {
       const blockName = trimmed.replace(/^###\s+/, '').trim();
-      currentBlock = {
-        name: blockName,
-        format: '',
-        rounds: 8,
-        workSeconds: 20,
-        restSeconds: 10,
-        exercises: [],
-        restAfterBlock: 60,
-      };
-      result.blocks.push(currentBlock);
+      const isWarmupBlock = !result.warmupBlock && (currentSection === 'warmup' || /^bloco\s*0\b/i.test(blockName));
+      currentBlock = isWarmupBlock
+        ? { name: blockName, format: '', rounds: 4, workSeconds: 40, restSeconds: 20, exercises: [], restAfterBlock: 30 }
+        : { name: blockName, format: '', rounds: 8, workSeconds: 20, restSeconds: 10, exercises: [], restAfterBlock: 60 };
+      if (isWarmupBlock) result.warmupBlock = currentBlock;
+      else result.blocks.push(currentBlock);
       currentSection = 'block';
       inTable = false;
       tableHeaderSkipped = false;
@@ -126,6 +129,12 @@ export function parseTabata(markdown: string): ParsedTabata {
         currentBlock.workSeconds = parseInt(timesMatch[1]);
         currentBlock.restSeconds = parseInt(timesMatch[2]);
       }
+      continue;
+    }
+
+    // Block intensity: **Intensidade:** Moderado (RPE 6–7)
+    if (currentBlock && /^\*\*Intensidade:\*\*/i.test(trimmed)) {
+      currentBlock.intensity = parseTabataIntensity(trimmed.replace(/^\*\*Intensidade:\*\*\s*/i, ''));
       continue;
     }
 
@@ -181,6 +190,17 @@ export function parseTabata(markdown: string): ParsedTabata {
       const item = trimmed.replace(/^[-*]\s+/, '').trim();
       if (currentSection === 'warmup') result.warmup.push(item);
       else result.cooldown.push(item);
+    }
+  }
+
+  // Bloco 0 salvo: a lista de texto acompanha os nomes, para telas que só mostram a lista.
+  if (result.warmupBlock && !result.warmup.length) {
+    const seen = new Set<string>();
+    for (const ex of result.warmupBlock.exercises) {
+      const key = ex.name.trim().toUpperCase();
+      if (!key || seen.has(key)) continue;
+      seen.add(key);
+      result.warmup.push(`${ex.name.trim()} — ${ex.workSeconds}s`);
     }
   }
 
