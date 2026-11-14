@@ -1,19 +1,31 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import Hls from 'hls.js';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
-import { X, Play, Pause, SkipForward, RotateCcw, Volume2, VolumeX, Share2 } from 'lucide-react';
+import {
+  X, Play, Pause, SkipForward, RotateCcw, Volume2, VolumeX, Share2, Check, Flame, Droplets, Square, Loader2,
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import type { ParsedTabata } from '@/lib/tabataParser';
 import { TabataSummaryShare } from '@/components/tabata/TabataSummaryShare';
-import { tabataPlayerSteps, resolveWarmupBlock, intensityInfo, type TabataPlayerStep } from '@/lib/tabataProgression';
+import { tabataPlayerSteps, resolveWarmupBlock, type TabataPlayerStep } from '@/lib/tabataProgression';
+import {
+  PREP_SECONDS, blockIntensities, clock, elapsedSeconds, estimateKcal, headerStepIndex, intensityChipText,
+  intensityTone, pauseAfter, phaseTone, progressSegments, roundLabel, sessionCounts, stepIntensity,
+  toneColor, totalSeconds, transitionChip, voiceCueAt, workPhrase, REST_CHIP,
+  type PlayerPhase, type TabataVoiceKey,
+} from '@/lib/tabataPlayerView';
+import { createTabataVoice, type TabataVoice } from '@/lib/tabataVoicePlayer';
+import { saveTabataSession } from '@/lib/tabataSessionApi';
+import {
+  PhaseChip, RoundDots, RpePicker, SegmentedProgress, TimerRing,
+} from '@/components/tabata/player/TabataPlayerParts';
+import logoMarombiew from '@/assets/logo_marombiew.png';
 
-type Phase = 'idle' | 'prep' | 'work' | 'rest' | 'block_rest' | 'done';
-
+type Phase = PlayerPhase;
 type Step = TabataPlayerStep;
-
-const PREP_SECONDS = 10;
 
 const extractStreamVideoId = (embed: string | null | undefined): string | null => {
   if (!embed) return null;
@@ -27,6 +39,10 @@ const extractStreamVideoId = (embed: string | null | undefined): string | null =
     if (m) return m[1];
   }
   return null;
+};
+const hlsUrlFor = (embed: string | null | undefined) => {
+  const id = extractStreamVideoId(embed);
+  return id ? `https://customer-vqfal80lir76xyf0.cloudflarestream.com/${id}/manifest/video.m3u8` : null;
 };
 
 const STOP_WORDS = new Set(['de', 'da', 'do', 'das', 'dos', 'com', 'em', 'na', 'no', 'a', 'o', 'e', 'para', 'pra']);
@@ -47,52 +63,49 @@ const equipmentOf = (s: string) => {
   return new Set(EQUIPMENT_MARKERS.filter(m => tokens.has(m)));
 };
 
-const INTENSITY_CHIP_CLASS: Record<string, string> = {
-  leve: 'bg-secondary text-secondary-foreground',
-  moderado: 'bg-primary/15 text-primary',
-  forte: 'bg-primary/30 text-primary',
-  maximo: 'bg-destructive/25 text-destructive',
+const cleanName = (s: string | undefined) => (s || '').replace(/\*+/g, '').trim();
+const cleanObs = (s: string | undefined) => {
+  const t = cleanName(s);
+  return t && t !== '...' && t !== '-' ? t : '';
 };
 
-/** Intensidade alvo do bloco atual (Leve / Moderado / Forte / Máximo + RPE). */
-const IntensityChip: React.FC<{ step: Step }> = ({ step }) => {
-  const level = intensityInfo(step.block.intensity);
-  if (!level) return null;
-  return (
-    <span
-      data-testid="tabata-player-intensity"
-      className={cn('text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full', INTENSITY_CHIP_CLASS[level.value])}
-    >
-      {level.label} · {level.rpe}
-    </span>
-  );
+/** Exercícios do bloco sem repetir (A-B-C-D). */
+const uniqueExercises = (block: Step['block']) => {
+  const seen = new Set<string>();
+  return block.exercises.filter(ex => {
+    const k = normalizeName(ex.name);
+    if (seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  });
 };
 
 const TabataExecucao: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
-  const tabata = (location.state as any)?.tabata as ParsedTabata | undefined;
+  const navState = (location.state as any) || {};
+  const tabata = navState.tabata as ParsedTabata | undefined;
+  const planId = (navState.planId as string | undefined) ?? null;
+  const isPreview = navState.preview === true;
 
   const [phase, setPhase] = useState<Phase>('idle');
   const [stepIndex, setStepIndex] = useState(0);
   const [secondsLeft, setSecondsLeft] = useState(PREP_SECONDS);
+  const [fraction, setFraction] = useState(1);
   const [phaseStartTime, setPhaseStartTime] = useState<number>(Date.now());
   const [phaseTotalSeconds, setPhaseTotalSeconds] = useState<number>(PREP_SECONDS);
   const [paused, setPaused] = useState(false);
   const [muted, setMuted] = useState(false);
   const [mediaMap, setMediaMap] = useState<Record<string, { videoEmbed?: string | null; imageUrl?: string | null }>>({});
-  const [phraseKey, setPhraseKey] = useState<number>(0);
-  const [phrase, setPhrase] = useState<string>('');
   const [sessionStartMs, setSessionStartMs] = useState<number | null>(null);
   const [sessionDurationSec, setSessionDurationSec] = useState<number>(0);
   const [showShare, setShowShare] = useState(false);
-
-  const isIOSAudioSafeMode = useMemo(() => {
-    if (typeof navigator === 'undefined') return false;
-    const ua = navigator.userAgent || '';
-    const platform = navigator.platform || '';
-    return /iPad|iPhone|iPod/i.test(ua) || (platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-  }, []);
+  const [doneSteps, setDoneSteps] = useState<number[]>([]);
+  const [endedEarly, setEndedEarly] = useState(false);
+  const [rpe, setRpe] = useState<number | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [videoReady, setVideoReady] = useState(false);
 
   const audioCtxRef = useRef<AudioContext | null>(null);
   const htmlBeepsRef = useRef<Record<string, HTMLAudioElement[]>>({});
@@ -109,6 +122,15 @@ const TabataExecucao: React.FC = () => {
   const phaseTotalSecondsRef = useRef(phaseTotalSeconds);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const hlsRef = useRef<Hls | null>(null);
+  const pausedAtRef = useRef<number | null>(null);
+  const totalPauseMsRef = useRef(0);
+  const doneStepsRef = useRef<Set<number>>(new Set());
+  /** Sobe a cada fase nova: cada fala toca uma vez por fase. */
+  const phaseSeqRef = useRef(0);
+  const firedCuesRef = useRef<Set<string>>(new Set());
+  /** true = o "3, 2, 1… bora!" gravado cobre a contagem desta fase (sem bipes). */
+  const voiceCountdownRef = useRef(false);
+  const voiceRef = useRef<TabataVoice | null>(null);
 
   useEffect(() => {
     phaseRef.current = phase;
@@ -119,37 +141,31 @@ const TabataExecucao: React.FC = () => {
     phaseTotalSecondsRef.current = phaseTotalSeconds;
   }, [phase, stepIndex, paused, muted, phaseStartTime, phaseTotalSeconds]);
 
+  // Voz do Fabiew: baixa só as falas do TABATA (aprovadas na tela de voz).
+  useEffect(() => {
+    try {
+      const v = createTabataVoice();
+      voiceRef.current = v;
+      void v.preload().catch(() => { /* sem voz: bipes */ });
+    } catch { voiceRef.current = null; }
+    return () => { voiceRef.current?.stop(); };
+  }, []);
+
   // Freeze the total session duration once TABATA is done
   useEffect(() => {
     if (phase === 'done' && sessionStartMs) {
-      setSessionDurationSec(Math.max(1, Math.round((Date.now() - sessionStartMs) / 1000)));
+      const pausedMs = totalPauseMsRef.current + (pausedAtRef.current ? Date.now() - pausedAtRef.current : 0);
+      setSessionDurationSec(Math.max(1, Math.round((Date.now() - sessionStartMs - pausedMs) / 1000)));
     }
   }, [phase, sessionStartMs]);
 
-  // Bloco 0 (aquecimento cronometrado — ou a lista antiga convertida, 1 min por exercício) e os blocos.
   const steps: Step[] = useMemo(() => tabataPlayerSteps(tabata), [tabata]);
   const warmupBlock = useMemo(() => (tabata ? resolveWarmupBlock(tabata) : null), [tabata]);
+  const levels = useMemo(() => blockIntensities(tabata), [tabata]);
+  const planTotal = useMemo(() => totalSeconds(steps), [steps]);
 
   const currentStep = steps[stepIndex];
   const totalSteps = steps.length;
-
-  // Sorteia uma nova frase sempre que a fase ou o exercício mudar
-  useEffect(() => {
-    const PHRASES_MAP: Record<Phase, string[]> = {
-      idle: ['PRONTO?'],
-      prep: ['PREPARE-SE', 'POSICIONE-SE', 'FIQUE PRONTO', 'AJUSTE A POSTURA', 'RESPIRE E CONCENTRE'],
-      work: ['VAI COM TUDO!', 'FORÇA TOTAL!', 'NÃO PARE!', 'ACELERA!', 'DÁ TUDO DE SI!'],
-      rest: ['RESPIRE FUNDO', 'DESCANSE AGORA', 'RECUPERE-SE', 'INSPIRE… EXPIRE', 'RELAXA E VOLTA'],
-      block_rest: ['PAUSA ESTRATÉGICA', 'RESPIRE FUNDO', 'QUASE LÁ!', 'RECUPERE O FÔLEGO'],
-      done: ['CONCLUÍDO!'],
-    };
-    const WARMUP_PHRASES = ['AQUEÇA O CORPO', 'RITMO LEVE', 'SOLTE AS ARTICULAÇÕES', 'SÓ AQUECENDO'];
-    const inWarmup = phase === 'work' && steps[stepIndex]?.isWarmup;
-    const list = inWarmup ? WARMUP_PHRASES : PHRASES_MAP[phase] || [phase];
-    const pick = list[Math.floor(Math.random() * list.length)];
-    setPhrase(pick);
-    setPhraseKey(k => k + 1);
-  }, [phase, stepIndex]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Load exercise media from DB and fuzzy-match by name
   useEffect(() => {
@@ -201,28 +217,33 @@ const TabataExecucao: React.FC = () => {
   }, [mediaMap]);
 
   const isResting = phase === 'rest' || phase === 'block_rest';
-
   const nextStep = isResting ? steps[stepIndex + 1] : null;
   const nextMedia = nextStep ? findMedia(nextStep.exercise.name) : null;
 
-  // Durante descanso, antecipa a mídia do próximo exercício
+  // Descanso e transição já carregam (e tocam) o vídeo do próximo exercício.
   const displayStep = isResting && nextStep ? nextStep : currentStep;
   const displayMedia = useMemo(
     () => displayStep ? findMedia(displayStep.exercise.name) : null,
     [displayStep, findMedia]
   );
 
-  const streamVideoId = extractStreamVideoId(displayMedia?.videoEmbed);
-  const rawHlsUrl = streamVideoId ? `https://customer-vqfal80lir76xyf0.cloudflarestream.com/${streamVideoId}/manifest/video.m3u8` : null;
-  const hlsUrl = rawHlsUrl;
+  const hlsUrl = hlsUrlFor(displayMedia?.videoEmbed);
   const fallbackImage = displayMedia?.imageUrl || null;
-  const hasMediaBg = !!hlsUrl || !!fallbackImage;
-  const showVideoBg = (phase === 'prep' || phase === 'work' || phase === 'rest' || phase === 'block_rest') && hasMediaBg;
+  const showVideoArea = phase === 'prep' || phase === 'work' || phase === 'rest' || phase === 'block_rest';
+
+  // Foto do exercício seguinte em cache, para nunca abrir tela preta.
+  useEffect(() => {
+    const upcoming = steps[stepIndex + 1] ?? null;
+    const img = upcoming ? findMedia(upcoming.exercise.name)?.imageUrl : null;
+    if (img && typeof Image !== 'undefined') { const i = new Image(); i.src = img; }
+  }, [stepIndex, steps, findMedia]);
+
+  useEffect(() => { setVideoReady(false); }, [hlsUrl]);
 
   // Mount HLS video when applicable
   useEffect(() => {
     const video = videoRef.current;
-    if (!video || !showVideoBg || !hlsUrl) return;
+    if (!video || !showVideoArea || !hlsUrl) return;
 
     video.muted = true;
     video.defaultMuted = true;
@@ -244,7 +265,9 @@ const TabataExecucao: React.FC = () => {
         }
       }
     };
+    const onPlaying = () => setVideoReady(true);
     video.addEventListener('loadedmetadata', disableAudioTracks);
+    video.addEventListener('playing', onPlaying);
 
     if (hlsRef.current) {
       hlsRef.current.destroy();
@@ -269,11 +292,13 @@ const TabataExecucao: React.FC = () => {
         video.removeEventListener('loadedmetadata', tryPlay);
         video.removeEventListener('loadeddata', tryPlay);
         video.removeEventListener('canplay', tryPlay);
+        video.removeEventListener('playing', onPlaying);
       };
     }
 
     if (Hls.isSupported()) {
-      const hls = new Hls({ autoStartLoad: true, startLevel: -1, enableWorker: true, lowLatencyMode: false });
+      // Começa na qualidade mais leve: o vídeo aparece rápido e sobe a qualidade depois.
+      const hls = new Hls({ autoStartLoad: true, startLevel: 0, enableWorker: true, lowLatencyMode: false, maxBufferLength: 10 });
       hlsRef.current = hls;
       hls.loadSource(hlsUrl);
       hls.attachMedia(video);
@@ -297,11 +322,20 @@ const TabataExecucao: React.FC = () => {
       return () => {
         video.removeEventListener('loadeddata', tryPlay);
         video.removeEventListener('canplay', tryPlay);
+        video.removeEventListener('playing', onPlaying);
         hls.destroy();
         hlsRef.current = null;
       };
     }
-  }, [hlsUrl, showVideoBg]);
+    return () => { video.removeEventListener('playing', onPlaying); };
+  }, [hlsUrl, showVideoArea]);
+
+  // Pausado: o vídeo para junto.
+  useEffect(() => {
+    const v = videoRef.current;
+    if (!v) return;
+    if (paused) v.pause(); else v.play().catch(() => {});
+  }, [paused]);
 
   const stopScheduledAudioNodes = (onlyCancelable = true) => {
     const keepAlive: { osc: OscillatorNode; gain: GainNode; cancelable: boolean }[] = [];
@@ -361,24 +395,25 @@ const TabataExecucao: React.FC = () => {
   const ensureHtmlBeeps = () => {
     if (typeof window === 'undefined') return;
     if (htmlBeepsRef.current.countdown?.length && htmlBeepsRef.current.transition?.length) return;
-
-    const countdownSrc = createBeepDataUri(880, 0.14, 0.34);
-    const transitionSrc = createBeepDataUri(1320, 0.36, 0.36);
-    htmlBeepsRef.current = {
-      countdown: Array.from({ length: 4 }, () => {
-        const audio = new Audio(countdownSrc);
-        audio.preload = 'auto';
-        audio.setAttribute('playsinline', '');
-        return audio;
-      }),
-      transition: Array.from({ length: 3 }, () => {
-        const audio = new Audio(transitionSrc);
-        audio.preload = 'auto';
-        audio.setAttribute('playsinline', '');
-        return audio;
-      }),
-    };
-    htmlBeepCursorRef.current = { countdown: 0, transition: 0 };
+    try {
+      const countdownSrc = createBeepDataUri(880, 0.14, 0.34);
+      const transitionSrc = createBeepDataUri(1320, 0.36, 0.36);
+      htmlBeepsRef.current = {
+        countdown: Array.from({ length: 4 }, () => {
+          const audio = new Audio(countdownSrc);
+          audio.preload = 'auto';
+          audio.setAttribute('playsinline', '');
+          return audio;
+        }),
+        transition: Array.from({ length: 3 }, () => {
+          const audio = new Audio(transitionSrc);
+          audio.preload = 'auto';
+          audio.setAttribute('playsinline', '');
+          return audio;
+        }),
+      };
+      htmlBeepCursorRef.current = { countdown: 0, transition: 0 };
+    } catch { /* sem <audio> */ }
   };
 
   const unlockHtmlBeeps = () => {
@@ -420,7 +455,8 @@ const TabataExecucao: React.FC = () => {
       audio.muted = false;
       audio.volume = kind === 'transition' ? 0.95 : 0.9;
       audio.currentTime = 0;
-      audio.play().catch(() => { /* Web Audio fallback still runs */ });
+      const p = audio.play();
+      if (p && typeof p.catch === 'function') p.catch(() => { /* Web Audio fallback still runs */ });
       return true;
     } catch {
       return false;
@@ -495,12 +531,20 @@ const TabataExecucao: React.FC = () => {
     stopScheduledAudioNodes();
   };
 
+  const voiceCoversCountdown = (forPhase: Phase, seconds: number) =>
+    !mutedRef.current
+    && (forPhase === 'prep' || forPhase === 'rest' || forPhase === 'block_rest')
+    && seconds >= 3
+    && !!voiceRef.current?.ready('tabata_321_bora');
+
   // Pré-agenda o 3-2-1 do mesmo jeito do descanso da musculação, direto no
   // relógio do Web Audio, com timer JS apenas como fallback visual/operacional.
-  const scheduleCountdownFor = (seconds: number) => {
+  // Antes de um exercício, o "3, 2, 1… bora!" gravado substitui os bipes.
+  const scheduleCountdownFor = (seconds: number, forPhase: Phase = phaseRef.current) => {
     clearScheduledBeeps();
     lastBeepedSecondRef.current = -1;
-    if (mutedRef.current || seconds <= 0) return;
+    voiceCountdownRef.current = voiceCoversCountdown(forPhase, seconds);
+    if (mutedRef.current || seconds <= 0 || voiceCountdownRef.current) return;
     const ctx = getAudioContext();
     const now = ctx?.currentTime ?? 0;
 
@@ -547,22 +591,24 @@ const TabataExecucao: React.FC = () => {
       try { audioCtxRef.current?.close(); } catch { /* noop */ }
       audioCtxRef.current = null;
     };
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Unified Tick & Sync based on wall-clock time
   useEffect(() => {
     if (paused || phase === 'idle' || phase === 'done') {
       return;
     }
-    
+
     const sync = () => {
-      const elapsed = Math.floor((Date.now() - phaseStartTime) / 1000);
+      const elapsedMs = Math.max(0, Date.now() - phaseStartTime);
+      const elapsed = Math.floor(elapsedMs / 1000);
       const remaining = Math.max(0, phaseTotalSeconds - elapsed);
       setSecondsLeft(remaining);
+      setFraction(phaseTotalSeconds > 0 ? Math.max(0, 1 - elapsedMs / (phaseTotalSeconds * 1000)) : 0);
     };
 
     sync();
-    const id = setInterval(sync, 200); // More frequent for smoother UI
+    const id = setInterval(sync, 200);
 
     const handleVisibility = () => {
       if (document.visibilityState === 'visible') {
@@ -572,7 +618,7 @@ const TabataExecucao: React.FC = () => {
 
     document.addEventListener('visibilitychange', handleVisibility);
     window.addEventListener('focus', handleVisibility);
-    
+
     return () => {
       clearInterval(id);
       document.removeEventListener('visibilitychange', handleVisibility);
@@ -585,11 +631,32 @@ const TabataExecucao: React.FC = () => {
     phaseRef.current = newPhase;
     phaseStartTimeRef.current = now;
     phaseTotalSecondsRef.current = secs;
+    phaseSeqRef.current += 1;
     setPhase(newPhase);
     setPhaseTotalSeconds(secs);
     setSecondsLeft(secs);
+    setFraction(1);
     setPhaseStartTime(now);
-    scheduleCountdownFor(secs);
+    scheduleCountdownFor(secs, newPhase);
+  };
+
+  const markDone = (i: number) => {
+    if (doneStepsRef.current.has(i)) return;
+    doneStepsRef.current.add(i);
+    setDoneSteps([...doneStepsRef.current]);
+  };
+
+  const finish = (early = false) => {
+    clearScheduledBeeps();
+    voiceRef.current?.stop();
+    if (pausedAtRef.current) {
+      totalPauseMsRef.current += Date.now() - pausedAtRef.current;
+      pausedAtRef.current = null;
+    }
+    pausedRef.current = false;
+    setPaused(false);
+    setEndedEarly(early);
+    startPhase('done', 0);
   };
 
   const transitionToNextPhase = (sourcePhase = phaseRef.current, sourceStepIndex = stepIndexRef.current) => {
@@ -598,7 +665,7 @@ const TabataExecucao: React.FC = () => {
     const step = steps[sourceStepIndex];
     if (!step) {
       beep(1320, 0.35, 0.3, 'transition');
-      startPhase('done', 0);
+      finish();
       return;
     }
 
@@ -609,16 +676,17 @@ const TabataExecucao: React.FC = () => {
     }
 
     if (sourcePhase === 'work') {
+      markDone(sourceStepIndex);
       const isLastInBlock = step.exerciseIndex === step.block.exercises.length - 1;
       const isLastStep = sourceStepIndex === totalSteps - 1;
 
       if (isLastStep) {
         beep(1320, 0.35, 0.3, 'transition');
-        startPhase('done', 0);
+        finish();
         return;
       }
 
-      const pause = isLastInBlock ? step.block.restAfterBlock : step.exercise.restSeconds;
+      const pause = pauseAfter(steps, sourceStepIndex);
       if (pause <= 0) {
         // Sem pausa (ex.: aquecimento antigo, 1 min seguido): vai direto ao próximo exercício.
         transitionToNextPhase('rest', sourceStepIndex);
@@ -634,7 +702,7 @@ const TabataExecucao: React.FC = () => {
       const next = steps[nextIndex];
       if (!next) {
         beep(1320, 0.35, 0.3, 'transition');
-        startPhase('done', 0);
+        finish();
         return;
       }
       beep(1320, 0.35, 0.3, 'transition');
@@ -646,16 +714,51 @@ const TabataExecucao: React.FC = () => {
 
   // Phase transitions when seconds hit 0
   useEffect(() => {
-    if (phase === 'idle' || phase === 'done' || secondsLeft > 0) return;
+    if (phase === 'idle' || phase === 'done' || secondsLeft > 0 || paused) return;
     if (phaseRef.current !== phase || stepIndexRef.current !== stepIndex) return;
     transitionToNextPhase(phase, stepIndex);
-  }, [secondsLeft, phase]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [secondsLeft, phase, paused]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /** Bipes 3-2-1 a partir de agora (o áudio gravado não tocou). */
+  const fallbackCountdownBeeps = (fromSecond: number) => {
+    voiceCountdownRef.current = false;
+    const seq = phaseSeqRef.current;
+    for (let s = Math.min(3, fromSecond); s >= 1; s--) {
+      const delay = (Math.min(3, fromSecond) - s) * 1000;
+      const id = window.setTimeout(() => {
+        if (seq !== phaseSeqRef.current || pausedRef.current || mutedRef.current) return;
+        if (lastBeepedSecondRef.current === s) return;
+        lastBeepedSecondRef.current = s;
+        beep(880, 0.12, 0.28, 'countdown');
+      }, delay);
+      scheduledBeepTimeoutsRef.current.push(id);
+    }
+  };
+
+  // Falas do Fabiew nos momentos certos (uma vez por fase); som desligado = nada.
+  useEffect(() => {
+    if (paused || mutedRef.current) return;
+    const cue: TabataVoiceKey | null = voiceCueAt(phase, secondsLeft, phaseTotalSeconds);
+    if (!cue) return;
+    const id = `${phaseSeqRef.current}:${cue}`;
+    if (firedCuesRef.current.has(id)) return;
+    firedCuesRef.current.add(id);
+    const voice = voiceRef.current;
+    const isCountdown = cue === 'tabata_321_bora';
+    if (!voice?.ready(cue)) {
+      if (isCountdown && voiceCountdownRef.current) fallbackCountdownBeeps(secondsLeft);
+      return;
+    }
+    voice.play(cue).catch(() => {
+      if (isCountdown) fallbackCountdownBeeps(Math.max(1, secondsLeft - 1));
+    });
+  }, [secondsLeft, phase, paused, phaseTotalSeconds]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Countdown beeps are pre-scheduled via native timers at each phase start
   // (scheduleCountdownFor). Kept as a defensive fallback in case scheduling
   // fails or gets cleared unexpectedly.
   useEffect(() => {
-    if (phase === 'idle' || phase === 'done' || paused) return;
+    if (phase === 'idle' || phase === 'done' || paused || voiceCountdownRef.current) return;
     if (secondsLeft > 0 && secondsLeft <= 3) {
       if (lastBeepedSecondRef.current !== secondsLeft) {
         lastBeepedSecondRef.current = secondsLeft;
@@ -667,8 +770,8 @@ const TabataExecucao: React.FC = () => {
   }, [secondsLeft]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Safari/iOS unlock: must be called synchronously inside a user gesture.
-  // Igual ao descanso da musculação: cria/resume Web Audio no toque do usuário.
   const unlockAudio = (forceSound = false) => {
+    try { voiceRef.current?.unlock(); } catch { /* noop */ }
     try {
       unlockHtmlBeeps();
       const ctx = getAudioContext();
@@ -692,34 +795,50 @@ const TabataExecucao: React.FC = () => {
   const start = () => {
     if (!steps.length) return;
     if (phaseRef.current !== 'idle') return;
-    // No iOS, criar o AudioContext exatamente no clique evita o contexto ficar
-    // preso/suspenso por eventos anteriores como pointerdown/touchstart.
-    unlockAudio(true);
+    unlockAudio(false);
     const now = Date.now();
     setSessionStartMs(now);
     setSessionDurationSec(0);
-    phaseRef.current = 'prep';
+    doneStepsRef.current = new Set();
+    setDoneSteps([]);
+    totalPauseMsRef.current = 0;
+    pausedAtRef.current = null;
+    setEndedEarly(false);
+    setRpe(null);
+    setSaved(false);
     stepIndexRef.current = 0;
     pausedRef.current = false;
-    phaseStartTimeRef.current = now;
-    phaseTotalSecondsRef.current = PREP_SECONDS;
     setStepIndex(0);
-    setPhase('prep');
-    setPhaseTotalSeconds(PREP_SECONDS);
-    setSecondsLeft(PREP_SECONDS);
-    setPhaseStartTime(now);
     setPaused(false);
-    scheduleCountdownFor(PREP_SECONDS);
+    startPhase('prep', PREP_SECONDS);
   };
 
   const skip = () => {
     unlockAudio();
     clearScheduledBeeps();
+    voiceRef.current?.stop();
+    if (pausedRef.current) resume();
     transitionToNextPhase(phaseRef.current, stepIndexRef.current);
   };
 
-  const restart = () => {
+  /** Recomeça a rodada (ou o descanso) atual do zero. */
+  const restartRound = () => {
+    unlockAudio();
+    voiceRef.current?.stop();
+    if (pausedAtRef.current) {
+      totalPauseMsRef.current += Date.now() - pausedAtRef.current;
+      pausedAtRef.current = null;
+    }
+    pausedRef.current = false;
+    setPaused(false);
+    const p = phaseRef.current;
+    if (p === 'idle' || p === 'done') return;
+    startPhase(p, phaseTotalSecondsRef.current);
+  };
+
+  const restartAll = () => {
     clearScheduledBeeps();
+    voiceRef.current?.stop();
     phaseRef.current = 'idle';
     pausedRef.current = false;
     setPhase('idle');
@@ -733,21 +852,33 @@ const TabataExecucao: React.FC = () => {
     setShowShare(false);
   };
 
+  const pause = () => {
+    if (pausedRef.current) return;
+    pausedRef.current = true;
+    pausedAtRef.current = Date.now();
+    clearScheduledBeeps();
+    voiceRef.current?.stop();
+    setPaused(true);
+  };
+
+  /** Retoma de onde parou: o relógio da fase anda o tempo da pausa para frente. */
+  function resume() {
+    if (!pausedRef.current) return;
+    const pausedFor = pausedAtRef.current ? Date.now() - pausedAtRef.current : 0;
+    totalPauseMsRef.current += pausedFor;
+    pausedAtRef.current = null;
+    const startAt = phaseStartTimeRef.current + pausedFor;
+    phaseStartTimeRef.current = startAt;
+    pausedRef.current = false;
+    setPhaseStartTime(startAt);
+    setPaused(false);
+    const remaining = Math.max(0, phaseTotalSecondsRef.current - Math.floor((Date.now() - startAt) / 1000));
+    scheduleCountdownFor(remaining, phaseRef.current);
+  }
+
   const togglePause = () => {
     unlockAudio();
-    setPaused(p => {
-      const next = !p;
-      pausedRef.current = next;
-      if (next) {
-        clearScheduledBeeps();
-      } else {
-        // On resume, reschedule countdown based on remaining time.
-        const elapsed = Math.floor((Date.now() - phaseStartTime) / 1000);
-        const remaining = Math.max(0, phaseTotalSeconds - elapsed);
-        scheduleCountdownFor(remaining);
-      }
-      return next;
-    });
+    if (pausedRef.current) resume(); else pause();
   };
 
   const toggleMute = () => {
@@ -759,364 +890,398 @@ const TabataExecucao: React.FC = () => {
       if (!paused && phase !== 'idle' && phase !== 'done') {
         const elapsed = Math.floor((Date.now() - phaseStartTime) / 1000);
         const remaining = Math.max(0, phaseTotalSeconds - elapsed);
-        scheduleCountdownFor(remaining);
+        scheduleCountdownFor(remaining, phase);
       }
     } else {
       clearScheduledBeeps();
+      voiceRef.current?.stop();
     }
   };
 
+  const counts = useMemo(() => sessionCounts(steps, doneSteps), [steps, doneSteps]);
+  const kcal = useMemo(() => estimateKcal(steps, doneSteps, levels, sessionDurationSec), [steps, doneSteps, levels, sessionDurationSec]);
+
+  const handleSave = useCallback(async () => {
+    if (!tabata || !rpe || saving || saved) return;
+    setSaving(true);
+    try {
+      await saveTabataSession({
+        planId,
+        name: tabata.title || 'TABATA',
+        startedAt: new Date(sessionStartMs ?? Date.now()),
+        durationSeconds: sessionDurationSec,
+        pauseMs: totalPauseMsRef.current,
+        rounds: counts.rounds,
+        totalRounds: counts.totalRounds,
+        blocks: counts.blocks,
+        totalBlocks: counts.totalBlocks,
+        kcal,
+        rpe,
+        endedEarly,
+      });
+      setSaved(true);
+      toast.success('Enviado ao Fabiew!');
+    } catch (e) {
+      toast.error(e instanceof Error && e.message ? `Não foi possível salvar: ${e.message}` : 'Não foi possível salvar. Tente de novo.');
+    } finally {
+      setSaving(false);
+    }
+  }, [tabata, rpe, saving, saved, planId, sessionStartMs, sessionDurationSec, counts, kcal, endedEarly]);
+
   if (!tabata) {
     return (
-      <div className="fixed inset-0 bg-background flex flex-col items-center justify-center p-4">
-        <p className="text-muted-foreground mb-4">Nenhum TABATA carregado.</p>
+      <div className="fixed inset-0 bg-tabata-bg flex flex-col items-center justify-center p-4">
+        <p className="text-tabata-soft mb-4">Nenhum TABATA carregado.</p>
         <Button onClick={() => navigate(-1)}>Voltar</Button>
       </div>
     );
   }
 
-  const phaseLabel = {
-    idle: 'PRONTO?',
-    prep: 'PREPARE-SE',
-    work: 'TRABALHE!',
-    rest: 'DESCANSE!',
-    block_rest: 'DESCANSO DO BLOCO',
-    done: 'CONCLUÍDO!',
-  }[phase];
+  const running = phase !== 'idle' && phase !== 'done';
+  const headerStep = steps[headerStepIndex(phase, stepIndex, totalSteps)];
+  const tone = phaseTone(phase, steps, stepIndex, levels);
+  const elapsed = elapsedSeconds(steps, phase, stepIndex, secondsLeft);
+  const segments = progressSegments(steps, levels, elapsed);
+  const level = stepIntensity(currentStep, levels);
+  const nextLevel = stepIntensity(nextStep ?? undefined, levels);
+  const mainBlocks = tabata.blocks;
+  const warmupMinutes = warmupBlock ? Math.max(1, Math.round(totalSeconds([], 0) + warmupBlock.exercises.reduce((s, e) => s + e.workSeconds + e.restSeconds, 0)) / 60) : 0;
+  const exercisesPerBlock = mainBlocks.length ? uniqueExercises(mainBlocks[0]).length : 0;
 
-  const phraseColorClass =
-    phase === 'work' ? 'text-red-400'
-    : phase === 'rest' ? 'text-emerald-300'
-    : phase === 'block_rest' ? 'text-sky-300'
-    : phase === 'prep' ? 'text-amber-300'
-    : 'text-primary';
+  // ───────── Peças da tela ─────────
 
-  const phaseColor = {
-    idle: 'from-primary/20 to-primary/5',
-    prep: 'from-yellow-500/30 to-yellow-500/5',
-    work: 'from-red-500/40 to-red-500/10',
-    rest: 'from-green-500/30 to-green-500/5',
-    block_rest: 'from-blue-500/30 to-blue-500/5',
-    done: 'from-primary/30 to-primary/5',
-  }[phase];
-
-  const overallProgress = totalSteps > 0 ? ((stepIndex + (phase === 'work' ? 0.5 : phase === 'rest' || phase === 'block_rest' ? 1 : 0)) / totalSteps) * 100 : 0;
-
-  return (
-    <div
-      className={cn(
-        "fixed inset-0 z-50 flex flex-col transition-colors duration-500",
-        showVideoBg ? "bg-black" : cn("bg-gradient-to-br", phaseColor)
-      )}
-      style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)' }}
-    >
-      {/* Background video or image fallback */}
-      {showVideoBg && (
-        <div className="absolute inset-0 -z-10 overflow-hidden bg-black">
-          {hlsUrl ? (
-            <video
-              key={hlsUrl}
-              ref={videoRef}
-              className="absolute inset-0 w-full h-full object-cover animate-fade-in"
-              muted
-              playsInline
-              loop
-              autoPlay
-              preload="auto"
-            />
-          ) : fallbackImage ? (
-            <img
-              key={fallbackImage}
-              src={fallbackImage}
-              alt=""
-              className="absolute inset-0 w-full h-full object-cover animate-fade-in"
-            />
-          ) : null}
-          {/* Subtle gradients only at top/bottom for header/controls legibility — no blur */}
-          <div className="absolute inset-x-0 top-0 h-32 bg-gradient-to-b from-background/80 to-transparent" />
-          <div className="absolute inset-x-0 bottom-0 h-44 bg-gradient-to-t from-background/85 to-transparent" />
-        </div>
-      )}
-
-      {/* Fallback background blur when no video */}
-      {!showVideoBg && (
-        <div className="absolute inset-0 bg-background/80 backdrop-blur-sm -z-10" />
-      )}
-
-      {/* Header */}
-      <div className="flex items-center justify-between p-4">
-        <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
+  const header = (
+    <header className="shrink-0 px-3 pt-2 pb-2 space-y-2" style={{ background: 'hsl(var(--tabata-bg))' }}>
+      <div className="flex items-center gap-2">
+        <Button variant="ghost" size="icon" aria-label="Fechar" onClick={() => navigate(-1)} className="h-10 w-10 rounded-full text-foreground">
           <X className="h-5 w-5" />
         </Button>
-        <div className="text-center flex-1">
-          <p className="text-[10px] uppercase tracking-widest text-muted-foreground">{tabata.title}</p>
-          {phase !== 'idle' && phase !== 'done' && currentStep && (
-            <div className="flex items-center justify-center gap-1.5 mt-0.5">
-              <p className="text-xs font-semibold" data-testid="tabata-player-block">
-                Bloco {currentStep.blockNumber}{currentStep.isWarmup ? ' • Aquecimento' : ''} • Ex. {currentStep.exerciseIndex + 1}/{currentStep.block.exercises.length}
-              </p>
-              <IntensityChip step={currentStep} />
-            </div>
+        <div className="flex-1 min-w-0 text-center">
+          {running && headerStep ? (
+            <p className="text-sm font-black tracking-wide truncate" data-testid="tabata-player-block" style={{ color: toneColor(tone) }}>
+              {roundLabel(headerStep)}
+            </p>
+          ) : (
+            <p className="text-[11px] uppercase tracking-widest text-tabata-soft truncate">{tabata.title}</p>
           )}
         </div>
-        <Button variant="ghost" size="icon" onPointerDown={armAudioFromGesture} onTouchStart={armAudioFromGesture} onClick={toggleMute}>
+        <Button
+          variant="ghost" size="icon" aria-label={muted ? 'Ligar som' : 'Desligar som'}
+          onPointerDown={armAudioFromGesture} onTouchStart={armAudioFromGesture} onClick={toggleMute}
+          className="h-10 w-10 rounded-full text-foreground"
+        >
           {muted ? <VolumeX className="h-5 w-5" /> : <Volume2 className="h-5 w-5" />}
         </Button>
       </div>
-
-      {/* Progress bar */}
-      <div className="px-4">
-        <div className="h-1 bg-secondary rounded-full overflow-hidden">
-          <div
-            className="h-full bg-primary transition-all duration-300"
-            style={{ width: `${overallProgress}%` }}
-          />
-        </div>
+      <SegmentedProgress segments={segments} />
+      <div className="flex items-center justify-between text-[11px] tabular-nums text-tabata-soft" data-testid="tabata-total-time">
+        <span>Total <span className="font-bold text-foreground">{clock(elapsed)}</span> / {clock(planTotal)}</span>
+        <span>Faltam <span className="font-bold text-foreground">{clock(planTotal - elapsed)}</span></span>
       </div>
+    </header>
+  );
 
-      {/* Main timer */}
-      <div className="flex-1 flex flex-col items-center justify-center px-6 text-center">
-        {phase !== 'idle' && phase !== 'done' && (
-          <div
-            key={`phrase-${phase}-${phraseKey}`}
-            className="mb-4 sm:mb-6 animate-phrase-zoom"
-          >
-            <p
-              className={cn(
-                'font-black uppercase tracking-[0.05em] leading-none',
-                'text-4xl sm:text-6xl md:text-7xl',
-                'bg-clip-text text-transparent bg-[linear-gradient(110deg,currentColor_25%,rgba(255,255,255,0.95)_45%,currentColor_65%)] bg-[length:200%_100%] animate-shine',
-                phraseColorClass,
-              )}
-              style={{
-                textShadow: '0 4px 24px rgba(0,0,0,0.55), 0 0 40px currentColor',
-                WebkitTextStroke: '1px rgba(0,0,0,0.15)',
-              }}
-            >
-              {phrase}
-            </p>
-          </div>
+  const videoArea = (
+    <div className="relative shrink-0 overflow-hidden" style={{ height: '44dvh', background: 'hsl(var(--tabata-panel))' }} data-testid="tabata-video-area">
+      {fallbackImage && (
+        <img key={fallbackImage} src={fallbackImage} alt="" className="absolute inset-0 h-full w-full object-cover" />
+      )}
+      {!fallbackImage && !hlsUrl && (
+        <div className="absolute inset-0 flex items-center justify-center">
+          <Flame className="h-16 w-16" style={{ color: toneColor(tone, 0.5) }} />
+        </div>
+      )}
+      {hlsUrl && (
+        <video
+          key={hlsUrl}
+          ref={videoRef}
+          poster={fallbackImage || undefined}
+          className={cn('absolute inset-0 h-full w-full object-cover transition-opacity duration-300', videoReady ? 'opacity-100' : 'opacity-0')}
+          muted
+          playsInline
+          loop
+          autoPlay
+          preload="auto"
+        />
+      )}
+      {hlsUrl && !videoReady && !fallbackImage && (
+        <Loader2 className="absolute left-1/2 top-1/2 -ml-4 -mt-4 h-8 w-8 animate-spin text-tabata-soft" />
+      )}
+      {phase === 'rest' && (
+        <div className="absolute inset-0" style={{ background: `linear-gradient(180deg, ${toneColor('rest', 0.12)}, ${toneColor('rest', 0.32)})` }} />
+      )}
+      <div className="absolute inset-x-0 bottom-0 h-24" style={{ background: 'linear-gradient(to top, hsl(var(--tabata-panel)), transparent)' }} />
+    </div>
+  );
+
+  const nameOf = (s: Step | null | undefined) => cleanName(s?.exercise.name).toUpperCase();
+
+  const workPanel = currentStep && (
+    <>
+      <PhaseChip tone={tone} testId="tabata-player-intensity">
+        {phase === 'prep' ? `Fique pronto · ${intensityChipText(level)}` : intensityChipText(level)}
+      </PhaseChip>
+      <p className="text-[11px] font-black uppercase tracking-[0.2em]" style={{ color: toneColor(tone) }} data-testid="tabata-phrase">
+        {phase === 'prep' ? 'TÁ PREPARADO?' : workPhrase(level, stepIndex)}
+      </p>
+      <TimerRing seconds={secondsLeft} fraction={fraction} tone={tone} size={124} />
+      <div className="w-full text-center space-y-1">
+        <h2 className="text-xl font-black leading-tight line-clamp-2" data-testid="tabata-exercise-name">{nameOf(currentStep)}</h2>
+        {cleanObs(currentStep.exercise.observation) && (
+          <p className="text-[13px] leading-snug text-tabata-soft line-clamp-2">{cleanObs(currentStep.exercise.observation)}</p>
         )}
+      </div>
+      <RoundDots total={currentStep.block.exercises.length} current={currentStep.exerciseIndex} tone={tone} includeCurrent={phase !== 'prep'} />
+    </>
+  );
 
-        {phase === 'idle' && (
-          <>
-            <h1 className="text-3xl sm:text-4xl font-black mb-2">{tabata.title}</h1>
-            <p className="text-sm text-muted-foreground mb-1">{tabata.duration} • {tabata.type}</p>
-            <p className="text-xs text-muted-foreground mb-4 max-w-sm">{tabata.objective}</p>
-            <p className="text-[11px] uppercase tracking-wider text-muted-foreground mb-4">
-              {warmupBlock ? 'Aquecimento + ' : ''}{tabata.blocks.length} blocos • {totalSteps} exercícios
+  const restPanel = (
+    <>
+      <PhaseChip tone="rest" testId="tabata-player-intensity">{REST_CHIP}</PhaseChip>
+      <TimerRing seconds={secondsLeft} fraction={fraction} tone="rest" size={112} caption="descanso" />
+      {nextStep && (
+        <div className="w-full flex items-center gap-3 rounded-2xl p-2.5" style={{ background: 'hsl(var(--tabata-bg))', boxShadow: 'inset 0 0 0 1px hsl(var(--tabata-border))' }} data-testid="tabata-next-card">
+          <div className="h-14 w-14 shrink-0 overflow-hidden rounded-xl" style={{ background: 'hsl(var(--tabata-panel))' }}>
+            {nextMedia?.imageUrl
+              ? <img src={nextMedia.imageUrl} alt="" className="h-full w-full object-cover" />
+              : <div className="h-full w-full flex items-center justify-center font-black" style={{ color: toneColor('rest') }}>→</div>}
+          </div>
+          <div className="min-w-0 flex-1 text-left">
+            <p className="text-[10px] font-black uppercase tracking-widest" style={{ color: toneColor('rest') }}>
+              A seguir · {nextStep.isWarmup ? `${nextStep.exerciseIndex + 1}/${nextStep.block.exercises.length}` : `Rodada ${nextStep.exerciseIndex + 1}/${nextStep.block.exercises.length}`}
             </p>
+            <p className="text-sm font-black leading-tight truncate">{nameOf(nextStep)}</p>
+            {cleanObs(nextStep.exercise.observation) && (
+              <p className="text-[11px] text-tabata-soft truncate">{cleanObs(nextStep.exercise.observation)}</p>
+            )}
+          </div>
+        </div>
+      )}
+      <p className="text-[10px] uppercase tracking-widest text-tabata-soft">Bipe nos últimos 3s</p>
+    </>
+  );
 
-            {/* Exercise preview — agrupado por bloco, sem repetir exercícios */}
-            <div className="w-full max-w-md max-h-[48vh] overflow-y-auto pr-1 space-y-3">
-              {[...(warmupBlock ? [warmupBlock] : []), ...tabata.blocks].map((block, listIndex) => {
-                const bi = warmupBlock ? listIndex - 1 : listIndex;
-                const isWarm = bi < 0;
-                const level = intensityInfo(block.intensity);
-                const seen = new Set<string>();
-                const uniqueExercises = block.exercises.filter(ex => {
-                  const k = normalizeName(ex.name);
-                  if (seen.has(k)) return false;
-                  seen.add(k);
-                  return true;
-                });
-                const estimatedRounds = uniqueExercises.length > 0
-                  ? Math.max(block.rounds || 1, Math.round(block.exercises.length / uniqueExercises.length))
-                  : block.rounds;
-                const work = uniqueExercises[0]?.workSeconds ?? block.workSeconds;
-                const rest = uniqueExercises[0]?.restSeconds ?? block.restSeconds;
+  const transitionOverlay = phase === 'block_rest' && currentStep && nextStep && (() => {
+    const nextTone = intensityTone(nextLevel);
+    const list = uniqueExercises(nextStep.block);
+    const nb = nextStep.block;
+    return (
+      <div
+        className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 px-5 text-center animate-fade-in"
+        style={{ background: `radial-gradient(circle at 50% 30%, ${toneColor(nextTone, 0.28)}, hsl(var(--tabata-bg)) 70%)` }}
+        data-testid="tabata-block-transition"
+      >
+        <p className="text-xs font-black uppercase tracking-[0.2em] text-tabata-soft">
+          {currentStep.isWarmup ? 'Aquecimento concluído ✓' : `Bloco ${currentStep.blockNumber} concluído ✓`}
+        </p>
+        <h2 className="text-4xl font-black" style={{ color: toneColor(nextTone) }}>BLOCO {nextStep.blockNumber}</h2>
+        <PhaseChip tone={nextTone}>{transitionChip(stepIntensity(currentStep, levels), nextLevel)}</PhaseChip>
+        <TimerRing seconds={secondsLeft} fraction={fraction} tone={nextTone} size={116} testId="tabata-transition-ring" />
+        <ol className="w-full max-w-xs space-y-1.5 text-left">
+          {list.map((ex, i) => (
+            <li key={i} className="flex items-center gap-2 rounded-xl px-3 py-1.5" style={{ background: 'hsl(var(--tabata-panel))', boxShadow: 'inset 0 0 0 1px hsl(var(--tabata-border))' }}>
+              <span className="w-5 text-sm font-black" style={{ color: toneColor(nextTone) }}>{String.fromCharCode(65 + i)}</span>
+              <span className="text-[13px] font-bold truncate">{nameOf({ exercise: ex } as Step)}</span>
+            </li>
+          ))}
+        </ol>
+        <p className="flex items-center gap-1.5 text-[11px] text-tabata-soft">
+          {nb.exercises.length} rodadas · {nb.exercises[0]?.workSeconds ?? nb.workSeconds}s / {nb.exercises[0]?.restSeconds ?? nb.restSeconds}s · <Droplets className="h-3 w-3" /> bebe água
+        </p>
+      </div>
+    );
+  })();
 
+  const pauseOverlay = paused && running && (
+    <div className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-3 px-6 text-center backdrop-blur-md" style={{ background: 'hsl(var(--tabata-bg) / 0.78)' }} data-testid="tabata-paused">
+      <p className="text-xs font-black tracking-[0.2em]" style={{ color: toneColor(tone) }}>{roundLabel(headerStep)}</p>
+      <h2 className="text-4xl font-black tracking-wide">PAUSADO</h2>
+      <p className="text-sm text-tabata-soft">
+        {phase === 'work'
+          ? <>Faltam <span className="font-bold text-foreground">{secondsLeft}s</span> de {nameOf(currentStep)}</>
+          : phase === 'prep'
+            ? <>Faltam <span className="font-bold text-foreground">{secondsLeft}s</span> para começar</>
+            : <>Faltam <span className="font-bold text-foreground">{secondsLeft}s</span> de descanso</>}
+      </p>
+      <div className="mt-2 w-full max-w-xs space-y-2">
+        <Button onClick={togglePause} onPointerDown={armAudioFromGesture} className="h-12 w-full rounded-2xl font-black uppercase bg-tabata-brand text-tabata-bg hover:bg-tabata-brand/90">
+          <Play className="h-5 w-5 fill-current" /> Continuar
+        </Button>
+        <Button variant="outline" onClick={restartRound} onPointerDown={armAudioFromGesture} className="h-11 w-full rounded-2xl font-bold border-tabata-border bg-tabata-panel">
+          <RotateCcw className="h-4 w-4" /> Reiniciar rodada
+        </Button>
+        <Button variant="outline" onClick={() => finish(true)} className="h-11 w-full rounded-2xl font-bold border-destructive/50 bg-tabata-panel text-destructive hover:text-destructive">
+          <Square className="h-4 w-4 fill-current" /> Encerrar treino
+        </Button>
+      </div>
+    </div>
+  );
+
+  const idleContent = (
+    <div className="flex-1 min-h-0 overflow-y-auto px-4 pt-2 pb-4 space-y-3" data-testid="tabata-pre-screen">
+      <div className="text-center space-y-1 pt-2">
+        <h1 className="text-2xl font-black leading-tight">{tabata.title}</h1>
+        <p className="text-[12px] text-tabata-soft">
+          {warmupBlock ? `Aquecimento ${warmupMinutes} min + ` : ''}{mainBlocks.length} bloco{mainBlocks.length === 1 ? '' : 's'}
+          {exercisesPerBlock ? ` · ${exercisesPerBlock} exercícios cada` : ''}
+        </p>
+        <p className="text-[11px] text-tabata-soft">Total {clock(planTotal)}</p>
+      </div>
+      {[...(warmupBlock ? [warmupBlock] : []), ...mainBlocks].map((block, listIndex) => {
+        const bi = warmupBlock ? listIndex - 1 : listIndex;
+        const isWarm = bi < 0;
+        const lv = isWarm ? 'leve' : levels[bi];
+        const t = intensityTone(lv);
+        const list = uniqueExercises(block);
+        const work = list[0]?.workSeconds ?? block.workSeconds;
+        const rest = list[0]?.restSeconds ?? block.restSeconds;
+        return (
+          <div key={listIndex} className="rounded-2xl p-3" style={{ background: 'hsl(var(--tabata-panel))', boxShadow: `inset 0 0 0 1px hsl(var(--tabata-border)), inset 3px 0 0 ${toneColor(t)}` }}>
+            <div className="mb-1 flex items-center justify-between gap-2">
+              <p className="text-[11px] font-black uppercase tracking-widest" style={{ color: toneColor(t) }}>
+                {isWarm ? 'Bloco 0 — Aquecimento' : `Bloco ${bi + 1}`}
+              </p>
+              <PhaseChip tone={t}>{intensityChipText(lv)}</PhaseChip>
+            </div>
+            <p className="mb-2 text-[11px] text-tabata-soft">
+              {isWarm ? `${block.exercises.length} exercícios` : `${block.exercises.length} rodadas`} · {work}s / {rest > 0 ? `${rest}s` : 'sem pausa'}
+            </p>
+            <div className="space-y-1.5">
+              {list.map((ex, ei) => {
+                const img = findMedia(ex.name)?.imageUrl;
                 return (
-                  <div key={listIndex} className="text-left bg-card/60 backdrop-blur-sm border border-border/40 rounded-xl p-3">
-                    <div className="flex items-center justify-between mb-1 gap-2">
-                      <p className="text-[10px] uppercase tracking-widest text-primary font-bold flex items-center gap-1.5">
-                        {isWarm ? 'Bloco 0 — Aquecimento' : `Bloco ${bi + 1}`}
-                        {level && (
-                          <span className="normal-case tracking-normal text-[10px] font-semibold text-muted-foreground">
-                            · {level.label} ({level.rpe})
-                          </span>
-                        )}
-                      </p>
-                      <span className="text-[10px] font-bold text-primary bg-primary/10 px-2 py-0.5 rounded-full">
-                        {isWarm ? `${block.exercises.length} exercícios` : `${estimatedRounds}x rodadas`}
-                      </span>
+                  <div key={ei} className="flex items-center gap-2">
+                    <div className="h-9 w-9 shrink-0 overflow-hidden rounded-lg flex items-center justify-center" style={{ background: 'hsl(var(--tabata-bg))' }}>
+                      {img ? <img src={img} alt="" className="h-full w-full object-cover" />
+                        : <span className="text-[11px] font-black" style={{ color: toneColor(t) }}>{isWarm ? ei + 1 : String.fromCharCode(65 + ei)}</span>}
                     </div>
-                    <p className="text-[10px] text-muted-foreground mb-2">
-                      {uniqueExercises.length} exercício{uniqueExercises.length > 1 ? 's' : ''} • {work}s trabalho • {rest > 0 ? `${rest}s ${isWarm ? 'transição' : 'descanso'}` : 'sem pausa'}
-                    </p>
-                    <div className="space-y-1.5">
-                      {uniqueExercises.map((ex, ei) => {
-                        const media = findMedia(ex.name);
-                        const img = media?.imageUrl;
-                        return (
-                          <div key={ei} className="flex items-center gap-2">
-                            <div className="h-9 w-9 rounded-md bg-muted overflow-hidden shrink-0 flex items-center justify-center">
-                              {img ? (
-                                <img src={img} alt="" className="h-full w-full object-cover" />
-                              ) : (
-                                <span className="text-[10px] text-muted-foreground font-bold">{ei + 1}</span>
-                              )}
-                            </div>
-                            <p className="text-[12px] font-medium leading-tight flex-1">
-                              {ex.name.replace(/\*+/g, '').trim()}
-                            </p>
-                          </div>
-                        );
-                      })}
-                    </div>
+                    <p className="flex-1 text-[12px] font-semibold leading-tight">{cleanName(ex.name)}</p>
                   </div>
                 );
               })}
             </div>
-          </>
-        )}
+          </div>
+        );
+      })}
+    </div>
+  );
 
-        {phase === 'done' && (
-          <>
-            <h1 className="text-5xl font-black mb-3 text-primary">🎉</h1>
-            <h2 className="text-2xl font-bold mb-2">TABATA Concluído!</h2>
-            <p className="text-sm text-muted-foreground mb-8">Mandou bem!</p>
-          </>
-        )}
+  const statCard = (label: string, value: string) => (
+    <div className="rounded-2xl p-3 text-center" style={{ background: 'hsl(var(--tabata-panel))', boxShadow: 'inset 0 0 0 1px hsl(var(--tabata-border))' }}>
+      <p className="text-[10px] uppercase tracking-widest text-tabata-soft">{label}</p>
+      <p className="mt-1 text-xl font-black tabular-nums">{value}</p>
+    </div>
+  );
 
-        {(phase === 'prep' || phase === 'work' || phase === 'rest' || phase === 'block_rest') && currentStep && (
-          <>
-            <div
-              className={cn(
-                "text-[8rem] sm:text-[10rem] font-black leading-none tabular-nums mb-4 transition-all",
-                phase === 'work' && 'text-red-500',
-                phase === 'rest' && 'text-green-500',
-                phase === 'block_rest' && 'text-blue-500',
-                phase === 'prep' && 'text-yellow-500',
-                secondsLeft > 0 && secondsLeft <= 3 && 'animate-pulse scale-110',
-              )}
-              style={{
-                textShadow:
-                  secondsLeft > 0 && secondsLeft <= 3
-                    ? '0 3px 14px rgba(0,0,0,0.85), 0 1px 4px rgba(0,0,0,0.7), 0 0 25px currentColor'
-                    : '0 3px 16px rgba(0,0,0,0.8), 0 2px 6px rgba(0,0,0,0.65), 0 0 24px rgba(0,0,0,0.5)',
-                ...(secondsLeft > 0 && secondsLeft <= 3
-                  ? { WebkitTextStroke: '2px currentColor' }
-                  : {}),
-              }}
-            >
-              {secondsLeft}
-            </div>
-            <h2 className="text-2xl sm:text-3xl font-bold mb-2 uppercase drop-shadow-[0_2px_12px_rgba(0,0,0,0.7)]">
-              {(phase === 'block_rest'
-                ? (nextStep ? `Prepare-se: ${nextStep.exercise.name}` : 'Descanso entre blocos')
-                : phase === 'rest'
-                  ? (nextStep ? nextStep.exercise.name : 'Próximo exercício')
-                  : currentStep.exercise.name
-              ).replace(/\*+/g, '').trim()}
-            </h2>
-            {currentStep.exercise.observation && phase === 'work' && (
-              <p className="text-xs text-muted-foreground max-w-sm mt-2">{currentStep.exercise.observation}</p>
-            )}
-
-            {/* Next exercise preview during rest */}
-            {(phase === 'rest' || phase === 'block_rest') && nextStep && (
-              <div className="mt-6 flex items-center gap-4 bg-card/85 backdrop-blur-md border-2 border-primary/40 rounded-3xl p-5 pr-7 shadow-[0_12px_40px_-8px_rgba(0,0,0,0.6)] max-w-md w-[92%] animate-fade-in">
-                <div className="h-24 w-24 sm:h-28 sm:w-28 rounded-2xl bg-muted overflow-hidden shrink-0 ring-2 ring-primary/50">
-                  {nextMedia?.imageUrl ? (
-                    <img src={nextMedia.imageUrl} alt="" className="h-full w-full object-cover" />
-                  ) : (
-                    <div className="h-full w-full flex items-center justify-center text-primary font-black text-3xl">→</div>
-                  )}
-                </div>
-                <div className="text-left flex-1 min-w-0">
-                  <p className="text-xs uppercase tracking-widest text-primary font-black">A seguir</p>
-                  <p className="text-lg sm:text-xl font-black leading-tight line-clamp-2 mt-1">
-                    {nextStep.exercise.name.replace(/\*+/g, '').trim()}
-                  </p>
-                  <p className="text-xs text-muted-foreground mt-1.5 font-semibold">
-                    {nextStep.exercise.workSeconds}s de execução
-                  </p>
-                </div>
-              </div>
-            )}
-          </>
-        )}
+  const doneContent = (
+    <div className="flex-1 min-h-0 overflow-y-auto px-4 pt-4 pb-4 space-y-4" data-testid="tabata-done">
+      <div className="text-center space-y-1">
+        <h1 className="text-2xl font-black">{endedEarly ? 'TABATA encerrado' : '🔥 TABATA concluído'}</h1>
+        <p className="text-[12px] text-tabata-soft">{tabata.title}</p>
       </div>
+      <div className="grid grid-cols-2 gap-2">
+        {statCard('Tempo', clock(sessionDurationSec))}
+        {statCard('Rodadas', `${counts.rounds}/${counts.totalRounds}`)}
+        {statCard('Blocos', `${counts.blocks}/${counts.totalBlocks}`)}
+        {statCard('kcal estimadas', `~${kcal}`)}
+      </div>
+      <div className="rounded-2xl p-3 space-y-2" style={{ background: 'hsl(var(--tabata-panel))', boxShadow: 'inset 0 0 0 1px hsl(var(--tabata-border))' }}>
+        <p className="text-sm font-black text-center">Quão pesado foi?</p>
+        <RpePicker value={rpe} onChange={setRpe} disabled={saved || saving} />
+      </div>
+      {isPreview && <p className="text-center text-[11px] text-tabata-soft">Pré-visualização: nada é salvo.</p>}
+      <div className="flex justify-center gap-2">
+        <Button variant="outline" size="sm" onClick={() => setShowShare(true)} className="rounded-xl border-tabata-border bg-tabata-panel">
+          <Share2 className="h-4 w-4" /> Compartilhar
+        </Button>
+        <Button variant="outline" size="sm" onClick={restartAll} className="rounded-xl border-tabata-border bg-tabata-panel">
+          <RotateCcw className="h-4 w-4" /> Repetir
+        </Button>
+      </div>
+    </div>
+  );
 
-      {/* Controls */}
-      <div className="p-6 pb-8 flex items-center justify-center gap-4">
-        {phase === 'idle' && (
-          <Button
-            size="lg"
-            onPointerDown={armAudioFromGesture}
-            onTouchStart={armAudioFromGesture}
-            onClick={start}
-            className="gap-3 px-12 h-16 text-lg font-black uppercase tracking-wider rounded-2xl bg-gradient-to-br from-primary to-primary/80 text-primary-foreground shadow-[0_8px_32px_-4px_hsl(var(--primary)/0.6)] hover:shadow-[0_12px_40px_-4px_hsl(var(--primary)/0.8)] hover:scale-[1.03] active:scale-95 transition-all"
-          >
-            <Play className="!h-6 !w-6 fill-current" /> Iniciar
+  // Rodapé sempre com a mesma altura: botões nunca mudam de lugar entre as fases.
+  const footer = (
+    <footer className="shrink-0 h-24 px-6 flex items-center justify-center gap-6" style={{ background: 'hsl(var(--tabata-bg))' }}>
+      {phase === 'idle' && (
+        <Button
+          size="lg" onPointerDown={armAudioFromGesture} onTouchStart={armAudioFromGesture} onClick={start}
+          className="h-14 w-full max-w-sm rounded-2xl text-lg font-black uppercase tracking-wider bg-tabata-brand text-tabata-bg hover:bg-tabata-brand/90"
+        >
+          <Play className="!h-6 !w-6 fill-current" /> Iniciar
+        </Button>
+      )}
+      {phase === 'done' && (
+        isPreview || saved ? (
+          <Button size="lg" onClick={() => navigate(-1)} className="h-14 w-full max-w-sm rounded-2xl font-black uppercase bg-tabata-brand text-tabata-bg hover:bg-tabata-brand/90">
+            {saved ? <><Check className="h-5 w-5" /> Enviado · Voltar</> : 'Voltar'}
           </Button>
-        )}
+        ) : (
+          <Button
+            size="lg" onClick={handleSave} disabled={!rpe || saving}
+            className="h-14 w-full max-w-sm rounded-2xl font-black uppercase bg-tabata-brand text-tabata-bg hover:bg-tabata-brand/90"
+          >
+            {saving ? <Loader2 className="h-5 w-5 animate-spin" /> : null}
+            {rpe ? 'Salvar e enviar ao Fabiew' : 'Escolha o RPE para salvar'}
+          </Button>
+        )
+      )}
+      {running && (
+        <>
+          <Button
+            variant="ghost" size="icon" aria-label="Reiniciar rodada"
+            onPointerDown={armAudioFromGesture} onTouchStart={armAudioFromGesture} onClick={restartRound}
+            className="h-14 w-14 rounded-full border border-tabata-border bg-tabata-panel text-foreground"
+          >
+            <RotateCcw className="!h-5 !w-5" />
+          </Button>
+          <Button
+            size="icon" aria-label={paused ? 'Retomar' : 'Pausar'}
+            onPointerDown={armAudioFromGesture} onTouchStart={armAudioFromGesture} onClick={togglePause}
+            className="h-[72px] w-[72px] rounded-full bg-tabata-brand text-tabata-bg hover:bg-tabata-brand/90"
+          >
+            {paused ? <Play className="!h-8 !w-8 fill-current ml-1" /> : <Pause className="!h-8 !w-8 fill-current" />}
+          </Button>
+          <Button
+            variant="ghost" size="icon" aria-label="Avançar"
+            onPointerDown={armAudioFromGesture} onTouchStart={armAudioFromGesture} onClick={skip}
+            className="h-14 w-14 rounded-full border border-tabata-border bg-tabata-panel text-foreground"
+          >
+            <SkipForward className="!h-6 !w-6 fill-current" />
+          </Button>
+        </>
+      )}
+    </footer>
+  );
 
-        {phase === 'done' && (
-          <>
-            <Button
-              variant="outline"
-              size="lg"
-              onClick={restart}
-              className="gap-2 h-14 px-6 rounded-2xl font-bold border-2 backdrop-blur-md bg-background/60"
+  return (
+    <div
+      className="fixed inset-0 z-50 flex flex-col overflow-hidden text-foreground"
+      style={{
+        background: 'hsl(var(--tabata-bg))',
+        height: '100dvh',
+        paddingTop: 'env(safe-area-inset-top)',
+        paddingBottom: 'env(safe-area-inset-bottom)',
+      }}
+    >
+      <div className="mx-auto flex h-full w-full max-w-md flex-col min-h-0">
+        {header}
+        {running ? (
+          <div className="relative flex flex-1 min-h-0 flex-col">
+            {videoArea}
+            <section
+              className="relative -mt-3 flex flex-1 min-h-0 flex-col items-center justify-evenly gap-1.5 rounded-t-3xl px-4 pt-3 pb-1 overflow-hidden"
+              style={{ background: 'hsl(var(--tabata-panel))', boxShadow: 'inset 0 1px 0 hsl(var(--tabata-border))' }}
             >
-              <RotateCcw className="!h-5 !w-5" /> Repetir
-            </Button>
-            <Button
-              size="lg"
-              onClick={() => setShowShare(true)}
-              className="gap-2 h-14 px-6 font-black uppercase tracking-wider rounded-2xl bg-gradient-to-br from-primary to-primary/80 text-primary-foreground shadow-[0_8px_32px_-4px_hsl(var(--primary)/0.6)]"
-            >
-              <Share2 className="!h-5 !w-5" /> Compartilhar
-            </Button>
-            <Button
-              size="lg"
-              variant="outline"
-              onClick={() => navigate(-1)}
-              className="gap-2 h-14 px-6 rounded-2xl font-bold border-2 backdrop-blur-md bg-background/60"
-            >
-              Voltar
-            </Button>
-          </>
-        )}
-
-        {phase !== 'idle' && phase !== 'done' && (
-          <>
-            <Button
-              variant="ghost"
-              size="icon"
-              onPointerDown={armAudioFromGesture}
-              onTouchStart={armAudioFromGesture}
-              onClick={restart}
-              aria-label="Reiniciar"
-              className="h-14 w-14 rounded-full backdrop-blur-md bg-background/40 border border-border/40 hover:bg-background/60 active:scale-90 transition-all"
-            >
-              <RotateCcw className="!h-5 !w-5" />
-            </Button>
-            <Button
-              size="icon"
-              onPointerDown={armAudioFromGesture}
-              onTouchStart={armAudioFromGesture}
-              onClick={togglePause}
-              aria-label={paused ? 'Retomar' : 'Pausar'}
-              className="h-20 w-20 rounded-full bg-gradient-to-br from-primary to-primary/80 text-primary-foreground shadow-[0_10px_40px_-4px_hsl(var(--primary)/0.7)] hover:shadow-[0_14px_48px_-4px_hsl(var(--primary)/0.9)] hover:scale-105 active:scale-95 transition-all border-2 border-primary-foreground/10"
-            >
-              {paused ? <Play className="!h-8 !w-8 fill-current ml-1" /> : <Pause className="!h-8 !w-8 fill-current" />}
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              onPointerDown={armAudioFromGesture}
-              onTouchStart={armAudioFromGesture}
-              onClick={skip}
-              aria-label="Avançar"
-              className="h-14 w-14 rounded-full backdrop-blur-md bg-background/40 border border-border/40 hover:bg-background/60 active:scale-90 transition-all"
-            >
-              <SkipForward className="!h-6 !w-6 fill-current" />
-            </Button>
-          </>
-        )}
+              <img src={logoMarombiew} alt="Marombiew" className="absolute right-3 top-2 h-4 w-auto opacity-60" />
+              {phase === 'rest' ? restPanel : workPanel}
+            </section>
+            {transitionOverlay}
+            {pauseOverlay}
+          </div>
+        ) : phase === 'idle' ? idleContent : doneContent}
+        {footer}
       </div>
 
       {showShare && (
