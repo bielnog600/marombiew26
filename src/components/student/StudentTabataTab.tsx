@@ -122,7 +122,7 @@ const StudentTabataTab: React.FC<StudentTabataTabProps> = ({ studentId }) => {
                     className="h-8 gap-1 px-2 text-xs"
                     onClick={(e) => {
                       e.stopPropagation();
-                      navigate('/tabata-execucao', { state: { tabata: parsed } });
+                      navigate('/tabata-execucao', { state: { tabata: parsed, planId: plan.id, preview: true } });
                     }}
                   >
                     <Play className="h-3 w-3" /> Player
