@@ -25,6 +25,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { parseTabata } from '@/lib/tabataParser';
 import { blockExerciseSummary } from '@/lib/tabataRules';
+import TabataSessionsCard from '@/components/tabata/TabataSessionsCard';
 
 interface StudentTabataTabProps {
   studentId: string;
@@ -85,6 +86,7 @@ const StudentTabataTab: React.FC<StudentTabataTabProps> = ({ studentId }) => {
 
   return (
     <div className="space-y-3">
+      <TabataSessionsCard studentId={studentId} />
       {plans.map(plan => {
         const isExpanded = expandedId === plan.id;
         const parsed = parseTabata(typeof plan.conteudo_json === 'string' && plan.conteudo_json ? plan.conteudo_json : plan.conteudo || '');
