@@ -183,7 +183,9 @@ export const TabataStructuredEditor: React.FC<Props> = ({ value, onChange }) => 
                   block={b}
                   onApply={next => {
                     const blocks = [...value.blocks];
-                    blocks[bIdx] = { ...next, format: `${next.rounds} rounds × ${next.workSeconds}s / ${next.restSeconds}s` };
+                    blocks[bIdx] = next.rounds === b.rounds && b.format
+                      ? next
+                      : { ...next, format: `${next.rounds} rounds × ${next.workSeconds}s / ${next.restSeconds}s` };
                     onChange({ ...value, blocks });
                   }}
                 />
