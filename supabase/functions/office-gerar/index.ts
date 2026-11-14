@@ -63,11 +63,13 @@ const WAIT_MS = 110_000
 // deno-lint-ignore no-explicit-any
 type Sb = any
 
+// Chamada interna aos agentes de IA (exigem admin ou service role).
+const internalKey = () => Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
 const agentUrl = (name: string) => `${Deno.env.get('SUPABASE_URL')}/functions/v1/${name}`
 async function callAgent(name: string, body: unknown) {
   const resp = await fetch(agentUrl(name), {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${Deno.env.get('SUPABASE_ANON_KEY')}` },
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${internalKey()}` },
     body: JSON.stringify(body),
   })
   const data = await resp.json().catch(() => null)
@@ -147,7 +149,7 @@ async function runDieta(sb: Sb, draftId: string, studentId: string, state: any) 
 
   const resp = await fetch(agentUrl('diet-agent'), {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${Deno.env.get('SUPABASE_ANON_KEY')}` },
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${internalKey()}` },
     body: JSON.stringify(body),
   })
   const text = await resp.text()
