@@ -134,9 +134,9 @@ serve(withAiUsage("tabata_ia", "tabata-agent", async (req) => {
       trainingDay = 'auto',
       trainingDayName = '',
       warmupBlock = true,
-      warmupWork = 25,
-      warmupRest = 5,
-      warmupCount = 6,
+      warmupWork = 10,
+      warmupRest = 10,
+      warmupCount = 8,
       progression = true,
     } = setAiUsageStudentFrom(await req.json());
     const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
@@ -251,14 +251,16 @@ serve(withAiUsage("tabata_ia", "tabata-agent", async (req) => {
       : '';
 
     const fixedTimes = workSec !== 'auto' || restSec !== 'auto';
-    // Aquecimento: trabalho 20–30s, intervalo 5–10s e no máximo 3 min no total.
-    const wWork = Math.min(30, Math.max(20, Math.round(Number(warmupWork)) || 25));
-    const wRest = Math.min(10, Math.max(5, Math.round(Number(warmupRest)) || 5));
-    const wCount = Math.max(1, Math.min(Math.round(Number(warmupCount)) || 6, Math.floor(180 / (wWork + wRest))));
+    // Aquecimento: trabalho 10–30s, intervalo 5–10s, até 10 exercícios e no máximo 3 min no total.
+    const wWork = Math.min(30, Math.max(10, Math.round(Number(warmupWork)) || 10));
+    const wRest = Math.min(10, Math.max(5, Math.round(Number(warmupRest)) || 10));
+    const wCount = Math.max(1, Math.min(Math.round(Number(warmupCount)) || 8, 10, Math.floor(180 / (wWork + wRest))));
     const wTotal = wCount * (wWork + wRest);
     const wTotalText = wTotal % 60 === 0 ? `${wTotal / 60} min` : `${Math.floor(wTotal / 60)}:${String(wTotal % 60).padStart(2, '0')} min`;
     const warmupRows = Array.from({ length: wCount }, (_, i) =>
-      `| ${i + 1} | ${i === 0 ? '[mobilidade leve]' : '...'} | ${wWork}s | ${wRest}s | ${i === 0 ? '[dica curta]' : '...'} |`).join('\n');
+      i === 0 ? `| 1 | MOBILIDADE DE QUADRIL | ${wWork}s | ${wRest}s | Lado DIREITO. [dica curta] |`
+      : i === 1 ? `| 2 | MOBILIDADE DE QUADRIL | ${wWork}s | ${wRest}s | Lado ESQUERDO. [dica curta] |`
+      : `| ${i + 1} | ... | ${wWork}s | ${wRest}s | ... |`).join('\n');
     const warmupRule = warmupBlock !== false
       ? `═══════════════════════════════════════════════
 AQUECIMENTO — BLOCO 0 CRONOMETRADO (OBRIGATÓRIO, MÁXIMO 3 MIN)
@@ -277,11 +279,11 @@ ${warmupRows}
 
 **Descanso após bloco:** 10s
 
-- EXATAMENTE ${wCount} exercícios DIFERENTES, todos com ${wWork}s de trabalho e ${wRest}s de intervalo (total ${wTotalText}; NUNCA passe de 3 min).
-- Conteúdo, em intensidade LEVE, preparando os blocos seguintes:
-  • MOBILIDADES: quadril, tornozelo, coluna torácica e ombro/escapular;
-  • ESTABILIDADE: ex.: prancha curta, estabilidade de joelho (equilíbrio unilateral);
-  • AGACHAMENTO com peso corporal (sem carga).
+- EXATAMENTE ${wCount} linhas na tabela, todas com ${wWork}s de trabalho e ${wRest}s de intervalo (total ${wTotalText}; NUNCA passe de 3 min nem de 10 linhas).
+- Conteúdo, em intensidade LEVE, preparando os blocos seguintes, NESTA ORDEM:
+  • MOBILIDADES UNILATERAIS SEMPRE EM PAR: mobilidade de quadril, de tornozelo e torácica entram cada uma em DUAS linhas seguidas com o MESMO nome — a primeira com a observação começando por "Lado DIREITO." e a segunda por "Lado ESQUERDO.";
+  • BILATERAIS UMA VEZ SÓ: ativação escapular/ombro e AGACHAMENTO com peso corporal (sem carga); estabilidade (prancha curta) só se sobrar linha.
+  • Exemplo com 8 linhas: Mob. quadril DIR, Mob. quadril ESQ, Mob. tornozelo DIR, Mob. tornozelo ESQ, Mob. torácica DIR, Mob. torácica ESQ, Ativação escapular, Agachamento = 8 × (${wWork}s + ${wRest}s).
 - Nada de saltos, burpees ou exercícios explosivos no aquecimento.
 - Use nomes da Lista Oficial quando existir equivalente; se não existir, escreva um nome curto em MAIÚSCULAS (ex.: MOBILIDADE DE QUADRIL, MOBILIDADE DE TORNOZELO, ROTAÇÃO TORÁCICA, ATIVAÇÃO ESCAPULAR, PRANCHA CURTA). Os exercícios do aquecimento NÃO contam para a regra de "não repetir na semana".`
       : `═══════════════════════════════════════════════
