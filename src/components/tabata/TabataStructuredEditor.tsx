@@ -11,7 +11,8 @@ import { TabataPatternFill } from './TabataPatternFill';
 import { changeRoundExercise } from '@/lib/tabataRules';
 import {
   TABATA_INTENSITIES, progressionLevels, newWarmupBlock, warmupItemName,
-  WARMUP_DEFAULT, WARMUP_LIMITS, setWarmupTimes, warmupTotalSeconds, warmupWarnings,
+  WARMUP_DEFAULT, WARMUP_LIMITS, LEGACY_WARMUP, setWarmupTimes, warmupTotalSeconds, warmupWarnings,
+  splitWarmupSides, warmupSide, isSidedWarmupMobility,
   formatWarmupClock, type TabataIntensity,
 } from '@/lib/tabataProgression';
 import { cn } from '@/lib/utils';
@@ -100,7 +101,7 @@ const BoundedSecondsInput: React.FC<{ value: number; min: number; max: number; l
   );
 };
 
-/** Duração do Bloco 0 e avisos (máximo 3 min, trabalho 20–30s, intervalo 5–10s). */
+/** Duração do Bloco 0 e avisos (máximo 3 min e 10 exercícios, trabalho 10–30s, intervalo 5–10s). */
 const WarmupSummary: React.FC<{ block: TabataBlock }> = ({ block }) => {
   const total = warmupTotalSeconds(block);
   const warnings = warmupWarnings(block);
@@ -108,7 +109,7 @@ const WarmupSummary: React.FC<{ block: TabataBlock }> = ({ block }) => {
     <div className="space-y-1" data-testid="tabata-warmup-summary">
       <p className="text-xs text-muted-foreground">
         Duração: <span className={cn('font-semibold', total > WARMUP_LIMITS.maxSeconds ? 'text-destructive' : 'text-foreground')}>{formatWarmupClock(total)}</span> de no máximo 3:00
-        {' • '}trabalho 20–30s, intervalo 5–10s
+        {' • '}{block.exercises.length}/{WARMUP_LIMITS.maxExercises} exercícios • trabalho 10–30s, intervalo 5–10s
       </p>
       {warnings.map(w => (
         <p key={w} role="alert" className="flex items-start gap-1.5 text-xs text-destructive">
@@ -128,7 +129,9 @@ const BlockCard: React.FC<BlockCardProps> = ({ block: b, onChange, onRemove, onM
   };
   const syncWarmup = (exercises: TabataExercise[]) =>
     onChange({ ...b, exercises, rounds: exercises.length, format: `${exercises.length} rounds × ${b.workSeconds}s / ${b.restSeconds}s` });
+  const warmupFull = !!warmup && b.exercises.length >= WARMUP_LIMITS.maxExercises;
   const addExercise = () => {
+    if (warmupFull) return;
     const exercises = [...b.exercises, emptyExercise(b.workSeconds, b.restSeconds)];
     if (warmup) syncWarmup(exercises); else update({ exercises });
   };
@@ -165,7 +168,7 @@ const BlockCard: React.FC<BlockCardProps> = ({ block: b, onChange, onRemove, onM
           <>
             <div className="grid grid-cols-3 gap-2">
               <div>
-                <Label className="text-[10px] uppercase text-muted-foreground">Trabalho (20–30s)</Label>
+                <Label className="text-[10px] uppercase text-muted-foreground">Trabalho (10–30s)</Label>
                 <BoundedSecondsInput value={b.workSeconds} min={WARMUP_LIMITS.workMin} max={WARMUP_LIMITS.workMax}
                   label="Trabalho do aquecimento" onCommit={v => onChange(setWarmupTimes(b, v, b.restSeconds))} />
               </div>
@@ -210,7 +213,7 @@ const BlockCard: React.FC<BlockCardProps> = ({ block: b, onChange, onRemove, onM
         <div className="space-y-2">
           <div className="flex items-center justify-between gap-2">
             <Label className="text-[10px] uppercase text-muted-foreground">Exercícios</Label>
-            <Button size="sm" variant="ghost" onClick={addExercise} className="gap-1 h-7">
+            <Button size="sm" variant="ghost" onClick={addExercise} disabled={warmupFull} className="gap-1 h-7">
               <Plus className="h-3 w-3" /> Exercício
             </Button>
           </div>
@@ -237,10 +240,17 @@ const BlockCard: React.FC<BlockCardProps> = ({ block: b, onChange, onRemove, onM
                 </Button>
               </div>
               {warmup ? (
-                <div className="pl-7">
+                <div className="pl-7 space-y-1">
                   <Label className="text-[10px] uppercase text-muted-foreground">Obs.</Label>
-                  <Input value={ex.observation || ''}
+                  <Input value={ex.observation || ''} aria-label={`Observação do aquecimento ${eIdx + 1}`}
                     onChange={e => updateExercise(eIdx, { observation: e.target.value })} />
+                  {ex.name.trim() && !warmupSide(ex.observation) && !warmupFull && (
+                    <Button size="sm" variant="outline" className="h-7 text-[11px]"
+                      aria-label={`Fazer ${ex.name} em par direito/esquerdo`}
+                      onClick={() => onChange(splitWarmupSides(b, eIdx))}>
+                      {isSidedWarmupMobility(ex.name) ? 'Fazer em par (direito + esquerdo)' : 'Repetir com lado direito/esquerdo'}
+                    </Button>
+                  )}
                 </div>
               ) : (
               <div className="grid grid-cols-3 gap-2 pl-7">
@@ -294,9 +304,10 @@ export const TabataStructuredEditor: React.FC<Props> = ({ value, onChange }) => 
     onChange({ ...value, blocks: value.blocks.map((b, i) => ({ ...b, intensity: levels[i] })) });
   };
 
-  // Lista de texto → Bloco 0 cronometrado (25s / 5s de intervalo), com os mesmos exercícios.
+  // Lista de texto → Bloco 0 cronometrado com os mesmos tempos que ela já roda no Player (25s / 5s).
   const toWarmupBlock = () => {
-    onChange({ ...value, warmupBlock: newWarmupBlock(value.warmup.map(warmupItemName).filter(Boolean)) });
+    const names = value.warmup.map(warmupItemName).filter(Boolean).slice(0, WARMUP_LIMITS.maxExercises);
+    onChange({ ...value, warmupBlock: newWarmupBlock(names, LEGACY_WARMUP.work, LEGACY_WARMUP.rest) });
   };
 
   // Remover o Bloco 0 volta para a lista de texto com os exercícios dele.
@@ -350,7 +361,7 @@ export const TabataStructuredEditor: React.FC<Props> = ({ value, onChange }) => 
               <Timer className="h-3.5 w-3.5" /> Transformar em bloco cronometrado
             </Button>
             <p className="text-[11px] text-muted-foreground">
-              No Player, esta lista já roda como Bloco 0 (25s / 5s por exercício, até 3 min). Transformar permite ajustar trabalho (20–30s) e intervalo (5–10s).
+              No Player, esta lista já roda como Bloco 0 (25s / 5s por exercício, até 3 min). Transformar permite ajustar trabalho (10–30s), intervalo (5–10s) e até 10 exercícios, inclusive o mesmo exercício em par direito/esquerdo.
             </p>
           </CardContent>
         </Card>

@@ -12,6 +12,7 @@ import type { ParsedTabata } from '@/lib/tabataParser';
 import { TabataSummaryShare } from '@/components/tabata/TabataSummaryShare';
 import {
   tabataPlayerSteps, resolveWarmupBlock, warmupTotalSeconds, formatWarmupClock, type TabataPlayerStep,
+  warmupSide, observationWithoutSide,
 } from '@/lib/tabataProgression';
 import {
   PREP_SECONDS, blockIntensities, clock, elapsedSeconds, estimateKcal, headerStepIndex, intensityChipText,
@@ -1058,6 +1059,12 @@ const TabataExecucao: React.FC = () => {
 
   const nameOf = (s: Step | null | undefined) => cleanName(s?.exercise.name).toUpperCase();
 
+  // Aquecimento em par: o lado ("Lado DIREITO.") sai da observação e aparece em destaque.
+  const currentSide = warmupSide(currentStep?.exercise.observation);
+  const currentObs = cleanObs(currentSide ? observationWithoutSide(currentStep?.exercise.observation) : currentStep?.exercise.observation);
+  const nextSide = warmupSide(nextStep?.exercise.observation);
+  const nextObs = cleanObs(nextSide ? observationWithoutSide(nextStep?.exercise.observation) : nextStep?.exercise.observation);
+
   const workPanel = currentStep && (
     <>
       <PhaseChip tone={tone} testId="tabata-player-intensity">
@@ -1069,8 +1076,17 @@ const TabataExecucao: React.FC = () => {
       <TimerRing seconds={secondsLeft} fraction={fraction} tone={tone} size={124} />
       <div className="w-full text-center space-y-1">
         <h2 className="text-xl font-black leading-tight line-clamp-2" data-testid="tabata-exercise-name">{nameOf(currentStep)}</h2>
-        {cleanObs(currentStep.exercise.observation) && (
-          <p className="text-[13px] leading-snug text-tabata-soft line-clamp-2">{cleanObs(currentStep.exercise.observation)}</p>
+        {currentSide && (
+          <p
+            className="mx-auto inline-flex items-center rounded-full px-3 py-1 text-sm font-black uppercase tracking-widest"
+            style={{ color: toneColor(tone), background: toneColor(tone, 0.14), boxShadow: `inset 0 0 0 1.5px ${toneColor(tone, 0.6)}` }}
+            data-testid="tabata-side"
+          >
+            Lado {currentSide}
+          </p>
+        )}
+        {currentObs && (
+          <p className="text-[13px] leading-snug text-tabata-soft line-clamp-2">{currentObs}</p>
         )}
       </div>
       <RoundDots total={currentStep.block.exercises.length} current={currentStep.exerciseIndex} tone={tone} includeCurrent={phase !== 'prep'} />
@@ -1093,8 +1109,11 @@ const TabataExecucao: React.FC = () => {
               A seguir · {nextStep.isWarmup ? `${nextStep.exerciseIndex + 1}/${nextStep.block.exercises.length}` : `Rodada ${nextStep.exerciseIndex + 1}/${nextStep.block.exercises.length}`}
             </p>
             <p className="text-sm font-black leading-tight truncate">{nameOf(nextStep)}</p>
-            {cleanObs(nextStep.exercise.observation) && (
-              <p className="text-[11px] text-tabata-soft truncate">{cleanObs(nextStep.exercise.observation)}</p>
+            {(nextSide || nextObs) && (
+              <p className="text-[11px] text-tabata-soft truncate">
+                {nextSide && <span className="font-black uppercase" style={{ color: toneColor('rest') }} data-testid="tabata-next-side">Lado {nextSide}</span>}
+                {nextSide && nextObs ? ' · ' : ''}{nextObs}
+              </p>
             )}
           </div>
         </div>

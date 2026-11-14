@@ -136,3 +136,50 @@ describe('Player do TABATA — tela nova', () => {
     expect(screen.queryByRole('button', { name: /Salvar e enviar/ })).toBeNull();
   });
 });
+
+const pairedMd = `# TABATA PAR
+
+## 🔥 Aquecimento (0:40 min)
+
+### Bloco 0 — Aquecimento
+**Formato:** 2 rounds × 10s trabalho / 10s intervalo
+**Intensidade:** Leve (RPE 3–4)
+
+| Round | Exercício | Trabalho | Descanso | Observação |
+|---|---|---|---|---|
+| 1 | MOBILIDADE DE QUADRIL | 10s | 10s | Lado DIREITO. Círculos amplos |
+| 2 | MOBILIDADE DE QUADRIL | 10s | 10s | Lado ESQUERDO. Círculos amplos |
+
+**Descanso após bloco:** 10s
+
+## Blocos
+
+### Bloco 1
+**Formato:** 1 rounds × 20s / 10s
+
+| # | Exercício | Trabalho | Descanso | Observação |
+|---|---|---|---|---|
+| 1 | SKIPS | 20s | 10s | ... |
+`;
+
+describe('Player do TABATA — aquecimento em par', () => {
+  it('roda 10s por lado e mostra o lado em destaque, também no "A seguir"', () => {
+    render(
+      <MemoryRouter initialEntries={[{ pathname: '/tabata-execucao', state: { tabata: parseTabata(pairedMd), preview: true } }]}>
+        <Routes><Route path="/tabata-execucao" element={<TabataExecucao />} /></Routes>
+      </MemoryRouter>,
+    );
+    click(/Iniciar/);
+    click(/Avançar/); // Fique pronto → lado direito
+    expect(screen.getByTestId('tabata-player-block')).toHaveTextContent('AQUECIMENTO · 1/2');
+    expect(screen.getByTestId('tabata-exercise-name')).toHaveTextContent('MOBILIDADE DE QUADRIL');
+    expect(screen.getByTestId('tabata-side')).toHaveTextContent('Lado direito');
+    expect(screen.getByTestId('tabata-ring-seconds')).toHaveTextContent('10');
+    expect(screen.getByText('Círculos amplos')).toBeInTheDocument();
+    click(/Avançar/); // descanso → a seguir lado esquerdo
+    expect(screen.getByTestId('tabata-next-side')).toHaveTextContent('Lado esquerdo');
+    click(/Avançar/);
+    expect(screen.getByTestId('tabata-player-block')).toHaveTextContent('AQUECIMENTO · 2/2');
+    expect(screen.getByTestId('tabata-side')).toHaveTextContent('Lado esquerdo');
+  });
+});

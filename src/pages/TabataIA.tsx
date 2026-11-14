@@ -29,12 +29,12 @@ import {
 } from '@/lib/tabataRules';
 import {
   normalizeWarmupSection, ensureBlockIntensities, progressionWarnings, fitWarmupBlock, replaceWarmupSection,
-  maxWarmupExercises, formatWarmupClock, WARMUP_DEFAULT,
+  maxWarmupExercises, formatWarmupClock, WARMUP_DEFAULT, pairWarmupSides,
 } from '@/lib/tabataProgression';
 
-const WARMUP_WORK_OPTIONS = [20, 25, 30];
+const WARMUP_WORK_OPTIONS = [10, 15, 20, 25, 30];
 const WARMUP_REST_OPTIONS = [5, 10];
-const WARMUP_COUNT_OPTIONS = [3, 4, 5, 6, 7, 8];
+const WARMUP_COUNT_OPTIONS = [3, 4, 5, 6, 7, 8, 9, 10];
 import { Switch } from '@/components/ui/switch';
 
 type StudentCtx = Record<string, any>;
@@ -487,14 +487,16 @@ const TabataIA = () => {
         // Bloco 0 cronometrado (ou sem aquecimento) e Moderado → Forte → Máximo nos blocos sem intensidade.
         const warmupTarget = { work: warmupWork, rest: warmupRest, count: warmupCountUsed };
         let dayMarkdown = normalizeWarmupSection(fixed.markdown, includeWarmupBlock, warmupTarget);
-        // Aquecimento sempre dentro de 3 min e com os tempos escolhidos (trabalho 20–30s, intervalo 5–10s).
+        // Aquecimento: mobilidades unilaterais em par direito/esquerdo, depois dentro de 3 min,
+        // no máximo 10 exercícios e com os tempos escolhidos (trabalho 10–30s, intervalo 5–10s).
         const generatedWarmup = includeWarmupBlock ? parseTabata(dayMarkdown).warmupBlock : null;
-        const warmFit = generatedWarmup ? fitWarmupBlock(generatedWarmup, warmupTarget) : null;
-        if (warmFit?.changed) dayMarkdown = replaceWarmupSection(dayMarkdown, warmFit.block);
+        const paired = generatedWarmup ? pairWarmupSides(generatedWarmup) : null;
+        const warmFit = paired ? fitWarmupBlock(paired.block, warmupTarget) : null;
+        if (warmFit && (warmFit.changed || paired?.changed)) dayMarkdown = replaceWarmupSection(dayMarkdown, warmFit.block);
         if (intensityProgression) dayMarkdown = ensureBlockIntensities(dayMarkdown);
         const parsedDay = parseTabata(dayMarkdown);
         const warnings = [
-          ...(warmFit?.removed.length ? [`Aquecimento limitado a 3 min: saiu ${warmFit.removed.join(', ')}.`] : []),
+          ...(warmFit?.removed.length ? [`Aquecimento limitado a ${warmupCountUsed} exercícios / 3 min: saiu ${warmFit.removed.join(', ')}.`] : []),
           ...fixed.replaced.map(([from, to]) => `Trocado ${from} por ${to} (montagem rápida).`),
           ...tabataPlanWarnings(parsedDay, { dayKind, otherDaysExercises: avoidForDay }),
           ...(intensityProgression ? progressionWarnings(parsedDay) : []),
@@ -754,7 +756,7 @@ const TabataIA = () => {
             <label className="flex items-center justify-between gap-3 p-3 rounded-lg border border-border bg-card">
               <span>
                 <span className="block text-sm font-semibold">Incluir bloco de aquecimento</span>
-                <span className="block text-[11px] text-muted-foreground">Bloco 0 cronometrado no Player, leve: mobilidade, estabilidade e agachamento livre. Máximo 3 min.</span>
+                <span className="block text-[11px] text-muted-foreground">Bloco 0 cronometrado no Player, leve: mobilidades (tornozelo, quadril e torácica em par direito/esquerdo), escapular e agachamento livre. Até 10 exercícios e no máximo 3 min.</span>
               </span>
               <Switch checked={includeWarmupBlock} onCheckedChange={setIncludeWarmupBlock} aria-label="Incluir bloco de aquecimento" />
             </label>

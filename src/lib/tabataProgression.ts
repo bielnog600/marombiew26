@@ -46,12 +46,13 @@ export function progressionLevels(blockCount: number): TabataIntensity[] {
 // ───────────────────────── Bloco 0 — Aquecimento ─────────────────────────
 
 export const WARMUP_BLOCK_NAME = 'Bloco 0 — Aquecimento';
-/** Padrão do Bloco 0: 6 exercícios × 25s / 5s = 3 min, depois 10s de "Prepare-se". */
-export const WARMUP_DEFAULT = { work: 25, rest: 5, afterBlock: 10, count: 6 } as const;
-/** Limites do aquecimento: trabalho 20–30s, intervalo 5–10s, no máximo 3 min no total. */
-export const WARMUP_LIMITS = { workMin: 20, workMax: 30, restMin: 5, restMax: 10, maxSeconds: 180 } as const;
-/** Planos antigos (lista de texto): convertidos com o padrão atual, respeitando os 3 min. */
-export const LEGACY_WARMUP_SECONDS = WARMUP_DEFAULT.work;
+/** Padrão do Bloco 0 no gerador: 8 exercícios × 10s / 10s = 2:40, depois 10s de "Prepare-se". */
+export const WARMUP_DEFAULT = { work: 10, rest: 10, afterBlock: 10, count: 8 } as const;
+/** Limites do aquecimento: trabalho 10–30s, intervalo 5–10s, até 10 exercícios e no máximo 3 min no total. */
+export const WARMUP_LIMITS = { workMin: 10, workMax: 30, restMin: 5, restMax: 10, maxSeconds: 180, maxExercises: 10 } as const;
+/** Planos antigos (lista de texto) continuam rodando como antes: 25s / 5s por exercício, até 3 min. */
+export const LEGACY_WARMUP = { work: 25, rest: 5 } as const;
+export const LEGACY_WARMUP_SECONDS = LEGACY_WARMUP.work;
 
 const clampInt = (v: number, min: number, max: number, fallback: number) => {
   const n = Math.round(Number(v));
@@ -64,9 +65,10 @@ export const clampWarmupRest = (s: number) => clampInt(s, WARMUP_LIMITS.restMin,
 export const warmupTotalSeconds = (block: Pick<TabataBlock, 'exercises'> | null | undefined) =>
   (block?.exercises ?? []).reduce((sum, e) => sum + (Number(e.workSeconds) || 0) + (Number(e.restSeconds) || 0), 0);
 
-/** Quantos exercícios cabem em 3 min com esses tempos (já limitados a 20–30s / 5–10s). */
+/** Quantos exercícios cabem em 3 min com esses tempos (já limitados a 10–30s / 5–10s), no máximo 10. */
 export const maxWarmupExercises = (work: number, rest: number) =>
-  Math.max(1, Math.floor(WARMUP_LIMITS.maxSeconds / (clampWarmupWork(work) + clampWarmupRest(rest))));
+  Math.max(1, Math.min(WARMUP_LIMITS.maxExercises,
+    Math.floor(WARMUP_LIMITS.maxSeconds / (clampWarmupWork(work) + clampWarmupRest(rest)))));
 
 /** 180 → "3:00"; 150 → "2:30". */
 export const formatWarmupClock = (sec: number) => `${Math.floor(sec / 60)}:${String(Math.max(0, sec % 60)).padStart(2, '0')}`;
@@ -97,7 +99,7 @@ export function newWarmupBlock(names: string[], work: number = WARMUP_DEFAULT.wo
   };
 }
 
-/** Mesmos tempos em todos os exercícios do aquecimento (trabalho 20–30s, intervalo 5–10s). */
+/** Mesmos tempos em todos os exercícios do aquecimento (trabalho 10–30s, intervalo 5–10s). */
 export function setWarmupTimes(block: TabataBlock, work: number, rest: number): TabataBlock {
   const w = clampWarmupWork(work);
   const r = clampWarmupRest(rest);
@@ -114,14 +116,15 @@ export interface WarmupFit {
   block: TabataBlock;
   /** Exercícios cortados para caber em 3 min. */
   removed: string[];
-  /** Algum tempo foi trocado para ficar em 20–30s / 5–10s (ou nos tempos escolhidos). */
+  /** Algum tempo foi trocado para ficar em 10–30s / 5–10s (ou nos tempos escolhidos). */
   timesChanged: boolean;
   changed: boolean;
 }
 
 /**
- * Encaixa o aquecimento nas regras: tempos de cada exercício em 20–30s / 5–10s (ou os tempos
- * escolhidos no wizard), no máximo `count` exercícios e no máximo 3 min no total.
+ * Encaixa o aquecimento nas regras: tempos de cada exercício em 10–30s / 5–10s (ou os tempos
+ * escolhidos no wizard), no máximo `count` (e 10) exercícios e no máximo 3 min no total.
+ * Um par direito/esquerdo nunca fica pela metade: se o lado esquerdo não cabe, o direito sai junto.
  */
 export function fitWarmupBlock(block: TabataBlock, target: { work?: number; rest?: number; count?: number } = {}): WarmupFit {
   let timesChanged = false;
@@ -131,15 +134,20 @@ export function fitWarmupBlock(block: TabataBlock, target: { work?: number; rest
     if (w !== e.workSeconds || r !== e.restSeconds) timesChanged = true;
     return { ...e, workSeconds: w, restSeconds: r };
   });
-  const kept: TabataExercise[] = [];
-  const removed: string[] = [];
+  const maxCount = Math.min(target.count && target.count > 0 ? target.count : Infinity, WARMUP_LIMITS.maxExercises);
+  const keep = new Set<number>();
   let total = 0;
-  const maxCount = target.count && target.count > 0 ? target.count : Infinity;
-  for (const e of exercises) {
+  exercises.forEach((e, i) => {
     const d = e.workSeconds + e.restSeconds;
-    if (kept.length < maxCount && total + d <= WARMUP_LIMITS.maxSeconds) { kept.push(e); total += d; }
-    else removed.push(e.name);
-  }
+    if (keep.size < maxCount && total + d <= WARMUP_LIMITS.maxSeconds) { keep.add(i); total += d; }
+  });
+  // Par direito/esquerdo pela metade → tira o lado que sobrou.
+  exercises.forEach((e, i) => {
+    const partner = sidePartnerIndex(exercises, i);
+    if (partner !== null && keep.has(i) && !keep.has(partner)) keep.delete(i);
+  });
+  const kept = exercises.filter((_, i) => keep.has(i));
+  const removed = exercises.filter((_, i) => !keep.has(i)).map(e => e.name);
   const first = kept[0];
   const w = first?.workSeconds ?? clampWarmupWork(block.workSeconds);
   const r = first?.restSeconds ?? clampWarmupRest(block.restSeconds);
@@ -155,6 +163,102 @@ export function fitWarmupBlock(block: TabataBlock, target: { work?: number; rest
   return { block: next, removed, timesChanged, changed: timesChanged || removed.length > 0 };
 }
 
+// ───────────────────────── Lado direito / esquerdo ─────────────────────────
+
+export type WarmupSide = 'direito' | 'esquerdo';
+const SIDE_RE = /\blado\s+(direito|esquerdo)\b\.?/i;
+const plain = (s: string) => (s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().replace(/\s+/g, ' ').trim();
+
+/** "Lado DIREITO. Gire devagar" → 'direito'. */
+export function warmupSide(observation?: string | null): WarmupSide | null {
+  const m = (observation || '').match(SIDE_RE);
+  return m ? (m[1].toLowerCase() as WarmupSide) : null;
+}
+
+/** Observação sem o "Lado X." (o resto da dica fica). */
+export const observationWithoutSide = (observation?: string | null) =>
+  (observation || '').replace(SIDE_RE, '').replace(/^\s*[.·,;-]\s*/, '').replace(/\s{2,}/g, ' ').trim();
+
+/** "Lado DIREITO." + dica. */
+export const sideObservation = (side: WarmupSide, tip = '') => {
+  const rest = observationWithoutSide(tip);
+  return `Lado ${side.toUpperCase()}.${rest && rest !== '...' ? ` ${rest}` : ''}`;
+};
+
+/** Mobilidade feita um lado por vez: tornozelo, quadril e torácica. */
+export function isSidedWarmupMobility(name: string): boolean {
+  const n = plain(name);
+  return /\b(MOB|MOBILIDADE|ROTACAO|ROTACOES|ABERTURA|CIRCULOS?|CIRCULAR)\b/.test(n)
+    && /\b(TORNOZELOS?|QUADRIL|QUADRIS|TORACICA|TORACICO)\b/.test(n);
+}
+
+const sameWarmupName = (a: string, b: string) => plain(a) === plain(b);
+
+/** Índice do outro lado do par (vizinho com o mesmo nome e o lado oposto), ou null. */
+function sidePartnerIndex(list: TabataExercise[], i: number): number | null {
+  const side = warmupSide(list[i]?.observation);
+  if (!side) return null;
+  const j = side === 'direito' ? i + 1 : i - 1;
+  const other = list[j];
+  if (!other || !sameWarmupName(other.name, list[i].name)) return null;
+  return warmupSide(other.observation) === (side === 'direito' ? 'esquerdo' : 'direito') ? j : null;
+}
+
+const withExercises = (block: TabataBlock, exercises: TabataExercise[]): TabataBlock => ({
+  ...block,
+  exercises,
+  rounds: exercises.length,
+  format: warmupFormat(exercises.length, block.workSeconds, block.restSeconds),
+});
+
+/** Editor: transforma o exercício em par — ele vira "Lado DIREITO." e uma cópia "Lado ESQUERDO." entra logo depois. */
+export function splitWarmupSides(block: TabataBlock, index: number): TabataBlock {
+  const e = block.exercises[index];
+  if (!e || sidePartnerIndex(block.exercises, index) !== null) return block;
+  const tip = observationWithoutSide(e.observation);
+  const exercises = [...block.exercises];
+  exercises.splice(index, 1, { ...e, observation: sideObservation('direito', tip) }, { ...e, observation: sideObservation('esquerdo', tip) });
+  return withExercises(block, exercises);
+}
+
+/**
+ * Gerador: mobilidade de tornozelo, quadril e torácica sempre em par direito/esquerdo (dois itens
+ * seguidos, lado na observação); exercícios bilaterais repetidos em sequência ficam uma vez só.
+ */
+export function pairWarmupSides(block: TabataBlock): { block: TabataBlock; changed: boolean } {
+  const src = block.exercises.filter(e => e.name.trim());
+  const out: TabataExercise[] = [];
+  let changed = src.length !== block.exercises.length;
+  for (let i = 0; i < src.length;) {
+    const e = src[i];
+    const next = src[i + 1];
+    if (isSidedWarmupMobility(e.name)) {
+      const tip = observationWithoutSide(e.observation);
+      const right = { ...e, observation: sideObservation('direito', tip) };
+      if (next && sameWarmupName(next.name, e.name)) {
+        const left = { ...next, observation: sideObservation('esquerdo', observationWithoutSide(next.observation) || tip) };
+        if (right.observation !== e.observation || left.observation !== next.observation) changed = true;
+        out.push(right, left);
+        i += 2;
+      } else {
+        out.push(right, { ...e, observation: sideObservation('esquerdo', tip) });
+        changed = true;
+        i += 1;
+      }
+      continue;
+    }
+    const prev = out[out.length - 1];
+    if (prev && sameWarmupName(prev.name, e.name) && !warmupSide(e.observation) && !isSidedWarmupMobility(prev.name)) {
+      changed = true; // bilateral repetido em sequência → uma vez só
+      i += 1;
+      continue;
+    }
+    out.push(e);
+    i += 1;
+  }
+  return { block: changed ? withExercises(block, out) : block, changed };
+}
+
 /** Avisos do aquecimento no editor/wizard (não altera nada). */
 export function warmupWarnings(block: TabataBlock | null | undefined): string[] {
   if (!block) return [];
@@ -164,8 +268,11 @@ export function warmupWarnings(block: TabataBlock | null | undefined): string[] 
     out.push(`O aquecimento tem ${formatWarmupClock(total)} — o máximo é 3 min. Tire um exercício ou reduza os tempos.`);
   }
   const named = block.exercises.filter(e => e.name.trim());
+  if (named.length > WARMUP_LIMITS.maxExercises) {
+    out.push(`O aquecimento tem ${named.length} exercícios — o máximo é ${WARMUP_LIMITS.maxExercises}.`);
+  }
   if (named.some(e => e.workSeconds < WARMUP_LIMITS.workMin || e.workSeconds > WARMUP_LIMITS.workMax)) {
-    out.push('Trabalho do aquecimento deve ficar entre 20s e 30s.');
+    out.push('Trabalho do aquecimento deve ficar entre 10s e 30s.');
   }
   if (named.some(e => e.restSeconds < WARMUP_LIMITS.restMin || e.restSeconds > WARMUP_LIMITS.restMax)) {
     out.push('Intervalo do aquecimento deve ficar entre 5s e 10s.');
@@ -177,7 +284,7 @@ export function warmupWarnings(block: TabataBlock | null | undefined): string[] 
 export function warmupBlockFromList(items: string[]): TabataBlock | null {
   const names = items.map(warmupItemName).filter(Boolean);
   if (!names.length) return null;
-  return fitWarmupBlock(newWarmupBlock(names)).block;
+  return fitWarmupBlock(newWarmupBlock(names, LEGACY_WARMUP.work, LEGACY_WARMUP.rest)).block;
 }
 
 /** Bloco de aquecimento que o Player roda: o cronometrado salvo ou a conversão da lista antiga. */
