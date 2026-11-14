@@ -3892,7 +3892,9 @@ export type Database = {
           current_phase: string | null
           duration_seconds: number
           id: string
+          kcal_estimate: number | null
           plan_id: string | null
+          rpe: number | null
           session_state: Json
           started_at: string
           status: string
@@ -3911,7 +3913,9 @@ export type Database = {
           current_phase?: string | null
           duration_seconds?: number
           id: string
+          kcal_estimate?: number | null
           plan_id?: string | null
+          rpe?: number | null
           session_state?: Json
           started_at: string
           status?: string
@@ -3930,7 +3934,9 @@ export type Database = {
           current_phase?: string | null
           duration_seconds?: number
           id?: string
+          kcal_estimate?: number | null
           plan_id?: string | null
+          rpe?: number | null
           session_state?: Json
           started_at?: string
           status?: string

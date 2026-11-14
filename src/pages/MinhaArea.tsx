@@ -55,6 +55,7 @@ const MinhaArea = () => {
   const [trainingDays, setTrainingDays] = useState<ParsedTrainingDay[]>([]);
   const [meals, setMeals] = useState<ParsedMeal[]>([]);
   const [tabataConteudo, setTabataConteudo] = useState<string | null>(null);
+  const [tabataPlanId, setTabataPlanId] = useState<string | null>(null);
   const [cardioConteudo, setCardioConteudo] = useState<string | null>(null);
   const [dietSections, setDietSections] = useState<ParsedSection[]>([]);
   /** Refeições publicadas do dia de hoje (dieta structured). */
@@ -142,7 +143,7 @@ const MinhaArea = () => {
           return (await supabase.from('ai_plans').select('conteudo, titulo, conteudo_json, protocols, version, content_revision, published_at, is_draft').eq('student_id', user!.id).eq('tipo', 'dieta').eq('is_draft', false).order('published_at', { ascending: false, nullsFirst: false }).order('created_at', { ascending: false }).limit(1).maybeSingle()).data;
         }),
         fetchWithCache(`plan:tabata:${user!.id}`, async () => {
-          return (await supabase.from('ai_plans').select('conteudo').eq('student_id', user!.id).eq('tipo', 'tabata').order('created_at', { ascending: false }).limit(1).maybeSingle()).data;
+          return (await supabase.from('ai_plans').select('id, conteudo').eq('student_id', user!.id).eq('tipo', 'tabata').order('created_at', { ascending: false }).limit(1).maybeSingle()).data;
         }),
         fetchWithCache(`plan:cardio:${user!.id}`, async () => {
           return (await supabase.from('ai_plans').select('conteudo').eq('student_id', user!.id).eq('tipo', 'cardio').order('created_at', { ascending: false }).limit(1).maybeSingle()).data;
@@ -233,6 +234,7 @@ const MinhaArea = () => {
       }
 
       setTabataConteudo(tabata?.conteudo || null);
+      setTabataPlanId((tabata as any)?.id ?? null);
       setCardioConteudo(cardio?.conteudo || null);
     } catch (error) {
       console.error("Erro ao carregar dados:", error);
@@ -493,7 +495,7 @@ const MinhaArea = () => {
 
           {cardioConteudo ? <CardioDoDiaCard key="cardio" conteudo={cardioConteudo} /> : null}
 
-          {tabataConteudo ? <TabataDoDiaCard key="tabata" conteudo={tabataConteudo} /> : null}
+          {tabataConteudo ? <TabataDoDiaCard key="tabata" conteudo={tabataConteudo} planId={tabataPlanId} /> : null}
         </HomeCardsCarousel>
 
         {/* Rest day card - when student has a training plan but today is not a scheduled training day */}

@@ -274,6 +274,13 @@
       "when": 1794499304864,
       "tag": "0038_ai_usage_costs",
       "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1794685355409,
+      "tag": "0039_tabata_session_rpe_and_voice",
+      "breakpoints": true
     }
   ]
 }

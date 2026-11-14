@@ -280,3 +280,13 @@ Fora do escopo desta entrega (Fases 3-6): LOW/MEDIUM/HIGH, novo carb cycling, aj
 - [x] Aquecimento máximo 3 min, 25s/5s (20–30s / 5–10s), mobilidade/estabilidade/agachamento, avisos no editor e wizard
 - [ ] Gerar um TABATA real com aquecimento e progressão — nenhuma chamada real à IA foi feita
 
+
+## TABATA — Player novo + voz do Fabiew
+- [x] Cores por fase e frases por intensidade (sem "vai com tudo" no aquecimento/moderado); intensidade em todos os blocos
+- [x] Vídeo em cima limpo, painel com anel, nome, observação, bolinhas; selo fora do vídeo; botões fixos
+- [x] Topo "BLOCO 1 · RODADA 3/8", barra por bloco, Total / Faltam; descanso mostra a próxima rodada
+- [x] Foto por baixo do vídeo (sem tela preta) e vídeo do próximo carregando no descanso
+- [x] Tela de transição entre blocos, overlay de pausa (pausa congela o tempo), resumo com RPE salvo em tabata_sessions
+- [x] Aba "TABATA" na tela de voz com as 5 falas; Player toca as aprovadas e cai no bipe
+- [ ] Gerar e aprovar as 5 falas do TABATA — precisa do admin logado na tela de voz (não consegui entrar como admin daqui)
+- [ ] Testar no iPhone real com vídeo e voz

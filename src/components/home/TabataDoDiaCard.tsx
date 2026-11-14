@@ -8,9 +8,11 @@ import workoutHero from '@/assets/workout-hero.jpg';
 
 interface TabataDoDiaCardProps {
   conteudo: string;
+  /** Plano aberto (a sessão concluída fica ligada a ele). */
+  planId?: string | null;
 }
 
-const TabataDoDiaCard: React.FC<TabataDoDiaCardProps> = ({ conteudo }) => {
+const TabataDoDiaCard: React.FC<TabataDoDiaCardProps> = ({ conteudo, planId = null }) => {
   const navigate = useNavigate();
   const parsed = parseTabata(conteudo);
   const [heroImage, setHeroImage] = useState<string | null>(null);
@@ -47,7 +49,7 @@ const TabataDoDiaCard: React.FC<TabataDoDiaCardProps> = ({ conteudo }) => {
   return (
     <Card
       className="glass-card-solid overflow-hidden cursor-pointer group border-primary/20"
-      onClick={() => navigate('/tabata-execucao', { state: { tabata: parsed } })}
+      onClick={() => navigate('/tabata-execucao', { state: { tabata: parsed, planId } })}
     >
       <div className="relative h-40 overflow-hidden">
         <img
