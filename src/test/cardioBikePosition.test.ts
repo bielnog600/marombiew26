@@ -32,7 +32,7 @@ describe('Posição na bike', () => {
   it('com ciclos exatos: os picos em pé e as recuperações sentado, também no resumo', () => {
     const equipment = buildEquipment({ bPosition: 'em_pe', bHardSec: '30', bEasySec: '60', bHardLevel: '12', bEasyLevel: '4', rounds: '3' });
     const [spec] = intervalSpecs(equipment);
-    expect(intervalSummary(spec)).toBe('3 × (0:30 em pé nível 12 + 1:00 sentado nível 4) = 5 min');
+    expect(intervalSummary(spec)).toBe('3 × (0:30 em pé nível 12 + 1:00 sentado nível 4) = 4 min 30s');
     const { payload } = normalizeCardioIntervals(bikeHiit(), { style: 'hiit', equipment });
     expect(positions(payload)).toEqual(['sentado', 'em_pe', 'sentado', 'em_pe', 'sentado', 'em_pe', 'sentado', 'sentado']);
     // idempotente
