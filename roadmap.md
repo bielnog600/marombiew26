@@ -328,3 +328,7 @@ Fora do escopo desta entrega (Fases 3-6): LOW/MEDIUM/HIGH, novo carb cycling, aj
 - [x] Card da home com foto no padrão do TABATA; INICIAR começa direto no Prepare-se (som liberado no toque); título curto no player; Recomeçar → detalhe
 - [x] Cards com foto da home (Treino, Cardio, TABATA e "em andamento"): textos sempre visíveis durante toque/arraste; zoom só na foto
 - [ ] Testar com o aluno real no iPhone — não consegui entrar como aluno daqui (conferi com dados de exemplo)
+
+## Scanner único
+- [x] Tela única "Escanear" com modos, código ao vivo, produto/alimento novo da IA, auto-adicionar, Nutri-Score por categoria, lista e admin.
+- [ ] Testar no celular com produtos, balança e pratos reais — nenhuma chamada real à IA ou ao Open Food Facts foi feita.
