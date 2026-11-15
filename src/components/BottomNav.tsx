@@ -6,7 +6,7 @@ import { useTabSwipe } from '@/contexts/TabSwipeContext';
 import { useBottomNavHidden } from '@/hooks/useBottomNavVisibility';
 import {
   LayoutDashboard, Users, ClipboardList, User, Briefcase, LogOut,
-  Home, Dumbbell, UtensilsCrossed, Apple, Settings2,
+  Home, Dumbbell, UtensilsCrossed, Apple, ChefHat, Settings2,
   CalendarDays, Wallet,
 } from 'lucide-react';
 import { Film } from 'lucide-react';
@@ -18,6 +18,7 @@ const adminItems = [
   { title: 'Agenda', url: '/agenda', icon: CalendarDays },
   { title: 'Financeiro', url: '/financeiro', icon: Wallet },
   { title: 'Alimentos', url: '/alimentos', icon: Apple },
+  { title: 'Banco de refeições', url: '/banco-refeicoes', icon: ChefHat },
   { title: 'Exercícios', url: '/exercicios', icon: Settings2 },
   { title: 'Rede Social', url: '/rede-social', icon: Film },
 ];

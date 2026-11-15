@@ -316,6 +316,20 @@
       "when": 1794743733250,
       "tag": "0044_student_meal_weigh_logs_insert_own",
       "breakpoints": true
+    },
+    {
+      "idx": 45,
+      "version": "7",
+      "when": 1794749990169,
+      "tag": "0045_meal_bank",
+      "breakpoints": true
+    },
+    {
+      "idx": 46,
+      "version": "7",
+      "when": 1794750598870,
+      "tag": "0046_diet_override_option_switch_action",
+      "breakpoints": true
     }
   ]
 }

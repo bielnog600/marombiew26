@@ -146,6 +146,21 @@ export const MealItem = z.object({
 });
 export type MealItem = z.infer<typeof MealItem>;
 
+export const MealOptionItemSchema = z.object({
+  foodId: z.string().nullable(),
+  name: z.string(),
+  qtyGrams: z.number().min(0),
+  macros: Macros,
+});
+export const MealOptionSchema = z.object({
+  source: z.enum(['plan', 'bank']),
+  bankCode: z.string().optional(),
+  name: z.string(),
+  prep: z.string().nullable().optional(),
+  items: z.array(MealOptionItemSchema),
+});
+export type MealOptionShape = z.infer<typeof MealOptionSchema>;
+
 export const Meal = z.object({
   id: z.string(),
   name: z.string(),
@@ -154,6 +169,11 @@ export const Meal = z.object({
   items: z.array(MealItem),
   totals: Macros,
   notes: z.string().optional(),
+  /**
+   * Até 3 opções da refeição. Opção 1 (source 'plan') espelha `items`;
+   * opções 2/3 (source 'bank') vêm do Banco de refeições. Ausente = 1 opção.
+   */
+  options: z.array(MealOptionSchema).max(3).optional(),
 });
 export type Meal = z.infer<typeof Meal>;
 

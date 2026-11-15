@@ -13,6 +13,8 @@ interface DailyCaloriesCardProps {
   protein: MacroValue;
   carbs: MacroValue;
   fats: MacroValue;
+  /** Ação pequena no canto superior direito (ex.: botão Escanear). */
+  action?: React.ReactNode;
 }
 
 const KCAL_TOLERANCE = 50;
@@ -54,7 +56,7 @@ const MacroPill: React.FC<{
   );
 };
 
-const DailyCaloriesCard: React.FC<DailyCaloriesCardProps> = ({ consumed, target, protein, carbs, fats, label = 'Calorias de hoje' }) => {
+const DailyCaloriesCard: React.FC<DailyCaloriesCardProps> = ({ consumed, target, protein, carbs, fats, label = 'Calorias de hoje', action }) => {
   const safeTarget = target > 0 ? target : 0;
   const pct = safeTarget > 0 ? Math.min((consumed / safeTarget) * 100, 100) : 0;
   const remaining = Math.max(safeTarget - consumed, 0);
@@ -96,7 +98,10 @@ const DailyCaloriesCard: React.FC<DailyCaloriesCardProps> = ({ consumed, target,
         </div>
 
         <div className="min-w-0 flex-1">
-          <p className="text-[11px] uppercase tracking-wider text-muted-foreground">{label}</p>
+          <div className="flex items-start justify-between gap-2">
+            <p className="text-[11px] uppercase tracking-wider text-muted-foreground">{label}</p>
+            {action && <div className="-mr-1 -mt-1 shrink-0">{action}</div>}
+          </div>
           <p className="mt-0.5 text-xl font-bold text-foreground">
             {round(consumed)}
             <span className="text-sm font-medium text-muted-foreground"> / {round(safeTarget)} kcal</span>

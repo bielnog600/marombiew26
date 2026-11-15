@@ -8,7 +8,7 @@ import { ChevronDown, Pencil, Scale } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { adminCorrectEstimatedItem } from '@/lib/mealWeigh/calibration';
 import { saveEstimateCorrections } from '@/components/diet/mealWeigh/calibrationApi';
-import { formatFoodComparison, formatSwapLine, formatUnweighedLine, isEstimatedItem, isScannedItem, supersededWeighLogIds, type FoodComparison, type UnweighedEntry, type WeighedItem } from '@/lib/mealWeigh';
+import { formatFoodComparison, formatSwapLine, formatUnweighedLine, isEstimatedItem, isScannedItem, isClearedWeighLog, supersededWeighLogIds, type FoodComparison, type UnweighedEntry, type WeighedItem } from '@/lib/mealWeigh';
 
 interface WeighLog {
   id: string;
@@ -109,7 +109,8 @@ export default function StudentMealWeighLogs({ studentId }: { studentId: string 
                       <p className="text-sm font-semibold truncate">{r.meal_time ? `${r.meal_time} · ` : ''}{r.meal_name || 'Refeição'}</p>
                       <p className="text-xs text-muted-foreground">
                         {fmtDate(r.log_date)} · {(r.items ?? []).length} itens
-                        {superseded.has(r.id) && <span className="ml-1 rounded-full bg-secondary px-1.5 py-0.5 text-[10px]">substituída por nova pesagem</span>}
+                        {superseded.has(r.id) && <span className="ml-1 rounded-full bg-secondary px-1.5 py-0.5 text-[10px]">{isClearedWeighLog(r as any) ? 'apagada' : 'substituída por nova pesagem'}</span>}
+                        {isClearedWeighLog(r as any) && <span className="ml-1 rounded-full border border-primary/40 px-1.5 py-0.5 text-[10px] text-primary">Pesagem apagada (trocou para a Opção {Number((planned as any).opcao) || 1})</span>}
                       </p>
                     </div>
                     <div className="text-right shrink-0 text-xs tabular-nums">

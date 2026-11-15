@@ -2717,6 +2717,81 @@ export type Database = {
         }
         Relationships: []
       }
+      meal_bank: {
+        Row: {
+          active: boolean
+          code: string
+          created_at: string
+          id: string
+          name: string
+          origin: string
+          prep: string | null
+          slot: string
+          tags: string[]
+        }
+        Insert: {
+          active?: boolean
+          code: string
+          created_at?: string
+          id?: string
+          name: string
+          origin?: string
+          prep?: string | null
+          slot: string
+          tags?: string[]
+        }
+        Update: {
+          active?: boolean
+          code?: string
+          created_at?: string
+          id?: string
+          name?: string
+          origin?: string
+          prep?: string | null
+          slot?: string
+          tags?: string[]
+        }
+        Relationships: []
+      }
+      meal_bank_items: {
+        Row: {
+          food_id: string
+          grams: number
+          id: string
+          meal_id: string
+          ordem: number
+        }
+        Insert: {
+          food_id: string
+          grams: number
+          id?: string
+          meal_id: string
+          ordem?: number
+        }
+        Update: {
+          food_id?: string
+          grams?: number
+          id?: string
+          meal_id?: string
+          ordem?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meal_bank_items_food_id_fkey"
+            columns: ["food_id"]
+            isOneToOne: false
+            referencedRelation: "foods"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meal_bank_items_meal_id_fkey"
+            columns: ["meal_id"]
+            isOneToOne: false
+            referencedRelation: "meal_bank"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       meal_weigh_logs: {
         Row: {
           created_at: string

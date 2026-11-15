@@ -25,8 +25,8 @@ import {
 import { Button } from '@/components/ui/button';
 import { useDailyTracking } from '@/hooks/useDailyTracking';
 import { fetchWithCache, setCache } from '@/lib/offlineCache';
-import { latestWeighLogs, overlayDayWeighLogs, plannedFromMeal, weighLogKey, weighPlanMeals, type DayFoodWeigh, type WeighLogRecord } from '@/lib/mealWeigh';
-import { dayStateFromLog, type DayWeighState } from '@/lib/mealWeigh/dayEdit';
+import { CLEARED_BY_OPTION_SWITCH, latestWeighLogs, overlayDayWeighLogs, plannedFromMeal, weighLogKey, weighPlanMeals, type DayFoodWeigh, type WeighLogRecord } from '@/lib/mealWeigh';
+import { dayRowRef, dayStateFromLog, removeDayRow, setDayRowChoice, type DayWeighState } from '@/lib/mealWeigh/dayEdit';
 import { insertDayWeighLog } from '@/components/diet/mealWeigh/dayLogApi';
 import { weighEntry } from '@/lib/mealWeigh/editItems';
 import ReweighDialog from '@/components/diet/mealWeigh/ReweighDialog';
@@ -42,8 +42,10 @@ import { usePremiumScale } from '@/hooks/usePremiumScale';
 import { buildCarbCycleDays } from '@/lib/dietAiActions';
 import { parseDietPlanLoose } from '@/lib/dietSchema';
 import {
+  applyStudentMealOptions,
   buildStructuredDisplayGroups,
   isStructuredPublishedDiet,
+  studentMealOptionsForDay,
   type StudentStructuredDay,
 } from '@/lib/studentStructuredDiet';
 import { adjustStudentPortions, type PortionAdjustResult } from '@/lib/studentPortionAdjust';
@@ -65,6 +67,20 @@ const WEEKDAY_LABELS = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
 const WEEKDAY_KEYS = ['seg', 'ter', 'qua', 'qui', 'sex', 'sab', 'dom'] as const;
 const WEEKDAY_KEYS_EN = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'] as const;
 const OPTION_TITLE_REGEX = /(op[cç][aã]o|card[aá]pio)/i;
+/** Botão "Protocolos" escondido por enquanto (a lógica e o diálogo continuam). */
+const SHOW_PROTOCOLS_BUTTON = false;
+
+/** Opção escolhida por refeição/dia ("grupo-refeição"); nome guardado para o treinador ler. */
+type OptionChoices = Record<string, { n: number; nome?: string; refeicao?: string; dia?: string }>;
+const parseOptionChoices = (raw: unknown): OptionChoices => {
+  const out: OptionChoices = {};
+  if (!raw || typeof raw !== 'object') return out;
+  Object.entries(raw as Record<string, any>).forEach(([k, v]) => {
+    const n = typeof v === 'number' ? v : Number(v?.n);
+    if (Number.isInteger(n) && n > 0) out[k] = { ...(typeof v === 'object' ? v : {}), n };
+  });
+  return out;
+};
 // HOTFIX ALUNO — nova versão de schema invalida o cache antigo (sem conteudo_json).
 const DIET_DISPLAY_SCHEMA_VERSION = 'structured-v1';
 
@@ -147,6 +163,7 @@ const MinhasDietas = () => {
   // Índices dos dias (0=seg..6=dom) em que o aluno tem treino agendado.
   const [trainingDayIndices, setTrainingDayIndices] = useState<number[]>([]);
   const [substitutions, setSubstitutions] = useState<Record<string, any[]>>({});
+  const [optionChoices, setOptionChoices] = useState<OptionChoices>({});
   /** Última refeição editada pelo aluno em cada dia (estado CURRENT). */
   const [editedMealByGroup, setEditedMealByGroup] = useState<Record<number, number>>({});
 
@@ -176,6 +193,8 @@ const MinhasDietas = () => {
       setSubstitutions(raw ? JSON.parse(raw) : {});
       const rawMeta = localStorage.getItem(`${subsStorageKey}-meta`);
       setEditedMealByGroup(rawMeta ? JSON.parse(rawMeta) : {});
+      const rawOpts = localStorage.getItem(`${subsStorageKey}-opts`);
+      setOptionChoices(parseOptionChoices(rawOpts ? JSON.parse(rawOpts) : {}));
 
       // Cleanup old subs from previous plan versions for this user
       if (user) {
@@ -205,13 +224,16 @@ const MinhasDietas = () => {
       if (cancelled) return;
       if (data) {
         const subs = (data.substitutions as any) ?? {};
-        const { __action: _ignored, ...meta } = ((data.edited_meta as any) ?? {}) as Record<string, any>;
+        const { __action: _ignored, __options: rawOptions, ...meta } = ((data.edited_meta as any) ?? {}) as Record<string, any>;
+        const opts = parseOptionChoices(rawOptions);
         remoteGroupsRef.current = (data.groups as any) ?? {};
         setSubstitutions(subs);
         setEditedMealByGroup(meta);
+        setOptionChoices(opts);
         try {
           localStorage.setItem(subsStorageKey, JSON.stringify(subs));
           localStorage.setItem(`${subsStorageKey}-meta`, JSON.stringify(meta));
+          localStorage.setItem(`${subsStorageKey}-opts`, JSON.stringify(opts));
         } catch { /* ignore */ }
       } else if (Object.keys(substitutions).length > 0) {
         // Alterações antigas só locais: envia ao banco na próxima sincronização.
@@ -576,7 +598,15 @@ const MinhasDietas = () => {
 
   // Porções exatamente como o treinador salvou: NUNCA escalar para bater meta
   // (a escala por weekly_energy_schedule usava GET × estratégia e inflava porções).
-  const prescribedMeals = baseMealsForDay;
+  // Opções da refeição: a escolhida (por dia) troca os alimentos padrão — não é edição.
+  const optionsByMeal = useMemo(
+    () => (structuredPlan && !usesMealOptions ? studentMealOptionsForDay(structuredPlan, activeGroupIndex, baseMealsForDay as any) : []),
+    [structuredPlan, usesMealOptions, activeGroupIndex, baseMealsForDay],
+  );
+  const prescribedMeals = useMemo(
+    () => applyStudentMealOptions(baseMealsForDay as any[], optionsByMeal, (mi) => optionChoices[`${activeGroupIndex}-${mi}`]?.n ?? 0),
+    [baseMealsForDay, optionsByMeal, optionChoices, activeGroupIndex],
+  );
 
   // META PRESCRITA PELO PROFESSOR — imutável para o aluno.
   // Fonte: meta do dia publicada (structured) ou conteudo_json.targets.
@@ -585,9 +615,10 @@ const MinhasDietas = () => {
     return resolveStudentDayTarget({
       dayTarget,
       publishedTargets: publishedTargets,
-      mealsTotal: sumMealMacros(prescribedMeals as any),
+      // Meta pela Opção 1 (plano): trocar de opção nunca muda a meta do dia.
+      mealsTotal: sumMealMacros(baseMealsForDay as any),
     });
-  }, [prescribedMeals, isStructuredDiet, structuredGroups, activeGroupIndex, publishedTargets]);
+  }, [baseMealsForDay, isStructuredDiet, structuredGroups, activeGroupIndex, publishedTargets]);
 
   // Refeições já concluídas (registro real de consumo do dia).
   const completedIndexes = useMemo(
@@ -694,12 +725,15 @@ const MinhasDietas = () => {
       remoteGroupsRef.current = groups;
       const action = pendingActionRef.current;
       pendingActionRef.current = null;
+      const meta: Record<string, any> = { ...editedMealByGroup };
+      if (Object.keys(optionChoices).length > 0) meta.__options = optionChoices;
+      if (action) meta.__action = action;
       await supabase.from('student_diet_overrides').upsert(
         {
           plan_id: planId,
           student_id: user.id,
           substitutions: substitutions as any,
-          edited_meta: (action ? { ...editedMealByGroup, __action: action } : editedMealByGroup) as any,
+          edited_meta: meta as any,
           groups: groups as any,
         },
         { onConflict: 'plan_id' },
@@ -707,7 +741,7 @@ const MinhasDietas = () => {
     }, 1200);
     return () => clearTimeout(handle);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [substitutions, editedMealByGroup]);
+  }, [substitutions, editedMealByGroup, optionChoices]);
 
   // ── Ajustar Dieta: mantém os alimentos do aluno e só recalcula porções ──
   const pendingActionRef = React.useRef<string | null>(null);
@@ -874,12 +908,16 @@ const MinhasDietas = () => {
 
   const weekSummary = useMemo(() => summarizeDietWeek(weekDates.map((date, dayIndex) => {
     const groupIndex = usesMealOptions ? activeGroupIndex : dayIndex;
-    const prescribed = displayGroups[groupIndex]?.meals ?? allMeals;
+    const basePrescribed = displayGroups[groupIndex]?.meals ?? allMeals;
+    const prescribed = structuredPlan && !usesMealOptions
+      ? applyStudentMealOptions(basePrescribed as any[], studentMealOptionsForDay(structuredPlan, groupIndex, basePrescribed as any),
+        (mi) => optionChoices[`${groupIndex}-${mi}`]?.n ?? 0)
+      : basePrescribed;
     const row = weeklyTracking[date];
     const done = prescribed.map((_, i) => i).filter(i => row?.meals_completed.includes(dayIndex * 1000 + i));
     const target = resolveStudentDayTarget({
       dayTarget: isStructuredDiet ? structuredGroups[groupIndex]?.target : null,
-      publishedTargets, mealsTotal: sumMealMacros(prescribed as any),
+      publishedTargets, mealsTotal: sumMealMacros(basePrescribed as any),
     });
     const edited = prescribed.map((meal, i) => {
       const foods = substitutions[`${groupIndex}-${i}`];
@@ -893,7 +931,8 @@ const MinhasDietas = () => {
     return { date, tracking: row, targetKcal: target.kcal,
       consumedKcal: sumMealMacros(meals.filter((_, i) => done.includes(i)) as any).kcal };
   }), trackingToday), [weekDates.join(','), weeklyTracking, displayGroups, allMeals, usesMealOptions,
-    activeGroupIndex, isStructuredDiet, structuredGroups, publishedTargets, substitutions, editedMealByGroup, trackingToday, latestLogs]);
+    activeGroupIndex, isStructuredDiet, structuredGroups, publishedTargets, substitutions, editedMealByGroup, trackingToday, latestLogs,
+    structuredPlan, optionChoices]);
 
   // Refeição sugerida pelo horário atual (última cujo horário já passou).
   const currentMealIndex = useMemo(() => {
@@ -1003,6 +1042,115 @@ const MinhasDietas = () => {
   }, [dayEdit, user, plannedDayMeals, currentMeals, selectedDate, planId, handleWeighSaved]);
 
   /**
+   * Refeição pesada: remover um alimento registrado grava um novo registro do dia
+   * (alimento do plano vira "Não comeu"; extra/fora do plano sai do registro).
+   */
+  const changeWeighedFood = useCallback(async (mealIdx: number, food: any, message: string | null): Promise<boolean> => {
+    if (!user || !ensureCanRegister()) return false;
+    const log = latestLogs.get(weighLogKey(selectedDate, mealIdx));
+    const weigh = food?.weigh as DayFoodWeigh | undefined;
+    if (!log || !weigh) return false;
+    const state = dayStateFromLog(log, plannedFromMeal(plannedDayMeals[mealIdx] as any));
+    const ref = dayRowRef(weigh);
+    const next = ref.planIndex != null ? setDayRowChoice(state, ref, 'nao_comeu') : removeDayRow(state, ref);
+    if (next === state) return false;
+    const meal = plannedDayMeals[mealIdx] ?? currentMeals[mealIdx];
+    const { log: saved, error } = await insertDayWeighLog({
+      studentId: user.id, logDate: selectedDate, dietPlanId: planId, mealIndex: mealIdx,
+      mealName: String(meal?.name ?? ''), mealTime: (meal?.time as string | undefined) ?? null,
+    }, next);
+    if (!saved) { console.error('[MinhasDietas] falha ao alterar alimento pesado', error); toast.error(error ?? MEAL_SAVE_ERROR_MESSAGE); return false; }
+    handleWeighSaved(saved);
+    if (message) toast.success(message);
+    return true;
+  }, [user, ensureCanRegister, latestLogs, selectedDate, plannedDayMeals, currentMeals, planId, handleWeighSaved]);
+
+  /** Mover um alimento registrado: sai do registro desta refeição e entra na refeição de destino. */
+  const moveWeighedFood = useCallback(async (mealIdx: number, food: any, targetIndex: number) => {
+    const ok = await changeWeighedFood(mealIdx, food, null);
+    if (!ok) return;
+    const { weigh: _weigh, ...plain } = food ?? {};
+    persistFoodsChange(activeGroupIndex, targetIndex, [...(currentMeals[targetIndex]?.foods ?? []), plain]);
+    setExpandedMeal(targetIndex);
+    setExpandedTouched(true);
+    toast.success('Alimento movido');
+  }, [changeWeighedFood, persistFoodsChange, activeGroupIndex, currentMeals]);
+
+  // ── Opções da refeição (Opção 1 = plano, 2/3 = banco) ──
+  const [optionSwitch, setOptionSwitch] = useState<{ meal: number; option: number } | null>(null);
+  const [optionSwitchSaving, setOptionSwitchSaving] = useState(false);
+  const optionEditedAt = useCallback(
+    (mi: number) => Boolean(substitutions[`${activeGroupIndex}-${mi}`]) || weighedIndexes.includes(mi),
+    [substitutions, activeGroupIndex, weighedIndexes],
+  );
+  const commitOptionChoice = useCallback((mi: number, n: number) => {
+    const meal: any = prescribedMeals[mi];
+    const key = `${activeGroupIndex}-${mi}`;
+    dirtyRef.current = true;
+    setOptionChoices((prev) => {
+      const next = { ...prev };
+      if (n <= 0) delete next[key];
+      else next[key] = { n, nome: meal?.options?.[n]?.name, refeicao: meal?.name, dia: WEEKDAY_LABELS[activeGroupIndex] };
+      try { localStorage.setItem(`${subsStorageKey}-opts`, JSON.stringify(next)); } catch { /* ignore */ }
+      return next;
+    });
+  }, [prescribedMeals, activeGroupIndex, subsStorageKey]);
+
+  const requestOptionChange = useCallback((mi: number, n: number) => {
+    const current = optionChoices[`${activeGroupIndex}-${mi}`]?.n ?? 0;
+    if (optionEditedAt(mi)) { setOptionSwitch({ meal: mi, option: n }); return; }
+    if (n === current) return;
+    pendingActionRef.current = 'aluno_trocou_opcao';
+    commitOptionChoice(mi, n);
+  }, [optionChoices, activeGroupIndex, optionEditedAt, commitOptionChoice]);
+
+  /** Confirmar "Voltar à Opção N": apaga a pesagem (registro novo, histórico fica) e as edições desta refeição. */
+  const confirmOptionSwitch = useCallback(async () => {
+    if (!optionSwitch || !user) return;
+    const { meal: mi, option: n } = optionSwitch;
+    const log = latestLogs.get(weighLogKey(selectedDate, mi));
+    if (log) {
+      setOptionSwitchSaving(true);
+      const meal: any = prescribedMeals[mi];
+      const { data, error } = await supabase.from('meal_weigh_logs').insert({
+        student_id: user.id,
+        log_date: selectedDate,
+        diet_plan_id: planId,
+        meal_index: mi,
+        meal_name: String(meal?.name ?? ''),
+        meal_time: meal?.time ?? null,
+        items: [] as any,
+        unweighed: [] as any,
+        planned: { ...((log.planned as any) ?? {}), cleared: true, motivo: CLEARED_BY_OPTION_SWITCH, opcao: n + 1 } as any,
+        total_kcal: 0, total_p: 0, total_c: 0, total_g: 0,
+      }).select('id, log_date, meal_index, items, unweighed, planned, created_at').single();
+      setOptionSwitchSaving(false);
+      if (error || !data) {
+        console.error('[MinhasDietas] falha ao apagar a pesagem na troca de opção', error);
+        toast.error(MEAL_SAVE_ERROR_MESSAGE);
+        return;
+      }
+      setWeighLogs((prev) => {
+        const next = [...prev, data as unknown as WeighLogRecord];
+        if (weighCacheKey) void setCache(weighCacheKey, next);
+        return next;
+      });
+    }
+    const key = `${activeGroupIndex}-${mi}`;
+    if (substitutions[key]) {
+      const nextSubs = { ...substitutions };
+      delete nextSubs[key];
+      const nextMeta = { ...editedMealByGroup };
+      if (nextMeta[activeGroupIndex] === mi) delete nextMeta[activeGroupIndex];
+      writeSubs(nextSubs, nextMeta);
+    }
+    pendingActionRef.current = 'aluno_trocou_opcao';
+    commitOptionChoice(mi, n);
+    setOptionSwitch(null);
+    toast.success(`Opção ${n + 1} aplicada`);
+  }, [optionSwitch, user, latestLogs, selectedDate, prescribedMeals, planId, weighCacheKey, activeGroupIndex, substitutions, editedMealByGroup, writeSubs, commitOptionChoice]);
+
+  /**
    * Scanner único (Premium): "Escanear" abre a tela na refeição do horário; numa
    * refeição já registrada entra como incremental (concluir pergunta Substituir/Adicionar/Revisar).
    * Sem Premium continua o scanner de produtos.
@@ -1102,11 +1250,9 @@ const MinhasDietas = () => {
         )}
       </React.Suspense>
       <div className="space-y-4 animate-fade-in">
-        {/* Protocolos */}
+        {/* Protocolos (escondido por enquanto; Escanear fica no card de calorias) */}
+        {SHOW_PROTOCOLS_BUTTON && protocolKeys.length > 0 && (
         <div className="flex items-center justify-end gap-2">
-          <Button variant="outline" size="sm" className="gap-1.5 h-9" onClick={openScanner}>
-            <ScanBarcode className="h-4 w-4" /> Escanear
-          </Button>
           {protocolKeys.length > 0 && (
             <Button
               variant="outline"
@@ -1122,6 +1268,7 @@ const MinhasDietas = () => {
             </Button>
           )}
         </div>
+        )}
 
         <div className="grid grid-cols-7 gap-1" aria-label="Dias da semana">
           {WEEKDAY_LABELS.map((label, i) => {
@@ -1196,6 +1343,11 @@ const MinhasDietas = () => {
           protein={{ current: consumed.p, target: dailyTarget.p }}
           carbs={{ current: consumed.c, target: dailyTarget.c }}
           fats={{ current: consumed.g, target: dailyTarget.g }}
+          action={(
+            <Button variant="outline" size="sm" className="h-7 gap-1 px-2 text-[11px]" onClick={openScanner}>
+              <ScanBarcode className="h-3.5 w-3.5" /> Escanear
+            </Button>
+          )}
         />
 
         {(hasStudentEdits || undoSnapshot) && (
@@ -1365,6 +1517,49 @@ const MinhasDietas = () => {
           </AlertDialogContent>
         </AlertDialog>
 
+        <AlertDialog open={!!optionSwitch} onOpenChange={(o) => { if (!o && !optionSwitchSaving) setOptionSwitch(null); }}>
+          <AlertDialogContent className="max-h-[85vh] overflow-y-auto">
+            {optionSwitch && (() => {
+              const mi = optionSwitch.meal;
+              const meal: any = prescribedMeals[mi];
+              const opt = meal?.options?.[optionSwitch.option];
+              const mealName = displayText(String(meal?.name ?? 'refeição')).toLowerCase();
+              const weighedNow = weighedIndexes.includes(mi);
+              const editedNow = Boolean(substitutions[`${activeGroupIndex}-${mi}`]);
+              const nowKcal = (currentMeals[mi]?.foods ?? []).reduce((s: number, f: any) => s + parseNum(f.kcal), 0);
+              const intro = weighedNow
+                ? `Você já pesou o ${mealName}${editedNow ? ' e alterou os alimentos' : ''}. Se continuar, a pesagem desta refeição é apagada`
+                : `Você alterou os alimentos do ${mealName}. Se continuar, suas alterações desta refeição são descartadas`;
+              return (<>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Voltar para a Opção {optionSwitch.option + 1}?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    {intro} e voltam os alimentos padrão da Opção {optionSwitch.option + 1} — {displayText(String(opt?.name ?? ''))}:
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <ul className="space-y-1 text-xs" data-testid="option-switch-foods">
+                  {(opt?.foods ?? []).map((f: any, fi: number) => (
+                    <li key={fi} className="flex justify-between gap-2 border-b border-border/40 pb-1">
+                      <span className="min-w-0">{displayText(String(f.food ?? ''))}</span>
+                      <span className="whitespace-nowrap text-muted-foreground">{f.qty}</span>
+                    </li>
+                  ))}
+                </ul>
+                <p className="text-xs text-muted-foreground">
+                  Registrado agora: <strong className="text-foreground">{Math.round(nowKcal)} kcal</strong> → volta para{' '}
+                  <strong className="text-primary">{Math.round(Number(opt?.kcal) || 0)} kcal</strong>
+                </p>
+                <AlertDialogFooter className="gap-2">
+                  <AlertDialogCancel disabled={optionSwitchSaving}>Cancelar</AlertDialogCancel>
+                  <Button onClick={() => { void confirmOptionSwitch(); }} disabled={optionSwitchSaving}>
+                    Voltar à Opção {optionSwitch.option + 1}
+                  </Button>
+                </AlertDialogFooter>
+              </>);
+            })()}
+          </AlertDialogContent>
+        </AlertDialog>
+
         <ReweighDialog
           open={!!confirmReweigh}
           onCancel={() => setConfirmReweigh(null)}
@@ -1409,6 +1604,13 @@ const MinhasDietas = () => {
                   onWeighFood={premiumScale ? (food) => openWeigh({ meal: i, food }) : undefined}
                   onEditWeigh={premiumScale && weighedIndexes.includes(i) ? () => openEditWeigh(i) : undefined}
                   onEditWeighedFood={weighedIndexes.includes(i) ? (food) => openDayFoodEdit(i, food as any) : undefined}
+                  onRemoveWeighedFood={weighedIndexes.includes(i) ? (food) => { void changeWeighedFood(i, food, 'Alimento removido'); } : undefined}
+                  onMoveWeighedFood={weighedIndexes.includes(i) ? (food, target) => { void moveWeighedFood(i, food, target); } : undefined}
+                  options={(prescribedMeals[i] as any)?.options}
+                  selectedOption={(prescribedMeals[i] as any)?.selectedOption ?? 0}
+                  onSelectOption={(n) => requestOptionChange(i, n)}
+                  optionEdited={optionEditedAt(i)}
+                  prep={(prescribedMeals[i] as any)?.prep ?? null}
                 />
               );
             })}

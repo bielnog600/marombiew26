@@ -8,6 +8,8 @@
  * Determinístico: keys ordenadas, nenhum Date.now, nenhum campo de publicação.
  */
 
+import { semanticMealOptions } from './mealOptionsCore.ts';
+
 /** Campos IGNORADOS (metadata/derivados, nunca edição do treinador). */
 export const IGNORED_META_KEYS = [
   'publishedAt',
@@ -46,6 +48,7 @@ const semanticMeal = (meal: any) => ({
   time: str(meal?.time),
   notes: str(meal?.notes),
   items: (meal?.items ?? []).map(semanticItem),
+  ...semanticMealOptions(meal),
 });
 
 const semanticDay = (day: any) => ({
