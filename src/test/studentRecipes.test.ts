@@ -100,8 +100,8 @@ describe('Opção 2 automática', () => {
   it('não repete a mesma refeição do banco em dias seguidos quando há alternativa', () => {
     const a = autoBankOptionsForWeek({ planId: 'plano-1', weekDays, bank, index, ctx: ctxPT });
     const codes = a.map((d) => d[0]?.bankCode ?? null);
-    const fitting = new Set(codes.filter(Boolean));
-    if (fitting.size > 1) for (let i = 1; i < codes.length; i++) expect(codes[i]).not.toBe(codes[i - 1]);
+    expect(new Set(codes.filter(Boolean)).size).toBeGreaterThan(1);
+    for (let i = 1; i < codes.length; i++) expect(codes[i]).not.toBe(codes[i - 1]);
   });
 
   it('opção salva pelo admin vale como Opção 2', () => {
