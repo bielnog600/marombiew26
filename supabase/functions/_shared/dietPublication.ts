@@ -19,6 +19,7 @@ import {
   type NutritionSnapshot,
 } from "./nutritionCore.ts";
 import type { FoodCatalog } from "./foodCatalog.ts";
+import { syncMealOptions } from "./mealOptionsCore.ts";
 import { ENERGY_WEEKDAYS, type EnergyWeekday } from "./dailyAdjustments.ts";
 
 export const PUBLICATION_ADJUSTMENT_TOLERANCE_KCAL = 75;
@@ -282,6 +283,13 @@ export const buildPublishedSnapshotPlan = (
         snapshotCount += 1;
       }
       meal.totals = roundForDisplay(mealTotals);
+      // Opções 2/3 (Banco de refeições): opção 1 espelha os itens publicados e
+      // as do banco têm macros recalculados pela base — nunca valores antigos.
+      if (Array.isArray(meal?.options)) {
+        const synced = syncMealOptions(meal, catalog.index);
+        if (synced.options) meal.options = synced.options;
+        else delete meal.options;
+      }
       dayTotals = addMacros(dayTotals, mealTotals);
     }
     day.totals = roundForDisplay(dayTotals);

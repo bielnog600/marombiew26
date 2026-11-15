@@ -46,6 +46,7 @@ const semanticMeal = (meal: any) => ({
   time: str(meal?.time),
   notes: str(meal?.notes),
   items: (meal?.items ?? []).map(semanticItem),
+  ...semanticMealOptions(meal),
 });
 
 const semanticDay = (day: any) => ({
