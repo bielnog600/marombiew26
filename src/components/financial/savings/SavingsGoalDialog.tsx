@@ -444,8 +444,8 @@ const GridSquare = React.memo(function GridSquare({ valor, done, drawn, onTap, o
       onContextMenu={e => { e.preventDefault(); if (!fired.current) { fired.current = true; clear(); onLongPress(valor); } }}
       onClick={() => { if (fired.current) { fired.current = false; return; } onTap(valor); }}
       className={`aspect-square min-w-0 rounded-md text-[11px] sm:text-xs font-semibold tabular-nums select-none [-webkit-touch-callout:none] [touch-action:manipulation] transition-colors
-        ${done ? 'bg-primary text-primary-foreground' : 'bg-secondary/70 text-foreground/80 border border-border/60'}
-        ${drawn ? 'ring-2 ring-primary ring-offset-2 ring-offset-background animate-pulse' : ''}`}
+        ${done ? 'bg-primary text-primary-foreground' : drawn ? 'bg-primary/25 text-primary border border-primary' : 'bg-secondary/70 text-foreground/80 border border-border/60'}
+        ${drawn ? 'ring-2 ring-primary ring-offset-2 ring-offset-background' : ''}`}
     >
       {valor}
     </button>

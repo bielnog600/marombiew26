@@ -359,3 +359,10 @@ Fora do escopo desta entrega (Fases 3-6): LOW/MEDIUM/HIGH, novo carb cycling, aj
 - [x] Opção 2 calculada no app para dietas sem opções salvas (sempre a mesma por plano/dia/refeição); funciona em todas as dietas publicadas sem regenerar
 - [x] Conferido com as dietas reais da Gisele (sem opções) e do Fabiew (com opções), sem gravar nada
 - [ ] Conferir no celular com o login real de uma aluna — não consigo entrar como aluno daqui
+
+## Financeiro — Meta de depósitos
+- [x] Tabelas de metas e depósitos (só o admin dono)
+- [x] Configuração (nome, meta, ano/datas, "quanto consigo guardar por mês"), várias metas com seletor
+- [x] Modal: totais, barra com esperado hoje, ritmo, sorteio, filtros, grade 10 colunas, fora da grade, últimos depósitos, gráfico por mês
+- [x] Mudar a meta com antes/depois sem perder depósitos; card resumo no Financeiro
+- [ ] Criar a primeira meta real com o login de admin — não consigo entrar como admin daqui (conferi com dados de exemplo)
