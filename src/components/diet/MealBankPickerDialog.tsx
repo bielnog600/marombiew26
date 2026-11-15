@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import type { FoodIndex } from '@/lib/nutritionEngine';
 import {
   MEAL_SLOT_LABEL,
-  bankMealToOption,
+  fitBankMeal,
   eligibleBankMeals,
   normText,
   sumOptionItems,
@@ -24,12 +24,14 @@ interface Props {
   ctx: StudentMealContext;
   slots: MealSlot[];
   targetKcal: number;
+  /** Macros da Opção 1: com eles, a lista mostra o que fica fora da faixa. */
+  targetMacros?: { kcal: number; p: number; c: number; g: number };
   excludeCodes?: string[];
   onSelect: (meal: BankMeal) => void;
 }
 
 /** "Trocar refeição": banco filtrado pelo horário, com kcal já escalada. */
-const MealBankPickerDialog: React.FC<Props> = ({ open, onOpenChange, bank, index, ctx, slots, targetKcal, excludeCodes = [], onSelect }) => {
+const MealBankPickerDialog: React.FC<Props> = ({ open, onOpenChange, bank, index, ctx, slots, targetKcal, targetMacros, excludeCodes = [], onSelect }) => {
   const [query, setQuery] = useState('');
   const [allSlots, setAllSlots] = useState(false);
 
@@ -41,11 +43,11 @@ const MealBankPickerDialog: React.FC<Props> = ({ open, onOpenChange, bank, index
       .filter((m) => (allSlots ? true : eligible.has(m.code)))
       .filter((m) => !q || normText(`${m.code} ${m.name} ${m.tags.join(' ')}`).includes(q))
       .map((m) => {
-        const opt = bankMealToOption(m, index, targetKcal);
-        return { meal: m, totals: sumOptionItems(opt.items), eligible: eligible.has(m.code), used: excludeCodes.includes(m.code) };
+        const fit = fitBankMeal(m, index, targetMacros ?? targetKcal, { slots, ctx });
+        return { meal: m, totals: sumOptionItems(fit.option.items), fits: fit.ok, eligible: eligible.has(m.code), used: excludeCodes.includes(m.code) };
       })
-      .sort((a, b) => Number(b.eligible) - Number(a.eligible) || a.meal.code.localeCompare(b.meal.code));
-  }, [bank, slots, ctx, index, query, allSlots, targetKcal, excludeCodes]);
+      .sort((a, b) => Number(b.eligible) - Number(a.eligible) || Number(b.fits) - Number(a.fits) || a.meal.code.localeCompare(b.meal.code));
+  }, [bank, slots, ctx, index, query, allSlots, targetKcal, targetMacros, excludeCodes]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
