@@ -694,7 +694,19 @@ export interface RankInput {
   /** Refeições do banco usadas neste mesmo horário no dia anterior. */
   usedPrevDaySameMeal?: Set<string>;
   targetKcal: number;
+  /** Desempate determinístico (ex.: plano + dia + refeição); sem semente, desempata pelo código. */
+  seed?: string;
 }
+
+/** Hash FNV-1a de 32 bits: mesmo texto → mesmo número (sem aleatório). */
+export const seededHash = (text: string): number => {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < text.length; i++) {
+    h ^= text.charCodeAt(i);
+    h = Math.imul(h, 0x01000193) >>> 0;
+  }
+  return h >>> 0;
+};
 
 /** Ordena candidatos: ficha, horário principal, proteína diferente da opção 1, variedade. */
 export const rankBankMeals = (candidates: BankMeal[], input: RankInput, ctx: StudentMealContext, index: FoodIndex) =>
@@ -710,7 +722,10 @@ export const rankBankMeals = (candidates: BankMeal[], input: RankInput, ctx: Stu
       if (input.usedOtherDays.has(m.code)) score -= 2;
       return { meal: m, protein, score };
     })
-    .sort((a, b) => b.score - a.score || a.meal.code.localeCompare(b.meal.code));
+    .sort((a, b) =>
+      b.score - a.score ||
+      (input.seed ? seededHash(`${input.seed}|${a.meal.code}`) - seededHash(`${input.seed}|${b.meal.code}`) : 0) ||
+      a.meal.code.localeCompare(b.meal.code));
 
 /** Escolhe até 2 refeições do banco (proteínas diferentes entre si quando possível). */
 export const pickTwoBankMeals = <T extends { protein: string | null }>(ranked: T[]): T[] => {
@@ -720,7 +735,8 @@ export const pickTwoBankMeals = <T extends { protein: string | null }>(ranked: T
   return second ? [first, second] : [first];
 };
 
-const mealMacros = (meal: any): MacroTarget => {
+/** Kcal e macros da Opção 1 (itens do plano; totais só quando não há itens). */
+export const mealTargetMacros = (meal: any): MacroTarget => {
   const fromItems = sumOptionItems(meal?.items ?? []);
   if (fromItems.kcal > 0) return fromItems;
   const t = meal?.totals ?? {};
@@ -760,7 +776,7 @@ export const generatePlanMealOptions = (
     const meals = (day?.meals ?? []).map((meal: any, mealIndex: number) => {
       const slots = mealSlotsFor(meal?.name ?? '', meal?.time);
       const mealKey = `${slots[0] ?? ''}|${normText(meal?.name)}`;
-      const target = mealMacros(meal);
+      const target = mealTargetMacros(meal);
       const candidates = slots.length ? eligibleBankMeals(bank, slots, ctx, index) : [];
       const ranked = rankBankMeals(candidates, {
         slots,

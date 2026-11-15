@@ -96,7 +96,7 @@ const StudentDietOverridePanel: React.FC<Props> = ({ planId, studentId, children
   const active = keys.includes(groupKey) ? groupKey : keys[0];
   const g = active != null ? groups[active] : null;
 
-  // Opção escolhida pelo aluno em cada refeição/dia (Opção 1 = plano, não aparece).
+  // Opção escolhida pelo aluno em cada refeição/dia (Opção 1 = plano, não aparece; n = 2 = receita do dia).
   const optionChoices = Object.entries((((row?.edited_meta as any)?.__options) ?? {}) as Record<string, any>)
     .filter(([, v]) => Number(v?.n) > 0)
     .sort(([a], [b]) => a.localeCompare(b, undefined, { numeric: true }));
@@ -108,7 +108,8 @@ const StudentDietOverridePanel: React.FC<Props> = ({ planId, studentId, children
         return (
           <p key={k} className="text-muted-foreground">
             {v?.dia ?? WEEK[g] ?? `Dia ${g + 1}`} · {v?.refeicao ?? `Refeição ${m + 1}`}:{' '}
-            <strong className="text-foreground">Opção {Number(v.n) + 1}</strong>{v?.nome ? ` — ${v.nome}` : ''}
+            <strong className="text-foreground">{Number(v.n) === 2 ? 'Receita' : `Opção ${Number(v.n) + 1}`}</strong>{v?.nome ? ` — ${v.nome}` : ''}
+            {Number(v.n) === 2 && v?.data ? ` (só em ${String(v.data).split('-').reverse().join('/')})` : ''}
           </p>
         );
       })}

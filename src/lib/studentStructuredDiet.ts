@@ -6,6 +6,7 @@
 import type { ParsedFood, ParsedMeal } from '@/lib/dietResultParser';
 import { isStructuredCanonicalPlan } from '@/lib/dietStructuredGuards';
 import { dayCarbLevelLabel } from '@/lib/dietCarbCycle';
+import { planOptionName } from '../../supabase/functions/_shared/mealOptionsCore';
 
 export const STUDENT_WEEKDAY_KEYS = ['seg', 'ter', 'qua', 'qui', 'sex', 'sab', 'dom'] as const;
 export const STUDENT_WEEKDAY_LABELS = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
@@ -184,7 +185,7 @@ export const getStructuredDayDisplay = (
   return buildStructuredDisplayGroups(plan, protocols).find((d) => d.weekday === key) ?? null;
 };
 
-/* ───────────────── Opções por refeição (Opção 1 = plano, 2/3 = banco) ───────────────── */
+/* ───────────── Opções por refeição (Opção 1 = plano, Opção 2 = banco, Receitas) ───────────── */
 
 export interface StudentMealOption {
   name: string;
@@ -195,100 +196,139 @@ export interface StudentMealOption {
   kcal: number;
 }
 
+/** Item de opção salvo (foodId/nome/gramas/macros), como no conteudo_json. */
+export interface StudentOptionItem {
+  foodId: string | null;
+  name: string;
+  qtyGrams: number;
+  macros: { kcal: number; p: number; c: number; g: number };
+}
+
 const sumFoodsKcal = (foods: ParsedFood[]): number =>
   foods.reduce((acc, f) => acc + num(String(f?.kcal ?? '').replace(',', '.')), 0);
 
 const sameMealName = (a: unknown, b: unknown) => strip(a).replace(/[^a-z0-9]+/g, '') === strip(b).replace(/[^a-z0-9]+/g, '');
 
 /** Dia canônico de um weekday; dieta com um único dia ("Padrão") vale para todos. */
-const canonicalDayFor = (plan: any, weekdayIndex: number) => {
+export const canonicalDayFor = (plan: any, weekdayIndex: number) => {
   const days = Array.isArray(plan?.days) ? plan.days : [];
   const key = STUDENT_WEEKDAY_KEYS[weekdayIndex];
   return (key ? getStructuredDietDay(plan, key) : null) ?? (days.length === 1 ? days[0] : null);
 };
 
+/** Refeição canônica de cada refeição exibida (mesmo índice e nome; senão pelo nome). */
+export const matchCanonicalMeals = (
+  plan: any,
+  weekdayIndex: number,
+  meals: Array<Pick<ParsedMeal, 'name'>>,
+): Array<{ meal: any; index: number } | null> => {
+  const day = canonicalDayFor(plan, weekdayIndex);
+  const canonicalMeals: any[] = Array.isArray(day?.meals) ? day.meals : [];
+  return meals.map((meal, i) => {
+    const byIndex = canonicalMeals[i];
+    if (byIndex && sameMealName(byIndex?.name, meal.name)) return { meal: byIndex, index: i };
+    const j = canonicalMeals.findIndex((m) => sameMealName(m?.name, meal.name));
+    return j >= 0 ? { meal: canonicalMeals[j], index: j } : null;
+  });
+};
+
+const savedBankOptions = (cm: any): any[] =>
+  (Array.isArray(cm?.options) ? cm.options : []).filter(
+    (o: any) => o?.source === 'bank' && Array.isArray(o?.items) && o.items.length > 0,
+  );
+
+/** Opção do banco (itens salvos ou calculados) → opção exibida ao aluno. */
+export const bankOptionToStudent = (o: { name?: string; bankCode?: string; prep?: string | null; items?: StudentOptionItem[] }): StudentMealOption => {
+  const foods = (o.items ?? []).map((it: any) => canonicalItemToStudentFood({ ...it, portionLabel: undefined }));
+  return {
+    name: String(o?.name ?? ''),
+    source: 'bank',
+    ...(o?.bankCode ? { bankCode: String(o.bankCode) } : {}),
+    prep: o?.prep ? String(o.prep) : null,
+    foods,
+    kcal: sumFoodsKcal(foods),
+  };
+};
+
 /**
- * Opções de cada refeição exibida no dia. A Opção 1 usa os alimentos já
- * exibidos (o plano publicado); as opções 2/3 vêm de `meal.options` do
- * conteudo_json. Refeições sem par seguro (nome diferente) ficam com 1 opção.
+ * Opções de cada refeição exibida no dia: Opção 1 = alimentos já exibidos (o
+ * plano publicado); Opção 2 = a primeira salva pelo admin em `meal.options` ou,
+ * sem opções salvas, a calculada no app (`auto`, por índice da refeição
+ * canônica). Refeições sem par seguro (nome diferente) ficam `null`.
  */
 export const studentMealOptionsForDay = (
   plan: any,
   weekdayIndex: number,
   meals: Array<Pick<ParsedMeal, 'name' | 'foods'>>,
+  auto?: Array<{ name?: string; bankCode?: string; prep?: string | null; items?: StudentOptionItem[] } | null> | null,
 ): Array<StudentMealOption[] | null> => {
-  const day = canonicalDayFor(plan, weekdayIndex);
-  const canonicalMeals: any[] = Array.isArray(day?.meals) ? day.meals : [];
+  const matched = matchCanonicalMeals(plan, weekdayIndex, meals);
   return meals.map((meal, i) => {
-    const byIndex = canonicalMeals[i];
-    const cm = byIndex && sameMealName(byIndex?.name, meal.name)
-      ? byIndex
-      : canonicalMeals.find((m) => sameMealName(m?.name, meal.name));
+    const m = matched[i];
+    if (!m) return null;
+    const cm = m.meal;
     const options: any[] = Array.isArray(cm?.options) ? cm.options : [];
-    const bank = options.filter((o) => o?.source === 'bank' && Array.isArray(o?.items) && o.items.length > 0).slice(0, 2);
-    if (bank.length === 0) return null;
+    const second = savedBankOptions(cm)[0] ?? auto?.[m.index] ?? null;
     const plan0 = options.find((o) => o?.source === 'plan');
     const first: StudentMealOption = {
-      name: String(plan0?.name ?? meal.name),
+      name: String(plan0?.name ?? (planOptionName(cm?.items ?? []) || meal.name)),
       source: 'plan',
       prep: plan0?.prep ?? null,
       foods: meal.foods ?? [],
       kcal: sumFoodsKcal(meal.foods ?? []),
     };
-    return [
-      first,
-      ...bank.map((o) => {
-        const foods = (o.items ?? []).map((it: any) => canonicalItemToStudentFood({ ...it, portionLabel: undefined }));
-        return {
-          name: String(o?.name ?? ''),
-          source: 'bank' as const,
-          ...(o?.bankCode ? { bankCode: String(o.bankCode) } : {}),
-          prep: o?.prep ? String(o.prep) : null,
-          foods,
-          kcal: sumFoodsKcal(foods),
-        };
-      }),
-    ];
+    return second && (second.items?.length ?? 0) > 0 ? [first, bankOptionToStudent(second)] : [first];
   });
+};
+
+/** Antiga Opção 3 salva pelo admin (vira uma receita quando o aluno já a tinha escolhido). */
+export const savedThirdOption = (cm: any): StudentMealOption | null => {
+  const third = savedBankOptions(cm)[1];
+  return third ? bankOptionToStudent(third) : null;
 };
 
 export type MealWithOptions<M> = M & {
   options?: StudentMealOption[];
+  /** 0 = Opção 1, 1 = Opção 2, -1 = receita escolhida. */
   selectedOption?: number;
+  /** Receita escolhida para o dia (cartão "Receitas"). */
+  recipe?: StudentMealOption | null;
   prep?: string | null;
 };
 
-/** Aplica a opção escolhida (por refeição) trocando os alimentos padrão. */
+/** Escolha de uma refeição: índice da opção ou a receita do dia. */
+export type StudentMealChoice = number | StudentMealOption | null | undefined;
+
+const withFoods = <M extends { foods: ParsedFood[] }>(meal: M, opt: StudentMealOption) => {
+  const t = opt.foods.reduce(
+    (acc, f) => ({ kcal: acc.kcal + num(f.kcal), p: acc.p + num(f.p), c: acc.c + num(f.c), g: acc.g + num(f.g) }),
+    { kcal: 0, p: 0, c: 0, g: 0 },
+  );
+  return {
+    ...meal,
+    foods: opt.foods.map((f) => ({ ...f })),
+    totalKcal: fmt(t.kcal),
+    totalP: fmt(t.p),
+    totalC: fmt(t.c),
+    totalG: fmt(t.g),
+  };
+};
+
+/** Aplica a escolha (por refeição) trocando os alimentos padrão. A meta do dia continua pela Opção 1. */
 export const applyStudentMealOptions = <M extends { foods: ParsedFood[]; totalKcal?: string; totalP?: string; totalC?: string; totalG?: string }>(
   meals: M[],
   optionsByMeal: Array<StudentMealOption[] | null>,
-  choiceFor: (mealIndex: number) => number,
+  choiceFor: (mealIndex: number) => StudentMealChoice,
 ): Array<MealWithOptions<M>> =>
   meals.map((meal, i) => {
     const options = optionsByMeal[i];
-    if (!options || options.length < 2) return meal;
+    if (!options || options.length === 0) return meal;
     const raw = choiceFor(i);
-    const selected = Number.isInteger(raw) && raw >= 0 && raw < options.length ? raw : 0;
+    if (raw && typeof raw === 'object') {
+      return { ...withFoods(meal, raw), options, selectedOption: -1, recipe: raw, prep: raw.prep ?? null };
+    }
+    const selected = Number.isInteger(raw) && (raw as number) >= 0 && (raw as number) < options.length ? (raw as number) : 0;
     const opt = options[selected];
-    if (selected === 0) return { ...meal, options, selectedOption: 0, prep: opt.prep ?? null };
-    const t = opt.foods.reduce(
-      (acc, f) => ({
-        kcal: acc.kcal + num(f.kcal),
-        p: acc.p + num(f.p),
-        c: acc.c + num(f.c),
-        g: acc.g + num(f.g),
-      }),
-      { kcal: 0, p: 0, c: 0, g: 0 },
-    );
-    return {
-      ...meal,
-      foods: opt.foods.map((f) => ({ ...f })),
-      totalKcal: fmt(t.kcal),
-      totalP: fmt(t.p),
-      totalC: fmt(t.c),
-      totalG: fmt(t.g),
-      options,
-      selectedOption: selected,
-      prep: opt.prep ?? null,
-    };
+    if (selected === 0) return { ...meal, options, selectedOption: 0, recipe: null, prep: opt.prep ?? null };
+    return { ...withFoods(meal, opt), options, selectedOption: selected, recipe: null, prep: opt.prep ?? null };
   });

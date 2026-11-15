@@ -344,3 +344,10 @@ Fora do escopo desta entrega (Fases 3-6): LOW/MEDIUM/HIGH, novo carb cycling, aj
 ## Scanner único
 - [x] Tela única "Escanear" com modos, código ao vivo, produto/alimento novo da IA, auto-adicionar, Nutri-Score por categoria, lista e admin.
 - [ ] Testar no celular com produtos, balança e pratos reais — nenhuma chamada real à IA ou ao Open Food Facts foi feita.
+
+## Dieta do aluno — Opção 1 | Opção 2 | Receitas
+- [x] Cartões Opção 1, Opção 2 e Receitas ("N que batem"); a antiga Opção 3 vira uma das receitas
+- [x] Folha de Receitas: meta da refeição, filtros (sem ovo, sem lactose, doce, salgado, prático, país), gramas ajustadas, selo "Bate com a refeição", detalhe com comparação e "Substituir … de hoje"
+- [x] Opção 2 calculada no app para dietas sem opções salvas (sempre a mesma por plano/dia/refeição); funciona em todas as dietas publicadas sem regenerar
+- [x] Conferido com as dietas reais da Gisele (sem opções) e do Fabiew (com opções), sem gravar nada
+- [ ] Conferir no celular com o login real de uma aluna — não consigo entrar como aluno daqui
