@@ -33,7 +33,7 @@ const CardioDoDiaCard: React.FC<CardioDoDiaCardProps> = ({ conteudo, planId = nu
       onClick={open}
       onKeyDown={(e) => { if (e.key === 'Enter') open(); }}
     >
-      <div className="relative h-40 overflow-hidden">
+      <div className="hero-card-media h-40">
         <img
           src={cardioHero}
           alt="Cardio"
@@ -41,9 +41,9 @@ const CardioDoDiaCard: React.FC<CardioDoDiaCardProps> = ({ conteudo, planId = nu
           height={512}
           loading="eager"
           decoding="async"
-          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+          className="hero-card-img"
         />
-        <div className="absolute inset-0 bg-gradient-to-t from-card via-card/70 to-transparent" />
+        <div className="hero-card-gradient absolute inset-0 bg-gradient-to-t from-card via-card/70 to-transparent" />
         <div className="absolute bottom-0 left-0 right-0 p-4 flex items-end gap-3">
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-1.5 mb-1 flex-wrap">
