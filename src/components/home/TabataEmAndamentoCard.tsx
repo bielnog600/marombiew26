@@ -48,9 +48,9 @@ const TabataEmAndamentoCard: React.FC<Props> = ({ snapshot, onDiscard }) => {
 
   return (
     <Card className="glass-card-solid overflow-hidden ring-2 ring-primary/60 shadow-lg shadow-primary/10" data-testid="home-active-tabata">
-      <div className="relative h-40 overflow-hidden">
-        <img src={heroImage || workoutHero} alt="TABATA em andamento" className="w-full h-full object-cover" />
-        <div className="absolute inset-0 bg-gradient-to-t from-card via-card/60 to-transparent" />
+      <div className="hero-card-media h-40">
+        <img src={heroImage || workoutHero} alt="TABATA em andamento" className="hero-card-img" />
+        <div className="hero-card-gradient absolute inset-0 bg-gradient-to-t from-card via-card/60 to-transparent" />
         <div className="absolute top-3 left-3 flex items-center gap-1.5 bg-primary/90 backdrop-blur rounded-full px-2.5 py-1">
           <span className="h-1.5 w-1.5 rounded-full bg-primary-foreground animate-pulse" />
           <span className="text-[10px] font-bold uppercase tracking-wider text-primary-foreground">Em andamento</span>
