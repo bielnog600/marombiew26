@@ -80,15 +80,15 @@ export type BarLevel = 'low' | 'mid' | 'high';
 export interface IntensityBar { seconds: number; level: BarLevel; tone: PhaseTone; peak: boolean }
 
 /** Uma barra por etapa: aquecimento/desaceleração azul baixa, pico laranja alta, recuperação verde média. */
-export function intensityBars(p: CardioProtocol): IntensityBar[] {
-  return p.blocks.map(b => {
-    const seconds = Math.max(1, Math.round(Number(b.durationSec) || 0));
-    if (isWarmCool(b)) return { seconds, level: 'low', tone: 'warmup', peak: false };
-    if (isPeak(b)) return { seconds, level: 'high', tone: 'forte', peak: true };
-    if (b.type === 'recuperacao' || b.intensityLabel === 'leve') return { seconds, level: 'mid', tone: 'rest', peak: false };
-    return { seconds, level: 'mid', tone: 'moderado', peak: false };
-  });
+export function blockBar(b: CardioBlock): IntensityBar {
+  const seconds = Math.max(1, Math.round(Number(b.durationSec) || 0));
+  if (isWarmCool(b)) return { seconds, level: 'low', tone: 'warmup', peak: false };
+  if (isPeak(b)) return { seconds, level: 'high', tone: 'forte', peak: true };
+  if (b.type === 'recuperacao' || b.intensityLabel === 'leve') return { seconds, level: 'mid', tone: 'rest', peak: false };
+  return { seconds, level: 'mid', tone: 'moderado', peak: false };
 }
+
+export const intensityBars = (p: CardioProtocol): IntensityBar[] => p.blocks.map(blockBar);
 
 // ───────────── Boxes PICO / RECUP. ─────────────
 

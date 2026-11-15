@@ -7,10 +7,9 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useCardioChoice } from '@/hooks/useCardioChoice';
 import { MODALITY_LABEL, totalCardioDurationSec, type CardioBlock, type CardioProtocol } from '@/lib/cardioParser';
 import { mmss } from '@/lib/cardioIntervals';
-import { blockTone } from '@/lib/cardioPlayerView';
 import { toneColor } from '@/lib/tabataPlayerView';
 import {
-  WEEK_LETTERS, cardioChips, cardioHeadline, cardioSubtitle, cardioWeek, doneBadge, doneFooter, groupCardioSteps,
+  WEEK_LETTERS, blockBar, cardioChips, cardioHeadline, cardioSubtitle, cardioWeek, doneBadge, doneFooter, groupCardioSteps,
   groupParams, intensityBars, isPeak, optionStatuses, paramBoxes, shortCardioTitle, stepsLegend, suggestedOption,
   type OptionStatus,
 } from '@/lib/cardioChooser';
@@ -19,7 +18,7 @@ import { CardioScreen, IntensityBars, ModalityIcon } from '@/components/cardio/c
 type NavState = { conteudo?: string | null; planId?: string | null; selected?: number } | null;
 
 const BackButton: React.FC<{ onClick: () => void }> = ({ onClick }) => (
-  <Button variant="ghost" size="icon" aria-label="Voltar" onClick={onClick} className="h-10 w-10 rounded-full hover:bg-tabata-panel shrink-0">
+  <Button variant="ghost" size="icon" aria-label="Voltar" data-testid="cardio-back" onClick={onClick} className="h-10 w-10 rounded-full hover:bg-tabata-panel shrink-0">
     <ChevronLeft className="h-6 w-6" />
   </Button>
 );
@@ -204,7 +203,7 @@ const StepRow: React.FC<{ block: CardioBlock; modality: CardioProtocol['modality
   const params = groupParams([{ ...block, bikePosition: tag ? undefined : block.bikePosition }], modality);
   return (
     <div className="flex items-center gap-3 py-2">
-      <span className="h-8 w-1.5 rounded-full shrink-0" style={{ background: toneColor(blockTone(block)) }} />
+      <span className="h-8 w-1.5 rounded-full shrink-0" style={{ background: toneColor(blockBar(block).tone) }} />
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-1.5 min-w-0">
           <p className="text-sm font-bold truncate">{block.name}</p>
