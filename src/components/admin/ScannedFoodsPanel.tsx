@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { Search, Plus, EyeOff, AlertTriangle } from 'lucide-react';
+import { Search, Plus, EyeOff, AlertTriangle, Check, Pencil, Sparkles, Undo2 } from 'lucide-react';
 const FoodScanner = lazyWithRetry(() => import('@/components/diet/FoodScanner'));
 import type { ScanRecord } from '@/components/diet/FoodScanResult';
 import { toast } from 'sonner';
@@ -34,8 +34,8 @@ const ScanPhotos: React.FC<{ paths: string[] }> = ({ paths }) => {
   );
 };
 import {
-  groupScans, mapGroupToFood, productKey, findDuplicates,
-  type ProductGroup, type ReviewStatus, type FoodDraft, type ExistingFood, type ScanRow,
+  groupScans, mapGroupToFood, productKey, findDuplicates, reviewFilterOf, isAiReferenceGroup,
+  type ProductGroup, type ReviewStatus, type ReviewFilter, type FoodDraft, type ExistingFood, type ScanRow,
 } from '@/lib/foodScanReview';
 
 const scoreClass = (s: number | null) =>
@@ -69,7 +69,7 @@ export function useScannedFoodsData() {
 export function usePendingScanCount(): number {
   const { data } = useScannedFoodsData();
   if (!data) return 0;
-  return data.groups.filter((g) => (data.reviews.get(g.key)?.status ?? 'pendente') === 'pendente').length;
+  return data.groups.filter((g) => reviewFilterOf(data.reviews.get(g.key)) === 'pendente').length;
 }
 
 interface ScannedFoodsPanelProps {
@@ -80,7 +80,7 @@ interface ScannedFoodsPanelProps {
 const ScannedFoodsPanel: React.FC<ScannedFoodsPanelProps> = ({ scannerOpen, onScannerOpenChange }) => {
   const qc = useQueryClient();
   const { user } = useAuth() as any;
-  const [filter, setFilter] = useState<ReviewStatus>('pendente');
+  const [filter, setFilter] = useState<ReviewFilter>('pendente');
   const [search, setSearch] = useState('');
   const [editing, setEditing] = useState<{ group: ProductGroup; draft: FoodDraft } | null>(null);
   const [saving, setSaving] = useState(false);
@@ -101,13 +101,13 @@ const ScannedFoodsPanel: React.FC<ScannedFoodsPanelProps> = ({ scannerOpen, onSc
   const list = useMemo(() => {
     if (!data) return [];
     const q = search.trim().toLowerCase();
-    return data.groups.filter((g) => statusOf(g.key) === filter && (!q || `${g.name} ${g.brand ?? ''}`.toLowerCase().includes(q)));
+    return data.groups.filter((g) => reviewFilterOf(data.reviews.get(g.key)) === filter && (!q || `${g.name} ${g.brand ?? ''}`.toLowerCase().includes(q)));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data, filter, search]);
 
   const counts = useMemo(() => {
-    const c = { pendente: 0, adicionado: 0, ignorado: 0 } as Record<ReviewStatus, number>;
-    data?.groups.forEach((g) => c[statusOf(g.key)]++);
+    const c = { pendente: 0, adicionado: 0, auto: 0, ignorado: 0 } as Record<ReviewFilter, number>;
+    data?.groups.forEach((g) => c[reviewFilterOf(data.reviews.get(g.key))]++);
     return c;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data]);
@@ -115,15 +115,44 @@ const ScannedFoodsPanel: React.FC<ScannedFoodsPanelProps> = ({ scannerOpen, onSc
   const saveReview = async (g: ProductGroup, status: ReviewStatus, foodId: string | null) => {
     const { error } = await supabase.from('food_scan_reviews').upsert({
       product_key: g.key, barcode: g.barcode, status, reviewed_by: user?.id ?? null,
-      reviewed_at: new Date().toISOString(), food_id: foodId,
+      reviewed_at: new Date().toISOString(), food_id: foodId, auto: false,
     });
     if (error) throw error;
     qc.invalidateQueries({ queryKey: SCANNED_FOODS_KEY });
   };
 
+  /** Alimento criado pela IA ou adicionado sozinho: sai do banco (os itens já registrados guardam os próprios macros). */
+  const removeFood = async (foodId: string | null | undefined) => {
+    if (!foodId) return;
+    const { error } = await supabase.from('foods').delete().eq('id', foodId);
+    if (error) throw error;
+    qc.invalidateQueries({ queryKey: ['foods'] });
+  };
+  const aiFoodId = (g: ProductGroup) => (isAiReferenceGroup(g) ? data?.reviews.get(g.key)?.food_id ?? null : null);
+
   const ignore = async (g: ProductGroup) => {
-    try { await saveReview(g, 'ignorado', null); toast.success('Produto ignorado'); }
+    try {
+      // Ignorar um alimento criado pela IA também o tira do banco.
+      await removeFood(aiFoodId(g)).catch(() => undefined);
+      await saveReview(g, 'ignorado', null);
+      toast.success(isAiReferenceGroup(g) ? 'Alimento ignorado e retirado do banco' : 'Produto ignorado');
+    }
     catch (e: any) { toast.error(e.message ?? 'Erro ao ignorar'); }
+  };
+
+  /** Alimento criado pela IA: aprovar como está. */
+  const approve = async (g: ProductGroup) => {
+    try { await saveReview(g, 'adicionado', aiFoodId(g)); toast.success('Alimento aprovado'); }
+    catch (e: any) { toast.error(e.message ?? 'Erro ao aprovar'); }
+  };
+
+  /** Desfazer um produto adicionado automaticamente: sai do banco e volta para pendentes. */
+  const undoAuto = async (g: ProductGroup) => {
+    try {
+      await removeFood(data?.reviews.get(g.key)?.food_id);
+      await saveReview(g, 'pendente', null);
+      toast.success('Desfeito — o produto voltou para pendentes');
+    } catch (e: any) { toast.error(e.message ?? 'Não foi possível desfazer'); }
   };
 
   const restore = async (g: ProductGroup) => {
@@ -140,11 +169,18 @@ const ScannedFoodsPanel: React.FC<ScannedFoodsPanelProps> = ({ scannerOpen, onSc
     setEditing(null);
   };
 
-  const duplicates = editing && data ? findDuplicates(editing.draft, data.foods) : [];
+  const editingAiFood = editing ? aiFoodId(editing.group) : null;
+  const duplicates = editing && data ? findDuplicates(editing.draft, data.foods.filter((f) => f.id !== editingAiFood)) : [];
 
+  /** "Usar este" / mesclar: o alimento criado pela IA sai e o existente passa a valer. */
   const linkExisting = async (foodId: string) => {
     if (!editing) return;
-    try { await saveReview(editing.group, 'adicionado', foodId); toast.success('Marcado como já cadastrado'); setEditing(null); }
+    try {
+      await removeFood(editingAiFood).catch(() => undefined);
+      await saveReview(editing.group, 'adicionado', foodId);
+      toast.success(editingAiFood ? 'Mesclado com o alimento existente' : 'Marcado como já cadastrado');
+      setEditing(null);
+    }
     catch (e: any) { toast.error(e.message ?? 'Erro'); }
   };
 
@@ -155,6 +191,19 @@ const ScannedFoodsPanel: React.FC<ScannedFoodsPanelProps> = ({ scannerOpen, onSc
     if (!(d.portion_size > 0)) return toast.error('Informe o tamanho da porção');
     setSaving(true);
     try {
+      if (editingAiFood) {
+        // Alimento criado pela IA: edita o próprio registro (o aluno já está usando).
+        const { error: upErr } = await supabase.from('foods').update({
+          name: d.name.trim(), portion: d.portion.trim() || 'gramas', portion_size: d.portion_size,
+          calories: d.calories, protein: d.protein, carbs: d.carbs, fats: d.fats,
+        }).eq('id', editingAiFood);
+        if (upErr) throw upErr;
+        await saveReview(editing.group, 'adicionado', editingAiFood);
+        qc.invalidateQueries({ queryKey: ['foods'] });
+        toast.success('Alimento revisado');
+        setEditing(null);
+        return;
+      }
       const { data: ins, error } = await supabase.from('foods').insert({
         ...d, name: d.name.trim(), portion: d.portion.trim() || 'gramas',
         brand: d.brand?.trim() || null, barcode: d.barcode?.trim() || null,
@@ -182,9 +231,9 @@ const ScannedFoodsPanel: React.FC<ScannedFoodsPanelProps> = ({ scannerOpen, onSc
     <>
       <div className="space-y-4">
         <div className="flex flex-wrap gap-2">
-          {(['pendente', 'adicionado', 'ignorado'] as ReviewStatus[]).map((s) => (
+          {(['pendente', 'adicionado', 'auto', 'ignorado'] as ReviewFilter[]).map((s) => (
             <Button key={s} size="sm" variant={filter === s ? 'default' : 'outline'} onClick={() => setFilter(s)}>
-              {s === 'pendente' ? 'Pendentes' : s === 'adicionado' ? 'Adicionados' : 'Ignorados'} ({counts[s]})
+              {s === 'pendente' ? 'Pendentes' : s === 'adicionado' ? 'Adicionados' : s === 'auto' ? 'Adicionados automaticamente' : 'Ignorados'} ({counts[s]})
             </Button>
           ))}
         </div>
@@ -220,15 +269,24 @@ const ScannedFoodsPanel: React.FC<ScannedFoodsPanelProps> = ({ scannerOpen, onSc
                   <p className="text-xs text-muted-foreground">
                     {g.count}× por {g.alunoIds.map((id) => data?.names.get(id) ?? 'Aluno').join(', ')} · último em {new Date(g.lastScanAt).toLocaleDateString('pt-BR')}
                   </p>
-                  {g.source && <Badge variant="outline" className="text-[10px]">Origem: {PRODUCT_SOURCE_LABEL[g.source] ?? g.source}</Badge>}
+                  {isAiReferenceGroup(g) ? (
+                    <Badge variant="outline" className="text-[10px] border-primary text-primary gap-1"><Sparkles className="h-3 w-3" />Criado pela IA{g.referenceTable ? ` · ${g.referenceTable}` : ''} · sem nota</Badge>
+                  ) : g.source && <Badge variant="outline" className="text-[10px]">Origem: {PRODUCT_SOURCE_LABEL[g.source] ?? g.source}</Badge>}
+                  {rev?.auto && <Badge variant="outline" className="text-[10px] ml-1">Adicionado pelo sistema</Badge>}
                   <ScanPhotos paths={g.photoPaths} />
                   {rev?.reviewed_at && <p className="text-xs text-muted-foreground">Revisado em {new Date(rev.reviewed_at).toLocaleDateString('pt-BR')}</p>}
                   <div className="flex flex-wrap gap-2 pt-1">
-                    {filter === 'pendente' && <>
+                    {filter === 'pendente' && isAiReferenceGroup(g) && <>
+                      <Button size="sm" onClick={() => approve(g)}><Check className="h-4 w-4 mr-1" />Aprovar</Button>
+                      <Button size="sm" variant="outline" onClick={() => setEditing({ group: g, draft: mapGroupToFood(g) })}><Pencil className="h-4 w-4 mr-1" />Editar ou mesclar</Button>
+                      <Button size="sm" variant="outline" onClick={() => ignore(g)}><EyeOff className="h-4 w-4 mr-1" />Ignorar</Button>
+                    </>}
+                    {filter === 'pendente' && !isAiReferenceGroup(g) && <>
                       <Button size="sm" onClick={() => setEditing({ group: g, draft: mapGroupToFood(g) })}><Plus className="h-4 w-4 mr-1" />Adicionar ao banco de alimentos</Button>
                       <Button size="sm" variant="outline" onClick={() => ignore(g)}><EyeOff className="h-4 w-4 mr-1" />Ignorar</Button>
                     </>}
-                    {filter !== 'pendente' && <Button size="sm" variant="outline" onClick={() => restore(g)}>Voltar para pendentes</Button>}
+                    {filter === 'auto' && <Button size="sm" variant="outline" onClick={() => undoAuto(g)}><Undo2 className="h-4 w-4 mr-1" />Desfazer</Button>}
+                    {filter !== 'pendente' && filter !== 'auto' && <Button size="sm" variant="outline" onClick={() => restore(g)}>Voltar para pendentes</Button>}
                   </div>
                 </div>
               </CardContent>
@@ -280,7 +338,7 @@ const ScannedFoodsPanel: React.FC<ScannedFoodsPanelProps> = ({ scannerOpen, onSc
               {numField('carbs', 'Carboidratos (g)')}
               {numField('fats', 'Gorduras (g)')}
             </div>
-            <p className="text-xs text-muted-foreground">Fibras, sal e nota não existem no banco de alimentos e não são salvos.</p>
+            <p className="text-xs text-muted-foreground">{editingAiFood ? 'Alimento criado pela IA com valores de tabela de referência; salvar aprova com as suas correções.' : 'Sal e nota não existem no banco de alimentos e não são salvos.'}</p>
             <Badge variant="outline">Origem: {editing.draft.source}</Badge>
           </div>}
           <DialogFooter className="gap-2">
