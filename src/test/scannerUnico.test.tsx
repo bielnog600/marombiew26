@@ -155,8 +155,8 @@ describe('Scanner único — tela', () => {
     expect(mock.invoke.mock.calls.filter(([, o]: any) => o.body.action === 'scan_auto')).toHaveLength(1);
     await screen.findByTestId('meal-weigh-plate-review');
     fireEvent.click(await screen.findByRole('button', { name: /Confirmar prato/ }));
-    await answerScanApply();
-    try { await screen.findByTestId('meal-weigh-summary'); } catch (e) { screen.debug(undefined, 30000); throw e; }
+    await answerScanApply(/Substituir/);
+    await screen.findByTestId('meal-weigh-summary');
     expect(within(screen.getByTestId('scan-item-row')).getByTestId('scan-item-chips')).toHaveTextContent('novo · criado pela IA');
     expect(within(screen.getByTestId('scan-item-row')).getByTestId('scan-score')).toHaveTextContent('—');
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Salvar' })); });
