@@ -108,9 +108,8 @@ describe('Pesar refeição — Adicionar alimento numa refeição já pesada', (
     render(<MealWeighScreen meal={meal as any} studentId="aluno" logDate="2026-11-12" mealIndex={0} dietPlanId="plano"
       addToLog={savedLog as any} onClose={() => {}} onSaved={onSaved} />);
 
-    // Com três jeitos de pesar, "Adicionar alimento" abre a escolha mostrando os já registrados.
-    expect(await screen.findByTestId('meal-weigh-choose-saved')).toHaveTextContent('Já registrados: Iogurte natural 154 g · Whey protein 26 g');
-    fireEvent.click(screen.getByRole('button', { name: /Escanear prato/ }));
+    // Scanner único: os já registrados aparecem nos chips do topo; o chip Balança escaneia um por vez.
+    fireEvent.click(within(await screen.findByTestId('scan-mode-chips')).getByRole('button', { name: 'Balança' }));
     await screen.findByRole('button', { name: 'Tirar foto' });
     expect(screen.getByTestId('meal-weigh-weighed-chips')).toHaveAttribute('aria-label', 'Já pesados: Iogurte natural 154 g · Whey protein 26 g');
     expect(screen.getByText('Alimento 3')).toBeInTheDocument();

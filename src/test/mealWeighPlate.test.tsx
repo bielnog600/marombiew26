@@ -122,11 +122,10 @@ describe('Prato pronto — tela', () => {
   it('escolha mostra as 3 opções; a soma das gramas bate com o peso lido e salva tudo como estimado', async () => {
     mock.invoke.mockResolvedValueOnce({ data: { result: plateAi({ peso_total_lido: 330, prato_tarado: true }) }, error: null });
     render(<MealWeighScreen meal={meal as any} studentId="aluno" logDate="2026-11-12" mealIndex={1} dietPlanId="plano" onClose={() => {}} />);
-    const choice = await screen.findByTestId('meal-weigh-mode-choice');
+    const choice = await screen.findByTestId('scan-mode-chips');
     const options = within(choice).getAllByRole('button');
-    expect(options).toHaveLength(3);
-    ['Pesar alimentos da dieta', 'Escanear prato', 'Prato pronto'].forEach((name, i) => expect(options[i]).toHaveTextContent(name));
-    fireEvent.click(within(choice).getByRole('button', { name: /Prato pronto/ }));
+    expect(options.map((o) => o.textContent)).toEqual(['Automático', 'Código / rótulo', 'Balança', 'Prato pronto']);
+    fireEvent.click(within(choice).getByRole('button', { name: 'Prato pronto' }));
     expect(await screen.findByTestId('meal-weigh-hint')).toHaveTextContent('Foto de cima, com o prato inteiro. Um garfo ou a mão perto ajuda a IA a medir.');
 
     await takePhoto();
@@ -190,7 +189,7 @@ describe('Prato pronto — tela', () => {
     const log = { id: 'log-old', log_date: '2026-11-12', meal_index: 1, created_at: 'antes', planned: { nome: 'Almoço', alimentos: PLAN.alimentos },
       items: [oldItem], unweighed: [{ ...PLAN.alimentos[1], indice_plano: 1, escolha: 'comeu_sem_pesar' }] };
     render(<MealWeighScreen meal={meal as any} studentId="aluno" logDate="2026-11-12" mealIndex={1} dietPlanId="plano" addToLog={log as any} onClose={() => {}} />);
-    fireEvent.click(within(await screen.findByTestId('meal-weigh-mode-choice')).getByRole('button', { name: /Prato pronto/ }));
+    fireEvent.click(within(await screen.findByTestId('scan-mode-chips')).getByRole('button', { name: 'Prato pronto' }));
     await takePhoto();
     expect(mock.invoke.mock.lastCall?.[1].body.addedFoods).toEqual([{ alimento: 'Arroz branco cozido', gramas: 154 }]);
     fireEvent.click(await screen.findByRole('button', { name: /Confirmar prato/ }));
