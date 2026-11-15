@@ -542,6 +542,14 @@ export const fitBankItems = (
   const [fLo, fHi] = RECIPE_FACTOR_RANGE;
   const factor = Math.min(fHi, Math.max(fLo, target.kcal / base.kcal));
   rows.forEach((r) => { r.grams = snapPortion(r.base * factor, r.rule); });
+  const starch0 = starchGrams(rows);
+  if (starch0 > STARCH_MEAL_MAX) {
+    const k = STARCH_MEAL_MAX / starch0;
+    rows.forEach((r) => {
+      if (r.rule.kind !== 'carb') return;
+      r.grams = Math.max(r.rule.min, Math.floor((r.grams * k) / r.rule.step) * r.rule.step);
+    });
+  }
 
   // 1. Receita inteira, cada alimento entre 0,7× e 1,5× da receita.
   const recipeBounds = (r: FitRow): [number, number] => [
@@ -549,8 +557,12 @@ export const fitBankItems = (
     Math.min(r.rule.max, r.base * fHi),
   ];
   greedyFit(rows, index, target, recipeBounds);
+  // Carboidrato da receita só cresce (até o limite) — nunca abaixo de 0,7× da receita,
+  // senão um prato rico em carbo viraria low carb à força.
   const carbBounds = (r: FitRow): [number, number] | null =>
-    CARB_KINDS.includes(r.rule.kind) || r.side ? [r.rule.min, r.rule.max] : null;
+    r.side ? [r.rule.min, r.rule.max]
+      : CARB_KINDS.includes(r.rule.kind) ? [Math.max(r.rule.min, r.base * fLo), r.rule.max]
+        : null;
   const issues = () => optionFitIssues(macrosOf(rows, index), target);
 
   // 2. Só os carboidratos, até o limite de porção.
