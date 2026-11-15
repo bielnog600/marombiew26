@@ -163,6 +163,7 @@ export type GoalProgress = {
   outside: SavingsDeposit[];
   outsideSum: number;
   avgPerMonth: number;
+  planPerMonth: number;
   elapsedMonths: number;
   expected: number;
   expectedPct: number;
@@ -220,6 +221,7 @@ export function goalProgress(goal: Pick<SavingsGoal, 'meta_valor' | 'inicio' | '
     outside,
     outsideSum: outside.reduce((s, d) => s + d.valor, 0),
     avgPerMonth,
+    planPerMonth: total / periodMonths,
     elapsedMonths,
     expected,
     expectedPct: meta > 0 ? Math.min(100, (expected / meta) * 100) : 0,

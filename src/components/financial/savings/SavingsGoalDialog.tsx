@@ -220,7 +220,7 @@ const SavingsGoalDialog: React.FC<Props> = ({ open, onOpenChange, api, selectedI
                 <Stat label="Guardado" value={formatEuro(progress.saved)} sub={`${Math.round(progress.savedPct)}% da meta`} />
                 <Stat label="Falta" value={formatEuro(progress.remaining)} sub={`${progress.remainingCount} depósitos`} />
                 <Stat label="Depósitos feitos" value={`${progress.doneInGrid} de ${progress.n}`} sub={progress.outside.length ? `+${progress.outside.length} fora da grade` : undefined} />
-                <Stat label="Média por mês" value={formatEuro(progress.avgPerMonth)} sub={`plano ${formatEuro(progress.total / Math.max(1, bars.length && goal ? Math.max(1, savedByMonth(goal, []).length) : 1))}/mês`} />
+                <Stat label="Média por mês" value={formatEuro(progress.avgPerMonth)} sub={`plano ${formatEuro(progress.planPerMonth)}/mês`} />
               </div>
 
               <div className="space-y-1.5">
