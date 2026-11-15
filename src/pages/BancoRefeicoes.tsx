@@ -327,6 +327,7 @@ const BancoRefeicoes: React.FC = () => {
         onImported={() => {
           refresh();
           qc.invalidateQueries({ queryKey: ['canonical-editor-foods'] });
+          qc.invalidateQueries({ queryKey: ['foods'] });
         }}
       />
 
