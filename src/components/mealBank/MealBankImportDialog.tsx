@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { toast } from 'sonner';
 import { AlertTriangle, CheckCircle2, FileSpreadsheet, Link2, Loader2, Plus, Upload } from 'lucide-react';
 import type { FoodRecord } from '@/lib/nutritionEngine';
 import { MEAL_SLOT_LABEL, type BankMeal } from '@/lib/mealBank';
@@ -47,7 +48,7 @@ const STATUS_LABEL: Record<ImportStatus, string> = {
 };
 const STATUS_CLASS: Record<ImportStatus, string> = {
   nova: 'border-primary/60 text-primary',
-  atualizada: 'border-accent-foreground/40 text-foreground',
+  atualizada: 'border-foreground/40 text-foreground',
   sem_mudanca: 'text-muted-foreground',
   erro: 'border-destructive/60 text-destructive',
 };
@@ -213,7 +214,7 @@ const MealBankImportDialog: React.FC<Props> = ({ open, onOpenChange, bank, foods
     if (error) {
       console.error('[MealBankImport] importar', error);
       setResult(null);
-      import('sonner').then(({ toast }) => toast.error('Não deu para importar. Nada foi gravado — tenta de novo.'));
+      toast.error('Não deu para importar. Nada foi gravado — tenta de novo.');
       return;
     }
     const r = (data ?? {}) as { novas?: number; atualizadas?: number; alimentos_criados?: number; desativadas?: number };
