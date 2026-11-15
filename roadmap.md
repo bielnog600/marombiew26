@@ -1,5 +1,10 @@
 # Roadmap
 
+## Banco de refeições — importar/exportar planilha
+- [ ] Exportar .xlsx (Refeições, Ingredientes, Alimentos usados) com kcal/macros calculados.
+- [ ] Importar .xlsx/.csv com pré-visualização (novas/atualizadas/sem mudança/erros), ligar ou criar alimentos não encontrados, nomes ligados guardados, desativar ausentes opcional.
+- [ ] Testar: exportar, alterar 1, criar 1 com "Atum ao natural", importar e conferir.
+
 ## 3 opções por refeição + Banco de refeições
 - [x] Banco com as 93 refeições (alimentos ligados pelo nome exato) e página "Banco de refeições" do admin (filtros, editar, ativar/desativar, nova).
 - [x] "Gerar opções" no editor (e automático ao gerar a dieta), chips Opção 1|2|3, editar/substituir/remover/adicionar e "Trocar refeição"; publicação guarda as opções.

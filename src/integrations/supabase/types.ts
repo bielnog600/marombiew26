@@ -2466,6 +2466,35 @@ export type Database = {
         }
         Relationships: []
       }
+      food_aliases: {
+        Row: {
+          alias: string
+          created_at: string
+          food_id: string
+          id: string
+        }
+        Insert: {
+          alias: string
+          created_at?: string
+          food_id: string
+          id?: string
+        }
+        Update: {
+          alias?: string
+          created_at?: string
+          food_id?: string
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "food_aliases_food_id_fkey"
+            columns: ["food_id"]
+            isOneToOne: false
+            referencedRelation: "foods"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       food_scan_reviews: {
         Row: {
           auto: boolean

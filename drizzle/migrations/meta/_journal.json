@@ -330,6 +330,13 @@
       "when": 1794750598870,
       "tag": "0046_diet_override_option_switch_action",
       "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1794753962110,
+      "tag": "0047_food_aliases",
+      "breakpoints": true
     }
   ]
 }
