@@ -15,7 +15,7 @@ it('real', () => {
   if (mode === 'export') {
     const wb = XLSX.utils.book_new();
     for (const s of buildBankExportSheets(bank, foods)) XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(s.rows as unknown[][]), s.name);
-    XLSX.writeFile(wb, '/tmp/mealbank/xl/export.xlsx');
+    fs.writeFileSync('/tmp/mealbank/xl/export.xlsx', XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' }));
   }
   const file = mode === 'export' ? '/tmp/mealbank/xl/export.xlsx' : '/tmp/mealbank/xl/edited.xlsx';
   const parsed = parseBankWorkbook(readSheets(file));
