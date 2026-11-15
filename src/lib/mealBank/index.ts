@@ -448,6 +448,11 @@ interface FitRow {
   side?: boolean;
 }
 
+/** Arroz/massa/batata/cuscuz somados numa refeição: no máximo 400 g (não vale arroz 300 g + batata 400 g). */
+export const STARCH_MEAL_MAX = 400;
+const starchGrams = (rows: FitRow[]): number =>
+  rows.reduce((acc, r) => acc + (r.rule.kind === 'carb' ? r.grams : 0), 0);
+
 /** Uma porção por vez, no alimento que mais aproxima da Opção 1, só entre os que podem mexer. */
 const greedyFit = (
   rows: FitRow[],
@@ -468,8 +473,10 @@ const greedyFit = (
         if (g == null || g < lo - 1e-9 || g > hi + 1e-9) continue;
         const prev = r.grams;
         r.grams = g;
+        const valid = dir < 0 || starchGrams(rows) <= STARCH_MEAL_MAX + 1e-9;
         const e = fitError(macrosOf(rows, index), target);
         r.grams = prev;
+        if (!valid) continue;
         if (e < cur - 1e-6 && (!best || e < best.e)) best = { i, g, e };
       }
     });
@@ -568,7 +575,9 @@ export const fitBankItems = (
       .filter((f) => !rows.some((r) => r.foodId === f.id))
       .filter((f) => !ctx || !foodViolates(f.name, ctx.restrictions, ctx.dislikes))
       .sort((a, b) => (ctx ? fichaMatchScore([b.name], ctx.ficha) - fichaMatchScore([a.name], ctx.ficha) : 0));
-    const side = candidates[0];
+    // Almoço/jantar que já tem arroz/batata/massa não ganha um segundo carboidrato.
+    const hasStarch = rows.some((r) => r.rule.kind === 'carb');
+    const side = candidates.find((f) => wantFat || !mainMeal || !hasStarch);
     if (!side) break;
     const rule = portionRuleFor(side.name);
     rows.push({ foodId: side.id, name: side.name, base: rule.min, grams: snapPortion(rule.min, rule), rule, side: true });
@@ -577,7 +586,9 @@ export const fitBankItems = (
   }
 
   const finalIssues = issues();
-  const overLimit = rows.some((r) => r.grams > r.rule.max + 1e-9 || (r.rule.hardMin && r.grams < r.rule.min - 1e-9));
+  const overLimit =
+    starchGrams(rows) > STARCH_MEAL_MAX + 1e-9 ||
+    rows.some((r) => r.grams > r.rule.max + 1e-9 || (r.rule.hardMin && r.grams < r.rule.min - 1e-9));
   return {
     items: computeOptionItems(rows, index),
     ok: finalIssues.length === 0 && !overLimit,
