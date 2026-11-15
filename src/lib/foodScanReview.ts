@@ -1,4 +1,7 @@
 // Pure helpers for the admin "Alimentos escaneados" review screen.
+import { normalizeText, productKey } from '../../supabase/functions/_shared/foodCatalogRules';
+export { normalizeText, productKey, nameSimilarity, findDuplicates, type ExistingFood } from '../../supabase/functions/_shared/foodCatalogRules';
+
 
 export type ReviewStatus = 'pendente' | 'adicionado' | 'ignorado';
 
@@ -43,9 +46,6 @@ export interface ProductGroup {
 
 /** Scans de um produto já aprovado na base respondem dela e não voltam para a revisão. */
 export const isReviewableScan = (s: Pick<ScanRow, 'source'>) => s.source !== 'base';
-
-import { normalizeText, productKey } from '../../supabase/functions/_shared/foodCatalogRules';
-export { normalizeText, productKey, nameSimilarity, findDuplicates, type ExistingFood } from '../../supabase/functions/_shared/foodCatalogRules';
 
 const num = (v: unknown): number | null => {
   const n = typeof v === 'string' ? parseFloat(v) : (v as number);
