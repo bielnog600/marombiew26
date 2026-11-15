@@ -330,6 +330,83 @@ const foodRowToProduct = (f: any) => {
   };
 };
 
+
+/* ---------- Scanner único: modo Automático ---------- */
+
+const AUTO_KINDS = ['embalado', 'in_natura', 'prato', 'balanca'];
+const NUTRI_CATS = ['geral', 'bebida', 'agua', 'gordura', 'queijo'];
+
+/** Normaliza a resposta do Automático: tipo, itens, visor, código, tabela e categoria do Nutri-Score. */
+function parseAutoJson(text: string) {
+  const raw = text.match(/\{[\s\S]*\}/)?.[0];
+  if (!raw) return null;
+  let o: any;
+  try { o = JSON.parse(raw); } catch { return null; }
+  if (!o || typeof o !== 'object') return null;
+  const id = parseIdentifyJson(raw);
+  if (!id) return null;
+  const plate = Array.isArray(o.itens) ? parsePlateJson(raw) : null;
+  const itens = plate?.itens ?? [];
+  const tipo = AUTO_KINDS.includes(o.tipo) ? o.tipo
+    : id.codigo_barras_visivel || id.tabela ? 'embalado' : itens.length > 0 ? 'prato' : 'embalado';
+  const num = (v: unknown) => {
+    if (v === null || v === undefined || v === '') return null;
+    const n = typeof v === 'string' ? Number(v.replace(',', '.').replace(/[^\d.]/g, '')) : Number(v);
+    return Number.isFinite(n) ? n : null;
+  };
+  const grams = num(o.gramas_lidas);
+  const readable = grams !== null && grams > 0;
+  let lc = num(o.confianca_leitura) ?? 0;
+  if (lc > 1) lc /= 100;
+  const fv = num(o.frutas_legumes_pct);
+  return {
+    tipo,
+    itens,
+    gramas_lidas: readable ? Math.round(grams! * 10) / 10 : null,
+    visor_legivel: o.visor_legivel === true && readable,
+    confianca_leitura: readable ? Math.max(0, Math.min(1, lc)) : 0,
+    prato_tarado: plate?.prato_tarado ?? (readable && typeof o.prato_tarado === 'boolean' ? o.prato_tarado : null),
+    balanca_sem_visor: !readable && o.balanca_sem_visor === true,
+    observacao: String(o.observacao ?? '').trim().slice(0, 240),
+    marca: id.marca,
+    produto: id.produto,
+    variante: id.variante,
+    codigo_barras_visivel: id.codigo_barras_visivel,
+    tabela_nutricional_visivel: id.tabela_nutricional_visivel,
+    tabela: id.tabela,
+    categoria_nutriscore: NUTRI_CATS.includes(String(o.categoria_nutriscore)) ? String(o.categoria_nutriscore) : 'geral',
+    frutas_legumes_pct: fv != null && fv >= 0 && fv <= 100 ? Math.round(fv) : null,
+    confianca: id.confianca,
+  };
+}
+
+function autoPrompt(input: {
+  mealName: string; planFoods: string[]; pendingFoods: string[]; added: { alimento: string; gramas: number }[];
+  baseFoods: string[]; corrections: { alimento: string; estimado: number; real: number }[];
+  country: 'br' | 'pt'; hint: 'auto' | 'label'; liveBarcode: string | null;
+}) {
+  const calib = input.corrections.length
+    ? `\nCorreções recentes deste aluno (estimativa da foto × real; calibre sem copiar números): ${input.corrections.map((c) => `${c.alimento}: você estimou ${c.estimado} g, era ${c.real} g`).join('; ')}.`
+    : '';
+  return `Você recebeu UMA foto tirada por um aluno para registrar o que vai comer. Descubra sozinho o que é e devolva tudo numa resposta.
+${input.hint === 'label' ? 'O aluno escolheu "Código / rótulo": trate como produto embalado e leia código de barras e tabela nutricional.\n' : ''}${input.liveBarcode ? `O app já leu o código de barras ${input.liveBarcode} ao vivo; não precisa lê-lo de novo.\n` : ''}Refeição: ${input.mealName || 'não informada'}.
+Alimentos previstos no plano (quando compatível, use EXATAMENTE um destes nomes): ${input.planFoods.length ? input.planFoods.join('; ') : 'nenhum'}.
+Previstos ainda não registrados: ${input.pendingFoods.length ? input.pendingFoods.join('; ') : 'nenhum'}.
+Já registrados nesta refeição (não repita): ${input.added.length ? input.added.map((a) => a.alimento).join('; ') : 'nenhum'}.
+Base de alimentos do app (prefira um destes nomes): ${input.baseFoods.length ? input.baseFoods.join('; ') : 'não informada'}.${calib}
+tipo:
+- "embalado": produto industrializado (embalagem, marca, rótulo). Preencha marca, produto, variante; codigo_barras_visivel só com os números se nítido; tabela (por_100g e/ou por_porcao, porcao_g, sódio em mg) e tabela_nutricional_visivel true só se a tabela estiver legível — nunca invente números da tabela. categoria_nutriscore: "bebida" (refrigerante, suco, chá, bebida vegetal), "agua", "gordura" (óleo, azeite, manteiga, margarina, oleaginosas, pasta de amendoim), "queijo" ou "geral"; frutas_legumes_pct = % de frutas/legumes/leguminosas/oleaginosas nos ingredientes (azeite = 100) ou null. itens pode ter o produto como único item.
+- "balanca": UM alimento sem embalagem em cima de uma balança de cozinha.
+- "in_natura": alimento sem embalagem fora da balança (fruta, ovo, pão...).
+- "prato": refeição montada com um ou mais alimentos.
+Para balanca/in_natura/prato: itens = um por alimento visível, com gramas_estimadas pelo tamanho visual (prato raso ~26 cm, talheres, mão), faixa_gramas [mín, máx], confianca 0–1 e 3 alternativas.
+Balança: se o visor estiver legível, gramas_lidas = número do visor em gramas (converta kg/oz/lb), visor_legivel true e confianca_leitura 0–1; em "prato" com balança, gramas_lidas é o peso total e prato_tarado diz se o visor mostra só a comida (true), comida + prato (false) ou não dá para saber (null); com visor legível, faça a soma das gramas_estimadas combinar com ele. Sem balança: gramas_lidas null. balanca_sem_visor true só se aparece uma balança sem visor legível.
+${refInstruction(input.country)}
+Nomes simples em português do Brasil, como numa tabela de alimentos. observacao curta ou "". confianca (0–1) = certeza sobre o que é a foto.
+Responda SOMENTE JSON:
+{"tipo":"embalado"|"balanca"|"in_natura"|"prato","itens":[{"alimento":string,"alternativas":[string,string,string],"gramas_estimadas":number,"faixa_gramas":[number,number],"confianca":number,"por_100g_referencia":{"kcal":number,"proteina":number,"carbo":number,"gordura":number,"fibra":number}|null,"tabela_referencia":string|null}],"gramas_lidas":number|null,"visor_legivel":boolean,"confianca_leitura":number,"prato_tarado":boolean|null,"balanca_sem_visor":boolean,"marca":string|null,"produto":string,"variante":string|null,"codigo_barras_visivel":string|null,"tabela_nutricional_visivel":boolean,"tabela":{"porcao_g":number|null,"por_100g":{"kcal":number,"proteina":number,"carbo":number,"gordura":number,"acucar":number,"fibra":number,"sodio_mg":number}|null,"por_porcao":{"kcal":number,"proteina":number,"carbo":number,"gordura":number,"acucar":number,"fibra":number,"sodio_mg":number}|null}|null,"categoria_nutriscore":string,"frutas_legumes_pct":number|null,"alimento":string,"confianca":number,"observacao":string}`;
+}
+
 const OFF_SEARCH_FIELDS = `code,${FIELDS}`;
 
 Deno.serve(withAiUsage('scanner', 'food-scanner', async (req) => {
@@ -575,6 +652,107 @@ Responda SOMENTE JSON:
         if (c.barcode) await admin.from('products_cache').upsert({ barcode: c.barcode, data: c.product, fetched_at: new Date().toISOString() });
       }
       return json({ candidates });
+    }
+
+    if (action === 'scan_auto') {
+      // Scanner único (Premium): uma foto, a IA diz o tipo e o app segue o caminho certo. 1 chamada por scan.
+      const { data: allowed, error: permErr } = await admin.rpc('has_premium_scale', { _user_id: u.user.id });
+      if (permErr || allowed !== true) return json({ error: 'O scanner com balança é um recurso Premium.' }, 403);
+      const current = parseImage(body.image);
+      if (!current) return json({ error: 'Imagem inválida' }, 400);
+      let baseFoods: string[] = [];
+      try {
+        const { data } = await admin.from('foods').select('name').is('brand', null).order('name').limit(600);
+        baseFoods = cleanNames((data ?? []).map((f: any) => f?.name), 600);
+      } catch {
+        baseFoods = [];
+      }
+      const live = String(body.liveBarcode ?? '').replace(/\D/g, '');
+      const text = await anthropic(
+        [
+          { type: 'image', source: { type: 'base64', ...current } },
+          {
+            type: 'text',
+            text: autoPrompt({
+              mealName: String(body.mealName ?? '').replace(/\s+/g, ' ').trim().slice(0, 80),
+              planFoods: cleanNames(body.planFoods, 40),
+              pendingFoods: cleanNames(body.pendingPlanFoods, 40),
+              added: cleanAdded(body.addedFoods),
+              baseFoods,
+              corrections: cleanCorrections(body.corrections),
+              country: countryOf(body.country),
+              hint: body.hint === 'label' ? 'label' : 'auto',
+              liveBarcode: live.length >= 8 && live.length <= 14 ? live : null,
+            }),
+          },
+        ],
+        1100,
+        'scanner_automatico',
+      );
+      const result = parseAutoJson(text);
+      if (!result || (!result.produto && result.itens.length === 0)) return json({ error: 'Não consegui identificar. Tira outra foto, mais de perto.' }, 422);
+      return json({ result });
+    }
+
+    if (action === 'reference_food') {
+      // Alimento que não existe no banco: cria com os macros de referência (TACO/INSA) e deixa pendente para o admin.
+      const { data: allowed, error: permErr } = await admin.rpc('has_premium_scale', { _user_id: u.user.id });
+      if (permErr || allowed !== true) return json({ error: 'O scanner com balança é um recurso Premium.' }, 403);
+      const name = referenceFoodName(String(body.name ?? ''));
+      const ref = cleanReferenceMacros(body.ref);
+      if (!name || !ref) return json({ error: 'Valores do alimento inválidos' }, 400);
+      const tabela = referenceTableFor(countryOf(body.country), body.tabela);
+      const FOOD_COLS = 'id, name, calories, protein, carbs, fats, portion, portion_size, brand, source, barcode';
+      const first = name.split(' ')[0].replace(/[%_]/g, '');
+      const { data: similar } = await admin.from('foods').select(FOOD_COLS).ilike('name', `%${first}%`).limit(400);
+      const dup = findReferenceDuplicate(name, (similar ?? []) as any[]);
+      if (dup) return json({ food: dup, created: false });
+      const { data: food, error: insErr } = await admin.from('foods').insert({
+        name, calories: ref.kcal, protein: ref.p, carbs: ref.c, fats: ref.g, fiber: ref.fibras,
+        portion: 'gramas', portion_size: 100, source: 'ia_referencia', reference_table: tabela,
+      }).select(FOOD_COLS).single();
+      if (insErr || !food) return json({ error: 'Não foi possível criar o alimento.' }, 500);
+      await admin.from('food_scans').insert({
+        aluno_id: u.user.id, product_name: name, brand: null, barcode: null, source: 'ia_referencia', score: null, score_label: null,
+        nutriments: { 'energy-kcal_100g': ref.kcal, proteins_100g: ref.p, carbohydrates_100g: ref.c, fat_100g: ref.g, fiber_100g: ref.fibras, reference_table: tabela },
+      });
+      await admin.from('food_scan_reviews').upsert({
+        product_key: productKey({ barcode: null, product_name: name, brand: null }), barcode: null, status: 'pendente', food_id: food.id, auto: false,
+      });
+      return json({ food, created: true });
+    }
+
+    if (action === 'register_product') {
+      // Produto escaneado completo e sem duplicado entra sozinho no banco (revisão 'adicionado' pelo sistema).
+      const p = body.product ?? {};
+      const name = String(p.product_name ?? '').trim() || 'Produto sem nome';
+      const brand = p.brands ? String(p.brands).trim() : null;
+      const barcode = String(body.barcode ?? '').replace(/\D/g, '') || null;
+      const key = productKey({ barcode, product_name: name, brand });
+      const { data: rev } = await admin.from('food_scan_reviews').select('status').eq('product_key', key).maybeSingle();
+      const FOOD_COLS = 'id, name, brand, barcode';
+      const candidates: any[] = [];
+      if (barcode) {
+        const { data } = await admin.from('foods').select(FOOD_COLS).eq('barcode', barcode).limit(5);
+        candidates.push(...(data ?? []));
+      }
+      const firstBrand = String(brand ?? '').split(',')[0].trim().replace(/[%_]/g, '');
+      if (firstBrand) {
+        const { data } = await admin.from('foods').select(FOOD_COLS).ilike('brand', `%${firstBrand}%`).limit(200);
+        candidates.push(...(data ?? []));
+      }
+      const input = {
+        name, brand, barcode, nutriments: p.nutriments, servingQuantity: Number(p.serving_quantity) || null,
+        source: String(body.source ?? ''), confidence: body.confidence == null ? null : Number(body.confidence),
+      };
+      const decision = autoAddDecision(input, candidates, !!rev);
+      if (!decision.add) return json({ added: false, reason: decision.reason });
+      const { data: food, error: insErr } = await admin.from('foods').insert(autoAddFoodRow(input)).select('id, name').single();
+      if (insErr || !food) return json({ added: false, reason: 'erro' });
+      await admin.from('food_scan_reviews').upsert({
+        product_key: key, barcode, status: 'adicionado', auto: true, reviewed_by: null, reviewed_at: new Date().toISOString(), food_id: food.id,
+      });
+      return json({ added: true, food });
     }
 
     return json({ error: 'Ação inválida' }, 400);
