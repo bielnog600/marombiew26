@@ -4837,6 +4837,15 @@ export type Database = {
         }
         Returns: boolean
       }
+      import_meal_bank: {
+        Args: {
+          _aliases: Json
+          _deactivate_codes: string[]
+          _foods: Json
+          _meals: Json
+        }
+        Returns: Json
+      }
       normalize_camera_depth_level: { Args: { _v: string }; Returns: string }
       publish_diet_plan_atomic: {
         Args: {
