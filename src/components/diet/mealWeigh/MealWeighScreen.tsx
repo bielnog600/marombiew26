@@ -39,6 +39,17 @@ import {
 } from '@/lib/mealWeigh/calibration';
 import { loadCalibrationEnabled, loadCalibrationSamples, loadRecentCorrections, saveEstimateCorrections } from './calibrationApi';
 import { useAutoCapture } from './useAutoCapture';
+import {
+  AUTO_HINT, LABEL_HINT, SCAN_MODE_CHIPS, acceptLiveBarcode, applyCreatedFoods, autoToIdentity, autoToPlateAi, autoToWeighAi, chipForMode,
+  isReferenceDraftFood, markReferenceItem, productGrams, productScore, readScanModePref, referenceWeighFood, routeAutoScan, shouldLookupLive,
+  withScoreCategory, writeScanModePref, type AutoScanResult, type RefMacros, type ScanChipMode,
+} from '@/lib/mealWeigh/unifiedScan';
+import { scanCountry, scannedProductItem, type OffCandidate, type ProductSource } from '@/lib/foodPhotoScan';
+import type { ProductData } from '@/lib/foodScore';
+import ProductDraftPanel, { type ProductDraft } from './ProductDraftPanel';
+import { LiveProductCard, ScanItemList, type LiveProduct } from './ScanParts';
+import { createReferenceFoods, invokeScanner, lookupBarcode, recordProductScan, resolveProduct } from './scannerApi';
+import { useLiveBarcode } from './useLiveBarcode';
 
 interface Props {
   meal: ParsedMeal;
@@ -65,10 +76,18 @@ interface Props {
   addToLog?: WeighLogRecord | null;
   /** Com `editLog`: abre direto em "Antes de concluir" (Revisar item por item vindo do scanner). */
   startInReview?: boolean;
+  /** Scanner único: "Registrar em [refeição ▾]" (trocar só antes do primeiro item desta sessão). */
+  mealOptions?: { index: number; label: string }[];
+  onChangeMeal?: (mealIndex: number) => void;
 }
 
-type Phase = 'camera' | 'analyzing' | 'item' | 'plate' | 'list' | 'review' | 'summary';
-type Mode = 'choose' | 'plan' | 'scan' | 'plate';
+type Phase = 'camera' | 'analyzing' | 'item' | 'plate' | 'product' | 'list' | 'review' | 'summary';
+/** 'auto'/'label' = scanner único (IA decide / código e rótulo); 'scan' e 'plan' ficam no chip Balança. */
+type Mode = 'plan' | 'scan' | 'plate' | 'auto' | 'label';
+
+const MODE_FOR_CHIP: Record<ScanChipMode, Mode> = { auto: 'auto', label: 'label', scale: 'scan', plate: 'plate' };
+const deviceCountry = () => scanCountry(typeof navigator !== 'undefined' ? navigator.language : null);
+const storage = () => (typeof window !== 'undefined' ? window.localStorage : null);
 
 interface PlanDraft {
   photo: string;
@@ -117,7 +136,7 @@ const fileToJpeg = (file: File) =>
 
 const signed = (n: number, unit = '') => `${n > 0 ? '+' : ''}${n}${unit}`;
 
-const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex, dietPlanId, testMode, initialMode, startFoodIndex, onClose, onSaved, editLog, addToLog, startInReview }) => {
+const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex, dietPlanId, testMode, initialMode, startFoodIndex, onClose, onSaved, editLog, addToLog, startInReview, mealOptions, onChangeMeal }) => {
   useHoldAppUpdate(true);
   // Tela cheia de verdade: o menu inferior some enquanto a pesagem está aberta.
   useHideBottomNav(true);
@@ -130,7 +149,18 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
   const isEdit = !!editStart && !!editLog;
   const isAdd = !!editStart && !editLog;
   const [dirty, setDirty] = useState(false);
-  const [mode, setMode] = useState<Mode>(isEdit ? 'scan' : initialMode ?? 'choose');
+  const [mode, setMode] = useState<Mode>(isEdit ? 'scan' : initialMode ?? MODE_FOR_CHIP[readScanModePref(storage())]);
+  /** Algum item desta sessão veio de scan (não do "Pesar alimentos da dieta"): concluir pergunta Substituir/Adicionar/Revisar. */
+  const scanUsedRef = useRef(false);
+  /** Alimentos novos da IA ainda não criados em foods (id provisório 'ia:…'), criados ao salvar. */
+  const refDraftsRef = useRef<Map<string, WeighFood>>(new Map());
+  const rememberDraft = (f: WeighFood | null | undefined) => { if (f && isReferenceDraftFood(f)) refDraftsRef.current.set(f.id, f); };
+  /** Produto embalado em revisão (Automático / Código / rótulo / leitura ao vivo). */
+  const [product, setProduct] = useState<ProductDraft | null>(null);
+  /** Produto lido ao vivo pelo código de barras, por cima da câmera (antes da foto). */
+  const [live, setLive] = useState<LiveProduct | null>(null);
+  const liveRef = useRef<{ code: string; at: number } | null>(null);
+  const liveProductRef = useRef<{ code: string; product: ProductData } | null>(null);
   const [phase, setPhase] = useState<Phase>(() => {
     if (!isEdit) return 'camera';
     return startInReview && editStart && pendingPlanFoods(editStart.planned, editStart.items).length > 0 ? 'review' : 'summary';
@@ -206,7 +236,7 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
    * plano ou já pesada, pergunta antes o que fazer com o que foi escaneado.
    */
   const conclude = useCallback((list: WeighedItem[] = itemsRef.current) => {
-    if (!isEdit && (mode === 'scan' || mode === 'plate')) {
+    if (!isEdit && (mode !== 'plan' || scanUsedRef.current)) {
       const session = sessionScanItems(list, photosRef.current, priorRef.current);
       const prior = list.filter((it) => priorRef.current.has(it));
       if (session.items.length > 0 && needsScanApplyChoice(planned, prior)) {
@@ -217,6 +247,7 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
     }
     finish(list);
   }, [isEdit, mode, planned, finish]);
+  // (scanUsedRef é ref: não precisa entrar nas dependências)
 
   const applyScan = (choice: ScanApplyMode) => {
     writeScanApplyPref(typeof window !== 'undefined' ? window.localStorage : null, choice);
@@ -254,7 +285,7 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
   }, []);
 
   useEffect(() => {
-    if (phase !== 'camera' || mode === 'choose') { stopCamera(); return; }
+    if (phase !== 'camera') { stopCamera(); return; }
     let cancelled = false;
     setCamError(null);
     (async () => {
@@ -287,7 +318,7 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
     setPhase('analyzing');
     try {
       const doneItems = itemsRef.current;
-      const body = buildScanWeighRequest({ photo, items: doneItems, photos: photosRef.current, mealName: meal.name, planned });
+      const body = { ...buildScanWeighRequest({ photo, items: doneItems, photos: photosRef.current, mealName: meal.name, planned }), country: deviceCountry() };
       const { data, error } = await supabase.functions.invoke('food-scanner', { body });
       if (error) {
         let msg = 'Não foi possível analisar a foto agora.';
@@ -295,27 +326,35 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
         throw new Error(msg);
       }
       if (data?.error) throw new Error(data.error);
-      const ai = data?.result as WeighAiResult;
+      const ai = data?.result as WeighAiResult & { ref_100g?: RefMacros | null };
       if (!ai) throw new Error('Não consegui analisar a foto. Tira outra.');
-      // Um alimento estimado pela foto pode ser pesado depois: não conta como repetido.
-      const resolution = resolveScanWeigh(ai, foods, planned, doneItems.filter((it) => !isEstimatedItem(it)));
-      const unreadable = isReadingUnreliable(ai);
-      setDraft({
-        photo, ai, resolution,
-        food: resolution.food,
-        planIndex: resolution.planIndex,
-        grams: unreadable || ai.gramas_lidas == null ? '' : String(ai.gramas_lidas),
-        unreadable,
-        tareDismissed: false,
-      });
-      setSearch('');
-      setSearchOpen(!resolution.food && !resolution.repeated && resolution.alternatives.length === 0 && resolution.pending.length === 0);
-      setPhase('item');
+      openScaleDraft(photo, ai);
     } catch (e) {
       toast.error((e as Error).message || 'Não foi possível analisar a foto.');
       setPhase('camera');
     }
   }, [meal.name, planned, foods]);
+
+  /** Um alimento na balança (Escanear prato ou Automático): repetidos, tara, chips do plano e alimento novo da IA. */
+  function openScaleDraft(photo: string, ai: WeighAiResult & { ref_100g?: RefMacros | null }) {
+    const doneItems = itemsRef.current;
+    // Um alimento estimado pela foto pode ser pesado depois: não conta como repetido.
+    const resolution = resolveScanWeigh(ai, foods, planned, doneItems.filter((it) => !isEstimatedItem(it)));
+    // Fora da base, com macros de referência (TACO/INSA): vira alimento novo, criado ao salvar.
+    const refFood = !resolution.food && !resolution.repeated && ai.ref_100g ? referenceWeighFood(ai.alimento, ai.ref_100g) : null;
+    const unreadable = isReadingUnreliable(ai);
+    setDraft({
+      photo, ai, resolution,
+      food: resolution.food ?? refFood,
+      planIndex: resolution.planIndex,
+      grams: unreadable || ai.gramas_lidas == null ? '' : String(ai.gramas_lidas),
+      unreadable,
+      tareDismissed: false,
+    });
+    setSearch('');
+    setSearchOpen(!resolution.food && !refFood && !resolution.repeated && resolution.alternatives.length === 0 && resolution.pending.length === 0);
+    setPhase('item');
+  }
 
   const currentPlanFood = planned.alimentos[planIdx] ?? null;
 
@@ -357,7 +396,7 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
     setPhase('analyzing');
     try {
       const calib = await loadCalibration();
-      const body = buildPlateEstimateRequest({ photo, mealName: meal.name, planned, items: itemsRef.current, corrections: calib.recent });
+      const body = { ...buildPlateEstimateRequest({ photo, mealName: meal.name, planned, items: itemsRef.current, corrections: calib.recent }), country: deviceCountry() };
       const { data, error } = await supabase.functions.invoke('food-scanner', { body });
       if (error) {
         let msg = 'Não foi possível analisar a foto agora.';
@@ -367,22 +406,87 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
       if (data?.error) throw new Error(data.error);
       const ai = normalizePlateEstimate(data?.result);
       if (!ai) throw new Error('Não consegui ver os alimentos do prato. Tira outra foto de cima, com o prato inteiro.');
-      let samples: CalibrationSamples | null = null;
-      if (calib.enabled) {
-        const keys = resolvePlateRows(ai, foods, planned, itemsRef.current).map((r) => foodKey(r.food?.id ?? null, r.food?.name ?? r.aiName));
-        samples = await loadCalibrationSamples(keys);
-      }
-      setPlate({ photo, ai, samples });
-      setPhase('plate');
+      await openPlate(photo, ai, calib.enabled);
     } catch (e) {
       toast.error((e as Error).message || 'Não foi possível analisar a foto.');
       setPhase('camera');
     }
   }, [meal.name, planned, foods, loadCalibration]);
 
+  /** Revisão do prato (Prato pronto ou Automático): calibração aplicada antes de repartir o visor. */
+  async function openPlate(photo: string, ai: PlateAiResult, calibrationOn: boolean) {
+    let samples: CalibrationSamples | null = null;
+    if (calibrationOn) {
+      const keys = resolvePlateRows(ai, foods, planned, itemsRef.current).map((r) => foodKey(r.food?.id ?? null, r.food?.name ?? r.aiName));
+      samples = await loadCalibrationSamples(keys);
+    }
+    setPlate({ photo, ai, samples });
+    setPhase('plate');
+  }
+
+  /** Produto embalado: código → base/cache → Open Food Facts → tabela lida pela IA; gramas do visor ou do rótulo. */
+  const openProduct = useCallback(async (photo: string | null, auto: AutoScanResult | null, knownBarcode: string | null) => {
+    const readGrams = auto?.visor_legivel ? auto.gramas_lidas : null;
+    const base: ProductDraft = {
+      photo, status: 'busy', product: null, barcode: knownBarcode, source: 'openfoodfacts', foodId: null, candidates: [],
+      grams: '', gramsFrom: 'padrao', confidence: auto?.confianca ?? null,
+    };
+    setProduct(base);
+    setPhase('product');
+    const ready = (prod: ProductData, barcode: string | null, source: string, foodId: string | null = null) => {
+      const named = withScoreCategory(prod, auto);
+      const g = productGrams(readGrams, named);
+      setProduct({ ...base, status: 'ready', product: named, barcode, source, foodId, grams: String(g.grams), gramsFrom: g.from });
+    };
+    try {
+      const livePrd = liveProductRef.current;
+      if (knownBarcode && livePrd?.code === knownBarcode) { ready(livePrd.product, knownBarcode, 'openfoodfacts'); return; }
+      if (!auto) {
+        const prod = knownBarcode ? await lookupBarcode(knownBarcode) : null;
+        if (prod) ready(prod, knownBarcode, 'openfoodfacts'); else setProduct({ ...base, status: 'need_label' });
+        return;
+      }
+      const res = await resolveProduct(autoToIdentity(auto, knownBarcode), deviceCountry());
+      if (res.kind === 'product') ready(res.product, res.barcode, res.source, res.foodId ?? null);
+      else if (res.kind === 'candidates') setProduct({ ...base, status: 'candidates', candidates: res.candidates });
+      else setProduct({ ...base, status: 'need_label' });
+    } catch (e) {
+      toast.error((e as Error).message || 'Não foi possível buscar o produto.');
+      setProduct({ ...base, status: 'need_label' });
+    }
+  }, []);
+
+  const autoRef = useRef<AutoScanResult | null>(null);
+  /** Automático / Código-rótulo: UMA chamada de IA na foto; o app segue o caminho do tipo devolvido. */
+  const analyzeAuto = useCallback(async (photo: string) => {
+    setPendingPhoto(photo);
+    setPhase('analyzing');
+    try {
+      const calib = await loadCalibration();
+      const liveCode = liveRef.current?.code ?? null;
+      const body = {
+        ...buildPlateEstimateRequest({ photo, mealName: meal.name, planned, items: itemsRef.current, corrections: calib.recent }),
+        action: 'scan_auto', hint: mode === 'label' ? 'label' : 'auto', liveBarcode: liveCode, country: deviceCountry(),
+      };
+      const { result } = await invokeScanner<{ result: AutoScanResult }>(body);
+      if (!result) throw new Error('Não consegui identificar. Tira outra foto, mais de perto.');
+      autoRef.current = result;
+      const route = routeAutoScan(result, mode === 'label' ? 'label' : 'auto');
+      if (route === 'product') { await openProduct(photo, result, result.codigo_barras_visivel ?? liveCode); return; }
+      if (route === 'scale_item') { openScaleDraft(photo, autoToWeighAi(result)); return; }
+      const plateAi = normalizePlateEstimate(autoToPlateAi(result));
+      if (!plateAi) throw new Error('Não consegui ver os alimentos. Tira outra foto, mais de perto.');
+      await openPlate(photo, plateAi, calib.enabled);
+    } catch (e) {
+      toast.error((e as Error).message || 'Não foi possível analisar a foto.');
+      setPhase('camera');
+    }
+  }, [meal.name, planned, foods, mode, loadCalibration, openProduct]);
+
   const runAnalysis = useCallback(
-    (photo: string) => (mode === 'plan' ? analyzePlan(photo) : mode === 'plate' ? analyzePlate(photo) : analyze(photo)),
-    [mode, analyze, analyzePlan, analyzePlate],
+    (photo: string) => (mode === 'plan' ? analyzePlan(photo) : mode === 'plate' ? analyzePlate(photo)
+      : mode === 'auto' || mode === 'label' ? analyzeAuto(photo) : analyze(photo)),
+    [mode, analyze, analyzePlan, analyzePlate, analyzeAuto],
   );
 
   const capture = useCallback(() => {
@@ -399,9 +503,11 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
   }, []);
 
   const autoCapture = useAutoCapture({
-    enabled: autoOn && autoArmed && mode !== 'choose' && phase === 'camera' && !camError && editingIndex == null && !confirmExit,
+    enabled: autoOn && autoArmed && phase === 'camera' && !camError && editingIndex == null && !confirmExit && !live,
     videoRef,
     guideRef,
+    // Código / rótulo: produto embalado, que o detector de pratos não reconhece.
+    requireObject: mode !== 'label',
     onFire: () => {
       // Uma foto por vez: só dispara de novo depois de "Próximo alimento" ou "Tirar de novo".
       setAutoArmed(false);
@@ -409,6 +515,31 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
       capture();
     },
   });
+  /** Leitura contínua do código (sem IA): mostra o produto e a nota por cima da câmera antes da foto. */
+  const onLiveCode = useCallback((raw: string) => {
+    const code = acceptLiveBarcode(raw);
+    const now = Date.now();
+    if (!code || !shouldLookupLive(liveRef.current, code, now)) return;
+    liveRef.current = { code, at: now };
+    try { navigator.vibrate?.(40); } catch { /* sem vibração */ }
+    setLive({ code, name: '', score: null, label: null, loading: true });
+    lookupBarcode(code).then((prod) => {
+      if (liveRef.current?.code !== code) return;
+      if (!prod) { setLive({ code, name: '', score: null, label: null, notFound: true }); return; }
+      liveProductRef.current = { code, product: prod };
+      const sc = productScore(prod);
+      setLive({ code, name: prod.product_name || 'Produto', score: sc.score, label: sc.label });
+    }, () => { if (liveRef.current?.code === code) setLive(null); });
+  }, []);
+  useLiveBarcode({ enabled: phase === 'camera' && (mode === 'auto' || mode === 'label') && !camError, videoRef, onCode: onLiveCode });
+  const dismissLive = () => { setLive(null); liveRef.current = liveRef.current ? { ...liveRef.current, at: Date.now() } : null; };
+  const useLive = () => {
+    if (!live) return;
+    const code = live.code;
+    setLive(null);
+    void openProduct(null, null, code);
+  };
+
   useEffect(() => {
     if (!flashing) return;
     const t = window.setTimeout(() => setFlashing(false), 450);
@@ -472,6 +603,8 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
   /** Prato pronto confirmado: os itens estimados entram na refeição (somados aos já registrados). */
   const confirmPlate = (estimated: WeighedItem[]) => {
     if (estimated.length === 0) return;
+    (plate?.ai.itens ?? []).forEach((it) => { if (it.ref_100g) rememberDraft(referenceWeighFood(it.alimento, it.ref_100g)); });
+    scanUsedRef.current = true;
     const appended = [...itemsRef.current, ...estimated];
     const nextItems = dropStaleSubstitutions(appended, buildUnweighedEntries(pendingPlanFoods(planned, appended), choicesRef.current));
     const nextPhotos = [...photosRef.current, ...estimated.map(() => plate?.photo ?? '')];
@@ -484,9 +617,77 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
     conclude(nextItems);
   };
 
-  const chooseMode = (m: 'plan' | 'scan' | 'plate') => {
-    setMode(m);
+  /** Chips de modo embaixo da câmera (o último fica lembrado). */
+  const chooseChip = (chip: ScanChipMode) => {
+    writeScanModePref(storage(), chip);
+    setMode(MODE_FOR_CHIP[chip]);
+    setLive(null);
     toCamera();
+  };
+  /** Dentro do chip Balança: pesar um alimento da dieta (só lê o visor) ou voltar ao "qualquer alimento". */
+  const choosePlanFood = (index: number | null) => {
+    if (index == null) { setMode('scan'); toCamera(); return; }
+    setPlanIdx(index);
+    setMode('plan');
+    toCamera();
+  };
+
+  /** Produto embalado confirmado: entra na refeição com origem 'escaneado' e a nota no item. */
+  const confirmProduct = (next: 'camera' | 'summary') => {
+    const pd = product;
+    const g = Number(String(pd?.grams ?? '').replace(',', '.'));
+    if (!pd?.product || !(g > 0)) return;
+    const sc = productScore(pd.product);
+    const initial = productGrams(autoRef.current?.visor_legivel ? autoRef.current.gramas_lidas : null, pd.product).grams;
+    const item = scannedProductItem(pd.product.product_name || 'Produto', pd.product.brands ?? null, pd.product, g, pd.foodId, {
+      score: sc.score, label: sc.label, gramsFrom: Math.abs(g - initial) > 0.05 ? null : pd.gramsFrom, edited: Math.abs(g - initial) > 0.05,
+    });
+    const hit = matchPlanFood(item.alimento, pending.map((p) => p.food));
+    item.indice_plano = hit != null ? pending[hit].index : null;
+    const placed = placeWeighedItem(itemsRef.current, photosRef.current, item, pd.photo ?? '', 'append');
+    const nextItems = dropStaleSubstitutions(placed.items, buildUnweighedEntries(pendingPlanFoods(planned, placed.items), choicesRef.current));
+    itemsRef.current = nextItems;
+    photosRef.current = placed.photos;
+    setItems(nextItems);
+    setPhotos(placed.photos);
+    setProduct(null);
+    setDirty(true);
+    scanUsedRef.current = true;
+    if (!testMode) {
+      void recordProductScan({ studentId, product: pd.product, barcode: pd.barcode, source: pd.source, photo: pd.photo, confidence: pd.confidence, grams: g });
+    }
+    if (next === 'summary') conclude(nextItems); else toCamera();
+  };
+
+  const pickCandidate = (c: OffCandidate) => {
+    setProduct((d) => {
+      if (!d) return d;
+      const prod = withScoreCategory(c.product, autoRef.current);
+      const gr = productGrams(autoRef.current?.visor_legivel ? autoRef.current.gramas_lidas : null, prod);
+      return { ...d, status: 'ready', product: prod, barcode: c.barcode ?? d.barcode, source: 'openfoodfacts_busca', grams: String(gr.grams), gramsFrom: gr.from };
+    });
+  };
+
+  /** Tabela nutricional fotografada: a IA lê o rótulo (mesmo caminho do scanner de produtos). */
+  const onProductLabel = async (file: File) => {
+    const d = product;
+    if (!d) return;
+    setProduct({ ...d, status: 'busy' });
+    try {
+      const image = await fileToJpeg(file);
+      const { product: read } = await invokeScanner<{ product: ProductData }>({ action: 'extract', image });
+      const a = autoRef.current;
+      const named = withScoreCategory({
+        ...read,
+        product_name: read?.product_name || [a?.produto, a?.variante].filter(Boolean).join(' ') || 'Produto sem nome',
+        brands: read?.brands || a?.marca || undefined,
+      }, a);
+      const gr = productGrams(a?.visor_legivel ? a.gramas_lidas : null, named);
+      setProduct({ ...d, status: 'ready', product: named, source: 'tabela_ia' as ProductSource, photo: d.photo ?? image, grams: String(gr.grams), gramsFrom: gr.from });
+    } catch (e) {
+      toast.error((e as Error).message || 'Não consegui ler a tabela.');
+      setProduct({ ...d, status: 'need_label' });
+    }
   };
 
   const draftValid = !!draft?.food && gramsNum > 0;
@@ -501,7 +702,10 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
       planIndex: draft.planIndex,
     });
     // Escolheu outro alimento no lugar do que a IA viu (ex.: IA repetiu um já pesado).
-    if (!sameAsAi && draft.ai.alimento) item.alimento_corrigido = true;
+    if (!sameAsAi && draft.ai.alimento && !isReferenceDraftFood(draft.food)) item.alimento_corrigido = true;
+    Object.assign(item, markReferenceItem(item, draft.food));
+    rememberDraft(draft.food);
+    scanUsedRef.current = true;
     // O mesmo alimento estimado pela foto: o pesado ocupa o lugar dele e vira correção 'balanca'.
     const placed = placeWeighedItem(itemsRef.current, photosRef.current, item, draft.photo, 'append');
     pushScaleCorrection(placed.replaced, item);
@@ -594,7 +798,10 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
     if (testMode) { toast.success('Modo teste: nada foi salvo.'); onClose(); return; }
     if (!canSaveEmpty && items.length === 0) return;
     setSaving(true);
-    const consumed = mealConsumedTotals(items, unweighed);
+    // Alimentos novos da IA viram alimentos de verdade (ou o já existente com o mesmo nome) antes de salvar.
+    const created = refDraftsRef.current.size > 0 ? await createReferenceFoods(items, refDraftsRef.current, deviceCountry()) : new Map();
+    const items_ = applyCreatedFoods(items, created);
+    const consumed = mealConsumedTotals(items_, unweighed);
     const { data: saved, error } = await supabase.from('meal_weigh_logs').insert({
       student_id: studentId,
       log_date: logDate,
@@ -602,20 +809,20 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
       meal_index: mealIndex,
       meal_name: meal.name || '',
       meal_time: meal.time ?? null,
-      items: items as any,
+      items: items_ as any,
       unweighed: unweighed as any,
       total_kcal: consumed.kcal,
       total_p: consumed.p,
       total_c: consumed.c,
       total_g: consumed.g,
-      planned: { ...planned, comparacao: comparison.alimentos } as any,
+      planned: { ...planned, comparacao: compareWeighedMeal(planned, items_, unweighed).alimentos } as any,
     }).select('id, log_date, meal_index, items, unweighed, planned, created_at').single();
     setSaving(false);
     if (error) { toast.error('Não foi possível salvar: ' + error.message); return; }
     if (saved) {
       // Calibração: gramas mudadas num item estimado (e estimados pesados depois) contra a estimativa ORIGINAL.
       const mealLogId = (saved as { id?: string }).id ?? null;
-      const { upserts, removeIds } = correctionsFromItems(items, { studentId, mealLogId, fonte: 'aluno' });
+      const { upserts, removeIds } = correctionsFromItems(items_, { studentId, mealLogId, fonte: 'aluno' });
       const scale = scaleCorrectionsRef.current.map((r) => ({ ...r, meal_log_id: mealLogId }));
       const byId = new Map<string, EstimateCorrectionRow>();
       [...upserts, ...scale].forEach((r) => byId.set(r.estimate_id, r));
