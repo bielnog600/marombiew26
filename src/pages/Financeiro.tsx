@@ -18,6 +18,7 @@ import {
 import PaymentDialog from '@/components/financial/PaymentDialog';
 import PackageDialog from '@/components/financial/PackageDialog';
 import BillingPlanDialog from '@/components/financial/BillingPlanDialog';
+import SavingsGoalCard from '@/components/financial/savings/SavingsGoalCard';
 import {
   formatMoney, formatMoneyByCurrency, effectivePaymentStatus, monthKey, monthLabel,
   recentMonthKeys, isDueSoon, daysUntilDue,
@@ -156,6 +157,8 @@ const Financeiro: React.FC = () => {
           <p className="text-xs text-muted-foreground">Valores em euros e reais são somados separadamente.</p>
           <Button variant="outline" size="sm" className="ml-auto" onClick={() => navigate('/custos-ia')}>Custos de IA</Button>
         </div>
+
+        <SavingsGoalCard />
 
         {/* Summary Cards */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
