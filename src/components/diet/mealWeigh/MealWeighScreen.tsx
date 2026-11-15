@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom';
 import { AlertTriangle, Camera, Check, ChevronRight, ImagePlus, ListOrdered, Loader2, Pencil, Plus, RotateCcw, Scale, ScanSearch, Search, SkipForward, UtensilsCrossed, X } from 'lucide-react';
 import { toast } from 'sonner';
+import { mealSaveErrorMessage } from '@/lib/mealWeigh/saveError';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
@@ -818,7 +819,7 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
       planned: { ...planned, comparacao: compareWeighedMeal(planned, items_, unweighed).alimentos } as any,
     }).select('id, log_date, meal_index, items, unweighed, planned, created_at').single();
     setSaving(false);
-    if (error) { toast.error('Não foi possível salvar: ' + error.message); return; }
+    if (error) { toast.error(mealSaveErrorMessage('pesar refeição', error)); return; }
     if (saved) {
       // Calibração: gramas mudadas num item estimado (e estimados pesados depois) contra a estimativa ORIGINAL.
       const mealLogId = (saved as { id?: string }).id ?? null;

@@ -8,6 +8,7 @@ import { buildWeighLogRow, type WeighLogRecord } from '@/lib/mealWeigh';
 import { correctionsFromItems } from '@/lib/mealWeigh/calibration';
 import type { DayWeighState } from '@/lib/mealWeigh/dayEdit';
 import { saveEstimateCorrections } from './calibrationApi';
+import { mealSaveErrorMessage } from '@/lib/mealWeigh/saveError';
 
 export interface DayLogContext {
   studentId: string;
@@ -35,7 +36,7 @@ export async function insertDayWeighLog(ctx: DayLogContext, state: DayWeighState
     total_c: row.total_c,
     total_g: row.total_g,
   }).select('id, log_date, meal_index, items, unweighed, planned, created_at').single();
-  if (error || !data) return { log: null, error: error?.message ?? 'sem resposta' };
+  if (error || !data) return { log: null, error: mealSaveErrorMessage('card da refeição', error ?? 'sem resposta') };
   const mealLogId = (data as { id?: string }).id ?? null;
   const { upserts, removeIds } = correctionsFromItems(row.items, { studentId: ctx.studentId, mealLogId, fonte: 'aluno' });
   void saveEstimateCorrections(ctx.studentId, upserts, removeIds);
