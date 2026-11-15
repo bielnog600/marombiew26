@@ -142,6 +142,7 @@ describe('Dieta do aluno — 3 opções por refeição', () => {
     render(<MinhasDietas />);
     await screen.findByText('Lanche');
     const card = lancheCard();
+    console.log('DEBUG', card.outerHTML.slice(0, 1500));
     expect(within(card).getByTestId('meal-option-badge')).toHaveTextContent('Opção 1');
     // A antiga Opção 3 não vira cartão: ficam Opção 1, Opção 2 e Receitas.
     expect(within(card).queryByRole('button', { name: /^Opção 3/ })).toBeNull();
