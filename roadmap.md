@@ -325,4 +325,5 @@ Fora do escopo desta entrega (Fases 3-6): LOW/MEDIUM/HIGH, novo carb cycling, aj
 - [x] Tela Cardio: Esta semana Seg→Dom, Teus cardios (mini barra, PICO/RECUP., feito/ainda não), Sugerido pré-selecionado, INICIAR <MODALIDADE>
 - [x] Detalhe: barra grande, etapas agrupadas × N ciclos, Dica do Fabiew (campo novo no Editar etapas), INICIAR CARDIO → player
 - [x] Qual sessão foi feita fica gravada (para "Feito terça" e "Sugerido"); admin Executar segue só pré-visualização
+- [x] Card da home com foto no padrão do TABATA; INICIAR começa direto no Prepare-se (som liberado no toque); título curto no player; Recomeçar → detalhe
 - [ ] Testar com o aluno real no iPhone — não consegui entrar como aluno daqui (conferi com dados de exemplo)
