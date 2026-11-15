@@ -8,7 +8,7 @@ import {
 import type { PlannedMeal, WeighedItem } from '@/lib/mealWeigh';
 
 const TONE_CLASS: Record<ScoreTone, string> = {
-  excellent: 'bg-score-excellent text-background',
+  excellent: 'bg-score-excellent text-foreground',
   good: 'bg-score-good text-background',
   poor: 'bg-score-poor text-background',
   bad: 'bg-score-bad text-foreground',
