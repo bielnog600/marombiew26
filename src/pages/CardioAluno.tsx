@@ -44,6 +44,8 @@ const CardioAluno: React.FC = () => {
   const statuses = useMemo(() => optionStatuses(data.options, data.sessions, data.planId), [data.options, data.sessions, data.planId]);
   const suggestion = useMemo(() => suggestedOption(statuses), [statuses]);
 
+  const canGoBack = location.key !== 'default';
+
   const startCardio = (i: number, replace: boolean) => {
     const protocol = data.options[i];
     if (!protocol) return;
@@ -53,7 +55,8 @@ const CardioAluno: React.FC = () => {
   if (index != null) {
     const i = Number(index);
     const protocol = Number.isInteger(i) ? data.options[i] : undefined;
-    const back = () => navigate('/cardio', { replace: true, state: { ...navState, selected: i } });
+    // A lista já guardou a seleção; sem histórico (link direto) volta para a lista.
+    const back = () => (canGoBack ? navigate(-1) : navigate('/cardio', { replace: true, state: { ...navState, selected: i } }));
     if (!protocol) {
       return (
         <CardioScreen header={<div className="flex items-center gap-1"><BackButton onClick={back} /><h1 className="text-lg font-black">Cardio</h1></div>}>
@@ -73,7 +76,7 @@ const CardioAluno: React.FC = () => {
       testId="cardio-choice"
       header={
         <div className="flex items-center gap-1">
-          <BackButton onClick={() => navigate(-1)} />
+          <BackButton onClick={() => (canGoBack ? navigate(-1) : navigate('/minha-area', { replace: true }))} />
           <h1 className="text-lg font-black">Cardio</h1>
         </div>
       }
