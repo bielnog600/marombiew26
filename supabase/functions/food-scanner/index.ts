@@ -1,9 +1,13 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
 import { aiFetch, setAiUsageActor, withAiUsage } from '../_shared/aiUsage.ts';
+import {
+  autoAddDecision, autoAddFoodRow, cleanReferenceMacros, findReferenceDuplicate, productKey,
+  referenceFoodName, referenceTableFor,
+} from '../_shared/foodCatalogRules.ts';
 
 const FIELDS =
-  'product_name,brands,image_front_url,nutriments,nutriscore_grade,nutriscore_score,nova_group,additives_tags,additives_n,ingredients_text,labels_tags,quantity,serving_size,serving_quantity';
+  'product_name,brands,image_front_url,nutriments,nutriscore_grade,nutriscore_score,nova_group,additives_tags,additives_n,ingredients_text,labels_tags,quantity,serving_size,serving_quantity,categories_tags';
 const CACHE_DAYS = 30;
 const MODEL = 'claude-haiku-5-5';
 const ANTHROPIC_BASE_URL = 'https://api.anthropic.com/v1';
@@ -85,6 +89,28 @@ const cleanCorrections = (value: unknown) =>
     .filter((v) => v.alimento && v.estimado > 0 && v.estimado <= 5000 && v.real > 0 && v.real <= 5000)
     .slice(0, 5);
 
+/**
+ * Macros por 100 g de tabela de referência (TACO/INSA) que a IA manda para um
+ * alimento que não está na base. Conferência leve aqui; o `reference_food`
+ * valida de novo antes de criar o alimento.
+ */
+function parseRefMacros(raw: any, cited: unknown) {
+  if (!raw || typeof raw !== 'object') return null;
+  const n = (v: unknown) => {
+    if (v === null || v === undefined || v === '') return null;
+    const x = typeof v === 'string' ? Number(v.replace(',', '.')) : Number(v);
+    return Number.isFinite(x) && x >= 0 ? Math.round(x * 10) / 10 : null;
+  };
+  const kcal = n(raw.kcal), p = n(raw.proteina), c = n(raw.carbo), g = n(raw.gordura);
+  if (kcal == null || p == null || c == null || g == null || kcal > 900 || p + c + g > 105) return null;
+  return { kcal, proteina: p, carbo: c, gordura: g, fibra: n(raw.fibra), tabela: String(cited ?? '').trim().slice(0, 40) || null };
+}
+
+const refInstruction = (country: 'br' | 'pt') =>
+  `- Se o alimento NÃO for um dos nomes do plano/base informados (ex.: fruta, carne, peixe, ovo, cereal, leguminosa, tofu, tempeh, seitan, PTS), preencha por_100g_referencia com kcal, proteina, carbo, gordura e fibra por 100 g do alimento como está (cozido/cru) segundo a tabela ${country === 'br' ? 'TACO (Brasil)' : 'INSA/PortFIR (Portugal)'} e tabela_referencia com o nome da tabela. Se for um nome da base, use null. Nunca invente para produto industrializado.`;
+
+const countryOf = (v: unknown): 'br' | 'pt' => (v === 'br' ? 'br' : 'pt');
+
 /** Normaliza o JSON da pesagem; null quando a IA não devolveu um objeto. */
 function parseWeighJson(text: string) {
   const raw = text.match(/\{[\s\S]*\}/)?.[0];
@@ -113,6 +139,7 @@ function parseWeighJson(text: string) {
     confianca_leitura: readable ? conf(o.confianca_leitura) : 0,
     visor_legivel: o.visor_legivel === true && readable,
     observacao: String(o.observacao ?? '').trim().slice(0, 240),
+    ref_100g: parseRefMacros(o.por_100g_referencia, o.tabela_referencia),
   };
 }
 
@@ -122,6 +149,7 @@ function weighPrompt(
   planFoods: string[],
   added: { alimento: string; gramas: number }[],
   pendingFoods: string[] = [],
+  country: 'br' | 'pt' = 'pt',
 ) {
   const task = hasPrevious
     ? 'Você recebeu duas fotos da mesma balança de cozinha: a ANTERIOR e a ATUAL. Entre elas o aluno zerou a balança (tara) e colocou UM alimento novo. Compare as duas fotos. Identifique SOMENTE o que foi adicionado entre a foto anterior e a atual. Um alimento já pesado não deve ser retornado de novo, a menos que a quantidade dele claramente aumentou. Leia o número do visor na foto ATUAL (depois da tara o visor mostra só o peso do alimento novo).'
@@ -138,8 +166,9 @@ Regras:
 - alimento_alternativas: 3 outros nomes prováveis para o alimento, do mais ao menos provável.
 - Nomes simples em português do Brasil, como numa tabela de alimentos (ex.: "Arroz branco cozido", "Peito de frango grelhado").
 - observacao: curta (ex.: reflexo no visor) ou "". Só fale de tara ou balança não zerada se houver suspeita real (ex.: peso muito acima do esperado para o alimento). Não comente a tigela, o prato ou o recipiente.
+${refInstruction(country)}
 Responda SOMENTE JSON:
-{"alimento":string,"alimento_alternativas":[string,string,string],"gramas_lidas":number|null,"confianca_alimento":number,"confianca_leitura":number,"visor_legivel":boolean,"observacao":string}`;
+{"alimento":string,"alimento_alternativas":[string,string,string],"gramas_lidas":number|null,"confianca_alimento":number,"confianca_leitura":number,"visor_legivel":boolean,"por_100g_referencia":{"kcal":number,"proteina":number,"carbo":number,"gordura":number,"fibra":number}|null,"tabela_referencia":string|null,"observacao":string}`;
 }
 
 /** Normaliza o JSON do "Prato pronto"; null quando a IA não devolveu itens num objeto. */
@@ -172,11 +201,12 @@ function parsePlateJson(text: string) {
         gramas_estimadas: grams,
         faixa_gramas: lo != null && hi != null ? [Math.min(lo, hi), Math.max(lo, hi)] : null,
         confianca: conf(it?.confianca),
+        ref_100g: parseRefMacros(it?.por_100g_referencia, it?.tabela_referencia),
       };
     })
     .filter((it: any) => it.alimento)
     .slice(0, 12);
-  const total = num(o.peso_total_lido);
+  const total = num(o.peso_total_lido ?? o.gramas_lidas);
   return {
     itens,
     peso_total_lido: total != null && total > 0 ? Math.round(total * 10) / 10 : null,
@@ -193,6 +223,7 @@ function platePrompt(
   added: { alimento: string; gramas: number }[],
   baseFoods: string[],
   corrections: { alimento: string; estimado: number; real: number }[] = [],
+  country: 'br' | 'pt' = 'pt',
 ) {
   const calib = corrections.length
     ? `\nCorreções recentes deste aluno (a estimativa da foto × o que era de verdade; use para calibrar as gramas, sem copiar números): ${corrections.map((c) => `${c.alimento}: você estimou ${c.estimado} g, era ${c.real} g`).join('; ')}.`
@@ -212,8 +243,9 @@ Regras:
 - alternativas: 3 outros nomes prováveis, do mais ao menos provável.
 - Nomes simples em português do Brasil, como numa tabela de alimentos (ex.: "Arroz branco cozido", "Peito de frango grelhado").
 - observacao: curta ou "".
+${refInstruction(country)}
 Responda SOMENTE JSON:
-{"itens":[{"alimento":string,"alternativas":[string,string,string],"gramas_estimadas":number,"faixa_gramas":[number,number],"confianca":number}],"peso_total_lido":number|null,"prato_tarado":boolean|null,"balanca_sem_visor":boolean,"observacao":string}`;
+{"itens":[{"alimento":string,"alternativas":[string,string,string],"gramas_estimadas":number,"faixa_gramas":[number,number],"confianca":number,"por_100g_referencia":{"kcal":number,"proteina":number,"carbo":number,"gordura":number,"fibra":number}|null,"tabela_referencia":string|null}],"peso_total_lido":number|null,"prato_tarado":boolean|null,"balanca_sem_visor":boolean,"observacao":string}`;
 }
 
 /* ---------- Scanner por foto ---------- */
@@ -345,7 +377,8 @@ Deno.serve(withAiUsage('scanner', 'food-scanner', async (req) => {
             type: 'text',
             text: `Leia a tabela nutricional e a lista de ingredientes deste rótulo. Converta tudo para 100 g/ml. Responda SOMENTE JSON:
 {"product_name":string|null,"brands":string|null,"serving_quantity":number|null,"nutriments":{"energy-kcal_100g":number,"proteins_100g":number,"carbohydrates_100g":number,"sugars_100g":number,"fat_100g":number,"saturated-fat_100g":number,"fiber_100g":number,"salt_100g":number},"additives_tags":["en:e330"],"ingredients_text":string,"labels_tags":[]}
-Em additives_tags liste os aditivos dos ingredientes como E-numbers (en:eXXX). Use 0 para valores ausentes.`,
+Em additives_tags liste os aditivos dos ingredientes como E-numbers (en:eXXX). Use 0 para valores ausentes.
+Inclua também "nutriscore_category": "bebida" (refrigerante, suco, chá, bebida vegetal), "agua", "gordura" (óleo, azeite, manteiga, margarina, oleaginosas, pasta de amendoim), "queijo" ou "geral", e "fruits-vegetables-nuts_100g" (% de frutas, legumes, leguminosas e oleaginosas nos ingredientes; azeite = 100) dentro de nutriments.`,
           },
         ],
         1200,
@@ -428,7 +461,7 @@ Responda SOMENTE JSON:
             { type: 'image', source: { type: 'base64', ...current } },
           ]
         : [{ type: 'image', source: { type: 'base64', ...current } }];
-      content.push({ type: 'text', text: weighPrompt(!!previous, mealName, planFoods, added, pendingFoods) });
+      content.push({ type: 'text', text: weighPrompt(!!previous, mealName, planFoods, added, pendingFoods, countryOf(body.country)) });
       const text = await anthropic(content, 400, 'escanear_prato');
       const result = parseWeighJson(text);
       if (!result) return json({ error: 'Não consegui analisar a foto. Tira outra.' }, 422);
@@ -456,7 +489,7 @@ Responda SOMENTE JSON:
       const text = await anthropic(
         [
           { type: 'image', source: { type: 'base64', ...current } },
-          { type: 'text', text: platePrompt(mealName, planFoods, pendingFoods, added, baseFoods, corrections) },
+          { type: 'text', text: platePrompt(mealName, planFoods, pendingFoods, added, baseFoods, corrections, countryOf(body.country)) },
         ],
         900,
         'prato_pronto',
