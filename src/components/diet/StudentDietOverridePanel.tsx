@@ -31,6 +31,7 @@ const ACTION_LABEL: Record<string, string> = {
   aluno_desfez_ajuste: 'Aluno desfez o ajuste de porções',
   treinador_editou: 'Treinador corrigiu',
   treinador_descartou: 'Treinador descartou alterações',
+  aluno_trocou_opcao: 'Aluno trocou a opção de uma refeição',
 };
 
 const fmtNum = (v?: string) => {
@@ -95,7 +96,26 @@ const StudentDietOverridePanel: React.FC<Props> = ({ planId, studentId, children
   const active = keys.includes(groupKey) ? groupKey : keys[0];
   const g = active != null ? groups[active] : null;
 
-  if (!row || !hasOverrideGroups(groups)) return <>{children}</>;
+  // Opção escolhida pelo aluno em cada refeição/dia (Opção 1 = plano, não aparece).
+  const optionChoices = Object.entries((((row?.edited_meta as any)?.__options) ?? {}) as Record<string, any>)
+    .filter(([, v]) => Number(v?.n) > 0)
+    .sort(([a], [b]) => a.localeCompare(b, undefined, { numeric: true }));
+  const optionsBox = optionChoices.length > 0 ? (
+    <div className="rounded-xl border border-primary/30 bg-primary/5 p-3 text-xs space-y-0.5" data-testid="student-option-choices">
+      <p className="font-semibold text-foreground">Opções escolhidas pelo aluno</p>
+      {optionChoices.map(([k, v]) => {
+        const [g, m] = k.split('-').map(Number);
+        return (
+          <p key={k} className="text-muted-foreground">
+            {v?.dia ?? WEEK[g] ?? `Dia ${g + 1}`} · {v?.refeicao ?? `Refeição ${m + 1}`}:{' '}
+            <strong className="text-foreground">Opção {Number(v.n) + 1}</strong>{v?.nome ? ` — ${v.nome}` : ''}
+          </p>
+        );
+      })}
+    </div>
+  ) : null;
+
+  if (!row || !hasOverrideGroups(groups)) return <>{optionsBox && <div className="mb-3">{optionsBox}</div>}{children}</>;
 
   const studentMeals: OverrideMeal[] = editing ? draft : (g?.student ?? []);
   const prescribed: OverrideMeal[] = g?.prescribed ?? [];
@@ -141,6 +161,7 @@ const StudentDietOverridePanel: React.FC<Props> = ({ planId, studentId, children
 
   return (
     <div className="space-y-3">
+      {optionsBox}
       <div className="flex flex-wrap items-center gap-2">
         <Badge variant="outline" className="gap-1 border-primary/40 text-primary">
           <UserRound className="h-3 w-3" />
