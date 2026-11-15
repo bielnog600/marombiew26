@@ -5,7 +5,7 @@
  * nutritionCore. Nunca passa por markdown/ParsedMeal, nunca resolve alimento
  * por nome/aproximação e nunca escala macros manualmente.
  */
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -20,6 +20,7 @@ import {
   Plus,
   Copy,
   Sparkles,
+  Layers,
 } from 'lucide-react';
 import {
   Dialog,
@@ -65,6 +66,17 @@ import MealTimePopover from './MealTimePopover';
 import CarbCyclePanel from './CarbCyclePanel';
 import { applyCarbCycle, type CarbCycleConfig } from '@/lib/dietCarbCycle';
 import { applyMealTimeAndSort } from '@/lib/dietMealTime';
+import MealOptionPanel from './MealOptionPanel';
+import MealBankPickerDialog from './MealBankPickerDialog';
+import { useMealBank, useStudentMealContext } from '@/hooks/useMealBank';
+import {
+  bankMealToOption,
+  buildStudentMealContext,
+  generatePlanMealOptions,
+  mealSlotsFor,
+  syncPlanMealOptions,
+  type MealOption,
+} from '@/lib/mealBank';
 
 interface Props {
   plan: DietPlan;
@@ -79,6 +91,10 @@ interface Props {
   protocols?: any;
   /** Ciclo de carbo aplicado: novo plano + protocolos com metas por dia. */
   onCarbCycleApply?: (plan: DietPlan, protocols: any) => void;
+  /** Aluno da dieta — país, restrições e ficha para as opções do banco. */
+  studentId?: string | null;
+  /** Quando muda (ex.: dieta recém-gerada), gera as opções 2/3 automaticamente. */
+  autoGenerateOptionsKey?: string | number | null;
 }
 
 const clone = <T,>(v: T): T => JSON.parse(JSON.stringify(v));
@@ -96,7 +112,7 @@ const fmt = (n: number) => (Number.isInteger(n) ? String(n) : (Math.round(n * 10
 const line = (m: { kcal: number; p: number; c: number; g: number } | null | undefined) =>
   m ? `${Math.round(m.kcal)} kcal · ${Math.round(m.p)}P · ${Math.round(m.c)}C · ${Math.round(m.g)}G` : '—';
 
-const CanonicalDietEditor: React.FC<Props> = ({ plan, foods, targetsByDay, dayTypesByDay, onChange, protocols, onCarbCycleApply }) => {
+const CanonicalDietEditor: React.FC<Props> = ({ plan, foods, targetsByDay, dayTypesByDay, onChange: onChangeRaw, protocols, onCarbCycleApply, studentId, autoGenerateOptionsKey }) => {
   const [dayIndex, setDayIndex] = useState(0);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [preview, setPreview] = useState<AutoAdjustResult | null>(null);
@@ -138,6 +154,50 @@ const CanonicalDietEditor: React.FC<Props> = ({ plan, foods, targetsByDay, dayTy
 
   const foodRecords = foods ?? loadedFoods ?? [];
   const index = useMemo(() => buildFoodIndex(foodRecords), [foodRecords]);
+  /** Toda alteração mantém a Opção 1 espelhando os itens da refeição. */
+  const onChange = (next: DietPlan) => onChangeRaw(syncPlanMealOptions(next, index) as DietPlan);
+
+  const [optionTab, setOptionTab] = useState<Record<string, number>>({});
+  const [bankSwap, setBankSwap] = useState<{ mealIdx: number; optIdx: number } | null>(null);
+  const { data: bank = [] } = useMealBank();
+  const { data: studentCtx } = useStudentMealContext(studentId);
+  const mealCtx = useMemo(() => studentCtx ?? buildStudentMealContext({}), [studentCtx]);
+  const ctxReady = !studentId || !!studentCtx;
+
+  const generateOptions = (silent = false) => {
+    if (!bank.length || !foodRecords.length) {
+      if (!silent) toast.warning('Banco de refeições ainda carregando.');
+      return false;
+    }
+    const res = generatePlanMealOptions(plan, bank, foodRecords, mealCtx);
+    setUndoSnapshot(clone(plan));
+    setOptionTab({});
+    onChange(res.plan as DietPlan);
+    if (res.generated > 0) {
+      toast.success(`Opções 2 e 3 geradas para ${res.generated} refeição(ões).`);
+    } else if (!silent) {
+      toast.warning('Nenhuma refeição do banco combina com estes horários.');
+    }
+    if (res.skipped.length && !silent) toast.info(`Sem opções do banco: ${Array.from(new Set(res.skipped)).join(', ')}.`);
+    return true;
+  };
+
+  const lastAutoKey = useRef<string | number | null | undefined>(null);
+  useEffect(() => {
+    if (autoGenerateOptionsKey == null || lastAutoKey.current === autoGenerateOptionsKey) return;
+    if (!bank.length || !foodRecords.length || !ctxReady) return;
+    lastAutoKey.current = autoGenerateOptionsKey;
+    generateOptions(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoGenerateOptionsKey, bank, foodRecords, ctxReady]);
+
+  const updateOption = (mealIdx: number, optIdx: number, option: MealOption) => {
+    const next = clone(plan);
+    const meal: any = next.days[activeIndex].meals[mealIdx];
+    if (!Array.isArray(meal?.options) || !meal.options[optIdx]) return;
+    meal.options[optIdx] = option;
+    onChange(next);
+  };
 
   /**
    * HOTFIX — quando o catálogo muda (alimento recém-adicionado à base),
@@ -505,6 +565,14 @@ const CanonicalDietEditor: React.FC<Props> = ({ plan, foods, targetsByDay, dayTy
               )}
             </>
           )}
+          <div className="flex flex-wrap items-center gap-2 border-t border-border/60 pt-2">
+            <Button size="sm" variant="outline" onClick={() => generateOptions(false)} disabled={!bank.length || !ctxReady}>
+              <Layers className="mr-1 h-3 w-3" /> Gerar opções
+            </Button>
+            <span className="text-muted-foreground">
+              Opções 2 e 3 de cada refeição a partir do Banco de refeições (mesmo horário, ficha e país do aluno). A Opção 1 não muda.
+            </span>
+          </div>
         </CardContent>
       </Card>
 
@@ -552,6 +620,45 @@ const CanonicalDietEditor: React.FC<Props> = ({ plan, foods, targetsByDay, dayTy
                 </Button>
               </div>
             </div>
+            {Array.isArray((meal as any).options) && (meal as any).options.length > 1 && (
+              <div className="flex flex-wrap gap-1" role="tablist" aria-label={`Opções de ${meal.name}`}>
+                {((meal as any).options as MealOption[]).map((opt, oi) => {
+                  const active = (optionTab[`${activeIndex}-${mealIdx}`] ?? 0) === oi;
+                  return (
+                    <Button
+                      key={`opt-${oi}`}
+                      size="sm"
+                      role="tab"
+                      aria-selected={active}
+                      variant={active ? 'default' : 'outline'}
+                      className="h-7 text-[11px]"
+                      title={opt.name}
+                      onClick={() => setOptionTab((p) => ({ ...p, [`${activeIndex}-${mealIdx}`]: oi }))}
+                    >
+                      Opção {oi + 1}
+                    </Button>
+                  );
+                })}
+              </div>
+            )}
+            {(() => {
+              const oi = optionTab[`${activeIndex}-${mealIdx}`] ?? 0;
+              const opt = (meal as any).options?.[oi] as MealOption | undefined;
+              if (oi === 0 || !opt) return null;
+              return (
+                <MealOptionPanel
+                  option={opt}
+                  optionNumber={oi + 1}
+                  planKcal={computed?.meals[mealIdx]?.totals.kcal ?? 0}
+                  foods={foodRecords}
+                  index={index}
+                  onChange={(o) => updateOption(mealIdx, oi, o)}
+                  onSwap={() => setBankSwap({ mealIdx, optIdx: oi })}
+                />
+              );
+            })()}
+            {(optionTab[`${activeIndex}-${mealIdx}`] ?? 0) === 0 || !(meal as any).options?.[optionTab[`${activeIndex}-${mealIdx}`] ?? 0] ? (
+            <>
             <div className="space-y-1">
               {(meal.items ?? []).map((item, itemIdx) => {
                 const key = `${activeIndex}-${mealIdx}-${itemIdx}`;
@@ -632,9 +739,30 @@ const CanonicalDietEditor: React.FC<Props> = ({ plan, foods, targetsByDay, dayTy
             >
               <Plus className="mr-1 h-3 w-3" /> Adicionar alimento
             </Button>
+            </>
+            ) : null}
           </CardContent>
         </Card>
       ))}
+
+      {bankSwap && day.meals?.[bankSwap.mealIdx] && (
+        <MealBankPickerDialog
+          open
+          onOpenChange={(o) => !o && setBankSwap(null)}
+          bank={bank}
+          index={index}
+          ctx={mealCtx}
+          slots={mealSlotsFor(day.meals[bankSwap.mealIdx].name, day.meals[bankSwap.mealIdx].time)}
+          targetKcal={computed?.meals[bankSwap.mealIdx]?.totals.kcal ?? 0}
+          excludeCodes={(day.meals ?? []).flatMap((m: any) => (m.options ?? []).map((o: any) => o.bankCode).filter(Boolean))}
+          onSelect={(bm) => {
+            const swap = bankSwap;
+            setBankSwap(null);
+            updateOption(swap.mealIdx, swap.optIdx, bankMealToOption(bm, index, computed?.meals[swap.mealIdx]?.totals.kcal ?? 0));
+            toast.success(`Opção ${swap.optIdx + 1}: ${bm.name}`);
+          }}
+        />
+      )}
 
       {aiMealIdx !== null && (
         <MealAiSuggestionsDialog
