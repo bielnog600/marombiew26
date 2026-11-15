@@ -105,18 +105,85 @@ const singular = (w: string): string => {
 /** Nome normalizado: sem acento/maiúsculas/pontuação e plural simples. */
 export const foodMatchKey = (name: unknown): string => normText(name).split(' ').filter(Boolean).map(singular).join(' ');
 
+const LINKING_WORDS = new Set(['de', 'da', 'do', 'das', 'dos']);
+/** Como foodMatchKey, ignorando "de/da/do" ("Grão-de-bico" = "Grão bico"). */
+export const foodLooseKey = (name: unknown): string => foodMatchKey(name).split(' ').filter((t) => t && !LINKING_WORDS.has(t)).join(' ');
+
+/**
+ * Sinónimos BR/PT embutidos: nome da planilha → nome do alimento no banco.
+ * Só ligam quando o alimento de destino existe na tabela.
+ */
+export const BUILTIN_FOOD_SYNONYMS: ReadonlyArray<readonly [string, string]> = [
+  ['Abóbora cozida', 'Abóbora cabotiá / menina cozida'],
+  ['Arroz integral cozido', 'Arroz integral'],
+  ['Atum ao natural', 'Atum em água'],
+  ['Biscoito de arroz', 'Biscoito de arroz integral'],
+  ['Chocolate 70%', 'Chocolate 74%'],
+  ['Coxa de frango sem pele assada', 'Coxa de frango sem pele cozida'],
+  ['Cuscuz de milho hidratado', 'Cuscuz de milho cozido'],
+  ['Edamame', 'Edamame cozido'],
+  ['Feijão-branco cozido', 'Feijão branco cozido'],
+  ['Goma de tapioca', 'Tapioca (goma pronta)'],
+  ['Grão-de-bico cozido', 'Grão de bico cozido'],
+  ['Hambúrguer caseiro de patinho', 'Hambúrguer bovino caseiro grelhado'],
+  ['Iogurte grego natural light', 'Iogurte tipo Grego Natural Light'],
+  ['Legumes salteados', 'Legumes cozidos variados'],
+  ['Leite semidesnatado', 'Leite meio-gordo'],
+  ['Macarrão cozido', 'Massa cozida'],
+  ['Moela cozida', 'Moela de frango'],
+  ['Muçarela', 'Mussarela'],
+  ['Ovo inteiro', 'Ovo'],
+  ['Pão de forma integral', 'Pão integral'],
+  ['Pão de forma tradicional', 'Pão de forma'],
+  ['Peito de peru fatiado', 'Fiambre de peru'],
+  ['Pimentão', 'Pimento (pimentão)'],
+  ['Repolho refogado', 'Repolho'],
+  ['Skyr natural', 'Iogurte Skyr Natural'],
+  ['Tofu firme', 'Tofu'],
+  ['Tortilha/Rap10 integral', 'Tortilha integral'],
+  ['Mamão papaia', 'Mamão'],
+  ['Lentilha cozida', 'Lentilhas cozidas'],
+  ['Patinho moído refogado', 'Carne moída magra cozida'],
+  ['Pasta de amendoim integral', 'Pasta de amendoim'],
+  ['Pão sírio integral', 'Pão sírio'],
+  ['Ricota', 'Queijo Ricota'],
+  ['Sardinha em lata', 'Sardinha em lata (óleo, escorrida)'],
+  ['Sobrecoxa sem pele assada', 'Sobrecoxa de frango assada sem pele'],
+  ['Uva', 'Uvas'],
+  ['Whey protein concentrado', 'Whey Protein Concentrado'],
+  ['Camarão cozido', 'Camarão grelhado'],
+  ['Cogumelos salteados', 'Cogumelos'],
+  ['Doce de leite', 'Dulce de Leche'],
+  ['Bacalhau demolhado cozido', 'Bacalhau demolhado cozido'],
+];
+
+/** Palavras BR ↔ PT trocadas uma a uma (o nome trocado ainda tem de bater inteiro). */
+const WORD_SYNONYMS: ReadonlyArray<readonly [string, string]> = [
+  ['curgete', 'abobrinha'], ['abobrinha', 'curgete'],
+  ['ananas', 'abacaxi'], ['abacaxi', 'ananas'],
+  ['pimento', 'pimentao'], ['pimentao', 'pimento'],
+  ['mucarela', 'mussarela'], ['mozzarella', 'mussarela'], ['mussarela', 'mozzarella'],
+  ['semidesnatado', 'meio gordo'], ['meio gordo', 'semidesnatado'],
+  ['macarrao', 'massa'], ['massa', 'macarrao'],
+  ['fiambre', 'presunto'], ['presunto', 'fiambre'],
+  ['natas', 'creme leite'], ['creme leite', 'natas'],
+];
+
 export interface FoodAliasRow { alias: string; food_id: string }
 
 export interface FoodMatcher {
   foods: FoodRecord[];
   exact: Map<string, FoodRecord>;
   normalized: Map<string, FoodRecord>;
+  loose: Map<string, FoodRecord>;
   alias: Map<string, FoodRecord>;
+  synonym: Map<string, FoodRecord>;
 }
 
 export const buildFoodMatcher = (foods: FoodRecord[], aliases: FoodAliasRow[] = []): FoodMatcher => {
   const exact = new Map<string, FoodRecord>();
   const normalized = new Map<string, FoodRecord>();
+  const loose = new Map<string, FoodRecord>();
   const byId = new Map<string, FoodRecord>();
   for (const f of foods) {
     byId.set(f.id, f);
@@ -124,33 +191,129 @@ export const buildFoodMatcher = (foods: FoodRecord[], aliases: FoodAliasRow[] = 
     if (name && !exact.has(name)) exact.set(name, f);
     const key = foodMatchKey(name);
     if (key && !normalized.has(key)) normalized.set(key, f);
+    const lk = foodLooseKey(name);
+    if (lk && !loose.has(lk)) loose.set(lk, f);
   }
   const alias = new Map<string, FoodRecord>();
   for (const a of aliases) {
     const food = byId.get(a.food_id);
+    if (!food) continue;
     const key = foodMatchKey(a.alias);
-    if (food && key) alias.set(key, food);
+    if (key) alias.set(key, food);
+    const lk = foodLooseKey(a.alias);
+    if (lk && !alias.has(lk)) alias.set(lk, food);
   }
-  return { foods, exact, normalized, alias };
+  const synonym = new Map<string, FoodRecord>();
+  for (const [from, to] of BUILTIN_FOOD_SYNONYMS) {
+    const food = exact.get(to) ?? normalized.get(foodMatchKey(to)) ?? loose.get(foodLooseKey(to));
+    if (!food) continue;
+    synonym.set(foodMatchKey(from), food);
+    synonym.set(foodLooseKey(from), food);
+  }
+  return { foods, exact, normalized, loose, alias, synonym };
 };
 
-export type FoodMatchVia = 'exato' | 'normalizado' | 'apelido';
+/** exato → apelido salvo → nome normalizado → sinónimo BR/PT → nome parecido com macros iguais. */
+export type FoodMatchVia = 'exato' | 'apelido' | 'normalizado' | 'sinonimo' | 'parecido';
 
+export const FOOD_MATCH_VIA_LABEL: Record<FoodMatchVia, string> = {
+  exato: 'mesmo nome',
+  apelido: 'ligado antes',
+  normalizado: 'mesmo nome',
+  sinonimo: 'sinónimo',
+  parecido: 'nome e macros parecidos',
+};
+
+const swapWords = (key: string): string[] => {
+  const out: string[] = [];
+  for (const [a, b] of WORD_SYNONYMS) {
+    if (` ${key} `.includes(` ${a} `)) out.push(` ${key} `.replace(` ${a} `, ` ${b} `).trim());
+  }
+  return out;
+};
+
+/** Camadas (a)–(d): só ligações seguras, sem olhar para macros. */
 export const matchFoodName = (name: string, m: FoodMatcher): { food: FoodRecord; via: FoodMatchVia } | null => {
   const trimmed = String(name ?? '').trim();
+  if (!trimmed) return null;
   const exact = m.exact.get(trimmed);
   if (exact) return { food: exact, via: 'exato' };
   const key = foodMatchKey(trimmed);
-  const norm = m.normalized.get(key);
-  if (norm) return { food: norm, via: 'normalizado' };
-  const alias = m.alias.get(key);
+  const lk = foodLooseKey(trimmed);
+  const alias = m.alias.get(key) ?? m.alias.get(lk);
   if (alias) return { food: alias, via: 'apelido' };
+  const norm = m.normalized.get(key) ?? m.loose.get(lk);
+  if (norm) return { food: norm, via: 'normalizado' };
+  const syn = m.synonym.get(key) ?? m.synonym.get(lk);
+  if (syn) return { food: syn, via: 'sinonimo' };
+  for (const alt of swapWords(key)) {
+    const f = m.normalized.get(alt) ?? m.loose.get(foodLooseKey(alt)) ?? m.synonym.get(alt);
+    if (f) return { food: f, via: 'sinonimo' };
+  }
   return null;
 };
 
+/* ------------------------------------- (e) nome parecido + macros iguais */
+
+/** Palavras de preparo/descrição que não mudam o alimento para a comparação de nomes. */
+const DESCRIPTOR_WORDS = new Set([
+  'cozido', 'cozida', 'grelhado', 'grelhada', 'assado', 'assada', 'refogado', 'refogada', 'cru', 'crua',
+  'natural', 'fatiado', 'fatiada', 'picado', 'picada', 'salteado', 'salteada', 'hidratado', 'hidratada',
+  'pronto', 'pronta', 'caseiro', 'caseira', 'escorrido', 'escorrida', 'fresco', 'fresca', 'tipo', 'em', 'com', 'e', 'a', 'o', 'ao', 'na', 'no',
+]);
+const contentTokens = (name: string): string[] => foodLooseKey(name).split(' ').filter((t) => t && !DESCRIPTOR_WORDS.has(t));
+
+/** Similaridade de nomes 0–1 (Dice nas palavras que importam); 0 se a primeira palavra for outra. */
+export const foodNameSimilarity = (a: string, b: string): number => {
+  const ta = contentTokens(a);
+  const tb = contentTokens(b);
+  if (ta.length === 0 || tb.length === 0 || ta[0] !== tb[0]) return 0;
+  const setB = new Set(tb);
+  const common = new Set(ta.filter((t) => setB.has(t))).size;
+  return (2 * common) / (new Set(ta).size + setB.size);
+};
+
+export const SIMILAR_NAME_MIN = 0.8;
+export const SIMILAR_KCAL_PCT = 0.15;
+export const SIMILAR_MACRO_G = 5;
+
+const per100 = (f: FoodRecord) => {
+  const portion = Number(f.portion_size) > 0 ? Number(f.portion_size) : 100;
+  const k = 100 / portion;
+  return { kcal: Number(f.calories ?? 0) * k, p: Number(f.protein ?? 0) * k, c: Number(f.carbs ?? 0) * k, g: Number(f.fats ?? 0) * k };
+};
+
+/** Macros por 100 g batem: kcal ±15%, P/C/G ±5 g. */
+export const macrosMatch = (def: { kcal: number; p: number; c: number; g: number }, food: FoodRecord): boolean => {
+  const f = per100(food);
+  const kcalTol = Math.max(f.kcal, def.kcal) * SIMILAR_KCAL_PCT;
+  return Math.abs(def.kcal - f.kcal) <= kcalTol
+    && Math.abs(def.p - f.p) <= SIMILAR_MACRO_G
+    && Math.abs(def.c - f.c) <= SIMILAR_MACRO_G
+    && Math.abs(def.g - f.g) <= SIMILAR_MACRO_G;
+};
+
+const completeDef = (def: ParsedFoodDef | null | undefined): { kcal: number; p: number; c: number; g: number } | null =>
+  def && [def.kcal, def.p, def.c, def.g].every((v) => v !== null && Number.isFinite(v) && v >= 0)
+    ? { kcal: def.kcal!, p: def.p!, c: def.c!, g: def.g! }
+    : null;
+
+/** Camada (e): só liga com nome muito parecido E macros da aba Alimentos iguais aos do banco. */
+export const similarFoodMatch = (name: string, def: ParsedFoodDef | null | undefined, foods: FoodRecord[]): FoodRecord | null => {
+  const d = completeDef(def);
+  if (!d) return null;
+  let best: { f: FoodRecord; s: number } | null = null;
+  for (const f of foods) {
+    const s = foodNameSimilarity(name, f.name);
+    if (s < SIMILAR_NAME_MIN || !macrosMatch(d, f)) continue;
+    if (!best || s > best.s) best = { f, s };
+  }
+  return best?.f ?? null;
+};
+
 const STOP = new Set(['de', 'da', 'do', 'das', 'dos', 'em', 'com', 'ao', 'a', 'o', 'e', 'na', 'no', 'para', 'tipo']);
-/** Sinónimos BR/PT simples, só para sugerir (nunca liga sozinho). */
-const SYNONYMS: Array<[string, string]> = [
+/** Sinónimos para as sugestões do "Mudar" (nunca ligam sozinhos). */
+const SUGGEST_SYNONYMS: Array<[string, string]> = [
   ['ao natural', 'em agua'],
   ['natural', 'agua'],
   ['curgete', 'abobrinha'],
@@ -165,7 +328,7 @@ const SYNONYMS: Array<[string, string]> = [
 const tokens = (key: string): string[] => key.split(' ').filter((t) => t && !STOP.has(t));
 const expandedTokens = (key: string): string[] => {
   const out = new Set(tokens(key));
-  for (const [a, b] of SYNONYMS) {
+  for (const [a, b] of SUGGEST_SYNONYMS) {
     if (` ${key} `.includes(` ${a} `)) for (const t of tokens(foodMatchKey(b))) out.add(t);
   }
   return [...out];
