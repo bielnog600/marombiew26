@@ -1,4 +1,5 @@
 import { buildTargetedCorrectionPrompt, mergeCorrectedDays } from "./targetedCorrection.ts";
+import { requireAdminCaller } from "../_shared/requireAdminCaller.ts";
 import { anthropicChat, anthropicFailure, anthropicErrorStatus, PRESCRIPTION_MODEL, AI_MODELS, createRoutingMetadata } from "../_shared/anthropic.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import {
@@ -1454,6 +1455,10 @@ import {
 
 serve(withAiUsage("treino_ia", "trainer-agent", async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+
+  // Só admin logado ou chamada interna (service role) chega à IA.
+  const denied = await requireAdminCaller(req, corsHeaders);
+  if (denied) return denied;
 
   try {
     const {

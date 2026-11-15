@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { requireAdminCaller } from "../_shared/requireAdminCaller.ts";
 import { aiFetch, withAiUsage } from "../_shared/aiUsage.ts";
 
 const corsHeaders = {
@@ -24,6 +25,10 @@ Retorne via a função "organize_variations".`;
 
 serve(withAiUsage("variacoes_exercicio_ia", "organize-exercise-variations", async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+
+  // Só admin logado ou chamada interna (service role) chega à IA.
+  const denied = await requireAdminCaller(req, corsHeaders);
+  if (denied) return denied;
 
   try {
     const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");

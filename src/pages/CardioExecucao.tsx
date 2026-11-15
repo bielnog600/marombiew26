@@ -18,13 +18,9 @@ import { toneColor, type PhaseTone } from '@/lib/tabataPlayerView';
 import { PhaseChip } from '@/components/tabata/player/TabataPlayerParts';
 import {
   CARDIO_PREP_SECONDS, NEXT_CARD_SECONDS, blockParams, blockTag, blockTone, cardioElapsed, cardioSegments,
-  createCardioCuePlanner, estimateCardioKcal, nextPhaseText, phaseCountLabel, phaseToneFor, totalBlocksSeconds,
+  estimateCardioKcal, nextPhaseText, phaseCountLabel, phaseToneFor, totalBlocksSeconds,
   type CardioPhase,
 } from '@/lib/cardioPlayerView';
-import {
-  countdownMode, momentCandidates, pickVariation, voiceBank, type PhaseCue, type TabataMoment,
-} from '@/lib/tabataVoiceCues';
-import { createTabataVoice, type TabataVoice } from '@/lib/tabataVoicePlayer';
 import { createPlayerBeeper, type PlayerBeeper } from '@/lib/playerBeeper';
 import {
   RESUME_COUNTDOWN_SECONDS, STALE_WARMUP_TEXT, activeSeconds, buildCardioSnapshot, cardioSnapshotLabel,
@@ -136,15 +132,7 @@ const CardioExecucao: React.FC = () => {
   const awayRef = useRef<{ at: number } | null>(null);
   const resumeTimersRef = useRef<number[]>([]);
   const lastRemoteSaveRef = useRef(0);
-  const voiceRef = useRef<TabataVoice | null>(null);
   const beeperRef = useRef<PlayerBeeper | null>(null);
-  const plannerRef = useRef(createCardioCuePlanner());
-  const cuesRef = useRef<PhaseCue[]>([]);
-  const phaseSeqRef = useRef(0);
-  const firedRef = useRef<Set<string>>(new Set());
-  const lastVoiceRef = useRef<Partial<Record<TabataMoment, string>>>({});
-  const voiceCountdownRef = useRef(false);
-  const splitCountdownRef = useRef(false);
   const lastBeepedRef = useRef(-1);
   mutedRef.current = muted;
 
@@ -205,22 +193,13 @@ const CardioExecucao: React.FC = () => {
     return zone?.min != null && zone?.max != null ? `${zone.min}-${zone.max} bpm` : null;
   };
 
-  // ───────── Som: bipes + voz do Fabiew (falas aprovadas do TABATA) ─────────
+  // ───────── Som: só bipes (3-2-1 e troca de fase). As falas gravadas ficam só no TABATA. ─────────
   useEffect(() => {
     beeperRef.current = createPlayerBeeper(() => mutedRef.current);
-    try {
-      const v = createTabataVoice();
-      voiceRef.current = v;
-      void v.preload().catch(() => { /* sem voz: bipes */ });
-    } catch { voiceRef.current = null; }
-    return () => { voiceRef.current?.stop(); beeperRef.current?.dispose(); };
+    return () => { beeperRef.current?.dispose(); };
   }, []);
   const beep = (kind: 'countdown' | 'transition') => beeperRef.current?.beep(kind);
-  const unlockAudio = () => {
-    try { voiceRef.current?.unlock(); } catch { /* noop */ }
-    beeperRef.current?.unlock();
-  };
-  const currentBank = () => voiceBank(voiceRef.current?.readyKeys() ?? []);
+  const unlockAudio = () => { beeperRef.current?.unlock(); };
 
   useEffect(() => {
     if (!persistEnabled) return;
@@ -263,12 +242,6 @@ const CardioExecucao: React.FC = () => {
     blockIndexRef.current = index;
     phaseStartRef.current = now;
     phaseTotalRef.current = secs;
-    phaseSeqRef.current += 1;
-    cuesRef.current = next === 'prep'
-      ? plannerRef.current.plan('prep', undefined, list[0], secs)
-      : plannerRef.current.plan('block', list[index], list[index + 1], secs);
-    voiceCountdownRef.current = false;
-    if (next === 'prep' || !splitCountdownRef.current) splitCountdownRef.current = false;
     lastBeepedRef.current = -1;
     setPhase(next);
     setBlockIndex(index);
@@ -291,7 +264,6 @@ const CardioExecucao: React.FC = () => {
   };
 
   const finishSession = () => {
-    voiceRef.current?.stop();
     clearResumeTimers();
     setResumeCount(null);
     if (pausedAtRef.current) { totalPauseMsRef.current += Date.now() - pausedAtRef.current; pausedAtRef.current = null; }
@@ -337,30 +309,11 @@ const CardioExecucao: React.FC = () => {
     goNext(phase, blockIndex);
   }, [secondsLeft, phase, paused]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Falas nos momentos sorteados + bipes 3-2-1 (a contagem gravada substitui os bipes)
+  // Bipes 3-2-1 no fim de cada fase
   useEffect(() => {
     if (paused || phase === 'idle' || phase === 'done') return;
     const s = secondsLeft;
-    const cue = cuesRef.current.find(c => c.at === s);
-    const id = cue ? `${phaseSeqRef.current}:${cue.moment}` : '';
-    if (cue && !firedRef.current.has(id) && !mutedRef.current) {
-      firedRef.current.add(id);
-      const voice = voiceRef.current;
-      const bank = currentBank();
-      const key = pickVariation(momentCandidates(bank, cue.moment), lastVoiceRef.current[cue.moment]);
-      const skipLargada = cue.moment === 'largada' && !splitCountdownRef.current;
-      if (voice && key && !skipLargada && !(cue.moment === 'contagem' && voice.busy())) {
-        lastVoiceRef.current[cue.moment] = key;
-        if (cue.moment === 'contagem') {
-          voiceCountdownRef.current = true;
-          splitCountdownRef.current = countdownMode(bank) === 'split';
-        }
-        if (cue.moment === 'largada') splitCountdownRef.current = false;
-        const job = cue.moment === 'largada' ? voice.playNext(key, 1200) : voice.play(key);
-        job.catch(() => { if (cue.moment === 'contagem') { voiceCountdownRef.current = false; splitCountdownRef.current = false; } });
-      } else if (cue.moment === 'largada') splitCountdownRef.current = false;
-    }
-    if (s >= 1 && s <= 3 && !voiceCountdownRef.current && lastBeepedRef.current !== s) {
+    if (s >= 1 && s <= 3 && lastBeepedRef.current !== s) {
       lastBeepedRef.current = s;
       beep('countdown');
     }
@@ -371,7 +324,6 @@ const CardioExecucao: React.FC = () => {
     if (pausedRef.current) return;
     pausedRef.current = true;
     pausedAtRef.current = Date.now();
-    voiceRef.current?.stop();
     setPaused(true);
   };
   function resume() {
@@ -422,14 +374,12 @@ const CardioExecucao: React.FC = () => {
 
   const skipNext = () => {
     unlockAudio();
-    voiceRef.current?.stop();
     if (pausedRef.current) resume();
     goNext();
   };
 
   const skipPrev = () => {
     unlockAudio();
-    voiceRef.current?.stop();
     if (pausedRef.current) resume();
     const p = phaseRef.current;
     const i = blockIndexRef.current;
@@ -447,7 +397,7 @@ const CardioExecucao: React.FC = () => {
     const willUnmute = muted;
     mutedRef.current = !muted;
     setMuted(!muted);
-    if (willUnmute) unlockAudio(); else voiceRef.current?.stop();
+    if (willUnmute) unlockAudio();
   };
 
   // ───────── Cardio em andamento: pausa ao sair e retomada ─────────
@@ -486,25 +436,13 @@ const CardioExecucao: React.FC = () => {
     resumeTimersRef.current = [];
   }
 
-  const playPreparado = (): boolean => {
-    const voice = voiceRef.current;
-    if (mutedRef.current || !voice) return false;
-    const key = voice.ready('tabata_preparado')
-      ? 'tabata_preparado'
-      : pickVariation(momentCandidates(currentBank(), 'preparar'), lastVoiceRef.current.preparar);
-    if (!key) return false;
-    voice.stop();
-    void voice.play(key).catch(() => { /* bipes seguem */ });
-    return true;
-  };
-
-  /** "Tá preparado?" + 3, 2, 1 com bipes e segue de onde parou. */
-  function runResumeCountdown(withVoice: boolean) {
+  /** 3, 2, 1 com bipes e segue de onde parou (sem fala). */
+  function runResumeCountdown(withLead: boolean) {
     clearResumeTimers();
     setResumeOffer(null);
     awayRef.current = null;
     let lead = 0;
-    if (withVoice) { lead = playPreparado() ? 1500 : 900; setResumeCount(0); }
+    if (withLead) { lead = 600; setResumeCount(0); }
     const at = (ms: number, fn: () => void) => { resumeTimersRef.current.push(window.setTimeout(fn, ms)); };
     for (let i = 0; i < RESUME_COUNTDOWN_SECONDS; i++) {
       const n = RESUME_COUNTDOWN_SECONDS - i;
@@ -526,7 +464,6 @@ const CardioExecucao: React.FC = () => {
     if (p !== navProtocol) setProtocolOverride(p);
     protocolRef.current = p;
     clearResumeTimers();
-    voiceRef.current?.stop();
     sessionIdRef.current = snap.sessionId;
     if (!studentIdRef.current) studentIdRef.current = snap.studentId;
     sessionStartRef.current = snap.startedAt;
@@ -540,10 +477,6 @@ const CardioExecucao: React.FC = () => {
     blockIndexRef.current = snap.blockIndex;
     phaseStartRef.current = startAt;
     phaseTotalRef.current = snap.phaseTotalSeconds;
-    phaseSeqRef.current += 1;
-    cuesRef.current = snap.phase === 'prep'
-      ? plannerRef.current.plan('prep', undefined, p.blocks[0], snap.phaseTotalSeconds)
-      : plannerRef.current.plan('block', p.blocks[snap.blockIndex], p.blocks[snap.blockIndex + 1], snap.phaseTotalSeconds);
     lastRemoteSaveRef.current = 0;
     pausedRef.current = true;
     setPhase(snap.phase);
@@ -558,7 +491,6 @@ const CardioExecucao: React.FC = () => {
 
   const resetToIdle = () => {
     clearResumeTimers();
-    voiceRef.current?.stop();
     setResumeCount(null);
     setResumeOffer(null);
     awayRef.current = null;

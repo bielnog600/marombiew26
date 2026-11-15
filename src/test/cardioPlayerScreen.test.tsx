@@ -6,6 +6,8 @@ import { normalizeCardioIntervals } from '@/lib/cardioIntervals';
 import { buildEquipment } from '@/lib/officeWizard/cardioWizard';
 import type { CardioProtocol } from '@/lib/cardioParser';
 
+const voiceSpy = vi.fn();
+vi.mock('@/lib/tabataVoicePlayer', () => ({ createTabataVoice: (...a: unknown[]) => { voiceSpy(...a); throw new Error('sem voz no cardio'); } }));
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn(), info: vi.fn() } }));
 vi.mock('@/contexts/AuthContext', () => ({ useAuth: () => ({ user: { id: 'aluno-1' }, role: 'aluno', isAdmin: false }) }));
 
@@ -60,7 +62,7 @@ const open = () => render(
 );
 const click = (name: RegExp) => fireEvent.click(screen.getByRole('button', { name }));
 
-beforeEach(() => { writes.length = 0; localStorage.clear(); });
+beforeEach(() => { writes.length = 0; localStorage.clear(); voiceSpy.mockClear(); });
 
 describe('Execução do cardio — tela cheia', () => {
   it('mostra as 18 fases, o pico com 6 km/h e a recuperação a seguir', async () => {
@@ -80,6 +82,13 @@ describe('Execução do cardio — tela cheia', () => {
     expect(screen.getByTestId('cardio-segments').children).toHaveLength(18);
     click(/Fase anterior/);
     expect(screen.getByTestId('cardio-phase-name')).toHaveTextContent('Aquecimento');
+  });
+
+  it('cardio não usa as falas gravadas do Fabiew (só bipes)', async () => {
+    open();
+    await act(async () => {});
+    click(/Iniciar/); click(/Próxima fase/); click(/Próxima fase/);
+    expect(voiceSpy).not.toHaveBeenCalled();
   });
 
   it('Finalizar sessão abre a tela final e o Concluir salva Como foi?, estrelas e modalidade', async () => {

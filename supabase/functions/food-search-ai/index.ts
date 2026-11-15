@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { requireAdminCaller } from "../_shared/requireAdminCaller.ts";
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { aiFetch, withAiUsage } from "../_shared/aiUsage.ts";
 
@@ -12,6 +13,10 @@ serve(withAiUsage("busca_alimento_ia", "food-search-ai", async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
+
+  // Só admin logado ou chamada interna (service role) chega à IA.
+  const denied = await requireAdminCaller(req, corsHeaders);
+  if (denied) return denied;
 
   try {
     const { query, mode, existingFoods } = await req.json();
