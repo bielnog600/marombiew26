@@ -10,6 +10,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 
 import { toast } from 'sonner';
 import { Loader2, CheckCircle, UtensilsCrossed, ArrowLeft, Home } from 'lucide-react';
+import {
+  OBJETIVO_SUGESTOES, PHONE_DDI, RACA_OPTIONS, birthDateBounds, joinPhone, splitPhone, validatePerfil,
+} from '../../supabase/functions/_shared/questionnaireProfile';
+
+const localTodayIso = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
 
 
 const ESTILO_OPTIONS: { label: string; desc: string }[] = [
@@ -87,6 +95,15 @@ const DietQuestionnaire = () => {
   const [observacoes, setObservacoes] = useState('');
   const [selectedDores, setSelectedDores] = useState<string[]>([]);
   const [doresObservacoes, setDoresObservacoes] = useState('');
+  // Seus dados (perfil)
+  const [nascimento, setNascimento] = useState('');
+  const [altura, setAltura] = useState('');
+  const [ddi, setDdi] = useState('351');
+  const [telefoneNumero, setTelefoneNumero] = useState('');
+  const [raca, setRaca] = useState('');
+  const [objetivo, setObjetivo] = useState('');
+  const [precisaPeso, setPrecisaPeso] = useState(false);
+  const [peso, setPeso] = useState('');
 
   useEffect(() => {
     if (!token) {
@@ -99,7 +116,7 @@ const DietQuestionnaire = () => {
 
   const loadQuestionnaire = async () => {
     try {
-      const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/diet-questionnaire?token=${token}`;
+      const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/diet-questionnaire?token=${encodeURIComponent(token ?? '')}&hoje=${localTodayIso()}`;
       const res = await fetch(url);
       const result = await res.json();
       
@@ -114,6 +131,15 @@ const DietQuestionnaire = () => {
         if (result.foods) setFoodOptions(result.foods);
         if (result.status === 'completed') {
           setSubmitted(true);
+        }
+        if (result.perfil && result.status === 'pending') {
+          const p = result.perfil;
+          if (p.data_nascimento) setNascimento(String(p.data_nascimento).slice(0, 10));
+          if (p.altura != null) setAltura(String(p.altura));
+          if (p.telefone) { const t = splitPhone(p.telefone); setDdi(t.ddi); setTelefoneNumero(t.numero); }
+          if (p.raca) setRaca(p.raca);
+          if (p.objetivo) setObjetivo(String(p.objetivo).trim());
+          setPrecisaPeso(!!p.precisa_peso);
         }
         // Pre-fill from previous answers if available
         if (result.previous_answers && result.status === 'pending') {
@@ -178,6 +204,18 @@ const DietQuestionnaire = () => {
   const handleSubmit = async () => {
     if (!estiloDieta) { toast.error('Selecione o estilo de dieta'); return; }
     if (!faseAtual) { toast.error('Selecione a fase atual'); return; }
+    const hoje = localTodayIso();
+    const perfil = {
+      hoje,
+      data_nascimento: nascimento,
+      altura,
+      telefone: joinPhone(ddi, telefoneNumero),
+      raca,
+      objetivo,
+      ...(precisaPeso ? { peso } : {}),
+    };
+    const checked = validatePerfil(perfil, { today: hoje, pesoObrigatorio: precisaPeso });
+    if (!checked.ok) { toast.error(checked.error); return; }
 
     setSubmitting(true);
     try {
@@ -206,6 +244,7 @@ const DietQuestionnaire = () => {
           dores_observacoes: doresObservacoes,
           ...Object.fromEntries(SINTOMAS.map(s => [s.key, sintomas[s.key] || false])),
           observacoes,
+          perfil,
         }),
       });
 
@@ -290,6 +329,69 @@ const DietQuestionnaire = () => {
           )}
           <p className="text-sm text-muted-foreground">Preencha as informações abaixo para seu treinador montar sua dieta personalizada.</p>
         </div>
+
+        {/* Seus dados */}
+        <Card>
+          <CardContent className="p-6 space-y-4">
+            <div className="space-y-1">
+              <h3 className="font-semibold text-lg">Seus dados</h3>
+              <p className="text-sm text-muted-foreground">Confira os seus dados e corrija o que estiver errado.</p>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="ficha-nascimento">Data de nascimento</Label>
+                <Input id="ficha-nascimento" type="date" value={nascimento}
+                  min={birthDateBounds(localTodayIso()).min} max={birthDateBounds(localTodayIso()).max}
+                  onChange={e => setNascimento(e.target.value)} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="ficha-altura">Altura (cm)</Label>
+                <Input id="ficha-altura" type="number" inputMode="decimal" min={100} max={250} placeholder="Ex: 172"
+                  value={altura} onChange={e => setAltura(e.target.value)} />
+              </div>
+              <div className="space-y-2 sm:col-span-2">
+                <Label htmlFor="ficha-telefone">Telefone</Label>
+                <div className="flex gap-2">
+                  <Select value={ddi} onValueChange={setDdi}>
+                    <SelectTrigger className="w-32 shrink-0" aria-label="Indicativo do país"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {PHONE_DDI.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                  <Input id="ficha-telefone" type="tel" inputMode="tel"
+                    placeholder={ddi === 'outro' ? '+44 7700 900123' : ddi === '55' ? '11 91234 5678' : '912 345 678'}
+                    value={telefoneNumero} onChange={e => setTelefoneNumero(e.target.value)} />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label>Raça</Label>
+                <Select value={raca} onValueChange={setRaca}>
+                  <SelectTrigger aria-label="Raça"><SelectValue placeholder="Selecione" /></SelectTrigger>
+                  <SelectContent>
+                    {RACA_OPTIONS.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              {precisaPeso && (
+                <div className="space-y-2">
+                  <Label htmlFor="ficha-peso">Peso corporal (kg) *</Label>
+                  <Input id="ficha-peso" type="number" inputMode="decimal" min={30} max={300} step="0.1" placeholder="Ex: 78.5"
+                    value={peso} onChange={e => setPeso(e.target.value)} />
+                  <p className="text-xs text-muted-foreground">Não há pesagem sua nos últimos 15 dias.</p>
+                </div>
+              )}
+              <div className="space-y-2 sm:col-span-2">
+                <Label htmlFor="ficha-objetivo">Objetivo</Label>
+                <Input id="ficha-objetivo" maxLength={200} placeholder="Ex: Hipertrofia" value={objetivo} onChange={e => setObjetivo(e.target.value)} />
+                <div className="flex flex-wrap gap-2">
+                  {OBJETIVO_SUGESTOES.map(o => (
+                    <Button key={o} type="button" size="sm" variant={objetivo === o ? 'default' : 'outline'} onClick={() => setObjetivo(o)}>{o}</Button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Estilo de dieta */}
         <Card>
