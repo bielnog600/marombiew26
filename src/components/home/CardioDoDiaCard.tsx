@@ -7,6 +7,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { MODALITY_LABEL } from '@/lib/cardioParser';
 import { optionStatuses, optionsSubtitle } from '@/lib/cardioChooser';
 import { useCardioChoice } from '@/hooks/useCardioChoice';
+import cardioHero from '@/assets/cardio-hero.jpg';
 
 interface CardioDoDiaCardProps {
   conteudo: string;
@@ -22,39 +23,54 @@ const CardioDoDiaCard: React.FC<CardioDoDiaCardProps> = ({ conteudo, planId = nu
 
   if (!data.options.length) return null;
 
+  const open = () => navigate('/cardio', { state: { conteudo, planId: data.planId } });
+
+  // Mesmo padrão do card do TABATA ao lado no carrossel: foto, gradiente escuro e textos embaixo.
   return (
     <Card
       role="button" tabIndex={0} data-testid="home-cardio-card"
-      className="glass-card-solid cursor-pointer border-primary/20 p-4 min-h-[10rem] flex flex-col justify-between gap-4"
-      onClick={() => navigate('/cardio', { state: { conteudo, planId: data.planId } })}
-      onKeyDown={(e) => { if (e.key === 'Enter') navigate('/cardio', { state: { conteudo, planId: data.planId } }); }}
+      className="glass-card-solid overflow-hidden cursor-pointer group border-primary/20"
+      onClick={open}
+      onKeyDown={(e) => { if (e.key === 'Enter') open(); }}
     >
-      <div className="flex items-center gap-3">
-        <div className="h-12 w-12 rounded-2xl bg-primary/15 flex items-center justify-center shrink-0">
-          <HeartPulse className="h-6 w-6 text-primary" />
+      <div className="relative h-40 overflow-hidden">
+        <img
+          src={cardioHero}
+          alt="Cardio"
+          width={1024}
+          height={512}
+          loading="eager"
+          decoding="async"
+          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-card via-card/70 to-transparent" />
+        <div className="absolute bottom-0 left-0 right-0 p-4 flex items-end gap-3">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-1.5 mb-1 flex-wrap">
+              <HeartPulse className="h-3.5 w-3.5 text-primary shrink-0" />
+              {data.options.map((p, i) => {
+                const done = !!statuses[i]?.weekSession;
+                return (
+                  <span
+                    key={i} data-done={done ? 'true' : 'false'}
+                    className={cn(
+                      'inline-flex items-center gap-0.5 text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border',
+                      done ? 'bg-tabata-rest/20 border-tabata-rest/50 text-tabata-rest' : 'bg-secondary/80 border-border text-foreground',
+                    )}
+                  >
+                    {done && <Check className="h-2.5 w-2.5" strokeWidth={3} />}
+                    {MODALITY_LABEL[p.modality]}
+                  </span>
+                );
+              })}
+            </div>
+            <h3 className="text-sm font-bold uppercase truncate">Cardio</h3>
+            <p className="text-[11px] text-muted-foreground mt-0.5">{optionsSubtitle(data.options.length)}</p>
+          </div>
+          <div className="h-10 w-10 rounded-full bg-primary flex items-center justify-center shadow-lg shrink-0 group-hover:scale-110 transition-transform">
+            <ChevronRight className="h-5 w-5 text-primary-foreground" />
+          </div>
         </div>
-        <div className="flex-1 min-w-0">
-          <h3 className="text-lg font-black leading-tight">Cardio</h3>
-          <p className="text-xs text-muted-foreground">{optionsSubtitle(data.options.length)}</p>
-        </div>
-        <ChevronRight className="h-5 w-5 text-muted-foreground shrink-0" />
-      </div>
-      <div className="flex flex-wrap gap-1.5">
-        {data.options.map((p, i) => {
-          const done = !!statuses[i]?.weekSession;
-          return (
-            <span
-              key={i} data-done={done ? 'true' : 'false'}
-              className={cn(
-                'inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded-full border',
-                done ? 'bg-tabata-rest/15 border-tabata-rest/40 text-tabata-rest' : 'bg-secondary border-border text-foreground',
-              )}
-            >
-              {done && <Check className="h-3 w-3" strokeWidth={3} />}
-              {MODALITY_LABEL[p.modality]}
-            </span>
-          );
-        })}
       </div>
     </Card>
   );

@@ -65,6 +65,28 @@ const click = (name: RegExp) => fireEvent.click(screen.getByRole('button', { nam
 beforeEach(() => { writes.length = 0; localStorage.clear(); voiceSpy.mockClear(); });
 
 describe('Execução do cardio — tela cheia', () => {
+  it('INICIAR CARDIO da tela Cardio começa direto no Prepare-se, sem a tela inicial, com o título curto', async () => {
+    render(
+      <MemoryRouter initialEntries={['/', { pathname: '/cardio-execucao', state: { protocol, planId: 'plan-c', protocolIndex: 1, autoStart: true } }]} initialIndex={1}>
+        <Routes>
+          <Route path="/" element={<p>home</p>} />
+          <Route path="/cardio-execucao" element={<CardioExecucao />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    await act(async () => {});
+    expect(screen.queryByTestId('cardio-pre-screen')).toBeNull();
+    expect(screen.getByTestId('cardio-phase-count')).toHaveTextContent('Prepare-se');
+    expect(screen.getByTestId('cardio-player')).toHaveTextContent('HIIT na Passadeira');
+    expect(screen.getByTestId('cardio-next-card')).toHaveTextContent('Próximo: Aquecimento');
+  });
+
+  it('Executar do admin (pré-visualização) continua abrindo na tela inicial', async () => {
+    open();
+    await act(async () => {});
+    expect(screen.getByTestId('cardio-pre-screen')).toBeInTheDocument();
+  });
+
   it('mostra as 18 fases, o pico com 6 km/h e a recuperação a seguir', async () => {
     open();
     await act(async () => {});
