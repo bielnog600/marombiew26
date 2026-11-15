@@ -286,7 +286,7 @@ const per100 = (f: FoodRecord) => {
 /** Macros por 100 g batem: kcal ±15%, P/C/G ±5 g. */
 export const macrosMatch = (def: { kcal: number; p: number; c: number; g: number }, food: FoodRecord): boolean => {
   const f = per100(food);
-  const kcalTol = Math.max(f.kcal, def.kcal) * SIMILAR_KCAL_PCT;
+  const kcalTol = Math.max(f.kcal * SIMILAR_KCAL_PCT, 5);
   return Math.abs(def.kcal - f.kcal) <= kcalTol
     && Math.abs(def.p - f.p) <= SIMILAR_MACRO_G
     && Math.abs(def.c - f.c) <= SIMILAR_MACRO_G
@@ -528,7 +528,7 @@ export const parseBankWorkbook = (sheets: SheetInput[]): ParsedWorkbook => {
   return { meals, foodDefs, fileErrors, usedIngredientsSheet: !!ingTable };
 };
 
-/* ------------------------------------------------- alimentos pendentes */
+/* ------------------------------------------- alimentos da planilha */
 
 export interface UnmatchedFood {
   key: string;
@@ -538,20 +538,45 @@ export interface UnmatchedFood {
   def: ParsedFoodDef | null;
 }
 
-export const unmatchedFoods = (parsed: ParsedWorkbook, matcher: FoodMatcher): UnmatchedFood[] => {
-  const out = new Map<string, UnmatchedFood>();
+/** Cada alimento distinto da planilha com a decisão automática (liga, cria ou faltam valores). */
+export interface ImportFoodEntry extends UnmatchedFood {
+  auto:
+    | { kind: 'link'; food: FoodRecord; via: FoodMatchVia }
+    | { kind: 'create' }
+    | { kind: 'pending' };
+}
+
+export const classifyImportFoods = (parsed: ParsedWorkbook, matcher: FoodMatcher): ImportFoodEntry[] => {
+  const out = new Map<string, ImportFoodEntry>();
   for (const meal of parsed.meals) {
     for (const it of meal.items) {
-      if (!it.name || matchFoodName(it.name, matcher)) continue;
+      if (!it.name) continue;
       const key = foodMatchKey(it.name);
-      const entry = out.get(key) ?? { key, name: it.name, usedIn: [], def: parsed.foodDefs.get(key) ?? null };
+      let entry = out.get(key);
+      if (!entry) {
+        const def = parsed.foodDefs.get(key) ?? null;
+        const m = matchFoodName(it.name, matcher);
+        let auto: ImportFoodEntry['auto'];
+        if (m) auto = { kind: 'link', food: m.food, via: m.via };
+        else {
+          const similar = similarFoodMatch(it.name, def, matcher.foods);
+          auto = similar ? { kind: 'link', food: similar, via: 'parecido' } : completeDef(def) ? { kind: 'create' } : { kind: 'pending' };
+        }
+        entry = { key, name: it.name, usedIn: [], def, auto };
+        out.set(key, entry);
+      }
       const label = meal.code || meal.name;
       if (!entry.usedIn.includes(label)) entry.usedIn.push(label);
-      out.set(key, entry);
     }
   }
   return [...out.values()].sort((a, b) => a.name.localeCompare(b.name));
 };
+
+/** Alimentos sem ligação segura (camadas a–d). */
+export const unmatchedFoods = (parsed: ParsedWorkbook, matcher: FoodMatcher): UnmatchedFood[] =>
+  classifyImportFoods(parsed, matcher)
+    .filter((e) => !(e.auto.kind === 'link' && e.auto.via !== 'parecido'))
+    .map(({ auto: _a, ...u }) => u);
 
 export type FoodResolution =
   | { kind: 'link'; foodId: string }
@@ -568,6 +593,13 @@ export const defaultResolution = (u: UnmatchedFood): FoodResolution | undefined 
   u.def && [u.def.kcal, u.def.p, u.def.c, u.def.g].every((v) => v !== null && v >= 0)
     ? { kind: 'create', name: u.name, kcal: u.def.kcal, p: u.def.p, c: u.def.c, g: u.def.g }
     : undefined;
+
+/** O que vale para o alimento: a mudança do admin, senão a decisão automática. */
+export const effectiveResolution = (entry: ImportFoodEntry, override: FoodResolution | undefined): FoodResolution | undefined => {
+  if (override) return override;
+  if (entry.auto.kind === 'link') return { kind: 'link', foodId: entry.auto.food.id };
+  return defaultResolution(entry);
+};
 
 export const NEW_FOOD_PREFIX = 'novo:';
 export const newFoodTempId = (key: string) => `${NEW_FOOD_PREFIX}${key}`;
@@ -596,6 +628,8 @@ export interface ImportPlan {
   pendingCount: number;
   foodsToCreate: Array<{ key: string; tempId: string; name: string; kcal: number; p: number; c: number; g: number }>;
   aliasesToSave: Array<{ alias: string; food_id: string }>;
+  /** Todos os alimentos distintos da planilha com a decisão automática. */
+  foods: ImportFoodEntry[];
 }
 
 const sameArr = (a: string[], b: string[]) => a.length === b.length && a.every((x, i) => x === b[i]);
@@ -608,32 +642,33 @@ export const buildImportPlan = (args: {
   deactivateMissing?: boolean;
 }): ImportPlan => {
   const { parsed, bank, matcher, resolutions } = args;
-  const unmatched = unmatchedFoods(parsed, matcher);
+  const entries = classifyImportFoods(parsed, matcher);
 
   const foodsToCreate: ImportPlan['foodsToCreate'] = [];
   const aliasesToSave: ImportPlan['aliasesToSave'] = [];
   const tempFoods: FoodRecord[] = [];
+  const idByKey = new Map<string, string>();
   let pendingCount = 0;
-  for (const u of unmatched) {
-    const r = resolutions[u.key];
+  for (const e of entries) {
+    const r = effectiveResolution(e, resolutions[e.key]);
     if (!isResolutionComplete(r)) { pendingCount += 1; continue; }
-    if (r!.kind === 'link') aliasesToSave.push({ alias: u.key, food_id: r!.foodId });
-    else {
-      const tempId = newFoodTempId(u.key);
-      const created = { key: u.key, tempId, name: r!.name.trim(), kcal: r!.kcal!, p: r!.p!, c: r!.c!, g: r!.g! };
+    if (r!.kind === 'link') {
+      idByKey.set(e.key, r!.foodId);
+      const sameAsAuto = e.auto.kind === 'link' && e.auto.food.id === r!.foodId;
+      // Toda ligação nova fica guardada para as próximas importações (exato/apelido já estão).
+      if (!(sameAsAuto && (e.auto as { via: FoodMatchVia }).via === 'exato') && !(sameAsAuto && (e.auto as { via: FoodMatchVia }).via === 'apelido')) {
+        aliasesToSave.push({ alias: e.key, food_id: r!.foodId });
+      }
+    } else {
+      const tempId = newFoodTempId(e.key);
+      idByKey.set(e.key, tempId);
+      const created = { key: e.key, tempId, name: r!.name.trim(), kcal: r!.kcal!, p: r!.p!, c: r!.c!, g: r!.g! };
       foodsToCreate.push(created);
       tempFoods.push({ id: tempId, name: created.name, portion_size: 100, calories: created.kcal, protein: created.p, carbs: created.c, fats: created.g } as FoodRecord);
     }
   }
   const index: FoodIndex = buildFoodIndex([...matcher.foods, ...tempFoods]);
-  const resolveId = (name: string): string | null => {
-    const m = matchFoodName(name, matcher);
-    if (m) return m.food.id;
-    const key = foodMatchKey(name);
-    const r = resolutions[key];
-    if (!isResolutionComplete(r)) return null;
-    return r!.kind === 'link' ? r!.foodId : newFoodTempId(key);
-  };
+  const resolveId = (name: string): string | null => idByKey.get(foodMatchKey(name)) ?? null;
 
   const byCode = new Map(bank.map((m) => [m.code.toUpperCase(), m]));
   const assigned: Array<{ code: string }> = [...bank];
@@ -675,7 +710,7 @@ export const buildImportPlan = (args: {
   const inFile = new Set(meals.map((m) => m.code).filter(Boolean));
   const toDeactivate = args.deactivateMissing ? bank.filter((m) => m.active && !inFile.has(m.code.toUpperCase())) : [];
 
-  return { meals, toDeactivate, counts, pendingCount, foodsToCreate, aliasesToSave };
+  return { meals, toDeactivate, counts, pendingCount, foodsToCreate, aliasesToSave, foods: entries };
 };
 
 export const importSummaryText = (r: { novas: number; atualizadas: number; alimentosCriados: number; desativadas?: number }): string => {
