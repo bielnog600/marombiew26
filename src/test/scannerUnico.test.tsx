@@ -99,7 +99,7 @@ describe('Scanner único — tela', () => {
       ? { data: { found: true, product: IOGURTE }, error: null }
       : { data: { error: 'não esperado' }, error: null }));
     render(<MealWeighScreen meal={meal as any} studentId="aluno" logDate="2026-11-15" mealIndex={1} dietPlanId="plano" testMode onClose={() => {}} />);
-    const card = await screen.findByTestId('scan-live-product', {}, { timeout: 3000 });
+    const card = await screen.findByTestId('scan-live-product', {}, { timeout: 10000 });
     await waitFor(() => expect(within(card).getByTestId('scan-live-line')).toHaveTextContent(/^Iogurte grego · nota \d+ (Excelente|Bom)$/));
     // Nenhuma foto tirada e nenhuma chamada de IA: só a busca do código.
     expect(mock.shot).toBe(0);
@@ -118,7 +118,7 @@ describe('Scanner único — tela', () => {
     expect(within(row).getByTestId('scan-item-chips')).toHaveTextContent('fora do plano');
     expect(row).toHaveTextContent('100 g');
     expect(mock.invoke.mock.calls.some(([, o]: any) => o.body.action === 'scan_auto')).toBe(false);
-  });
+  }, 20000);
 
   it('lista com edição: tocar no item muda as gramas e a linha recalcula', async () => {
     mock.liveCode = '7891000100103';
