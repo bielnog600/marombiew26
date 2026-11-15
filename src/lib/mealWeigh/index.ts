@@ -842,8 +842,18 @@ export interface WeighLogRecord {
 
 export const weighLogKey = (date: string, mealIndex: number) => `${date}|${mealIndex}`;
 
-/** Registro do dia: para cada (data, refeição) vale a pesagem mais recente; as outras são histórico. */
-export function latestWeighLogs<T extends WeighLogRecord>(rows: T[]): Map<string, T> {
+/** Motivo gravado quando o aluno troca a opção de uma refeição já pesada. */
+export const CLEARED_BY_OPTION_SWITCH = 'troca_opcao';
+
+/**
+ * Registro "apagado": o aluno voltou aos alimentos padrão de uma opção. Fica
+ * como histórico (nada é deletado) e, sendo o mais recente, a refeição do dia
+ * deixa de estar pesada.
+ */
+export const isClearedWeighLog = (r: Pick<WeighLogRecord, 'planned'> | null | undefined): boolean =>
+  (r?.planned as { cleared?: unknown } | null | undefined)?.cleared === true;
+
+const latestRawWeighLogs = <T extends WeighLogRecord>(rows: T[]): Map<string, T> => {
   const out = new Map<string, T>();
   for (const r of rows ?? []) {
     if (r.meal_index == null || !r.log_date) continue;
@@ -852,11 +862,18 @@ export function latestWeighLogs<T extends WeighLogRecord>(rows: T[]): Map<string
     if (!prev || String(r.created_at) > String(prev.created_at)) out.set(key, r);
   }
   return out;
+};
+
+/** Registro do dia: para cada (data, refeição) vale a pesagem mais recente; as outras são histórico. */
+export function latestWeighLogs<T extends WeighLogRecord>(rows: T[]): Map<string, T> {
+  const out = latestRawWeighLogs(rows);
+  for (const [key, r] of out) if (isClearedWeighLog(r)) out.delete(key);
+  return out;
 }
 
 /** Ids das pesagens substituídas por uma mais recente da mesma refeição no mesmo dia. */
 export function supersededWeighLogIds(rows: WeighLogRecord[]): Set<string> {
-  const latest = latestWeighLogs(rows);
+  const latest = latestRawWeighLogs(rows);
   const ids = new Set<string>();
   for (const r of rows ?? []) {
     if (r.meal_index == null) continue;
