@@ -44,14 +44,8 @@ export interface ProductGroup {
 /** Scans de um produto já aprovado na base respondem dela e não voltam para a revisão. */
 export const isReviewableScan = (s: Pick<ScanRow, 'source'>) => s.source !== 'base';
 
-export const normalizeText = (s: string | null | undefined) =>
-  (s ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
-
-export function productKey(s: { barcode: string | null; product_name: string | null; brand: string | null }): string {
-  const bc = (s.barcode ?? '').trim();
-  if (bc) return `bc:${bc}`;
-  return `nm:${normalizeText(s.product_name)}|${normalizeText(s.brand)}`;
-}
+import { normalizeText, productKey } from '../../supabase/functions/_shared/foodCatalogRules';
+export { normalizeText, productKey, nameSimilarity, findDuplicates, type ExistingFood } from '../../supabase/functions/_shared/foodCatalogRules';
 
 const num = (v: unknown): number | null => {
   const n = typeof v === 'string' ? parseFloat(v) : (v as number);
@@ -138,31 +132,8 @@ export function mapGroupToFood(g: ProductGroup): FoodDraft {
     carbs: r1((g.per100.c ?? 0) * f),
     fats: r1((g.per100.g ?? 0) * f),
     brand: g.brand,
-    source: g.source === 'tabela_ia' ? 'tabela_ia' : g.source === 'openfoodfacts_busca' ? 'openfoodfacts' : g.barcode ? 'openfoodfacts' : 'scanner_rotulo',
+    source: g.source === 'ia_referencia' ? 'ia_referencia' : g.source === 'tabela_ia' ? 'tabela_ia' : g.source === 'openfoodfacts_busca' ? 'openfoodfacts' : g.barcode ? 'openfoodfacts' : 'scanner_rotulo',
     barcode: g.barcode,
     source_food_id: g.barcode,
   };
-}
-
-/** Dice coefficient over word bigrams — cheap fuzzy similarity. */
-export function nameSimilarity(a: string, b: string): number {
-  const A = normalizeText(a), B = normalizeText(b);
-  if (!A || !B) return 0;
-  if (A === B) return 1;
-  const grams = (s: string) => { const out: string[] = []; const t = s.replace(/ /g, ''); for (let i = 0; i < t.length - 1; i++) out.push(t.slice(i, i + 2)); return out; };
-  const ga = grams(A), gb = grams(B);
-  const counts = new Map<string, number>();
-  ga.forEach((x) => counts.set(x, (counts.get(x) ?? 0) + 1));
-  let hit = 0;
-  gb.forEach((x) => { const c = counts.get(x) ?? 0; if (c > 0) { hit++; counts.set(x, c - 1); } });
-  return (2 * hit) / (ga.length + gb.length || 1);
-}
-
-export interface ExistingFood { id: string; name: string; brand: string | null; barcode: string | null }
-
-export function findDuplicates(draft: { name: string; barcode: string | null }, foods: ExistingFood[], threshold = 0.85) {
-  const bc = (draft.barcode ?? '').trim();
-  return foods.filter((f) =>
-    (bc && (f.barcode ?? '').trim() === bc) || nameSimilarity(draft.name, f.name) >= threshold,
-  );
 }
