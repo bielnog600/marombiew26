@@ -17,7 +17,8 @@ describe('pré-preenchimento do objetivo a partir do texto do perfil', () => {
     expect(parseObjetivo('Hipertrofia, mais saúde')).toEqual({ selected: ['Hipertrofia', 'Saúde e qualidade de vida'], outro: '' });
   });
   it('o resto vai para "Outro objetivo"', () => {
-    expect(parseObjetivo('Emagrecer e ganha massa magra')).toEqual({ selected: ['Emagrecimento'], outro: 'ganha massa magra' });
+    expect(parseObjetivo('Emagrecer e ganha massa magra')).toEqual({ selected: ['Recomposição corporal'], outro: '' });
+    expect(parseObjetivo('Perder peso, e sair da pré diabete')).toEqual({ selected: ['Emagrecimento'], outro: 'sair da pré diabete' });
     expect(parseObjetivo('Ter mais saúde, hipertrofia e chegar aos 70kg'))
       .toEqual({ selected: ['Hipertrofia', 'Saúde e qualidade de vida'], outro: 'chegar aos 70kg' });
     expect(parseObjetivo('Quer trabalhar mais quadríceps')).toEqual({ selected: [], outro: 'Quer trabalhar mais quadríceps' });
@@ -38,8 +39,8 @@ describe('texto salvo em students_profile.objetivo', () => {
     expect(validatePerfil({ objetivo: '' }, { today: '2026-11-15', pesoObrigatorio: false })).toEqual({ ok: true, value: {} });
   });
   it('o servidor grava o texto unido', () => {
-    expect(validatePerfil({ objetivo: 'Emagrecer e ganha massa magra' }, { today: '2026-11-15', pesoObrigatorio: false }))
-      .toEqual({ ok: true, value: { objetivo: 'Emagrecimento, Outro: ganha massa magra' } });
+    expect(validatePerfil({ objetivo: 'Hipertrofia, corpo slim' }, { today: '2026-11-15', pesoObrigatorio: false }))
+      .toEqual({ ok: true, value: { objetivo: 'Hipertrofia, Outro: corpo slim' } });
   });
   it('salvar de novo não muda o texto', () => {
     const t = 'Hipertrofia, Recomposição corporal, Outro: chegar aos 70 kg';

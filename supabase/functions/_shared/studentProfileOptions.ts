@@ -34,11 +34,12 @@ const norm = (s: string) =>
 const OBJETIVO_SYNONYMS: Record<string, string> = (() => {
   const map: Record<string, string> = {};
   const add = (value: string, ...words: string[]) => [value, ...words].forEach((w) => { map[norm(w)] = value; });
-  add('Hipertrofia', 'ganhar massa', 'ganho de massa', 'ganhar massa muscular', 'ganho de massa muscular');
+  add('Hipertrofia', 'ganhar massa', 'ganho de massa', 'ganhar massa muscular', 'ganho de massa muscular',
+    'ganhar massa magra', 'ganha massa magra', 'aumentar massa magra', 'ganho de massa magra');
   add('Emagrecimento', 'emagrecer', 'perder peso', 'perda de peso', 'perder gordura', 'perda de gordura');
   add('Definição', 'definir', 'definicao muscular');
   add('Recomposição corporal', 'recomposição', 'recomposição corporal (perder gordura e ganhar massa)',
-    'perder gordura e ganhar massa', 'perder gordura e ganhar massa magra', 'emagrecer e ganhar massa', 'emagrecer e ganhar massa magra');
+    'perder gordura e ganhar massa', 'perder gordura e ganhar massa magra', 'emagrecer e ganhar massa', 'emagrecer e ganhar massa magra', 'emagrecer e ganha massa magra');
   add('Força', 'ganhar força', 'ganho de força');
   add('Condicionamento físico', 'condicionamento');
   add('Saúde e qualidade de vida', 'saúde', 'mais saúde', 'ter mais saúde', 'qualidade de vida', 'saúde e bem-estar');
@@ -72,7 +73,7 @@ export function parseObjetivo(text: string | null | undefined): { selected: stri
   const selected = new Set<string>();
   const leftovers: string[] = [];
   for (const segment of rest.split(/[,;]+/)) {
-    const seg = segment.trim().replace(/[.!]+$/, '').trim();
+    const seg = segment.trim().replace(/^e\s+/i, '').replace(/[.!]+$/, '').trim();
     if (!seg) continue;
     const whole = matchObjetivo(seg);
     if (whole) { selected.add(whole); continue; }
