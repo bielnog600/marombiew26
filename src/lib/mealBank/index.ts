@@ -450,7 +450,7 @@ export const rankBankMeals = (candidates: BankMeal[], input: RankInput, ctx: Stu
       const ratio = input.targetKcal > 0 && baseKcal > 0 ? input.targetKcal / baseKcal : 1;
       let score = fichaMatchScore(names, ctx.ficha) * 3;
       if (m.slot === input.slots[0]) score += 5;
-      if (protein && protein === input.planProtein) score -= 6;
+      if (protein && protein === input.planProtein) score -= 15;
       if (input.usedOtherDays.has(m.code)) score -= 2;
       if (ratio < 0.5 || ratio > 2) score -= 4;
       return { meal: m, protein, score };
