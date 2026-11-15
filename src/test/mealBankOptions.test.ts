@@ -6,7 +6,11 @@ import {
 import {
   buildStudentMealContext,
   countryFromPhone,
+  fitBankItems,
+  fitBankMeal,
   generatePlanMealOptions,
+  optionFitIssues,
+  portionRuleFor,
   mealSlotsFor,
   originsForCountry,
   parseRestrictionFlags,
@@ -37,6 +41,20 @@ const FOODS: FoodRecord[] = [
   F('arroz', 'Arroz branco cozido', 128, 2.5, 28, 0.2),
   F('atum', 'Atum em água', 116, 26, 0, 1),
   F('broa', 'Broa de milho', 230, 5, 45, 3),
+  F('abacate', 'Abacate', 160, 2, 8.5, 14.7),
+  F('paoint', 'Pão integral', 260, 9, 47, 4),
+  F('skyr', 'Iogurte Skyr Natural', 59, 10, 4, 0.2),
+  F('clara', 'Clara de ovo', 52, 11, 0.7, 0.2),
+  F('cottage', 'Queijo cottage', 103, 12.5, 3.3, 4.5),
+  F('espinafre', 'Espinafre refogado', 67, 2.7, 4.2, 5.4),
+  F('basmati', 'Arroz basmati', 121, 3.5, 25, 0.4),
+  F('batata', 'Batata inglesa cozida', 52, 1.2, 11.9, 0),
+  F('azeite', 'Azeite de oliva', 884, 0, 0, 100),
+  F('maca', 'Maçã', 52, 0.3, 14, 0.2),
+  F('tomate', 'Tomate', 18, 0.9, 3.9, 0.2),
+  F('peito', 'Peito de frango grelhado', 159, 32, 0, 2.5),
+  F('camarao', 'Camarão grelhado', 99, 24, 0.2, 0.3),
+  F('abobrinha', 'Abobrinha refogada', 17, 1.2, 3.1, 0.3),
 ];
 
 const item = (foodId: string, grams: number) => {
@@ -89,60 +107,177 @@ describe('Banco de refeições — horário e país', () => {
   });
 });
 
-describe('Banco de refeições — gramas escaladas', () => {
+describe('Banco de refeições — porções reais e limites', () => {
   const index = buildFoodIndex(FOODS);
+  const LIMITS: Record<string, [number, number]> = {
+    ovo: [50, 200], clara: [0, 200], skyr: [0, 340], iog: [0, 340], whey: [0, 40], pao: [0, 100], paoint: [0, 100],
+    broa: [0, 100], banana: [60, 200], maca: [60, 200], mamao: [60, 200], abacate: [0, 100], azeite: [0, 15],
+    frango: [80, 250], peito: [80, 250], atum: [80, 250], camarao: [80, 250], abobrinha: [0, 200], tomate: [0, 200],
+    espinafre: [0, 200], arroz: [0, 400], basmati: [0, 400], batata: [0, 400], aveia: [0, 100], cottage: [0, 200],
+  };
+  const expectWithinLimits = (items: Array<{ foodId: string | null; qtyGrams: number }>) => {
+    for (const i of items) {
+      const [lo, hi] = LIMITS[i.foodId as string] ?? [0, 400];
+      expect(i.qtyGrams, `${i.foodId} ${i.qtyGrams} g`).toBeGreaterThanOrEqual(lo);
+      expect(i.qtyGrams, `${i.foodId} ${i.qtyGrams} g`).toBeLessThanOrEqual(hi);
+    }
+  };
 
-  it('fica a ±10% da kcal da opção 1 com porções reais', () => {
+  it('limites por alimento: ovo 50–200 g, clara ≤ 200, iogurte/skyr ≤ 340, leite ≤ 400, whey ≤ 40, pão ≤ 100, tortilha ≤ 80, fruta 60–200, abacate ≤ 100, oleaginosas ≤ 30, azeite ≤ 15, carne/peixe 80–250, legumes ≤ 200, arroz/batata ≤ 400', () => {
+    const r = (n: string) => portionRuleFor(n);
+    expect([r('Ovo').min, r('Ovo').max]).toEqual([50, 200]);
+    expect(r('Clara de ovo').max).toBeLessThanOrEqual(200);
+    expect(r('Iogurte Skyr Natural').max).toBe(340);
+    expect(r('Iogurte natural desnatado').max).toBe(340);
+    expect(r('Leite desnatado').max).toBe(400);
+    expect(r('Whey Protein Concentrado').max).toBe(40);
+    for (const n of ['Pão francês', 'Pão integral', 'Broa de milho', 'Bolo do caco']) expect(r(n).max).toBe(100);
+    expect(r('Tortilha integral').max).toBe(80);
+    for (const n of ['Banana', 'Maçã', 'Morango', 'Frutas vermelhas congeladas']) {
+      expect(r(n).min).toBeGreaterThanOrEqual(60);
+      expect(r(n).max).toBeLessThanOrEqual(200);
+    }
+    expect(r('Abacate').max).toBe(100);
+    for (const n of ['Pasta de amendoim', 'Amêndoas', 'Nozes']) expect(r(n).max).toBe(30);
+    expect(r('Azeite de oliva').max).toBe(15);
+    for (const n of ['Peito de frango grelhado', 'Atum em água', 'Camarão grelhado', 'Bacalhau demolhado cozido', 'Alcatra grelhada']) {
+      expect([r(n).min, r(n).max]).toEqual([80, 250]);
+    }
+    for (const n of ['Abobrinha refogada', 'Abóbora cabotiá / menina cozida', 'Tomate', 'Salada de folhas']) expect(r(n).max).toBe(200);
+    for (const n of ['Arroz branco cozido', 'Massa cozida', 'Batata inglesa cozida', 'Cuscuz de milho cozido', 'Macarrão integral cozido']) {
+      expect(r(n).kind).toBe('carb');
+      expect(r(n).max).toBe(400);
+    }
+  });
+
+  it('café de 937 kcal: "Torrada integral com abacate e ovo" nunca passa os limites (nada de 5 ovos ou 145 g de abacate)', () => {
+    const res = fitBankItems([{ foodId: 'paoint', grams: 50 }, { foodId: 'abacate', grams: 50 }, { foodId: 'ovo', grams: 100 }], index, { kcal: 937 }, { slots: ['cafe_manha'] });
+    expectWithinLimits(res.items);
+    if (res.ok) expect(Math.abs(sumOptionItems(res.items).kcal - 937)).toBeLessThanOrEqual(93.7);
+  });
+
+  it('"Skyr com aveia" não vira 460 g de skyr nem 325 g de maçã', () => {
+    const res = fitBankItems([{ foodId: 'skyr', grams: 170 }, { foodId: 'aveia', grams: 30 }, { foodId: 'maca', grams: 100 }], index, { kcal: 937 }, { slots: ['cafe_manha'] });
+    expectWithinLimits(res.items);
+  });
+
+  it('escala a receita num fator 0,7–1,5 e só o carboidrato cresce além disso', () => {
+    // Base 159 + 192 = 351 kcal; alvo 700 kcal (2×).
+    const res = fitBankItems([{ foodId: 'peito', grams: 100 }, { foodId: 'arroz', grams: 150 }], index, { kcal: 700 }, { slots: ['almoco'] });
+    const g = Object.fromEntries(res.items.map((i) => [i.foodId, i.qtyGrams]));
+    expect(g.peito).toBeLessThanOrEqual(150);
+    expect(g.arroz).toBeGreaterThan(225);
+    expect(g.arroz).toBeLessThanOrEqual(400);
+    expect(res.ok).toBe(true);
+  });
+
+  it('se ainda faltar kcal, acrescenta acompanhamento do horário: fruta/pão/aveia no café, arroz/batata no jantar', () => {
+    const cafe = fitBankItems([{ foodId: 'skyr', grams: 170 }, { foodId: 'whey', grams: 20 }], index, { kcal: 500 }, { slots: ['cafe_manha'] });
+    expect(cafe.sides.length).toBeGreaterThan(0);
+    expect(cafe.sides.every((n) => ['Banana', 'Pão integral', 'Aveia em flocos', 'Maçã', 'Abacate', 'Pasta de amendoim'].includes(n))).toBe(true);
+    expectWithinLimits(cafe.items);
+    const jantar = fitBankItems([{ foodId: 'camarao', grams: 150 }, { foodId: 'abobrinha', grams: 150 }], index, { kcal: 600 }, { slots: ['jantar'] });
+    expect(jantar.sides[0]).toMatch(/Arroz|Batata/);
+    expectWithinLimits(jantar.items);
+  });
+
+  it('arroz, massa e batata somados não passam de 400 g na refeição', () => {
+    const res = fitBankItems([{ foodId: 'peito', grams: 150 }, { foodId: 'batata', grams: 300 }, { foodId: 'arroz', grams: 150 }], index, { kcal: 1100 }, { slots: ['almoco'] });
+    const starch = res.items.filter((i) => ['batata', 'arroz'].includes(i.foodId as string)).reduce((a, i) => a + i.qtyGrams, 0);
+    expect(starch).toBeLessThanOrEqual(400);
+  });
+
+  it('se não fechar ±10% sem passar os limites, a refeição não serve', () => {
+    const res = fitBankItems([{ foodId: 'tomate', grams: 100 }], index, { kcal: 900 }, { slots: ['ceia'] });
+    expect(res.ok).toBe(false);
+    expectWithinLimits(res.items);
+  });
+
+  it('porções reais: múltiplos de 5 g, ovo em 50 g, pão francês em 50 g', () => {
     for (const target of [250, 353, 480, 620]) {
       const items = scaleBankItems([{ foodId: 'pao', grams: 50 }, { foodId: 'ovo', grams: 100 }, { foodId: 'mamao', grams: 150 }], index, target);
-      const kcal = sumOptionItems(items).kcal;
-      expect(Math.abs(kcal - target)).toBeLessThanOrEqual(target * 0.1);
       const byId = Object.fromEntries(items.map((i) => [i.foodId, i.qtyGrams]));
       expect(byId.ovo % 50).toBe(0);
       expect(byId.pao % 50).toBe(0);
       items.forEach((i) => expect(i.qtyGrams % 5).toBe(0));
+      expectWithinLimits(items);
     }
   });
 
-  it('whey só em doses de 15, 20 ou 30 g', () => {
-    for (const target of [200, 300, 420]) {
+  it('whey só em doses de 15, 20, 30 ou 40 g', () => {
+    for (const target of [200, 300, 420, 700]) {
       const items = scaleBankItems([{ foodId: 'whey', grams: 30 }, { foodId: 'banana', grams: 100 }, { foodId: 'aveia', grams: 20 }], index, target);
-      expect([15, 20, 30]).toContain(items.find((i) => i.foodId === 'whey')!.qtyGrams);
+      expect([15, 20, 30, 40]).toContain(items.find((i) => i.foodId === 'whey')!.qtyGrams);
     }
+  });
+});
+
+describe('Banco de refeições — macros parecidos com a Opção 1', () => {
+  const index = buildFoodIndex(FOODS);
+
+  it('proteína ±25%, carboidrato ±30%, gordura ±40% (com folga mínima em gramas)', () => {
+    const t = { kcal: 500, p: 40, c: 60, g: 10 };
+    expect(optionFitIssues({ kcal: 500, p: 40, c: 60, g: 10 }, t)).toEqual([]);
+    expect(optionFitIssues({ kcal: 500, p: 51, c: 60, g: 10 }, t)).toEqual(['p']);
+    expect(optionFitIssues({ kcal: 500, p: 40, c: 40, g: 10 }, t)).toEqual(['c']);
+    expect(optionFitIssues({ kcal: 500, p: 40, c: 60, g: 17 }, t)).toEqual(['g']);
+    expect(optionFitIssues({ kcal: 560, p: 40, c: 60, g: 10 }, t)).toEqual(['kcal']);
+  });
+
+  it('jantar Atum 160 g + Arroz basmati 280 g não recebe omelete low carb como equivalente', () => {
+    const omelete = bm('JA01', 'jantar', 'BR/PT', 'Omelete de cottage e espinafre + salada', [['ovo', 150], ['cottage', 60], ['espinafre', 80], ['tomate', 80]]);
+    const target = sumOptionItems([item('atum', 160), item('basmati', 280)]);
+    expect(fitBankMeal(omelete, index, target, { slots: ['jantar'] }).ok).toBe(false);
+    const p = plan([meal('Jantar', '20:00', [item('atum', 160), item('basmati', 280)])]);
+    const res = generatePlanMealOptions(p, [omelete], FOODS, buildStudentMealContext({}));
+    expect(res.plan.days[0].meals[0].options).toBeUndefined();
+    expect(res.gaps).toEqual([expect.objectContaining({ mealName: 'Jantar', found: 0 })]);
+  });
+
+  it('dia de carbo baixo compara com a Opção 1 daquele dia', () => {
+    const arrozFrango = bm('AL01', 'almoco', 'BR', 'Frango com arroz', [['peito', 150], ['arroz', 200]]);
+    const alto = plan([meal('Almoço', '12:30', [item('peito', 150), item('arroz', 250)])]);
+    const baixo = plan([meal('Almoço', '12:30', [item('peito', 200), item('abacate', 100), item('tomate', 150)])]);
+    const ctx = buildStudentMealContext({});
+    expect(generatePlanMealOptions(alto, [arrozFrango], FOODS, ctx).gaps[0]?.found).toBe(1);
+    expect(generatePlanMealOptions(baixo, [arrozFrango], FOODS, ctx).gaps[0]?.found).toBe(0);
   });
 });
 
 describe('Banco de refeições — Gerar opções', () => {
   const ptCtx = buildStudentMealContext({ phone: '351911577317', restricoes: ['Sem soja'], alimentos: { alimentos: ['Iogurte natural desnatado', 'Banana', 'Ovo cozido'] } });
 
-  it('opção 1 continua a refeição do plano e as opções 2/3 respeitam horário e país', () => {
+  it('opção 1 continua a refeição do plano e as opções 2/3 respeitam horário, país e macros', () => {
     const p = plan([meal('Café da Manhã', '08:00', [item('ovo', 100), item('pao', 50)])]);
     const res = generatePlanMealOptions(p, BANK, FOODS, ptCtx);
     const m = res.plan.days[0].meals[0];
     expect(m.items).toEqual(p.days[0].meals[0].items);
-    expect(m.options).toHaveLength(3);
+    expect(m.options.length).toBeGreaterThanOrEqual(2);
     expect(m.options[0].source).toBe('plan');
     expect(m.options[0].items.map((i: any) => i.foodId)).toEqual(['ovo', 'pao']);
     const codes = m.options.slice(1).map((o: any) => o.bankCode);
     // Só PT ou BR/PT para Portugal; nunca a refeição BR.
     expect(codes.every((c: string) => ['CM08', 'CM10'].includes(c))).toBe(true);
-    const target = sumOptionItems(m.items).kcal;
-    m.options.slice(1).forEach((o: any) => expect(Math.abs(sumOptionItems(o.items).kcal - target)).toBeLessThanOrEqual(target * 0.1));
+    const target = sumOptionItems(m.items);
+    m.options.slice(1).forEach((o: any) => expect(optionFitIssues(sumOptionItems(o.items), target)).toEqual([]));
   });
 
   it('sem lactose tira refeições com iogurte/whey', () => {
     const ctx = buildStudentMealContext({ phone: '351911577317', restricoes: ['sem lactose'] });
     const p = plan([meal('Café da Manhã', '08:00', [item('ovo', 100), item('pao', 50)])]);
     const m = generatePlanMealOptions(p, BANK, FOODS, ctx).plan.days[0].meals[0];
-    expect(m.options.map((o: any) => o.bankCode).filter(Boolean)).toEqual(['CM10']);
+    expect((m.options ?? []).map((o: any) => o.bankCode).filter(Boolean)).not.toContain('CM08');
   });
 
-  it('prioriza alimentos da ficha e evita a mesma proteína da opção 1', () => {
-    const brCtx = buildStudentMealContext({ phone: '5511999990000', alimentos: { alimentos: ['Frango desfiado', 'Tapioca'] } });
-    const p = plan([meal('Café da Manhã', '08:00', [item('frango', 100), item('pao', 50)])]);
-    const m = generatePlanMealOptions(p, BANK, FOODS, brCtx).plan.days[0].meals[0];
-    const codes = m.options.slice(1).map((o: any) => o.bankCode);
-    expect(codes).not.toContain('CM02'); // frango igual à opção 1
+  it('evita a mesma proteína da opção 1 quando outra refeição equivalente existe', () => {
+    const bank = [
+      bm('AL01', 'almoco', 'BR', 'Frango com arroz', [['peito', 150], ['arroz', 200]]),
+      bm('AL02', 'almoco', 'BR', 'Atum com arroz', [['atum', 150], ['arroz', 200]]),
+      bm('AL03', 'almoco', 'BR', 'Camarão com arroz', [['camarao', 150], ['arroz', 200]]),
+    ];
+    const p = plan([meal('Almoço', '12:30', [item('peito', 150), item('arroz', 200)])]);
+    const m = generatePlanMealOptions(p, bank, FOODS, buildStudentMealContext({})).plan.days[0].meals[0];
+    expect(m.options.slice(1).map((o: any) => o.bankCode)).toEqual(['AL02', 'AL03']);
   });
 
   it('não repete a mesma refeição do banco em dois horários do dia', () => {
@@ -153,6 +288,16 @@ describe('Banco de refeições — Gerar opções', () => {
     const res = generatePlanMealOptions(p, BANK, FOODS, buildStudentMealContext({}));
     const all = res.plan.days[0].meals.flatMap((x: any) => (x.options ?? []).map((o: any) => o.bankCode).filter(Boolean));
     expect(new Set(all).size).toBe(all.length);
+  });
+
+  it('dias seguidos (SEG–DOM) não repetem a refeição do banco no mesmo horário quando há alternativa', () => {
+    const bank = ['AL01', 'AL02', 'AL03', 'AL04'].map((code, i) =>
+      bm(code, 'almoco', 'BR', `Almoço ${i}`, [[['atum', 'camarao', 'atum', 'camarao'][i], 150], ['arroz', 200]]));
+    const day = (label: string) => ({ label, meals: [meal('Almoço', '12:30', [item('peito', 150), item('arroz', 200)])] });
+    const res = generatePlanMealOptions({ days: [day('Segunda'), day('Terça'), day('Quarta')] }, bank, FOODS, buildStudentMealContext({}));
+    const codes = res.plan.days.map((d: any) => d.meals[0].options.slice(1).map((o: any) => o.bankCode));
+    expect(codes[0].some((c: string) => codes[1].includes(c))).toBe(false);
+    expect(codes[1].some((c: string) => codes[2].includes(c))).toBe(false);
   });
 
   it('refeição sem opções do banco fica com 1 opção (sem seletor)', () => {
