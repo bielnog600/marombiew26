@@ -6,6 +6,7 @@
 import type { ParsedFood, ParsedMeal } from '@/lib/dietResultParser';
 import { isStructuredCanonicalPlan } from '@/lib/dietStructuredGuards';
 import { dayCarbLevelLabel } from '@/lib/dietCarbCycle';
+import { planOptionName } from '../../supabase/functions/_shared/mealOptionsCore';
 
 export const STUDENT_WEEKDAY_KEYS = ['seg', 'ter', 'qua', 'qui', 'sex', 'sab', 'dom'] as const;
 export const STUDENT_WEEKDAY_LABELS = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
@@ -270,7 +271,7 @@ export const studentMealOptionsForDay = (
     const second = savedBankOptions(cm)[0] ?? auto?.[m.index] ?? null;
     const plan0 = options.find((o) => o?.source === 'plan');
     const first: StudentMealOption = {
-      name: String(plan0?.name ?? meal.name),
+      name: String(plan0?.name ?? (planOptionName(cm?.items ?? []) || meal.name)),
       source: 'plan',
       prep: plan0?.prep ?? null,
       foods: meal.foods ?? [],
