@@ -27,9 +27,9 @@ const base = {
 };
 
 describe('StudentMealCard — opções', () => {
-  it('mostra o selo "Opção N/3" e o nome da opção na linha de baixo', () => {
+  it('mostra o selo "Opção N" e o nome da opção na linha de baixo', () => {
     render(<StudentMealCard {...base} meal={{ name: 'Café da manhã', foods: options[1].foods }} options={options} selectedOption={1} />);
-    expect(screen.getByTestId('meal-option-badge').textContent).toBe('Opção 2/3');
+    expect(screen.getByTestId('meal-option-badge').textContent).toBe('Opção 2');
     expect(screen.getByText(/Aprox\. 100 kcal · 1 item · Iogurte com whey/)).toBeTruthy();
   });
 
@@ -44,6 +44,26 @@ describe('StudentMealCard — opções', () => {
   it('opção pesada/alterada mostra a marca no cartão atual', () => {
     render(<StudentMealCard {...base} meal={{ name: 'Café da manhã', foods: options[0].foods }} options={options} optionEdited />);
     expect(screen.getByTestId('meal-option-edited').textContent).toContain('pesada / alterada');
+  });
+
+  it('cartão Receitas: "N que batem", abre a folha e, escolhida, mostra o nome da receita', () => {
+    const onOpen = vi.fn();
+    const two = options.slice(0, 2);
+    const { rerender } = render(<StudentMealCard {...base} meal={{ name: 'Café da manhã', foods: options[0].foods }} options={two} recipeCount={4} onOpenRecipes={onOpen} />);
+    expect(screen.getByTestId('meal-recipes-card').textContent).toContain('4 que batem');
+    fireEvent.click(screen.getByTestId('meal-recipes-card'));
+    expect(onOpen).toHaveBeenCalled();
+    rerender(<StudentMealCard {...base} meal={{ name: 'Café da manhã', foods: options[2].foods }} options={two} selectedOption={-1} recipe={options[2]} recipeCount={4} onOpenRecipes={onOpen} />);
+    expect(screen.getByTestId('meal-option-badge').textContent).toBe('Receita');
+    expect(screen.getByTestId('meal-recipes-card').textContent).toContain('Tapioca de frango');
+    expect(screen.getByRole('button', { name: /^Opção 1/ }).getAttribute('aria-pressed')).toBe('false');
+  });
+
+  it('só Opção 1 com Receitas mostra os dois cartões', () => {
+    render(<StudentMealCard {...base} meal={{ name: 'Café da manhã', foods: options[0].foods }} options={[options[0]]} onOpenRecipes={() => {}} />);
+    expect(screen.getByTestId('meal-option-picker')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /^Opção 2/ })).toBeNull();
+    expect(screen.getByTestId('meal-recipes-card')).toBeTruthy();
   });
 
   it('com uma só opção não aparece seletor', () => {
