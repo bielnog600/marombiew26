@@ -147,7 +147,7 @@ describe('Dieta do aluno — 3 opções por refeição', () => {
     expect(within(card).getByTestId('meal-option-badge')).toHaveTextContent('Opção 1');
     // A antiga Opção 3 não vira cartão: ficam Opção 1, Opção 2 e Receitas.
     expect(within(card).queryByRole('button', { name: /^Opção 3/ })).toBeNull();
-    expect(within(card).getByTestId('meal-recipes-card')).toBeInTheDocument();
+    expect(await within(card).findByTestId('meal-recipes-card')).toBeInTheDocument();
     fireEvent.click(within(card).getByRole('button', { name: 'Opção 2: Iogurte com whey' }));
     expect(screen.queryByText(/Voltar para a Opção/)).toBeNull();
     await waitFor(() => expect(within(lancheCard()).getByTestId('meal-option-badge')).toHaveTextContent('Opção 2'));
@@ -200,8 +200,8 @@ describe('Dieta do aluno — 3 opções por refeição', () => {
   });
   it('refeição sem opções salvas ganha a Opção 2 calculada no app, sempre a mesma, sem mexer na dieta', async () => {
     render(<MinhasDietas />);
-    await screen.findByText('Jantar');
-    const jantarCard = () => screen.getByText('Jantar').closest('.rounded-2xl') as HTMLElement;
+    await screen.findByText('Lanche');
+    const jantarCard = () => screen.getByText('Jantar', { selector: 'span.truncate' }).closest('.rounded-2xl') as HTMLElement;
     fireEvent.click(within(jantarCard()).getByRole('button', { name: /Jantar/ }));
     const opt2 = await within(jantarCard()).findByRole('button', { name: /^Opção 2: Arroz com brócolis/ });
     expect(within(jantarCard()).getByRole('button', { name: /^Opção 1/ })).toBeInTheDocument();
@@ -215,8 +215,8 @@ describe('Dieta do aluno — 3 opções por refeição', () => {
   it('sem refeição do banco que bata, mostra só Opção 1 e Receitas', async () => {
     mock.bank = mock.bank.filter((m) => m.code !== 'JA01');
     render(<MinhasDietas />);
-    await screen.findByText('Jantar');
-    const jantarCard = () => screen.getByText('Jantar').closest('.rounded-2xl') as HTMLElement;
+    await screen.findByText('Lanche');
+    const jantarCard = () => screen.getByText('Jantar', { selector: 'span.truncate' }).closest('.rounded-2xl') as HTMLElement;
     fireEvent.click(within(jantarCard()).getByRole('button', { name: /Jantar/ }));
     const recipes = await within(jantarCard()).findByTestId('meal-recipes-card');
     expect(recipes).toHaveTextContent('0 que batem');
