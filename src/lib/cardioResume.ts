@@ -36,6 +36,8 @@ export interface CardioSnapshot {
   blockName: string;
   totalBlocks: number;
   savedAt: number;
+  /** Qual sessão do plano (posição em protocols) — retratos antigos não têm. */
+  protocolIndex?: number | null;
 }
 
 const isNum = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
@@ -59,6 +61,7 @@ export interface CardioSnapshotInput {
   protocol: CardioProtocol; phase: string; blockIndex: number;
   remainingMs: number; phaseTotalSeconds: number; startedAt: number; totalPauseMs: number;
   doneBlocks: Iterable<number>; pausedAt: number; reason: PauseReason;
+  protocolIndex?: number | null;
 }
 
 export function buildCardioSnapshot(input: CardioSnapshotInput, now = Date.now()): CardioSnapshot | null {
@@ -86,6 +89,7 @@ export function buildCardioSnapshot(input: CardioSnapshotInput, now = Date.now()
     blockName: input.phase === 'prep' ? 'Prepare-se' : (blocks[idx]?.name || '').trim(),
     totalBlocks: blocks.length,
     savedAt: now,
+    ...(Number.isInteger(input.protocolIndex) ? { protocolIndex: input.protocolIndex } : {}),
   };
 }
 

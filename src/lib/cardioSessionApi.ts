@@ -11,6 +11,10 @@ const ACTIVE = ['in_progress', 'paused'] as const;
 export type CardioActiveStatus = typeof ACTIVE[number];
 const FINISH_MODALITY_VALUES = ['passadeira', 'bike', 'eliptica', 'escada', 'corrida_ar_livre', 'caminhada_ar_livre'];
 
+/** Posição da sessão no plano (0–49) ou vazio. */
+export const protocolIndexValue = (v: unknown): number | null =>
+  typeof v === 'number' && Number.isInteger(v) && v >= 0 && v <= 49 ? v : null;
+
 export function cardioProgressRow(s: CardioSnapshot, status: CardioActiveStatus) {
   return {
     id: s.sessionId,
@@ -24,6 +28,7 @@ export function cardioProgressRow(s: CardioSnapshot, status: CardioActiveStatus)
     total_pause_ms: s.totalPauseMs,
     completed_blocks: s.doneBlocks.length,
     total_blocks: s.totalBlocks,
+    protocol_index: protocolIndexValue(s.protocolIndex),
     session_state: { resume: s } as unknown as Json,
   };
 }
@@ -111,6 +116,8 @@ export interface CardioFinishInput {
   notes?: string | null;
   endedEarly?: boolean;
   durationEdited?: boolean;
+  /** Qual sessão do plano foi feita (tela Cardio). */
+  protocolIndex?: number | null;
 }
 
 const intIn = (v: unknown, min: number, max: number): number | null => {
@@ -145,6 +152,7 @@ export function cardioFinishRow(input: CardioFinishInput, now = new Date()) {
     modality: input.modality && FINISH_MODALITY_VALUES.includes(input.modality) ? input.modality : null,
     distance_km: decIn(input.distanceKm, 0, 500),
     notes: notes || null,
+    protocol_index: protocolIndexValue(input.protocolIndex),
     session_state: { ended_early: !!input.endedEarly, duration_edited: !!input.durationEdited } as unknown as Json,
   };
 }

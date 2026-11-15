@@ -78,6 +78,8 @@ const CardioExecucao: React.FC = () => {
   const navState = (location.state as any) || {};
   const planId: string | null = navState.planId ?? null;
   const isPreview = navState.preview === true;
+  /** Qual sessão do plano o aluno escolheu na tela Cardio (para o "Feito terça" e o "Sugerido"). */
+  const navProtocolIndex: number | null = Number.isInteger(navState.protocolIndex) ? navState.protocolIndex : null;
   /** Pré-visualização do admin: nada é salvo nem pausa ao sair. */
   const persistEnabled = !isPreview;
   const navResume = isCardioSnapshot(navState.resumeSnapshot) ? (navState.resumeSnapshot as CardioSnapshot) : null;
@@ -126,6 +128,7 @@ const CardioExecucao: React.FC = () => {
   const totalPauseMsRef = useRef(0);
   const doneRef = useRef<Set<number>>(new Set());
   const sessionIdRef = useRef<string | null>(null);
+  const protocolIndexRef = useRef<number | null>(navProtocolIndex ?? navResume?.protocolIndex ?? localOffer?.protocolIndex ?? null);
   const sessionStartRef = useRef<number | null>(null);
   const studentIdRef = useRef<string | null>(null);
   const uidPromiseRef = useRef<Promise<string | null> | null>(null);
@@ -284,7 +287,7 @@ const CardioExecucao: React.FC = () => {
         void saveCardioFinish({
           planId, name: p.title, startedAt: new Date(sessionStartRef.current ?? Date.now()),
           durationSeconds: durationSec, pauseMs: totalPauseMsRef.current, completedBlocks: doneRef.current.size,
-          totalBlocks: p.blocks.length, modality: p.modality,
+          totalBlocks: p.blocks.length, modality: p.modality, protocolIndex: protocolIndexRef.current,
           kcal: estimateCardioKcal({ modality: p.modality, protocol: p, durationSec, weightKg }),
           endedEarly: doneRef.current.size < p.blocks.length,
         }, sid).catch(() => { /* offline: o Concluir tenta de novo */ });
@@ -412,6 +415,7 @@ const CardioExecucao: React.FC = () => {
       remainingMs: phaseTotalRef.current * 1000 - (pausedAt - phaseStartRef.current),
       phaseTotalSeconds: phaseTotalRef.current, startedAt: sessionStartRef.current ?? now,
       totalPauseMs: totalPauseMsRef.current, doneBlocks: doneRef.current, pausedAt, reason,
+      protocolIndex: protocolIndexRef.current,
     }, now);
   };
 
@@ -465,6 +469,7 @@ const CardioExecucao: React.FC = () => {
     protocolRef.current = p;
     clearResumeTimers();
     sessionIdRef.current = snap.sessionId;
+    if (snap.protocolIndex != null) protocolIndexRef.current = snap.protocolIndex;
     if (!studentIdRef.current) studentIdRef.current = snap.studentId;
     sessionStartRef.current = snap.startedAt;
     doneRef.current = new Set(snap.doneBlocks);
@@ -636,7 +641,7 @@ const CardioExecucao: React.FC = () => {
         planId, name: p.title, startedAt: new Date(sessionStartRef.current ?? Date.now() - v.durationSec * 1000),
         durationSeconds: v.durationSec, pauseMs: totalPauseMsRef.current, completedBlocks: doneRef.current.size,
         totalBlocks: p.blocks.length, modality: v.modality, kcal: v.kcal, rpe: v.rpe, rating: v.rating,
-        distanceKm: v.distanceKm, avgHeartRate: v.avgHeartRate, notes: v.notes,
+        distanceKm: v.distanceKm, avgHeartRate: v.avgHeartRate, notes: v.notes, protocolIndex: protocolIndexRef.current,
         endedEarly: doneRef.current.size < p.blocks.length, durationEdited: v.durationEdited,
       }, sessionIdRef.current);
       toast.success('Cardio salvo! O Fabiew já consegue ver.');
