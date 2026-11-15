@@ -4,6 +4,7 @@
 - [x] "Seus dados" na ficha (nascimento, altura, telefone PT/BR, raça, objetivo, peso só sem pesagem em 15 dias), pré-preenchido.
 - [x] Envio atualiza perfil, telefone, restrições, lesões, observações e peso; validação no servidor; histórico na ficha.
 - [x] Admin: selo "Atualizado pela ficha em dd/mm" e dados do perfil na lista de fichas.
+- [x] Objetivo e raça em chips, mesma lista na ficha e no admin; objetivo salvo como "A, B, Outro: …".
 - [ ] Enviar uma ficha real até ao fim — não enviei nenhuma para não alterar o perfil de um aluno.
 
 ## Banco de refeições — importar/exportar planilha

@@ -14,6 +14,7 @@ import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Sparkles, ScanEye } from 'lucide-react';
 import { toast } from 'sonner';
+import { ObjetivoChips, RacaChips } from '@/components/student/ProfileChoiceChips';
 
 const Alunos = () => {
   const [students, setStudents] = useState<any[]>([]);
@@ -286,16 +287,7 @@ const Alunos = () => {
                 </div>
                 <div className="space-y-2">
                   <Label>Raça</Label>
-                  <Select value={newStudent.raca} onValueChange={v => setNewStudent({ ...newStudent, raca: v })}>
-                    <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="branco">Branco</SelectItem>
-                      <SelectItem value="negro">Negro</SelectItem>
-                      <SelectItem value="pardo">Pardo</SelectItem>
-                      <SelectItem value="asiatico">Asiático</SelectItem>
-                      <SelectItem value="indigena">Indígena</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <RacaChips value={newStudent.raca} onChange={v => setNewStudent({ ...newStudent, raca: v })} />
                 </div>
                 <div className="flex items-center justify-between rounded-lg border border-border p-3">
                   <div className="space-y-0.5 pr-3">
@@ -441,16 +433,7 @@ const Alunos = () => {
                   </div>
                   <div className="space-y-2">
                     <Label>Raça</Label>
-                    <Select value={editStudent.raca} onValueChange={v => setEditStudent({ ...editStudent, raca: v })}>
-                      <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="branco">Branco</SelectItem>
-                        <SelectItem value="negro">Negro</SelectItem>
-                        <SelectItem value="pardo">Pardo</SelectItem>
-                        <SelectItem value="asiatico">Asiático</SelectItem>
-                        <SelectItem value="indigena">Indígena</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    <RacaChips value={editStudent.raca} onChange={v => setEditStudent({ ...editStudent, raca: v })} />
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
@@ -465,7 +448,7 @@ const Alunos = () => {
                 </div>
                 <div className="space-y-2">
                   <Label>Objetivo</Label>
-                  <Input value={editStudent.objetivo} onChange={e => setEditStudent({ ...editStudent, objetivo: e.target.value })} />
+                  <ObjetivoChips key={editStudent.user_id} value={editStudent.objetivo} onChange={v => setEditStudent((prev: any) => ({ ...prev, objetivo: v }))} idPrefix="admin-objetivo" />
                 </div>
                 <div className="space-y-2">
                   <Label>Restrições</Label>

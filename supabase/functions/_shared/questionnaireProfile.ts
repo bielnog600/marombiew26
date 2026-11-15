@@ -1,7 +1,7 @@
 /**
  * Ficha do aluno (Questionário de Dieta) → perfil do aluno.
  *
- * Puro (sem imports): usado pela edge function diet-questionnaire, pela página
+ * Puro (só importa as opções partilhadas): usado pela edge function diet-questionnaire, pela página
  * pública da ficha e pela ficha do aluno no admin. Regras:
  *  - campos do perfil opcionais; vazio nunca apaga o que já existe;
  *  - peso só é pedido (e obrigatório) quando não há pesagem nos últimos 15 dias
@@ -10,17 +10,9 @@
  *    acrescentadas com a data, sem duplicar.
  */
 
-export const RACA_OPTIONS: { value: string; label: string }[] = [
-  { value: 'branco', label: 'Branco' },
-  { value: 'negro', label: 'Negro' },
-  { value: 'pardo', label: 'Pardo' },
-  { value: 'asiatico', label: 'Asiático' },
-  { value: 'indigena', label: 'Indígena' },
-];
+import { RACA_OPTIONS, normalizeObjetivo } from './studentProfileOptions.ts';
 
-export const OBJETIVO_SUGESTOES = [
-  'Hipertrofia', 'Emagrecimento', 'Definição', 'Saúde e qualidade de vida', 'Condicionamento físico',
-];
+export { RACA_OPTIONS, OBJETIVO_OPTIONS, parseObjetivo, joinObjetivo, normalizeObjetivo } from './studentProfileOptions.ts';
 
 export const PHONE_DDI: { value: string; label: string }[] = [
   { value: '351', label: '🇵🇹 +351' },
@@ -131,8 +123,9 @@ export function validatePerfil(raw: unknown, opts: { today: string; pesoObrigato
   }
   if (!blank(r.objetivo)) {
     const v = String(r.objetivo).trim();
-    if (v.length > 200) return { ok: false, error: 'O objetivo tem de ter no máximo 200 caracteres.' };
-    out.objetivo = v;
+    if (v.length > 300) return { ok: false, error: 'O objetivo tem de ter no máximo 300 caracteres.' };
+    const joined = normalizeObjetivo(v);
+    if (joined) out.objetivo = joined;
   }
   if (opts.pesoObrigatorio) {
     if (blank(r.peso)) return { ok: false, error: 'Informe o seu peso corporal (kg).' };
