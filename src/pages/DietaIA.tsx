@@ -335,6 +335,8 @@ const DietaIA = () => {
   const [showCompare, setShowCompare] = useState(false);
   // Canonical structured plan (source of truth when structured generation succeeds).
   const [structuredPlan, setStructuredPlan] = useState<DietPlan | null>(null);
+  /** Muda a cada dieta recém-gerada: o editor gera as opções 2/3 do banco. */
+  const [optionsAutoKey, setOptionsAutoKey] = useState<number | null>(null);
   // Enquanto houver alimento sem vínculo com a base, a dieta NÃO é validada.
   const hasUnresolvedItems = useMemo(
     () => (structuredPlan ? collectUnresolvedItems(structuredPlan).length > 0 : false),
@@ -1303,6 +1305,7 @@ const DietaIA = () => {
       if (structured) {
         const md = dietPlanToMarkdown(structured);
         setStructuredPlan(structured);
+        setOptionsAutoKey(Date.now());
         setResult(md);
         // Detectar alimentos novos (não existentes na base) para aprovação manual.
         try {
@@ -2805,6 +2808,8 @@ ${generated}`;
                     : null,
                 )}
                 onChange={(p) => { void applyCanonicalPlanUpdate(p); }}
+                studentId={studentId}
+                autoGenerateOptionsKey={optionsAutoKey}
               />
             )}
             {lastDietPlan && !editPlanId && (
