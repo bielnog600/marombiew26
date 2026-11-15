@@ -962,6 +962,7 @@ export type Database = {
           notes: string | null
           plan_id: string | null
           protocol_id: string | null
+          protocol_index: number | null
           protocol_name: string | null
           rating: number | null
           rpe: number | null
@@ -987,6 +988,7 @@ export type Database = {
           notes?: string | null
           plan_id?: string | null
           protocol_id?: string | null
+          protocol_index?: number | null
           protocol_name?: string | null
           rating?: number | null
           rpe?: number | null
@@ -1012,6 +1014,7 @@ export type Database = {
           notes?: string | null
           plan_id?: string | null
           protocol_id?: string | null
+          protocol_index?: number | null
           protocol_name?: string | null
           rating?: number | null
           rpe?: number | null
