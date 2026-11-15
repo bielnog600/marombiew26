@@ -40,6 +40,14 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger
 } from '@/components/ui/alert-dialog';
+import { RACA_OPTIONS, fichaUpdatedFields, type DadosPerfil } from '../../supabase/functions/_shared/questionnaireProfile';
+
+const FichaBadge = ({ show, date }: { show: boolean; date: string | null }) =>
+  show && date ? (
+    <Badge variant="outline" className="ml-2 h-5 px-1.5 text-[10px] font-normal text-primary border-primary/40 align-middle">
+      Atualizado pela ficha em {new Date(date).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}
+    </Badge>
+  ) : null;
 
 const AlunoDetail = () => {
   const { id } = useParams<{ id: string }>();
@@ -59,6 +67,7 @@ const AlunoDetail = () => {
   const [importLoading, setImportLoading] = useState(false);
   const [weightDialogOpen, setWeightDialogOpen] = useState(false);
   const [aiAssessmentOpen, setAiAssessmentOpen] = useState(false);
+  const [lastFicha, setLastFicha] = useState<{ responded_at: string | null; dados_perfil: DadosPerfil | null } | null>(null);
 
   useEffect(() => {
     if (id) loadData();
@@ -70,6 +79,17 @@ const AlunoDetail = () => {
 
     const { data: sp } = await supabase.from('students_profile').select('*').eq('user_id', id).maybeSingle();
     setStudentProfile(sp);
+
+    const { data: ficha } = await supabase
+      .from('diet_questionnaires')
+      .select('responded_at, dados_perfil')
+      .eq('student_id', id)
+      .eq('status', 'completed')
+      .not('dados_perfil', 'is', null)
+      .order('responded_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    setLastFicha((ficha as any) ?? null);
 
     const { data: avals } = await supabase.from('assessments').select('*').eq('student_id', id).order('created_at', { ascending: false });
     setAssessments(avals ?? []);
@@ -148,6 +168,10 @@ const AlunoDetail = () => {
     setImportLoading(false);
   };
 
+  const fichaFields = fichaUpdatedFields(lastFicha?.dados_perfil, { ...(studentProfile ?? {}), telefone: profile?.telefone });
+  const fichaDate = lastFicha?.responded_at ?? null;
+  const fichaPeso = lastFicha?.dados_perfil?.aplicados?.peso;
+
   if (!profile) {
     return (
       <AppLayout title="Carregando...">
@@ -189,7 +213,7 @@ const AlunoDetail = () => {
                   )}
                 </div>
                 <p className="text-muted-foreground">{profile.email}</p>
-                {profile.telefone && <p className="text-sm text-muted-foreground">{profile.telefone}</p>}
+                {profile.telefone && <p className="text-sm text-muted-foreground">{profile.telefone}<FichaBadge show={fichaFields.has('telefone')} date={fichaDate} /></p>}
                 {studentProfile?.low_cost && lowCostNextReview && (
                   <p className="text-xs text-primary mt-1">
                     Próxima revisão automática:{' '}
@@ -229,12 +253,16 @@ const AlunoDetail = () => {
                 {studentProfile ? (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
                     <div><span className="text-muted-foreground">Sexo:</span> <span className="ml-2 capitalize">{studentProfile.sexo || '-'}</span></div>
-                    <div><span className="text-muted-foreground">Nascimento:</span> <span className="ml-2">{studentProfile.data_nascimento || '-'}</span></div>
-                    <div><span className="text-muted-foreground">Altura:</span> <span className="ml-2">{studentProfile.altura ? `${studentProfile.altura} cm` : '-'}</span></div>
-                    <div><span className="text-muted-foreground">Objetivo:</span> <span className="ml-2">{studentProfile.objetivo || '-'}</span></div>
-                    <div className="col-span-full"><span className="text-muted-foreground">Restrições:</span> <span className="ml-2">{studentProfile.restricoes || '-'}</span></div>
-                    <div className="col-span-full"><span className="text-muted-foreground">Lesões:</span> <span className="ml-2">{studentProfile.lesoes || '-'}</span></div>
-                    <div className="col-span-full"><span className="text-muted-foreground">Observações:</span> <span className="ml-2">{studentProfile.observacoes || '-'}</span></div>
+                    <div><span className="text-muted-foreground">Nascimento:</span> <span className="ml-2">{studentProfile.data_nascimento || '-'}</span><FichaBadge show={fichaFields.has('data_nascimento')} date={fichaDate} /></div>
+                    <div><span className="text-muted-foreground">Altura:</span> <span className="ml-2">{studentProfile.altura ? `${studentProfile.altura} cm` : '-'}</span><FichaBadge show={fichaFields.has('altura')} date={fichaDate} /></div>
+                    <div><span className="text-muted-foreground">Raça:</span> <span className="ml-2">{RACA_OPTIONS.find(o => o.value === studentProfile.raca)?.label || studentProfile.raca || '-'}</span><FichaBadge show={fichaFields.has('raca')} date={fichaDate} /></div>
+                    <div><span className="text-muted-foreground">Objetivo:</span> <span className="ml-2">{studentProfile.objetivo || '-'}</span><FichaBadge show={fichaFields.has('objetivo')} date={fichaDate} /></div>
+                    {fichaPeso != null && (
+                      <div><span className="text-muted-foreground">Peso pela ficha:</span> <span className="ml-2">{fichaPeso} kg</span><FichaBadge show date={fichaDate} /></div>
+                    )}
+                    <div className="col-span-full"><span className="text-muted-foreground">Restrições:</span> <span className="ml-2">{studentProfile.restricoes || '-'}</span><FichaBadge show={fichaFields.has('restricoes')} date={fichaDate} /></div>
+                    <div className="col-span-full"><span className="text-muted-foreground">Lesões:</span> <span className="ml-2">{studentProfile.lesoes || '-'}</span><FichaBadge show={fichaFields.has('lesoes')} date={fichaDate} /></div>
+                    <div className="col-span-full"><span className="text-muted-foreground">Observações:</span> <span className="ml-2 whitespace-pre-line">{studentProfile.observacoes || '-'}</span><FichaBadge show={fichaFields.has('observacoes')} date={fichaDate} /></div>
                   </div>
                 ) : (
                   <p className="text-muted-foreground">Perfil detalhado não cadastrado.</p>
