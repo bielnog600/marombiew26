@@ -287,10 +287,10 @@ export interface PortionRule {
 /** Fontes de carboidrato: as únicas que crescem além do fator da receita. */
 export const CARB_KINDS: PortionKind[] = ['carb', 'bread', 'oat', 'fruit', 'tortilla'];
 
-const FRUIT_RE = /^(banana|maca|pera|mamao|papaia|manga|morango|uvas?\b|kiwi|laranja|tangerina|mexerica|abacaxi|ananas|melancia|melao|mirtilo|frutas? vermelhas|ameixa|pessego|figo|framboesa|amora|goiaba|caqui|nectarina|cereja)\b/;
-const MEAT_RE = /frango|sobrecoxa|\bperu\b|porco|lombo|camarao|atum|salmao|tilapia|pescada|bacalhau|sardinha|peixe|carne|alcatra|patinho|picanha|bife|fraldinha|coxao|hamburguer|polvo|lula|merluza|dourada|robalo/;
-const VEG_RE = /abobrinha|abobora|curgete|brocolis|cenoura|espinafre|alface|tomate|pepino|couve|pimentao|cebola|cogumelo|salada|legumes|vagem|feijao verde|beringela|rucula|agriao|repolho|chuchu|quiabo|beterraba|\balho\b/;
-const CARB_RE = /^(arroz|massa|macarrao|esparguete|batata|cuscuz|mandioca|aipim|inhame|quinoa|milho|polenta|nhoque)\b/;
+const FRUIT_RE = /^(banana|maca|pera|mamao|papaia|manga|morango|uvas?\b|kiwi|laranja|tangerina|mexerica|abacaxi|ananas|melancia|melao|mirtilo|frutas? vermelhas|ameixa|pessego|figo|framboesa|amora|goiaba|caqui|nectarina|cereja|roma|damasco|nespera|toranja|clementina|pitaya|jaca|maracuja|acerola|carambola|physalis|pinha|graviola|marmelo|jabuticaba)\b/;
+const MEAT_RE = /frango|sobrecoxa|\bperu\b|porco|lombo|camarao|atum|salmao|tilapia|pescada|bacalhau|sardinha|peixe|carne|alcatra|patinho|picanha|bife|fraldinha|coxao|hamburguer|polvo|lula|merluza|dourada|robalo|mignon|maminha|lagarto|pernil|coelho|carapau|cavala|\bpato\b|vitela|contra file|espetinho|figado|moela/;
+const VEG_RE = /abobrinha|abobora|curgete|brocolis|cenoura|espinafre|alface|tomate|pepino|couve|pimentao|cebola|cogumelo|salada|legumes|vagem|feijao verde|beringela|rucula|agriao|repolho|chuchu|quiabo|beterraba|\balho\b|berinjela|nabo|rabanete|acelga|palmito|aipo|espargo|pak choi|endivia|grelos|almeirao|chicoria|jilo|maxixe|alcachofra|funcho/;
+const CARB_RE = /^(arroz|massa|macarrao|esparguete|batata|cuscuz|mandioca|mandioquinha|aipim|inhame|cara|quinoa|milho|polenta|nhoque)\b/;
 
 /**
  * Porção real e limites por alimento: múltiplos de 5 g; ovo em unidades de 50 g
@@ -299,37 +299,38 @@ const CARB_RE = /^(arroz|massa|macarrao|esparguete|batata|cuscuz|mandioca|aipim|
  */
 export const portionRuleFor = (foodName: string): PortionRule => {
   const n = normText(foodName);
-  if (/whey/.test(n)) return { kind: 'whey', step: 5, min: 15, max: 40, allowed: [15, 20, 30, 40] };
+  if (/whey|caseina|albumina|^proteina (de|da|vegana)/.test(n)) return { kind: 'whey', step: 5, min: 15, max: 40, allowed: [15, 20, 30, 40] };
   if (/^clara/.test(n)) return { kind: 'eggWhite', step: 33, min: 33, max: 198 };
   if (/^ovos?\b|^omelete/.test(n)) return { kind: 'egg', step: 50, min: 50, max: 200, hardMin: true };
   if (/iogurte|skyr|kefir/.test(n)) return { kind: 'yogurt', step: 5, min: 60, max: 340 };
   if (/leite em po/.test(n)) return { kind: 'other', step: 5, min: 5, max: 30 };
-  if (/^(leite|bebida|agua de coco)/.test(n)) return { kind: 'milk', step: 50, min: 100, max: 400 };
+  if (/leite condensado/.test(n)) return { kind: 'sweet', step: 5, min: 5, max: 30 };
+  if (/^(leite|bebida|agua de coco|suco)/.test(n)) return { kind: 'milk', step: 50, min: 100, max: 400 };
   if (/^pao frances/.test(n)) return { kind: 'bread', step: 50, min: 50, max: 100 };
-  if (/^pao|^broa|caco|^tosta|^torrada/.test(n)) return { kind: 'bread', step: 25, min: 25, max: 100 };
+  if (/^pao|^pan\b|^broa|caco|^tosta|^torrada/.test(n)) return { kind: 'bread', step: 25, min: 25, max: 100 };
   if (/^tortilha|^wrap/.test(n)) return { kind: 'tortilla', step: 40, min: 40, max: 80 };
-  if (/^tamara|passa|\bseca\b|desidratad/.test(n)) return { kind: 'driedFruit', step: 10, min: 10, max: 40 };
+  if (/^tamara|passa|\bsec[oa]\b|desidratad/.test(n)) return { kind: 'driedFruit', step: 10, min: 10, max: 40 };
   if (/^abacate/.test(n)) return { kind: 'avocado', step: 5, min: 20, max: 100 };
   if (/^banana/.test(n)) return { kind: 'fruit', step: 60, min: 60, max: 180, hardMin: true };
   if (/^(maca|pera)\b/.test(n)) return { kind: 'fruit', step: 65, min: 65, max: 195, hardMin: true };
   if (/^mamao|^papaia/.test(n)) return { kind: 'fruit', step: 75, min: 75, max: 150, hardMin: true };
   if (/^manga/.test(n)) return { kind: 'fruit', step: 60, min: 60, max: 180, hardMin: true };
   if (FRUIT_RE.test(n)) return { kind: 'fruit', step: 5, min: 60, max: 200, hardMin: true };
-  if (/amendoim|amendoa|castanha|nozes|\bnoz\b|avela|caju|pistach|semente|chia|linhaca/.test(n)) return { kind: 'nut', step: 5, min: 5, max: 30 };
-  if (/azeite|\boleo\b|manteiga/.test(n)) return { kind: 'oil', step: 5, min: 5, max: 15 };
+  if (/amendoim|amendoa|castanha|nozes|\bnoz\b|avela|semente|\bchia\b|linhaca/.test(n) && !/^feijao/.test(n)) return { kind: 'nut', step: 5, min: 5, max: 30 };
+  if (/^(azeite|oleo|manteiga|ghee)\b/.test(n)) return { kind: 'oil', step: 5, min: 5, max: 15 };
   if (/fiambre|presunto|salpicao|peito de peru (fatiado|defumado)/.test(n)) return { kind: 'coldCut', step: 10, min: 20, max: 80 };
   if (/^aveia|farelo de aveia/.test(n)) return { kind: 'oat', step: 5, min: 10, max: 100 };
-  if (/granola/.test(n)) return { kind: 'oat', step: 5, min: 10, max: 60 };
+  if (/granola|flocos de milho/.test(n)) return { kind: 'oat', step: 5, min: 10, max: 60 };
   if (/tapioca/.test(n)) return { kind: 'carb', step: 10, min: 20, max: 120 };
-  if (/biscoito de arroz|bolacha de arroz/.test(n)) return { kind: 'carb', step: 5, min: 10, max: 40 };
+  if (/biscoito de arroz|bolacha de (arroz|milho)/.test(n)) return { kind: 'carb', step: 5, min: 10, max: 40 };
   if (/feijao|grao|lentilha|ervilha/.test(n) && !/feijao verde/.test(n)) return { kind: 'legume', step: 5, min: 40, max: 250 };
   if (/^mel\b|geleia|doce de leite|dulce|cacau|acucar/.test(n)) return { kind: 'sweet', step: 5, min: 5, max: 30 };
   if (/cottage|ricota/.test(n)) return { kind: 'cheese', step: 5, min: 30, max: 200 };
   if (/requeijao|cream cheese/.test(n)) return { kind: 'cheese', step: 5, min: 10, max: 40 };
   if (/queijo|mussarela|mozzarella/.test(n)) return { kind: 'cheese', step: 5, min: 10, max: 60 };
   if (MEAT_RE.test(n)) return { kind: 'meat', step: 5, min: 80, max: 250, hardMin: true };
+  if (CARB_RE.test(n) || /^nhoque/.test(n)) return { kind: 'carb', step: 5, min: 50, max: 400 };
   if (VEG_RE.test(n) || /^molho de tomate/.test(n)) return { kind: 'veg', step: 5, min: 10, max: 200 };
-  if (CARB_RE.test(n)) return { kind: 'carb', step: 5, min: 50, max: 400 };
   return { kind: 'other', step: 5, min: 5, max: 300 };
 };
 
