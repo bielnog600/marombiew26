@@ -665,8 +665,8 @@ const MinhasDietas = () => {
     [baseMealsForDay, optionsByMeal, choiceResolver, activeGroupIndex, selectedDate],
   );
   /** Receitas por refeição do dia: horário, meta (Opção 1), Opção 2 a não repetir e quantas batem. */
-  const recipeInfo = useMemo(() => {
-    if (!structuredPlan || usesMealOptions || !recipeData) return [] as Array<null>;
+  const recipeInfo = useMemo((): Array<{ slots: MealSlot[]; target: { kcal: number; p: number; c: number; g: number }; excludeCodes: string[]; count: number } | null> => {
+    if (!structuredPlan || usesMealOptions || !recipeData) return [];
     const matched = matchCanonicalMeals(structuredPlan, activeGroupIndex, baseMealsForDay as any[]);
     return matched.map((m, mi) => {
       if (!m || !optionsByMeal[mi]) return null;
@@ -1185,8 +1185,8 @@ const MinhasDietas = () => {
 
   const requestOptionChange = useCallback((mi: number, n: number) => {
     const current = (prescribedMeals[mi] as any)?.selectedOption ?? 0;
-    if (n === current) return;
     if (optionEditedAt(mi)) { setOptionSwitch({ meal: mi, option: n }); return; }
+    if (n === current) return;
     pendingActionRef.current = 'aluno_trocou_opcao';
     commitOptionChoice(mi, n);
   }, [prescribedMeals, optionEditedAt, commitOptionChoice]);
