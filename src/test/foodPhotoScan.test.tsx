@@ -197,7 +197,7 @@ describe('FoodScanner — aba Foto', () => {
     render(<FoodScanner open onOpenChange={() => {}} />);
     await takePhoto();
     await screen.findByText('Bolacha Maria');
-    expect(mock.invoke.mock.calls.map(([, o]: any) => o.body.action)).toEqual(['identify_photo', 'find_product', 'search_off', 'evaluate']);
+    expect(mock.invoke.mock.calls.map(([, o]: any) => o.body.action)).toEqual(['identify_photo', 'find_product', 'search_off', 'register_product', 'evaluate']);
     expect(mock.scanInsert).toHaveBeenCalledWith(expect.objectContaining({ source: 'tabela_ia', brand: 'Marilan', photo_paths: [expect.stringMatching(/^aluno-1\/.+\.jpg$/)] }));
     expect(await screen.findByText('Cabe no lanche, 30 g.')).toBeInTheDocument();
   });

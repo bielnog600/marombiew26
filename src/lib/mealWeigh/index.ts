@@ -66,6 +66,15 @@ export interface WeighedItem {
   gramas_corrigidas?: boolean;
   /** Estimado: gramas corrigidas pelo admin. */
   corrigido_por_admin?: boolean;
+  /** Produto escaneado: nota (0–100) e rótulo da nota, mostrados na lista. */
+  nota?: number | null;
+  nota_label?: string | null;
+  /** De onde vieram as gramas de um produto escaneado: visor, porção do rótulo ou padrão (100 g). */
+  fonte_gramas?: 'balanca' | 'porcao' | 'padrao' | null;
+  /** Alimento criado pela IA agora (macros de tabela de referência), pendente de revisão do admin. */
+  novo_ia?: boolean;
+  /** Tabela citada para o alimento novo (TACO, INSA/PortFIR). */
+  tabela_referencia?: string | null;
 }
 
 export type WeighItemOrigin = 'pesado' | 'estimado' | 'escaneado' | 'manual';

@@ -39,6 +39,17 @@ import {
 } from '@/lib/mealWeigh/calibration';
 import { loadCalibrationEnabled, loadCalibrationSamples, loadRecentCorrections, saveEstimateCorrections } from './calibrationApi';
 import { useAutoCapture } from './useAutoCapture';
+import {
+  AUTO_HINT, LABEL_HINT, SCAN_MODE_CHIPS, acceptLiveBarcode, applyCreatedFoods, autoToIdentity, autoToPlateAi, autoToWeighAi, chipForMode,
+  isReferenceDraftFood, markReferenceItem, productGrams, productScore, readScanModePref, referenceWeighFood, routeAutoScan, shouldLookupLive,
+  withScoreCategory, writeScanModePref, type AutoScanResult, type RefMacros, type ScanChipMode,
+} from '@/lib/mealWeigh/unifiedScan';
+import { scanCountry, scannedProductItem, type OffCandidate, type ProductSource } from '@/lib/foodPhotoScan';
+import type { ProductData } from '@/lib/foodScore';
+import ProductDraftPanel, { type ProductDraft } from './ProductDraftPanel';
+import { LiveProductCard, ScanItemList, type LiveProduct } from './ScanParts';
+import { createReferenceFoods, invokeScanner, lookupBarcode, recordProductScan, resolveProduct } from './scannerApi';
+import { useLiveBarcode } from './useLiveBarcode';
 
 interface Props {
   meal: ParsedMeal;
@@ -65,10 +76,18 @@ interface Props {
   addToLog?: WeighLogRecord | null;
   /** Com `editLog`: abre direto em "Antes de concluir" (Revisar item por item vindo do scanner). */
   startInReview?: boolean;
+  /** Scanner único: "Registrar em [refeição ▾]" (trocar só antes do primeiro item desta sessão). */
+  mealOptions?: { index: number; label: string }[];
+  onChangeMeal?: (mealIndex: number) => void;
 }
 
-type Phase = 'camera' | 'analyzing' | 'item' | 'plate' | 'list' | 'review' | 'summary';
-type Mode = 'choose' | 'plan' | 'scan' | 'plate';
+type Phase = 'camera' | 'analyzing' | 'item' | 'plate' | 'product' | 'list' | 'review' | 'summary';
+/** 'auto'/'label' = scanner único (IA decide / código e rótulo); 'scan' e 'plan' ficam no chip Balança. */
+type Mode = 'plan' | 'scan' | 'plate' | 'auto' | 'label';
+
+const MODE_FOR_CHIP: Record<ScanChipMode, Mode> = { auto: 'auto', label: 'label', scale: 'scan', plate: 'plate' };
+const deviceCountry = () => scanCountry(typeof navigator !== 'undefined' ? navigator.language : null);
+const storage = () => (typeof window !== 'undefined' ? window.localStorage : null);
 
 interface PlanDraft {
   photo: string;
@@ -117,7 +136,7 @@ const fileToJpeg = (file: File) =>
 
 const signed = (n: number, unit = '') => `${n > 0 ? '+' : ''}${n}${unit}`;
 
-const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex, dietPlanId, testMode, initialMode, startFoodIndex, onClose, onSaved, editLog, addToLog, startInReview }) => {
+const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex, dietPlanId, testMode, initialMode, startFoodIndex, onClose, onSaved, editLog, addToLog, startInReview, mealOptions, onChangeMeal }) => {
   useHoldAppUpdate(true);
   // Tela cheia de verdade: o menu inferior some enquanto a pesagem está aberta.
   useHideBottomNav(true);
@@ -130,7 +149,18 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
   const isEdit = !!editStart && !!editLog;
   const isAdd = !!editStart && !editLog;
   const [dirty, setDirty] = useState(false);
-  const [mode, setMode] = useState<Mode>(isEdit ? 'scan' : initialMode ?? 'choose');
+  const [mode, setMode] = useState<Mode>(isEdit ? 'scan' : initialMode ?? MODE_FOR_CHIP[readScanModePref(storage())]);
+  /** Algum item desta sessão veio de scan (não do "Pesar alimentos da dieta"): concluir pergunta Substituir/Adicionar/Revisar. */
+  const scanUsedRef = useRef(false);
+  /** Alimentos novos da IA ainda não criados em foods (id provisório 'ia:…'), criados ao salvar. */
+  const refDraftsRef = useRef<Map<string, WeighFood>>(new Map());
+  const rememberDraft = (f: WeighFood | null | undefined) => { if (f && isReferenceDraftFood(f)) refDraftsRef.current.set(f.id, f); };
+  /** Produto embalado em revisão (Automático / Código / rótulo / leitura ao vivo). */
+  const [product, setProduct] = useState<ProductDraft | null>(null);
+  /** Produto lido ao vivo pelo código de barras, por cima da câmera (antes da foto). */
+  const [live, setLive] = useState<LiveProduct | null>(null);
+  const liveRef = useRef<{ code: string; at: number } | null>(null);
+  const liveProductRef = useRef<{ code: string; product: ProductData } | null>(null);
   const [phase, setPhase] = useState<Phase>(() => {
     if (!isEdit) return 'camera';
     return startInReview && editStart && pendingPlanFoods(editStart.planned, editStart.items).length > 0 ? 'review' : 'summary';
@@ -206,7 +236,7 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
    * plano ou já pesada, pergunta antes o que fazer com o que foi escaneado.
    */
   const conclude = useCallback((list: WeighedItem[] = itemsRef.current) => {
-    if (!isEdit && (mode === 'scan' || mode === 'plate')) {
+    if (!isEdit && (mode !== 'plan' || scanUsedRef.current)) {
       const session = sessionScanItems(list, photosRef.current, priorRef.current);
       const prior = list.filter((it) => priorRef.current.has(it));
       if (session.items.length > 0 && needsScanApplyChoice(planned, prior)) {
@@ -217,6 +247,7 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
     }
     finish(list);
   }, [isEdit, mode, planned, finish]);
+  // (scanUsedRef é ref: não precisa entrar nas dependências)
 
   const applyScan = (choice: ScanApplyMode) => {
     writeScanApplyPref(typeof window !== 'undefined' ? window.localStorage : null, choice);
@@ -254,7 +285,7 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
   }, []);
 
   useEffect(() => {
-    if (phase !== 'camera' || mode === 'choose') { stopCamera(); return; }
+    if (phase !== 'camera') { stopCamera(); return; }
     let cancelled = false;
     setCamError(null);
     (async () => {
@@ -287,7 +318,7 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
     setPhase('analyzing');
     try {
       const doneItems = itemsRef.current;
-      const body = buildScanWeighRequest({ photo, items: doneItems, photos: photosRef.current, mealName: meal.name, planned });
+      const body = { ...buildScanWeighRequest({ photo, items: doneItems, photos: photosRef.current, mealName: meal.name, planned }), country: deviceCountry() };
       const { data, error } = await supabase.functions.invoke('food-scanner', { body });
       if (error) {
         let msg = 'Não foi possível analisar a foto agora.';
@@ -295,27 +326,35 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
         throw new Error(msg);
       }
       if (data?.error) throw new Error(data.error);
-      const ai = data?.result as WeighAiResult;
+      const ai = data?.result as WeighAiResult & { ref_100g?: RefMacros | null };
       if (!ai) throw new Error('Não consegui analisar a foto. Tira outra.');
-      // Um alimento estimado pela foto pode ser pesado depois: não conta como repetido.
-      const resolution = resolveScanWeigh(ai, foods, planned, doneItems.filter((it) => !isEstimatedItem(it)));
-      const unreadable = isReadingUnreliable(ai);
-      setDraft({
-        photo, ai, resolution,
-        food: resolution.food,
-        planIndex: resolution.planIndex,
-        grams: unreadable || ai.gramas_lidas == null ? '' : String(ai.gramas_lidas),
-        unreadable,
-        tareDismissed: false,
-      });
-      setSearch('');
-      setSearchOpen(!resolution.food && !resolution.repeated && resolution.alternatives.length === 0 && resolution.pending.length === 0);
-      setPhase('item');
+      openScaleDraft(photo, ai);
     } catch (e) {
       toast.error((e as Error).message || 'Não foi possível analisar a foto.');
       setPhase('camera');
     }
   }, [meal.name, planned, foods]);
+
+  /** Um alimento na balança (Escanear prato ou Automático): repetidos, tara, chips do plano e alimento novo da IA. */
+  function openScaleDraft(photo: string, ai: WeighAiResult & { ref_100g?: RefMacros | null }) {
+    const doneItems = itemsRef.current;
+    // Um alimento estimado pela foto pode ser pesado depois: não conta como repetido.
+    const resolution = resolveScanWeigh(ai, foods, planned, doneItems.filter((it) => !isEstimatedItem(it)));
+    // Fora da base, com macros de referência (TACO/INSA): vira alimento novo, criado ao salvar.
+    const refFood = !resolution.food && !resolution.repeated && ai.ref_100g ? referenceWeighFood(ai.alimento, ai.ref_100g) : null;
+    const unreadable = isReadingUnreliable(ai);
+    setDraft({
+      photo, ai, resolution,
+      food: resolution.food ?? refFood,
+      planIndex: resolution.planIndex,
+      grams: unreadable || ai.gramas_lidas == null ? '' : String(ai.gramas_lidas),
+      unreadable,
+      tareDismissed: false,
+    });
+    setSearch('');
+    setSearchOpen(!resolution.food && !refFood && !resolution.repeated && resolution.alternatives.length === 0 && resolution.pending.length === 0);
+    setPhase('item');
+  }
 
   const currentPlanFood = planned.alimentos[planIdx] ?? null;
 
@@ -357,7 +396,7 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
     setPhase('analyzing');
     try {
       const calib = await loadCalibration();
-      const body = buildPlateEstimateRequest({ photo, mealName: meal.name, planned, items: itemsRef.current, corrections: calib.recent });
+      const body = { ...buildPlateEstimateRequest({ photo, mealName: meal.name, planned, items: itemsRef.current, corrections: calib.recent }), country: deviceCountry() };
       const { data, error } = await supabase.functions.invoke('food-scanner', { body });
       if (error) {
         let msg = 'Não foi possível analisar a foto agora.';
@@ -367,22 +406,87 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
       if (data?.error) throw new Error(data.error);
       const ai = normalizePlateEstimate(data?.result);
       if (!ai) throw new Error('Não consegui ver os alimentos do prato. Tira outra foto de cima, com o prato inteiro.');
-      let samples: CalibrationSamples | null = null;
-      if (calib.enabled) {
-        const keys = resolvePlateRows(ai, foods, planned, itemsRef.current).map((r) => foodKey(r.food?.id ?? null, r.food?.name ?? r.aiName));
-        samples = await loadCalibrationSamples(keys);
-      }
-      setPlate({ photo, ai, samples });
-      setPhase('plate');
+      await openPlate(photo, ai, calib.enabled);
     } catch (e) {
       toast.error((e as Error).message || 'Não foi possível analisar a foto.');
       setPhase('camera');
     }
   }, [meal.name, planned, foods, loadCalibration]);
 
+  /** Revisão do prato (Prato pronto ou Automático): calibração aplicada antes de repartir o visor. */
+  async function openPlate(photo: string, ai: PlateAiResult, calibrationOn: boolean) {
+    let samples: CalibrationSamples | null = null;
+    if (calibrationOn) {
+      const keys = resolvePlateRows(ai, foods, planned, itemsRef.current).map((r) => foodKey(r.food?.id ?? null, r.food?.name ?? r.aiName));
+      samples = await loadCalibrationSamples(keys);
+    }
+    setPlate({ photo, ai, samples });
+    setPhase('plate');
+  }
+
+  /** Produto embalado: código → base/cache → Open Food Facts → tabela lida pela IA; gramas do visor ou do rótulo. */
+  const openProduct = useCallback(async (photo: string | null, auto: AutoScanResult | null, knownBarcode: string | null) => {
+    const readGrams = auto?.visor_legivel ? auto.gramas_lidas : null;
+    const base: ProductDraft = {
+      photo, status: 'busy', product: null, barcode: knownBarcode, source: 'openfoodfacts', foodId: null, candidates: [],
+      grams: '', gramsFrom: 'padrao', confidence: auto?.confianca ?? null,
+    };
+    setProduct(base);
+    setPhase('product');
+    const ready = (prod: ProductData, barcode: string | null, source: string, foodId: string | null = null) => {
+      const named = withScoreCategory(prod, auto);
+      const g = productGrams(readGrams, named);
+      setProduct({ ...base, status: 'ready', product: named, barcode, source, foodId, grams: String(g.grams), gramsFrom: g.from });
+    };
+    try {
+      const livePrd = liveProductRef.current;
+      if (knownBarcode && livePrd?.code === knownBarcode) { ready(livePrd.product, knownBarcode, 'openfoodfacts'); return; }
+      if (!auto) {
+        const prod = knownBarcode ? await lookupBarcode(knownBarcode) : null;
+        if (prod) ready(prod, knownBarcode, 'openfoodfacts'); else setProduct({ ...base, status: 'need_label' });
+        return;
+      }
+      const res = await resolveProduct(autoToIdentity(auto, knownBarcode), deviceCountry());
+      if (res.kind === 'product') ready(res.product, res.barcode, res.source, res.foodId ?? null);
+      else if (res.kind === 'candidates') setProduct({ ...base, status: 'candidates', candidates: res.candidates });
+      else setProduct({ ...base, status: 'need_label' });
+    } catch (e) {
+      toast.error((e as Error).message || 'Não foi possível buscar o produto.');
+      setProduct({ ...base, status: 'need_label' });
+    }
+  }, []);
+
+  const autoRef = useRef<AutoScanResult | null>(null);
+  /** Automático / Código-rótulo: UMA chamada de IA na foto; o app segue o caminho do tipo devolvido. */
+  const analyzeAuto = useCallback(async (photo: string) => {
+    setPendingPhoto(photo);
+    setPhase('analyzing');
+    try {
+      const calib = await loadCalibration();
+      const liveCode = liveRef.current?.code ?? null;
+      const body = {
+        ...buildPlateEstimateRequest({ photo, mealName: meal.name, planned, items: itemsRef.current, corrections: calib.recent }),
+        action: 'scan_auto', hint: mode === 'label' ? 'label' : 'auto', liveBarcode: liveCode, country: deviceCountry(),
+      };
+      const { result } = await invokeScanner<{ result: AutoScanResult }>(body);
+      if (!result) throw new Error('Não consegui identificar. Tira outra foto, mais de perto.');
+      autoRef.current = result;
+      const route = routeAutoScan(result, mode === 'label' ? 'label' : 'auto');
+      if (route === 'product') { await openProduct(photo, result, result.codigo_barras_visivel ?? liveCode); return; }
+      if (route === 'scale_item') { openScaleDraft(photo, autoToWeighAi(result)); return; }
+      const plateAi = normalizePlateEstimate(autoToPlateAi(result));
+      if (!plateAi) throw new Error('Não consegui ver os alimentos. Tira outra foto, mais de perto.');
+      await openPlate(photo, plateAi, calib.enabled);
+    } catch (e) {
+      toast.error((e as Error).message || 'Não foi possível analisar a foto.');
+      setPhase('camera');
+    }
+  }, [meal.name, planned, foods, mode, loadCalibration, openProduct]);
+
   const runAnalysis = useCallback(
-    (photo: string) => (mode === 'plan' ? analyzePlan(photo) : mode === 'plate' ? analyzePlate(photo) : analyze(photo)),
-    [mode, analyze, analyzePlan, analyzePlate],
+    (photo: string) => (mode === 'plan' ? analyzePlan(photo) : mode === 'plate' ? analyzePlate(photo)
+      : mode === 'auto' || mode === 'label' ? analyzeAuto(photo) : analyze(photo)),
+    [mode, analyze, analyzePlan, analyzePlate, analyzeAuto],
   );
 
   const capture = useCallback(() => {
@@ -399,9 +503,11 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
   }, []);
 
   const autoCapture = useAutoCapture({
-    enabled: autoOn && autoArmed && mode !== 'choose' && phase === 'camera' && !camError && editingIndex == null && !confirmExit,
+    enabled: autoOn && autoArmed && phase === 'camera' && !camError && editingIndex == null && !confirmExit && !live,
     videoRef,
     guideRef,
+    // Código / rótulo: produto embalado, que o detector de pratos não reconhece.
+    requireObject: mode !== 'label',
     onFire: () => {
       // Uma foto por vez: só dispara de novo depois de "Próximo alimento" ou "Tirar de novo".
       setAutoArmed(false);
@@ -409,6 +515,31 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
       capture();
     },
   });
+  /** Leitura contínua do código (sem IA): mostra o produto e a nota por cima da câmera antes da foto. */
+  const onLiveCode = useCallback((raw: string) => {
+    const code = acceptLiveBarcode(raw);
+    const now = Date.now();
+    if (!code || !shouldLookupLive(liveRef.current, code, now)) return;
+    liveRef.current = { code, at: now };
+    try { navigator.vibrate?.(40); } catch { /* sem vibração */ }
+    setLive({ code, name: '', score: null, label: null, loading: true });
+    lookupBarcode(code).then((prod) => {
+      if (liveRef.current?.code !== code) return;
+      if (!prod) { setLive({ code, name: '', score: null, label: null, notFound: true }); return; }
+      liveProductRef.current = { code, product: prod };
+      const sc = productScore(prod);
+      setLive({ code, name: prod.product_name || 'Produto', score: sc.score, label: sc.label });
+    }, () => { if (liveRef.current?.code === code) setLive(null); });
+  }, []);
+  useLiveBarcode({ enabled: phase === 'camera' && (mode === 'auto' || mode === 'label') && !camError, videoRef, onCode: onLiveCode });
+  const dismissLive = () => { setLive(null); liveRef.current = liveRef.current ? { ...liveRef.current, at: Date.now() } : null; };
+  const useLive = () => {
+    if (!live) return;
+    const code = live.code;
+    setLive(null);
+    void openProduct(null, null, code);
+  };
+
   useEffect(() => {
     if (!flashing) return;
     const t = window.setTimeout(() => setFlashing(false), 450);
@@ -472,6 +603,8 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
   /** Prato pronto confirmado: os itens estimados entram na refeição (somados aos já registrados). */
   const confirmPlate = (estimated: WeighedItem[]) => {
     if (estimated.length === 0) return;
+    (plate?.ai.itens ?? []).forEach((it) => { if (it.ref_100g) rememberDraft(referenceWeighFood(it.alimento, it.ref_100g)); });
+    scanUsedRef.current = true;
     const appended = [...itemsRef.current, ...estimated];
     const nextItems = dropStaleSubstitutions(appended, buildUnweighedEntries(pendingPlanFoods(planned, appended), choicesRef.current));
     const nextPhotos = [...photosRef.current, ...estimated.map(() => plate?.photo ?? '')];
@@ -484,9 +617,77 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
     conclude(nextItems);
   };
 
-  const chooseMode = (m: 'plan' | 'scan' | 'plate') => {
-    setMode(m);
+  /** Chips de modo embaixo da câmera (o último fica lembrado). */
+  const chooseChip = (chip: ScanChipMode) => {
+    writeScanModePref(storage(), chip);
+    setMode(MODE_FOR_CHIP[chip]);
+    setLive(null);
     toCamera();
+  };
+  /** Dentro do chip Balança: pesar um alimento da dieta (só lê o visor) ou voltar ao "qualquer alimento". */
+  const choosePlanFood = (index: number | null) => {
+    if (index == null) { setMode('scan'); toCamera(); return; }
+    setPlanIdx(index);
+    setMode('plan');
+    toCamera();
+  };
+
+  /** Produto embalado confirmado: entra na refeição com origem 'escaneado' e a nota no item. */
+  const confirmProduct = (next: 'camera' | 'summary') => {
+    const pd = product;
+    const g = Number(String(pd?.grams ?? '').replace(',', '.'));
+    if (!pd?.product || !(g > 0)) return;
+    const sc = productScore(pd.product);
+    const initial = productGrams(autoRef.current?.visor_legivel ? autoRef.current.gramas_lidas : null, pd.product).grams;
+    const item = scannedProductItem(pd.product.product_name || 'Produto', pd.product.brands ?? null, pd.product, g, pd.foodId, {
+      score: sc.score, label: sc.label, gramsFrom: Math.abs(g - initial) > 0.05 ? null : pd.gramsFrom, edited: Math.abs(g - initial) > 0.05,
+    });
+    const hit = matchPlanFood(item.alimento, pending.map((p) => p.food));
+    item.indice_plano = hit != null ? pending[hit].index : null;
+    const placed = placeWeighedItem(itemsRef.current, photosRef.current, item, pd.photo ?? '', 'append');
+    const nextItems = dropStaleSubstitutions(placed.items, buildUnweighedEntries(pendingPlanFoods(planned, placed.items), choicesRef.current));
+    itemsRef.current = nextItems;
+    photosRef.current = placed.photos;
+    setItems(nextItems);
+    setPhotos(placed.photos);
+    setProduct(null);
+    setDirty(true);
+    scanUsedRef.current = true;
+    if (!testMode) {
+      void recordProductScan({ studentId, product: pd.product, barcode: pd.barcode, source: pd.source, photo: pd.photo, confidence: pd.confidence, grams: g });
+    }
+    if (next === 'summary') conclude(nextItems); else toCamera();
+  };
+
+  const pickCandidate = (c: OffCandidate) => {
+    setProduct((d) => {
+      if (!d) return d;
+      const prod = withScoreCategory(c.product, autoRef.current);
+      const gr = productGrams(autoRef.current?.visor_legivel ? autoRef.current.gramas_lidas : null, prod);
+      return { ...d, status: 'ready', product: prod, barcode: c.barcode ?? d.barcode, source: 'openfoodfacts_busca', grams: String(gr.grams), gramsFrom: gr.from };
+    });
+  };
+
+  /** Tabela nutricional fotografada: a IA lê o rótulo (mesmo caminho do scanner de produtos). */
+  const onProductLabel = async (file: File) => {
+    const d = product;
+    if (!d) return;
+    setProduct({ ...d, status: 'busy' });
+    try {
+      const image = await fileToJpeg(file);
+      const { product: read } = await invokeScanner<{ product: ProductData }>({ action: 'extract', image });
+      const a = autoRef.current;
+      const named = withScoreCategory({
+        ...read,
+        product_name: read?.product_name || [a?.produto, a?.variante].filter(Boolean).join(' ') || 'Produto sem nome',
+        brands: read?.brands || a?.marca || undefined,
+      }, a);
+      const gr = productGrams(a?.visor_legivel ? a.gramas_lidas : null, named);
+      setProduct({ ...d, status: 'ready', product: named, source: 'tabela_ia' as ProductSource, photo: d.photo ?? image, grams: String(gr.grams), gramsFrom: gr.from });
+    } catch (e) {
+      toast.error((e as Error).message || 'Não consegui ler a tabela.');
+      setProduct({ ...d, status: 'need_label' });
+    }
   };
 
   const draftValid = !!draft?.food && gramsNum > 0;
@@ -501,7 +702,10 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
       planIndex: draft.planIndex,
     });
     // Escolheu outro alimento no lugar do que a IA viu (ex.: IA repetiu um já pesado).
-    if (!sameAsAi && draft.ai.alimento) item.alimento_corrigido = true;
+    if (!sameAsAi && draft.ai.alimento && !isReferenceDraftFood(draft.food)) item.alimento_corrigido = true;
+    Object.assign(item, markReferenceItem(item, draft.food));
+    rememberDraft(draft.food);
+    scanUsedRef.current = true;
     // O mesmo alimento estimado pela foto: o pesado ocupa o lugar dele e vira correção 'balanca'.
     const placed = placeWeighedItem(itemsRef.current, photosRef.current, item, draft.photo, 'append');
     pushScaleCorrection(placed.replaced, item);
@@ -594,7 +798,10 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
     if (testMode) { toast.success('Modo teste: nada foi salvo.'); onClose(); return; }
     if (!canSaveEmpty && items.length === 0) return;
     setSaving(true);
-    const consumed = mealConsumedTotals(items, unweighed);
+    // Alimentos novos da IA viram alimentos de verdade (ou o já existente com o mesmo nome) antes de salvar.
+    const created = refDraftsRef.current.size > 0 ? await createReferenceFoods(items, refDraftsRef.current, deviceCountry()) : new Map();
+    const items_ = applyCreatedFoods(items, created);
+    const consumed = mealConsumedTotals(items_, unweighed);
     const { data: saved, error } = await supabase.from('meal_weigh_logs').insert({
       student_id: studentId,
       log_date: logDate,
@@ -602,20 +809,20 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
       meal_index: mealIndex,
       meal_name: meal.name || '',
       meal_time: meal.time ?? null,
-      items: items as any,
+      items: items_ as any,
       unweighed: unweighed as any,
       total_kcal: consumed.kcal,
       total_p: consumed.p,
       total_c: consumed.c,
       total_g: consumed.g,
-      planned: { ...planned, comparacao: comparison.alimentos } as any,
+      planned: { ...planned, comparacao: compareWeighedMeal(planned, items_, unweighed).alimentos } as any,
     }).select('id, log_date, meal_index, items, unweighed, planned, created_at').single();
     setSaving(false);
     if (error) { toast.error('Não foi possível salvar: ' + error.message); return; }
     if (saved) {
       // Calibração: gramas mudadas num item estimado (e estimados pesados depois) contra a estimativa ORIGINAL.
       const mealLogId = (saved as { id?: string }).id ?? null;
-      const { upserts, removeIds } = correctionsFromItems(items, { studentId, mealLogId, fonte: 'aluno' });
+      const { upserts, removeIds } = correctionsFromItems(items_, { studentId, mealLogId, fonte: 'aluno' });
       const scale = scaleCorrectionsRef.current.map((r) => ({ ...r, meal_log_id: mealLogId }));
       const byId = new Map<string, EstimateCorrectionRow>();
       [...upserts, ...scale].forEach((r) => byId.set(r.estimate_id, r));
@@ -648,7 +855,19 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
       <Scale className="h-5 w-5 text-primary shrink-0" />
       <div className="min-w-0 flex-1">
         <p className="text-sm font-bold truncate">{title}</p>
-        <p className="text-[11px] text-muted-foreground truncate">{meal.time ? `${meal.time} · ` : ''}{meal.name}{testMode ? ' · teste' : ''}</p>
+        {mealOptions && onChangeMeal ? (
+          <label className="mt-0.5 flex min-w-0 items-center gap-1 text-[11px] text-muted-foreground" data-testid="scan-meal-picker">
+            <span className="shrink-0">Registrar em</span>
+            <select value={mealIndex ?? ''} disabled={mealLocked} aria-label="Registrar em qual refeição"
+              onChange={(e) => onChangeMeal(Number(e.target.value))}
+              className="min-w-0 max-w-full truncate rounded-md border border-primary/40 bg-secondary/80 px-1.5 py-0.5 text-[11px] font-semibold text-primary disabled:opacity-60">
+              {mealOptions.map((o) => <option key={o.index} value={o.index}>{o.label}</option>)}
+            </select>
+            {testMode ? ' · teste' : ''}
+          </label>
+        ) : (
+          <p className="text-[11px] text-muted-foreground truncate">{meal.time ? `${meal.time} · ` : ''}{meal.name}{testMode ? ' · teste' : ''}</p>
+        )}
       </div>
       <button type="button" aria-label="Fechar" onClick={requestClose}
         className="h-11 w-11 shrink-0 rounded-full bg-secondary/70 flex items-center justify-center">
@@ -657,8 +876,10 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
     </div>
   );
 
+  /** Trocar a refeição só antes do primeiro item desta sessão (os itens já salvos do dia não contam). */
+  const mealLocked = items.some((it) => !priorRef.current.has(it));
   /** Itens já pesados no topo: "Iogurte 154 g · Whey 26 g". */
-  const weighedChips = (mode === 'scan' || mode === 'plate') && items.length > 0 ? (
+  const weighedChips = mode !== 'plan' && items.length > 0 ? (
     <div className="px-4 pb-2" data-testid="meal-weigh-weighed-chips" aria-label={`Já pesados: ${weighedChipsLabel(items)}`}>
       <div className="flex gap-1.5 overflow-x-auto [scrollbar-width:none]">
         {items.map((it, i) => (
@@ -677,45 +898,7 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
       data-testid="meal-weigh-screen" data-no-swipe="true" style={{ height: '100dvh' }}>
       <input ref={fileRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={onFile} />
 
-      {mode === 'choose' && (
-        <div className="flex-1 min-h-0 flex flex-col">
-          {header('Pesar refeição')}
-          <div className="flex-1 min-h-0 overflow-y-auto px-4 pb-6 pt-2 space-y-3" data-testid="meal-weigh-mode-choice">
-            {isAdd && items.length > 0 && (
-              <p className="rounded-xl border border-primary/40 bg-primary/10 px-3 py-2 text-xs" data-testid="meal-weigh-choose-saved">
-                Já registrados: <strong>{weighedChipsLabel(items)}</strong>. Escolha como adicionar o próximo.
-              </p>
-            )}
-            <p className="text-sm text-muted-foreground">Como você quer pesar?</p>
-            <button type="button" onClick={() => chooseMode('plan')} disabled={planned.alimentos.length === 0}
-              className="w-full rounded-2xl border border-primary/40 bg-primary/10 p-4 text-left flex gap-3 items-start disabled:opacity-40">
-              <span className="h-11 w-11 shrink-0 rounded-xl bg-primary/20 flex items-center justify-center"><ListOrdered className="h-5 w-5 text-primary" /></span>
-              <span className="min-w-0">
-                <span className="block text-base font-bold">Pesar alimentos da dieta</span>
-                <span className="block text-xs text-muted-foreground">Um por vez, na ordem da refeição. A câmera só lê o peso no visor.</span>
-              </span>
-            </button>
-            <button type="button" onClick={() => chooseMode('scan')}
-              className="w-full rounded-2xl border border-border bg-secondary/40 p-4 text-left flex gap-3 items-start">
-              <span className="h-11 w-11 shrink-0 rounded-xl bg-secondary flex items-center justify-center"><ScanSearch className="h-5 w-5 text-primary" /></span>
-              <span className="min-w-0">
-                <span className="block text-base font-bold">Escanear prato</span>
-                <span className="block text-xs text-muted-foreground">A IA identifica cada alimento que você coloca e lê o peso.</span>
-              </span>
-            </button>
-            <button type="button" onClick={() => chooseMode('plate')}
-              className="w-full rounded-2xl border border-border bg-secondary/40 p-4 text-left flex gap-3 items-start">
-              <span className="h-11 w-11 shrink-0 rounded-xl bg-secondary flex items-center justify-center"><UtensilsCrossed className="h-5 w-5 text-primary" /></span>
-              <span className="min-w-0">
-                <span className="block text-base font-bold">Prato pronto</span>
-                <span className="block text-xs text-muted-foreground">Uma foto do prato montado. A IA identifica cada alimento e estima as gramas.</span>
-              </span>
-            </button>
-          </div>
-        </div>
-      )}
-
-      {mode !== 'choose' && (phase === 'camera' || phase === 'analyzing') && (
+      {(phase === 'camera' || phase === 'analyzing') && (
         <div className="relative flex-1 min-h-0 bg-background">
           {phase === 'camera' ? (
             <video ref={videoRef} className="absolute inset-0 h-full w-full object-cover" playsInline muted autoPlay />
@@ -723,7 +906,7 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
             pendingPhoto ? <img src={pendingPhoto} alt="" className="absolute inset-0 h-full w-full object-cover" /> : <div className="absolute inset-0 bg-secondary/40" />
           )}
           <div className="absolute inset-x-0 top-0 z-10 bg-gradient-to-b from-background/90 to-transparent">
-            {header(mode === 'scan' ? scanTitle : mode === 'plate' ? 'Prato pronto' : 'Pesar refeição')}
+            {header(mode === 'plan' ? 'Pesar refeição' : mode === 'plate' ? 'Prato pronto' : items.length === 0 ? 'Escanear' : scanTitle)}
             {weighedChips}
           </div>
           <div className="pointer-events-none absolute inset-0 flex items-center justify-center px-6">
@@ -743,25 +926,71 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
                 </>
               )}
               <span className="absolute -top-px left-1/2 w-max max-w-[calc(100%-1rem)] -translate-x-1/2 -translate-y-1/2 rounded-2xl bg-primary px-3 py-1 text-center text-xs font-semibold text-primary-foreground" data-testid="meal-weigh-hint">
-                {mode === 'plan' ? scaleOnlyHint(currentPlanFood?.alimento ?? '') : mode === 'plate' ? PLATE_HINT : items.length === 0 ? FIRST_ITEM_HINT : NEXT_ITEM_HINT}
+                {mode === 'plan' ? scaleOnlyHint(currentPlanFood?.alimento ?? '') : mode === 'plate' ? PLATE_HINT : mode === 'auto' ? AUTO_HINT : mode === 'label' ? LABEL_HINT : items.length === 0 ? FIRST_ITEM_HINT : NEXT_ITEM_HINT}
               </span>
 
               <span className="absolute bottom-4 left-1/2 -translate-x-1/2 rounded-lg border border-primary/60 bg-background/70 px-3 py-1 text-[11px] text-primary">
-                {mode === 'plate' ? 'prato inteiro' : 'visor da balança'}
+                {mode === 'plate' ? 'prato inteiro' : mode === 'auto' ? 'prato, balança ou produto' : mode === 'label' ? 'código ou rótulo' : 'visor da balança'}
               </span>
             </div>
           </div>
+          {phase === 'camera' && autoCapture.boxes.length > 0 && (
+            <div className="pointer-events-none absolute inset-0 z-[5]" aria-hidden="true" data-testid="scan-detections">
+              {autoCapture.boxes.map((b, i) => (
+                <span key={i} className="absolute rounded-lg border-2 border-primary shadow-[0_0_12px_hsl(var(--primary)/0.6)]"
+                  style={{ left: b.x, top: b.y, width: b.width, height: b.height }} />
+              ))}
+            </div>
+          )}
+          {phase === 'camera' && live && (
+            <div className="absolute inset-x-0 z-20" style={{ top: 'calc(max(env(safe-area-inset-top), 12px) + 64px)' }}>
+              <LiveProductCard live={live} onUse={useLive} onDismiss={dismissLive} />
+            </div>
+          )}
           {flashing && <div className="pointer-events-none absolute inset-0 z-30 bg-foreground animate-out fade-out-0 duration-500 fill-mode-forwards" aria-hidden="true" />}
           {phase === 'analyzing' && (
             <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-background/70" role="status">
               <Loader2 className="h-10 w-10 animate-spin text-primary" />
-              <p className="text-sm font-semibold">{mode === 'plate' ? 'Identificando os alimentos do prato…' : 'Lendo a balança…'}</p>
+              <p className="text-sm font-semibold">{mode === 'plate' ? 'Identificando os alimentos do prato…' : mode === 'auto' || mode === 'label' ? 'Identificando…' : 'Lendo a balança…'}</p>
             </div>
           )}
           {phase === 'camera' && (
             <div className="absolute inset-x-0 bottom-0 flex flex-col items-center gap-3 bg-gradient-to-t from-background/95 to-transparent px-6 pt-10"
               style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 20px)' }}>
               {camError && <p className="text-center text-xs text-destructive">{camError}</p>}
+              {!isEdit && (
+                <div className="w-full space-y-1.5">
+                  <div className="flex gap-1.5 overflow-x-auto [scrollbar-width:none]" role="group" aria-label="Modo do scanner" data-testid="scan-mode-chips">
+                    {SCAN_MODE_CHIPS.map((c) => {
+                      const active = chipForMode(mode) === c.mode;
+                      return (
+                        <button key={c.mode} type="button" aria-pressed={active} onClick={() => chooseChip(c.mode)}
+                          className={`h-9 shrink-0 rounded-full border px-3 text-xs font-bold ${active ? 'border-primary bg-primary text-primary-foreground' : 'border-border bg-background/80 text-foreground'}`}>
+                          {c.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {chipForMode(mode) === 'scale' && planned.alimentos.length > 0 && (
+                    <div className="flex gap-1.5 overflow-x-auto [scrollbar-width:none]" role="group" aria-label="Pesar um alimento da dieta" data-testid="scan-plan-foods">
+                      <button type="button" aria-pressed={mode === 'scan'} onClick={() => choosePlanFood(null)}
+                        className={`h-8 shrink-0 rounded-full border px-2.5 text-[11px] font-semibold ${mode === 'scan' ? 'border-primary text-primary bg-primary/15' : 'border-border bg-background/80'}`}>
+                        Qualquer alimento
+                      </button>
+                      {planned.alimentos.map((pf, i) => {
+                        const done = weighedPlanIdx.includes(i);
+                        const active = mode === 'plan' && planIdx === i;
+                        return (
+                          <button key={i} type="button" aria-pressed={active} onClick={() => choosePlanFood(i)}
+                            className={`h-8 shrink-0 rounded-full border px-2.5 text-[11px] font-semibold ${active ? 'border-primary text-primary bg-primary/15' : 'border-border bg-background/80'} ${done ? 'opacity-60' : ''}`}>
+                            {done ? '✓ ' : ''}{pf.alimento}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
               {!camError && (
                 <div className="flex w-full flex-col items-center gap-1.5" data-testid="meal-weigh-auto">
                   {autoOn && autoArmed && autoCapture.phase !== 'off' && (
@@ -769,7 +998,7 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
                       {autoCapture.phase === 'countdown' ? 'Não mexe…'
                         : autoCapture.phase === 'no_object' ? (autoCapture.detector === 'loading' ? 'Procurando o prato…' : 'Coloca o prato no centro da moldura')
                         : 'Segura o celular parado'}
-                      {mode !== 'plate' && <span className="block text-[11px] font-normal text-muted-foreground">{SCALE_DISPLAY_HINT}</span>}
+                      {(mode === 'scan' || mode === 'plan') && <span className="block text-[11px] font-normal text-muted-foreground">{SCALE_DISPLAY_HINT}</span>}
                     </p>
                   )}
                   {autoOn && !autoArmed && (
@@ -789,9 +1018,9 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
                 </p>
               )}
               {items.length > 0 && (
-                <button type="button" onClick={() => (mode === 'scan' ? conclude() : setPhase('list'))}
+                <button type="button" onClick={() => (mode !== 'plan' ? conclude() : setPhase('list'))}
                   className="rounded-full bg-background/80 px-3 py-1 text-xs font-semibold text-foreground">
-                  {mode === 'scan' ? 'Concluir refeição' : `${items.length} ${items.length === 1 ? 'item pesado' : 'itens pesados'}`} · {Math.round(accumulated)} g
+                  {mode !== 'plan' ? 'Concluir refeição' : `${items.length} ${items.length === 1 ? 'item pesado' : 'itens pesados'}`} · {Math.round(accumulated)} g
                 </button>
               )}
               <div className="flex w-full items-center justify-between">
@@ -884,7 +1113,7 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
         </div>
       )}
 
-      {mode === 'scan' && phase === 'item' && draft && (
+      {mode !== 'plan' && phase === 'item' && draft && (
         <div className="flex-1 min-h-0 flex flex-col">
           {header(scanTitle)}
           {weighedChips}
@@ -924,6 +1153,9 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
                 {draft.food ? (
                   <div className="mt-1 flex items-center gap-2">
                     <p className="flex-1 min-w-0 text-base font-bold truncate">{draft.food.name}</p>
+                    {isReferenceDraftFood(draft.food) && (
+                      <span className="shrink-0 rounded-full border border-primary bg-primary/15 px-1.5 py-0.5 text-[10px] font-semibold text-primary" data-testid="scan-new-food">novo · criado pela IA</span>
+                    )}
                     <Button size="sm" variant="outline" onClick={() => setSearchOpen((v) => !v)} className="gap-1">
                       <Search className="h-3.5 w-3.5" /> Trocar
                     </Button>
@@ -1012,7 +1244,19 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
         </div>
       )}
 
-      {mode === 'plate' && phase === 'plate' && plate && (
+      {phase === 'product' && product && (
+        <ProductDraftPanel
+          header={<>{header('Produto')}{weighedChips}</>}
+          draft={product}
+          onChange={setProduct}
+          onPickCandidate={pickCandidate}
+          onLabelPhoto={(f) => void onProductLabel(f)}
+          onRetake={() => { setProduct(null); toCamera(); }}
+          onConfirm={confirmProduct}
+        />
+      )}
+
+      {phase === 'plate' && plate && (
         <PlateReview
           header={<>{header('Prato pronto')}{weighedChips}</>}
           photo={plate.photo}
@@ -1026,9 +1270,9 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
         />
       )}
 
-      {mode !== 'choose' && phase === 'list' && (
+      {phase === 'list' && (
         <div className="flex-1 min-h-0 flex flex-col">
-          {header('Itens pesados')}
+          {header('Itens da refeição')}
           <div className="flex-1 min-h-0 overflow-y-auto px-4 pb-4 space-y-2">
             {mode === 'plan' && (
               <div className="rounded-2xl border border-primary/40 bg-primary/10 p-3 text-sm" data-testid="meal-weigh-plan-next">
@@ -1042,13 +1286,13 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
                 )}
               </div>
             )}
-            <ItemList items={items} onEdit={setEditingIndex} />
-            <div className="rounded-2xl border border-primary/30 bg-primary/5 p-3 space-y-2">
-              <p className="text-xs font-semibold">Total até agora · {Math.round(totals.gramas)} g</p>
-              <MacroLine m={totals} />
-            </div>
+            <ScanItemList items={items} planned={planned} onEdit={setEditingIndex} />
           </div>
-          <div className="border-t border-border px-4 pt-3 flex gap-2" style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 12px)' }}>
+          <div className="border-t border-border px-4 pt-2" data-testid="scan-list-totals">
+            <p className="text-xs font-semibold mb-1">Total até agora · {Math.round(totals.gramas)} g</p>
+            <MacroLine m={totals} />
+          </div>
+          <div className="px-4 pt-3 flex gap-2" style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 12px)' }}>
             {mode === 'plan' ? (
               <Button variant="outline" className="flex-1 gap-1.5" disabled={nextPlanIdx == null} onClick={goNextPlanFood}>
                 <Plus className="h-4 w-4" /> Próximo alimento da refeição
@@ -1065,7 +1309,7 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
         </div>
       )}
 
-      {mode !== 'choose' && phase === 'review' && (
+      {phase === 'review' && (
         <div className="flex-1 min-h-0 flex flex-col">
           {header('Antes de concluir')}
           <div className="flex-1 min-h-0 overflow-y-auto px-4 pb-4 space-y-3" data-testid="meal-weigh-review">
@@ -1119,7 +1363,7 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
         </div>
       )}
 
-      {mode !== 'choose' && phase === 'summary' && (
+      {phase === 'summary' && (
         <div className="flex-1 min-h-0 flex flex-col">
           {header(isEdit ? 'Editar pesagem' : 'Resumo da refeição')}
           <div className="flex-1 min-h-0 overflow-y-auto px-4 pb-4 space-y-3" data-testid="meal-weigh-summary">
@@ -1129,7 +1373,7 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
                 Nenhum item registrado. Ao salvar, os alimentos do plano ficam como "Não comi".
               </p>
             )}
-            <ItemList items={items} onEdit={setEditingIndex} />
+            <ScanItemList items={items} planned={planned} onEdit={setEditingIndex} />
             <div className="rounded-2xl border border-border bg-secondary/30 p-3">
               <p className="text-xs font-semibold mb-2">Previsto × consumido</p>
               <table className="w-full text-xs tabular-nums">
@@ -1223,32 +1467,5 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
   // embaixo do menu inferior.
   return typeof document !== 'undefined' ? createPortal(screen, document.body) : screen;
 };
-
-const ItemList: React.FC<{ items: WeighedItem[]; onEdit?: (i: number) => void }> = ({ items, onEdit }) => (
-  <ul className="space-y-2" data-testid="meal-weigh-item-list">
-    {items.map((it, i) => (
-      <li key={i}>
-        <button type="button" disabled={!onEdit} onClick={() => onEdit?.(i)} aria-label={`Editar ${it.alimento} ${Math.round(it.gramas)} g`}
-          className="w-full rounded-xl border border-border bg-secondary/30 p-3 text-left active:bg-secondary/60 disabled:cursor-default">
-          <div className="flex items-start gap-2">
-            <div className="min-w-0 flex-1">
-              <div className="flex min-w-0 items-center gap-1.5">
-                <p className="text-sm font-semibold truncate">{it.alimento}</p>
-                {it.origem === 'estimado' && <EstimatedBadge />}
-                {isScannedItem(it) && (
-                  <span className="inline-flex shrink-0 items-center rounded-full border border-primary/50 bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold text-primary">Escaneado</span>
-                )}
-              </div>
-              <p className="text-xs text-muted-foreground tabular-nums">
-                <span className="font-bold text-primary">{Math.round(it.gramas)} g</span> · {it.kcal} kcal · P {it.p} · C {it.c} · G {it.g}
-              </p>
-            </div>
-            {onEdit && <Pencil className="mt-1 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />}
-          </div>
-        </button>
-      </li>
-    ))}
-  </ul>
-);
 
 export default MealWeighScreen;

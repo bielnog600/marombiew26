@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import type { ObjectDetector } from '@mediapipe/tasks-vision';
 import {
-  AUTO_FRAME_H, AUTO_FRAME_W, foodInGuide, frameDifference, initialAutoCapture, rgbaToGray, screenRectToVideo, stepAutoCapture,
-  type AutoCapturePhase, type DetectionBox,
+  AUTO_FRAME_H, AUTO_FRAME_W, foodInGuide, frameDifference, initialAutoCapture, overlayBoxes, rgbaToGray, screenRectToVideo, stepAutoCapture,
+  type AutoCapturePhase, type Box, type DetectionBox,
 } from '@/lib/mealWeigh/autoCapture';
 
 const MP_VERSION = '0.10.17';
@@ -50,6 +50,8 @@ export interface AutoCaptureView {
   progress: number;
   /** Detector carregado (null = carregando ou indisponível). */
   detector: 'loading' | 'ready' | 'unavailable' | 'idle';
+  /** Objetos vistos pelo detector, em px relativos ao elemento de vídeo (quadrados amarelos). */
+  boxes: Box[];
 }
 
 /**
@@ -69,10 +71,10 @@ export function useAutoCapture(opts: {
   const requireObject = opts.requireObject !== false;
   const onFireRef = useRef(opts.onFire);
   onFireRef.current = opts.onFire;
-  const [view, setView] = useState<AutoCaptureView>({ phase: 'off', count: null, progress: 0, detector: 'idle' });
+  const [view, setView] = useState<AutoCaptureView>({ phase: 'off', count: null, progress: 0, detector: 'idle', boxes: [] });
 
   useEffect(() => {
-    if (!enabled) { setView((v) => ({ ...v, phase: 'off', count: null, progress: 0 })); return; }
+    if (!enabled) { setView((v) => ({ ...v, phase: 'off', count: null, progress: 0, boxes: [] })); return; }
     let cancelled = false;
     let state = initialAutoCapture();
     let prev: Uint8Array | null = null;
@@ -80,6 +82,7 @@ export function useAutoCapture(opts: {
     let detectorState: AutoCaptureView['detector'] = 'idle';
     let lastDetectAt = 0;
     let lastDetection: { at: number; ok: boolean } | null = null;
+    let boxes: Box[] = [];
     let lastVideoTime = -1;
     const canvas = document.createElement('canvas');
     canvas.width = AUTO_FRAME_W;
@@ -87,7 +90,7 @@ export function useAutoCapture(opts: {
     let ctx: CanvasRenderingContext2D | null = null;
     try { ctx = canvas.getContext('2d', { willReadFrequently: true } as CanvasRenderingContext2DSettings) as CanvasRenderingContext2D | null; } catch { ctx = null; }
     if (!ctx || typeof ctx.getImageData !== 'function') {
-      setView({ phase: 'off', count: null, progress: 0, detector: 'unavailable' });
+      setView({ phase: 'off', count: null, progress: 0, detector: 'unavailable', boxes: [] });
       return;
     }
 
@@ -118,7 +121,7 @@ export function useAutoCapture(opts: {
         const ts = Math.max(performance.now(), lastVideoTime + 1);
         lastVideoTime = ts;
         const res = detector.detectForVideo(v, ts);
-        const boxes: DetectionBox[] = (res?.detections ?? []).flatMap((d) => {
+        const found: DetectionBox[] = (res?.detections ?? []).flatMap((d) => {
           const b = d.boundingBox;
           if (!b) return [];
           return (d.categories ?? []).map((c) => ({
@@ -126,7 +129,8 @@ export function useAutoCapture(opts: {
             label: c.categoryName ?? '', score: c.score ?? 0,
           }));
         });
-        lastDetection = { at: now, ok: foodInGuide(boxes, guideVideo) };
+        lastDetection = { at: now, ok: foodInGuide(found, guideVideo) };
+        boxes = overlayBoxes(found, { width: vr.width, height: vr.height }, { width: v.videoWidth, height: v.videoHeight });
       } catch {
         // Falha pontual do detector: segue só com a estabilidade.
         detector = null;
@@ -151,12 +155,14 @@ export function useAutoCapture(opts: {
           const diff = frameDifference(prev, gray);
           prev = gray;
           if (state.phase === 'settling' || state.phase === 'no_object') detect(v, now);
+          else if (diff != null && diff > 10) boxes = [];
           const hasObject = detectorState === 'ready'
             ? (lastDetection && now - lastDetection.at <= DETECTION_TTL_MS ? lastDetection.ok : false)
             : detectorState === 'loading' ? false : null;
           const step = stepAutoCapture(state, { now, diff, hasObject });
           state = step.state;
-          setView({ phase: state.phase, count: step.count, progress: step.progress, detector: detectorState });
+          const shown = lastDetection && now - lastDetection.at <= DETECTION_TTL_MS ? boxes : [];
+          setView({ phase: state.phase, count: step.count, progress: step.progress, detector: detectorState, boxes: shown });
           if (step.fire) {
             try { navigator.vibrate?.(80); } catch { /* sem vibração */ }
             onFireRef.current();

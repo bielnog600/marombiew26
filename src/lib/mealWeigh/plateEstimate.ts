@@ -10,6 +10,7 @@ import {
   type PlannedMeal, type WeighFood, type WeighedItem,
 } from './index';
 import { NO_CALIBRATION, applyCalibration, newEstimateId, type CalibrationFactor, type PromptCorrection } from './calibration';
+import { markReferenceItem, referenceWeighFood, type RefMacros } from './unifiedScan';
 
 export const PLATE_HINT = 'Foto de cima, com o prato inteiro. Um garfo ou a mão perto ajuda a IA a medir.';
 export const ESTIMATED_WARNING = 'Gramas estimadas pela foto — para precisão, use a balança.';
@@ -21,6 +22,8 @@ export interface PlateAiItem {
   gramas_estimadas: number;
   faixa_gramas: [number, number] | null;
   confianca: number;
+  /** Fora da base: macros por 100 g de tabela de referência (TACO/INSA) mandados pela IA. */
+  ref_100g?: RefMacros | null;
 }
 export interface PlateAiResult {
   itens: PlateAiItem[];
@@ -36,6 +39,15 @@ const num = (v: unknown): number | null => {
   const n = typeof v === 'string' ? Number(v.replace(',', '.').replace(/[^\d.]/g, '')) : Number(v);
   return Number.isFinite(n) ? n : null;
 };
+
+/** Macros de referência conferidos (kcal/P/C/G presentes e plausíveis). */
+export function normalizeRefMacros(raw: unknown): RefMacros | null {
+  const o = raw as any;
+  if (!o || typeof o !== 'object') return null;
+  const kcal = num(o.kcal), p = num(o.proteina), c = num(o.carbo), g = num(o.gordura);
+  if (kcal == null || p == null || c == null || g == null || kcal < 0 || kcal > 900 || p < 0 || c < 0 || g < 0 || p + c + g > 105) return null;
+  return { kcal, proteina: p, carbo: c, gordura: g, fibra: num(o.fibra), tabela: o.tabela ? String(o.tabela).slice(0, 40) : null };
+}
 
 /** Resposta da IA conferida no app também (nunca confiar só no servidor). */
 export function normalizePlateEstimate(raw: unknown): PlateAiResult | null {
@@ -54,6 +66,7 @@ export function normalizePlateEstimate(raw: unknown): PlateAiResult | null {
         gramas_estimadas: Math.max(0, Math.round(num(it?.gramas_estimadas) ?? 0)),
         faixa_gramas: lo != null && hi != null ? [Math.min(lo, hi), Math.max(lo, hi)] as [number, number] : null,
         confianca: Math.max(0, Math.min(1, c)),
+        ref_100g: normalizeRefMacros(it?.ref_100g),
       };
     })
     .filter((it: PlateAiItem) => it.alimento);
@@ -172,7 +185,9 @@ export function resolvePlateRows(
       { alimento: it.alimento, alimento_alternativas: it.alternativas, confianca_alimento: it.confianca },
       foods, planned, context,
     );
-    const calibration = (factorFor && it.gramas_estimadas > 0 ? factorFor(res.food, it.alimento) : null) ?? NO_CALIBRATION;
+    // Alimento fora da base com macros de referência: entra como alimento novo (criado ao confirmar).
+    const food = res.food ?? (it.ref_100g ? referenceWeighFood(it.alimento, it.ref_100g) : null);
+    const calibration = (factorFor && it.gramas_estimadas > 0 ? factorFor(food, it.alimento) : null) ?? NO_CALIBRATION;
     const adjusted = applyCalibration(it.gramas_estimadas, it.faixa_gramas, calibration.factor);
     const row: PlateRow = {
       key: `ia-${i}`,
@@ -183,7 +198,7 @@ export function resolvePlateRows(
       estimate: adjusted.grams,
       faixa: adjusted.range,
       calibration,
-      food: res.food,
+      food,
       planIndex: res.planIndex,
       alternatives: res.alternatives,
       grams: adjusted.grams > 0 ? String(adjusted.grams) : '',
@@ -242,6 +257,7 @@ export function buildEstimatedItems(rows: PlateRow[], newId: () => string = newE
       planIndex: r.planIndex,
     });
     if (r.foodEdited && r.aiName) item.alimento_corrigido = true;
+    Object.assign(item, markReferenceItem(item, r.food!));
     item.origem = 'estimado';
     item.faixa_gramas = plateRowRange(r);
     // Só estimativas da IA aprendem: guarda a original, a sugerida e se o aluno mexeu nas gramas.

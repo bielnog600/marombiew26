@@ -71,6 +71,12 @@ export function rebuildWeighedItem(item: WeighedItem, change: WeighItemChange): 
   // Escaneado continua escaneado só com o mesmo alimento; trocado ou informado pelo aluno vira 'manual'.
   if (item.origem === 'escaneado') next.origem = sameFood ? 'escaneado' : 'manual';
   if (item.origem === 'manual') next.origem = 'manual';
+  // Mesmo alimento: a nota do produto e o selo "novo · criado pela IA" continuam na lista.
+  if (sameFood) {
+    if (item.nota != null) { next.nota = item.nota; next.nota_label = item.nota_label ?? null; }
+    if (item.fonte_gramas) next.fonte_gramas = item.fonte_gramas;
+    if (item.novo_ia) { next.novo_ia = true; next.tabela_referencia = item.tabela_referencia ?? null; }
+  }
   // Alimento trocado pelo aluno: o que a IA viu fica só como registro, sem valer para casar/repetir.
   if (item.alimento_corrigido || (!sameFood && item.alimento_ia)) next.alimento_corrigido = true;
   // A troca "substituiu X" só continua valendo se o item segue o mesmo alimento fora do plano.

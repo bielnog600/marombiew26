@@ -26,6 +26,7 @@ export const AI_FEATURES: Record<string, { label: string; unit: string }> = {
   escanear_prato: { label: 'Pesar refeição — escanear prato', unit: 'foto' },
   prato_pronto: { label: 'Prato pronto', unit: 'foto' },
   scanner_foto: { label: 'Scanner por foto', unit: 'foto' },
+  scanner_automatico: { label: 'Scanner — modo Automático', unit: 'foto' },
   scanner_rotulo: { label: 'Scanner — leitura da tabela nutricional', unit: 'foto' },
   scanner_barcode_ia: { label: 'Scanner — avaliação do produto', unit: 'avaliação' },
   traducao: { label: 'Tradução dos planos', unit: 'tradução' },
