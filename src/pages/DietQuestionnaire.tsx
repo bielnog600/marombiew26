@@ -215,7 +215,7 @@ const DietQuestionnaire = () => {
       ...(precisaPeso ? { peso } : {}),
     };
     const checked = validatePerfil(perfil, { today: hoje, pesoObrigatorio: precisaPeso });
-    if (!checked.ok) { toast.error(checked.error); return; }
+    if (checked.ok === false) { toast.error(checked.error); return; }
 
     setSubmitting(true);
     try {

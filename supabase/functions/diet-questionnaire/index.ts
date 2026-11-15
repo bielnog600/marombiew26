@@ -126,7 +126,7 @@ Deno.serve(async (req) => {
 
       // Validação antes de qualquer gravação.
       const checked = validatePerfil(body?.perfil, { today, pesoObrigatorio });
-      if (!checked.ok) return json({ error: checked.error }, 400);
+      if (checked.ok === false) return json({ error: checked.error }, 400);
 
       const plan = buildProfileUpdate({
         current: { observacoes: sp?.observacoes ?? null, telefone: profile?.telefone ?? null },
