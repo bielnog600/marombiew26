@@ -4,6 +4,17 @@ export { normalizeText, productKey, nameSimilarity, findDuplicates, type Existin
 
 
 export type ReviewStatus = 'pendente' | 'adicionado' | 'ignorado';
+/** Filtros do painel: 'auto' = adicionados automaticamente pelo scanner (desfazíveis). */
+export type ReviewFilter = ReviewStatus | 'auto';
+
+/** Em qual filtro o produto aparece. */
+export function reviewFilterOf(rev: { status?: string | null; auto?: boolean | null } | null | undefined): ReviewFilter {
+  const status = (rev?.status ?? 'pendente') as ReviewStatus;
+  return status === 'adicionado' && rev?.auto ? 'auto' : status;
+}
+
+/** Alimento criado pela IA com tabela de referência (in natura, sem nota). */
+export const isAiReferenceGroup = (g: { source: string | null }) => g.source === 'ia_referencia';
 
 export interface ScanRow {
   id: string;
@@ -42,6 +53,8 @@ export interface ProductGroup {
   source: string | null;
   /** Fotos dos alunos (até 4, mais recentes primeiro). */
   photoPaths: string[];
+  /** Alimento criado pela IA (source 'ia_referencia'): tabela citada (TACO, INSA/PortFIR). */
+  referenceTable: string | null;
 }
 
 /** Scans de um produto já aprovado na base respondem dela e não voltam para a revisão. */
@@ -98,6 +111,7 @@ export function groupScans(scans: ScanRow[]): ProductGroup[] {
       quantity: s.nutriments?.quantity ?? null,
       source: s.source ?? null,
       photoPaths: (s.photo_paths ?? []).slice(0, 4),
+      referenceTable: s.nutriments?.reference_table ?? null,
     });
   }
   return [...map.values()];
