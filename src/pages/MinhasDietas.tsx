@@ -497,7 +497,7 @@ const MinhasDietas = () => {
   const isSelectedDayTraining = trainingDayIndices.includes(selectedWeekday);
   const [showScanner, setShowScanner] = useState(false);
   const premiumScale = usePremiumScale(user?.id);
-  const [weighTarget, setWeighTarget] = useState<{ meal: number; food?: number; edit?: boolean; add?: boolean; review?: boolean } | null>(null);
+  const [weighTarget, setWeighTarget] = useState<{ meal: number; food?: number; edit?: boolean; add?: boolean; review?: boolean; scanner?: boolean } | null>(null);
   /** Alimento de uma refeição registrada aberto no painel do card. */
   const [dayEdit, setDayEdit] = useState<{ meal: number; name: string; weigh: DayFoodWeigh } | null>(null);
   const [dayEditSaving, setDayEditSaving] = useState(false);
@@ -1001,6 +1001,25 @@ const MinhasDietas = () => {
     return true;
   }, [dayEdit, user, plannedDayMeals, currentMeals, selectedDate, planId, handleWeighSaved]);
 
+  /**
+   * Scanner único (Premium): "Escanear" abre a tela na refeição do horário; numa
+   * refeição já registrada entra como incremental (concluir pergunta Substituir/Adicionar/Revisar).
+   * Sem Premium continua o scanner de produtos.
+   */
+  const openScanner = useCallback(() => {
+    if (!premiumScale || plannedDayMeals.length === 0) { setShowScanner(true); return; }
+    if (!ensureCanRegister()) return;
+    const meal = currentMealIndex >= 0 && plannedDayMeals[currentMealIndex] ? currentMealIndex : 0;
+    setWeighTarget({ meal, scanner: true, add: !!latestLogs.get(weighLogKey(selectedDate, meal)) });
+  }, [premiumScale, plannedDayMeals, ensureCanRegister, currentMealIndex, latestLogs, selectedDate]);
+  const scannerMealOptions = useMemo(
+    () => plannedDayMeals.map((m: any, i: number) => ({ index: i, label: `${m?.time ? `${m.time} · ` : ''}${displayText(String(m?.name ?? `Refeição ${i + 1}`))}` })),
+    [plannedDayMeals, displayText],
+  );
+  const changeScannerMeal = useCallback((meal: number) => {
+    setWeighTarget((t) => (t ? { meal, scanner: t.scanner, add: !!latestLogs.get(weighLogKey(selectedDate, meal)) } : t));
+  }, [latestLogs, selectedDate]);
+
   const waterMl = waterCurrentMl;
   const waterGoalMl = waterTargetMl;
 
@@ -1052,7 +1071,10 @@ const MinhasDietas = () => {
           } : undefined} />
         {weighTarget && plannedDayMeals[weighTarget.meal] && user && (
           <MealWeighScreen
+            key={`${weighTarget.meal}-${weighTarget.edit ? 'e' : weighTarget.add ? 'a' : 'n'}`}
             meal={plannedDayMeals[weighTarget.meal]}
+            mealOptions={weighTarget.edit ? undefined : scannerMealOptions}
+            onChangeMeal={weighTarget.edit ? undefined : changeScannerMeal}
             studentId={user.id}
             logDate={selectedDate}
             mealIndex={weighTarget.meal}
@@ -1081,8 +1103,8 @@ const MinhasDietas = () => {
       <div className="space-y-4 animate-fade-in">
         {/* Protocolos */}
         <div className="flex items-center justify-end gap-2">
-          <Button variant="outline" size="sm" className="gap-1.5 h-9" onClick={() => setShowScanner(true)}>
-            <ScanBarcode className="h-4 w-4" /> Escanear alimento
+          <Button variant="outline" size="sm" className="gap-1.5 h-9" onClick={openScanner}>
+            <ScanBarcode className="h-4 w-4" /> Escanear
           </Button>
           {protocolKeys.length > 0 && (
             <Button
