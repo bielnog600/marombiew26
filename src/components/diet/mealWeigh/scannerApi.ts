@@ -89,7 +89,7 @@ export async function createReferenceFoods(
   const out = new Map<string, { id: string; name: string; created: boolean }>();
   for (const { draftId, food } of referenceRequests(items, drafts)) {
     try {
-      const ref: Partial<RefMacros> = { kcal: Number(food.calories), proteina: Number(food.protein), carbo: Number(food.carbs), gordura: Number(food.fats) };
+      const ref: Partial<RefMacros> = { kcal: Number(food.calories), proteina: Number(food.protein), carbo: Number(food.carbs), gordura: Number(food.fats), fibra: (food as any).fiber ?? null };
       const d = await invokeScanner<{ food: { id: string; name: string }; created: boolean }>({
         action: 'reference_food', name: food.name, ref, tabela: (food as any).reference_table ?? null, country,
       });

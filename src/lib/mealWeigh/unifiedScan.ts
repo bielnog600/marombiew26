@@ -167,7 +167,7 @@ export function referenceWeighFood(name: string, ref: RefMacros): WeighFood {
     name: clean ? clean[0].toUpperCase() + clean.slice(1) : clean,
     calories: ref.kcal, protein: ref.proteina, carbs: ref.carbo, fats: ref.gordura,
     portion: 'gramas', portion_size: 100, brand: null, source: 'ia_referencia',
-    reference_table: ref.tabela,
+    reference_table: ref.tabela, fiber: ref.fibra,
   } as WeighFood;
 }
 
