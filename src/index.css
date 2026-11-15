@@ -272,6 +272,8 @@
     overflow: hidden;
     isolation: isolate;
     transform: translateZ(0);
+    -webkit-user-select: none;
+    user-select: none;
   }
   .hero-card-img {
     position: absolute;
