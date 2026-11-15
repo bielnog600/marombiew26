@@ -1,5 +1,11 @@
 # Roadmap
 
+## Ficha do aluno preenche o perfil
+- [x] "Seus dados" na ficha (nascimento, altura, telefone PT/BR, raça, objetivo, peso só sem pesagem em 15 dias), pré-preenchido.
+- [x] Envio atualiza perfil, telefone, restrições, lesões, observações e peso; validação no servidor; histórico na ficha.
+- [x] Admin: selo "Atualizado pela ficha em dd/mm" e dados do perfil na lista de fichas.
+- [ ] Enviar uma ficha real até ao fim — não enviei nenhuma para não alterar o perfil de um aluno.
+
 ## Banco de refeições — importar/exportar planilha
 - [x] Exportar .xlsx (Refeições, Ingredientes, Alimentos usados) com kcal/macros calculados.
 - [x] Correspondência automática dos alimentos na importação (liga existentes, cria novos, sinónimos BR/PT, pré-visualização só para conferir).
