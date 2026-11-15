@@ -42,13 +42,23 @@ vi.mock('@/components/diet/ProtocolsDialog', () => ({ default: () => null }));
 vi.mock('@/components/diet/AddFoodDialog', () => ({ default: () => null }));
 vi.mock('@/components/diet/FoodSubstitutionDialog', () => ({ default: () => null }));
 // Tela de pesagem simulada: só devolve a pesagem salva.
-vi.mock('@/components/diet/mealWeigh/MealWeighScreen', () => ({ default: (props: any) => (
-  <div data-testid="fake-weigh">
-    <span>previsto: {props.meal.foods.map((f: any) => `${f.food} ${f.qty}`).join(', ')}</span>
-    <span>base: {props.addToLog ? props.addToLog.id : 'nenhuma'} · modo: {props.initialMode ?? '-'} · alimento: {props.startFoodIndex ?? '-'}</span>
-    <button onClick={() => { props.onSaved?.({ ...mock.nextLog, meal_index: props.mealIndex, log_date: props.logDate }); props.onClose(); }}>Salvar pesagem</button>
-  </div>
-) }));
+vi.mock('@/components/diet/mealWeigh/MealWeighScreen', async () => {
+  const { buildScanMealLog, scannedFoodItem } = await import('@/lib/foodPhotoScan');
+  const IOGURTE = { id: 'f-iog', name: 'Iogurte natural', calories: 60, protein: 4, carbs: 5, fats: 3, portion_size: 100 };
+  return { default: (props: any) => (
+    <div data-testid="fake-weigh">
+      <span>previsto: {props.meal.foods.map((f: any) => `${f.food} ${f.qty}`).join(', ')}</span>
+      <span>base: {props.addToLog ? props.addToLog.id : 'nenhuma'} · modo: {props.initialMode ?? '-'} · alimento: {props.startFoodIndex ?? '-'}</span>
+      <span>registrar em: {props.mealOptions?.find((o: any) => o.index === props.mealIndex)?.label ?? '-'}</span>
+      <button onClick={() => { props.onSaved?.({ ...mock.nextLog, meal_index: props.mealIndex, log_date: props.logDate }); props.onClose(); }}>Salvar pesagem</button>
+      <button onClick={() => {
+        const row = buildScanMealLog(props.meal, props.addToLog ?? null, scannedFoodItem(IOGURTE as any, 100));
+        props.onSaved?.({ id: 'scan-log', created_at: '2026-10-30T09:30:00Z', log_date: props.logDate, meal_index: props.mealIndex, ...row });
+        props.onClose();
+      }}>Salvar escaneado</button>
+    </div>
+  ) };
+});
 
 import MinhasDietas from '@/pages/MinhasDietas';
 
@@ -186,8 +196,10 @@ describe('Pesar refeição — salvar entra na refeição do dia', () => {
     await screen.findByText('Lanche');
     const jantarBefore = jantarKcal();
     fireEvent.click(screen.getByRole('button', { name: /^Escanear$/ }));
-    // 09:00 → refeição sugerida é o Lanche (08:00).
-    await act(async () => { fireEvent.click(await screen.findByRole('button', { name: 'Adicionar escaneado (Lanche)' })); });
+    // Premium: "Escanear" abre o scanner único; 09:00 → "Registrar em" já vem no Lanche (08:00).
+    const fake = await screen.findByTestId('fake-weigh');
+    expect(fake).toHaveTextContent(/registrar em: .*Lanche/);
+    await act(async () => { fireEvent.click(within(fake).getByRole('button', { name: 'Salvar escaneado' })); });
     const card = lancheCard();
     expect(within(card).getByTestId('meal-weighed-badge')).toHaveTextContent('Escaneado');
     expect(within(card).getByText('Iogurte natural')).toBeInTheDocument();
