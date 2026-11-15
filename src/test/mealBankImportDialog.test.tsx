@@ -80,7 +80,7 @@ describe('Importar planilha — pré-visualização', () => {
     expect(args._aliases).toEqual([{ alias: 'atum ao natural', food_id: 'f-atum' }]);
     expect(args._deactivate_codes).toEqual([]);
     expect(args._meals.map((m: any) => m.code)).toEqual(['CM01', 'JA01']);
-    expect(args._foods).toEqual([{ temp_id: 'novo:farinha aveia', name: 'Farinha de aveia', kcal: 390, p: 14, c: 66, g: 8 }]);
-    expect(args._meals[1].items).toEqual([{ food_id: 'f-atum', grams: 120 }, { food_id: 'f-batata', grams: 200 }, { food_id: 'novo:farinha aveia', grams: 30 }]);
+    expect(args._foods).toEqual([{ temp_id: 'novo:farinha de aveia', name: 'Farinha de aveia', kcal: 390, p: 14, c: 66, g: 8 }]);
+    expect(args._meals[1].items).toEqual([{ food_id: 'f-atum', grams: 120 }, { food_id: 'f-batata', grams: 200 }, { food_id: 'novo:farinha de aveia', grams: 30 }]);
   });
 });
