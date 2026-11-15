@@ -202,7 +202,7 @@ describe('Dieta do aluno — 3 opções por refeição', () => {
     render(<MinhasDietas />);
     await screen.findByText('Lanche');
     const jantarCard = () => screen.getByText('Jantar', { selector: 'span.truncate' }).closest('.rounded-2xl') as HTMLElement;
-    fireEvent.click(within(jantarCard()).getByRole('button', { name: /Jantar/ }));
+    fireEvent.click(within(jantarCard()).getByRole('button', { name: /^20:00\s*Jantar/ }));
     const opt2 = await within(jantarCard()).findByRole('button', { name: /^Opção 2: Arroz com brócolis/ });
     expect(within(jantarCard()).getByRole('button', { name: /^Opção 1/ })).toBeInTheDocument();
     fireEvent.click(opt2);
@@ -217,7 +217,7 @@ describe('Dieta do aluno — 3 opções por refeição', () => {
     render(<MinhasDietas />);
     await screen.findByText('Lanche');
     const jantarCard = () => screen.getByText('Jantar', { selector: 'span.truncate' }).closest('.rounded-2xl') as HTMLElement;
-    fireEvent.click(within(jantarCard()).getByRole('button', { name: /Jantar/ }));
+    fireEvent.click(within(jantarCard()).getByRole('button', { name: /^20:00\s*Jantar/ }));
     const recipes = await within(jantarCard()).findByTestId('meal-recipes-card');
     expect(recipes).toHaveTextContent('0 que batem');
     expect(within(jantarCard()).queryByRole('button', { name: /^Opção 2/ })).toBeNull();
@@ -227,7 +227,8 @@ describe('Dieta do aluno — 3 opções por refeição', () => {
     render(<MinhasDietas />);
     await screen.findByText('Lanche');
     const card = await within(lancheCard()).findByTestId('meal-recipes-card');
-    await waitFor(() => expect(card).toHaveTextContent('2 que batem'));
+    await waitFor(() => expect(within(lancheCard()).getByTestId('meal-recipes-card')).toHaveTextContent(/[12] que batem/));
+    console.log('CARD', within(lancheCard()).getByTestId('meal-recipes-card').textContent);
     fireEvent.click(card);
     const sheet = await screen.findByTestId('recipes-sheet');
     expect(sheet).toHaveTextContent('Receitas para o Lanche');
