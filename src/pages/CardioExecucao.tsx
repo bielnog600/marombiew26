@@ -17,7 +17,7 @@ import { mmss } from '@/lib/cardioIntervals';
 import { toneColor, type PhaseTone } from '@/lib/tabataPlayerView';
 import { PhaseChip } from '@/components/tabata/player/TabataPlayerParts';
 import {
-  CARDIO_PREP_SECONDS, NEXT_CARD_SECONDS, blockParams, blockTag, blockTone, cardioElapsed, cardioSegments,
+  CARDIO_PREP_SECONDS, NEXT_CARD_SECONDS, blockParams, bikePositionCue, blockTag, blockTone, cardioElapsed, cardioSegments,
   estimateCardioKcal, nextPhaseText, phaseCountLabel, phaseToneFor, totalBlocksSeconds,
   type CardioPhase,
 } from '@/lib/cardioPlayerView';
@@ -681,7 +681,9 @@ const CardioExecucao: React.FC = () => {
   const planTotal = totalBlocksSeconds(blocks);
   const elapsed = cardioElapsed(blocks, phase, blockIndex, secondsLeft);
   const segments = cardioSegments(blocks, elapsed);
-  const params = blockParams(current, protocol.modality);
+  const positionCue = bikePositionCue(current, protocol.modality);
+  // A posição da bike vai num destaque próprio ("EM PÉ"), não na grade.
+  const params = blockParams(current, protocol.modality).filter(p => !(positionCue && p.label === 'Posição'));
   const bpm = resolveBpmRange(current);
   const showNext = running && !!next && (phase === 'prep' || secondsLeft <= NEXT_CARD_SECONDS);
 
@@ -774,6 +776,20 @@ const CardioExecucao: React.FC = () => {
                 </div>
                 {current && <PhaseChip tone={tone} testId="cardio-intensity-tag">{blockTag(current)}</PhaseChip>}
               </div>
+
+              {positionCue && (
+                <div
+                  data-testid="cardio-bike-position"
+                  data-emphasis={positionCue.emphasis ? 'true' : 'false'}
+                  className={cn('rounded-xl px-3 py-2 text-center', positionCue.emphasis ? 'animate-tabata-pulse' : 'bg-tabata-bg')}
+                  style={positionCue.emphasis ? { background: toneColor(tone, 0.18), border: `2px solid ${toneColor(tone)}` } : undefined}
+                >
+                  <p className="text-[10px] uppercase tracking-wider text-tabata-soft">Posição</p>
+                  <p className={cn('font-black tracking-wide leading-tight', positionCue.emphasis ? 'text-4xl' : 'text-2xl')} style={{ color: toneColor(tone) }}>
+                    {positionCue.text}
+                  </p>
+                </div>
+              )}
 
               {params.length > 0 && (
                 <div className={cn('grid gap-2', params.length >= 3 ? 'grid-cols-3' : 'grid-cols-2')} data-testid="cardio-params">
