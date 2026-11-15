@@ -68,6 +68,7 @@ vi.mock('@/components/diet/mealWeigh/MealWeighScreen', async () => {
 });
 
 import MinhasDietas from '@/pages/MinhasDietas';
+import { dietPlanToMarkdown } from '@/lib/dietMarkdownSerializer';
 
 const item = (name: string, grams: number, m: { kcal: number; p: number; c: number; g: number }, foodId?: string) => ({
   foodId, name, qtyGrams: grams, portionLabel: `${grams} g`, macros: m,
@@ -100,6 +101,8 @@ beforeEach(() => {
       ] }],
     },
   };
+  // Dieta de um dia só ("Padrão"): o aluno lê o texto publicado e as opções vêm do JSON.
+  mock.plan.conteudo = dietPlanToMarkdown(mock.plan.conteudo_json);
 });
 afterEach(() => { cleanup(); vi.useRealTimers(); });
 
