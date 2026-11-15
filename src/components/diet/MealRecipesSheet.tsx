@@ -174,7 +174,7 @@ const MealRecipesSheet: React.FC<Props> = ({
                     <td className="py-1.5 font-semibold text-foreground">{label}</td>
                     <td className="py-1.5 text-right text-muted-foreground">{r(target[k])}{unit}</td>
                     <td className="py-1.5 text-right font-semibold text-foreground">{r(detail.totals[k])}{unit}</td>
-                    <td className="py-1.5 text-right text-muted-foreground">{signed(detail.diff[k], unit)}</td>
+                    <td className="py-1.5 text-right text-muted-foreground">{signed(r(detail.totals[k]) - r(target[k]), unit)}</td>
                   </tr>
                 ))}
               </tbody>
