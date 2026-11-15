@@ -62,10 +62,8 @@ export function parseObjetivo(text: string | null | undefined): { selected: stri
 
   const outroParts: string[] = [];
   let rest = raw;
-  const idx = norm(raw).indexOf(norm(OBJETIVO_OUTRO_PREFIX));
-  // norm preserva o comprimento só sem acentos; procura o prefixo no original sem diferenciar maiúsculas.
   const m = raw.match(/outro\s*:/i);
-  if (idx >= 0 && m && m.index !== undefined) {
+  if (m && m.index !== undefined) {
     const after = raw.slice(m.index + m[0].length).trim();
     if (after) outroParts.push(after);
     rest = raw.slice(0, m.index);

@@ -1,7 +1,7 @@
 /**
  * Ficha do aluno (Questionário de Dieta) → perfil do aluno.
  *
- * Puro (sem imports): usado pela edge function diet-questionnaire, pela página
+ * Puro (só importa as opções partilhadas): usado pela edge function diet-questionnaire, pela página
  * pública da ficha e pela ficha do aluno no admin. Regras:
  *  - campos do perfil opcionais; vazio nunca apaga o que já existe;
  *  - peso só é pedido (e obrigatório) quando não há pesagem nos últimos 15 dias
