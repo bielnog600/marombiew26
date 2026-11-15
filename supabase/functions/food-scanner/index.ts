@@ -1,10 +1,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
 import { aiFetch, setAiUsageActor, withAiUsage } from '../_shared/aiUsage.ts';
-import {
-  autoAddDecision, autoAddFoodRow, cleanReferenceMacros, findReferenceDuplicate, productKey,
-  referenceFoodName, referenceTableFor,
-} from '../_shared/foodCatalogRules.ts';
+import { autoAddDecision, autoAddFoodRow, cleanReferenceMacros, findReferenceDuplicate, productKey, referenceFoodName, referenceTableFor } from '../_shared/foodCatalogRules.ts';
 
 const FIELDS =
   'product_name,brands,image_front_url,nutriments,nutriscore_grade,nutriscore_score,nova_group,additives_tags,additives_n,ingredients_text,labels_tags,quantity,serving_size,serving_quantity,categories_tags';
