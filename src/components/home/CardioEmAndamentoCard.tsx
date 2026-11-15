@@ -34,7 +34,7 @@ const CardioEmAndamentoCard: React.FC<Props> = ({ snapshot, onDiscard }) => {
   const recomecar = async () => {
     const protocol = snapshot.protocol;
     await onDiscard();
-    navigate('/cardio-execucao', { state: { protocol, planId: snapshot.planId } });
+    navigate('/cardio-execucao', { state: { protocol, planId: snapshot.planId, protocolIndex: snapshot.protocolIndex ?? null } });
   };
   const descartar = () => {
     if (!window.confirm('Descartar este cardio em andamento? Ele não vai contar como feito.')) return;

@@ -319,3 +319,10 @@ Fora do escopo desta entrega (Fases 3-6): LOW/MEDIUM/HIGH, novo carb cycling, aj
 - [x] Bike: Posição por etapa no editor, copiada no "Repetir par", no resumo e em destaque no player; em pé/alternado → picos em pé e resto sentado na geração
 - [x] Tela Finalizar: duração editável, Como foi? (5 barras), estrelas, modalidade, distância, FC média, calorias estimadas, observação; salva e aparece na ficha (admin) e em Meu progresso
 - [ ] Testar no iPhone real (sair/voltar, bloquear tela, som) — não consegui entrar como aluno no navegador daqui
+
+## Cardio do aluno — escolher o cardio
+- [x] Card "Cardio" na home (mesmo carrossel): N opções, chips por modalidade, ✓ verde na feita da semana; card "Cardio em andamento" mantido
+- [x] Tela Cardio: Esta semana Seg→Dom, Teus cardios (mini barra, PICO/RECUP., feito/ainda não), Sugerido pré-selecionado, INICIAR <MODALIDADE>
+- [x] Detalhe: barra grande, etapas agrupadas × N ciclos, Dica do Fabiew (campo novo no Editar etapas), INICIAR CARDIO → player
+- [x] Qual sessão foi feita fica gravada (para "Feito terça" e "Sugerido"); admin Executar segue só pré-visualização
+- [ ] Testar com o aluno real no iPhone — não consegui entrar como aluno daqui (conferi com dados de exemplo)

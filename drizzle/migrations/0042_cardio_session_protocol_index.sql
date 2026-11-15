@@ -1,0 +1,2 @@
+ALTER TABLE public.cardio_sessions ADD COLUMN IF NOT EXISTS protocol_index smallint CHECK (protocol_index IS NULL OR (protocol_index BETWEEN 0 AND 49));
+COMMENT ON COLUMN public.cardio_sessions.protocol_index IS 'Qual sessão do plano de cardio (posição em protocols, 0 = primeira) o aluno escolheu';

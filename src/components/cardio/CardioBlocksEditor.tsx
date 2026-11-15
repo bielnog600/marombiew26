@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { ArrowDown, ArrowUp, Plus, Repeat, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
 import type { CardioBlock, CardioBlockIntensity, CardioBlockType, CardioProtocol } from '@/lib/cardioParser';
@@ -126,6 +127,21 @@ const CardioBlocksEditor: React.FC<{ protocol: CardioProtocol; onChange: (p: Car
 
   return (
     <div className="space-y-3" data-testid="cardio-blocks-editor">
+      <label className="block space-y-1">
+        <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Dica para o aluno</span>
+        <Textarea
+          value={protocol.coachTip ?? ''} rows={2} maxLength={400}
+          placeholder="Ex.: No pico em pé, mantém o tronco firme e não te apoies no guiador."
+          className="text-xs"
+          aria-label="Dica para o aluno"
+          onChange={e => {
+            const next = { ...protocol, coachTip: e.target.value } as CardioProtocol;
+            if (!e.target.value.trim()) delete next.coachTip;
+            onChange(next);
+          }}
+        />
+        <span className="text-[10px] text-muted-foreground">Aparece como "Dica do Fabiew" antes de o aluno iniciar. Vazio = não aparece.</span>
+      </label>
       <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 space-y-2">
         <p className="text-[11px] font-bold uppercase tracking-wider text-primary flex items-center gap-1.5">
           <Repeat className="h-3.5 w-3.5" /> Repetir par forte/recuperação
