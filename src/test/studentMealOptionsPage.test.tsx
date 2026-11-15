@@ -226,15 +226,15 @@ describe('Dieta do aluno — 3 opções por refeição', () => {
   it('Receitas: lista com gramas ajustadas, só as que batem podem ser escolhidas e substituir troca só hoje', async () => {
     render(<MinhasDietas />);
     await screen.findByText('Lanche');
-    const card = await within(lancheCard()).findByTestId('meal-recipes-card');
-    await waitFor(() => expect(within(lancheCard()).getByTestId('meal-recipes-card')).toHaveTextContent(/[12] que batem/));
-    console.log('CARD', within(lancheCard()).getByTestId('meal-recipes-card').textContent);
-    fireEvent.click(card);
+    // Panqueca (LT06) não fecha os macros do lanche: só a banana com aveia bate.
+    await waitFor(() => expect(within(lancheCard()).getByTestId('meal-recipes-card')).toHaveTextContent('1 que batem'));
+    fireEvent.click(within(lancheCard()).getByTestId('meal-recipes-card'));
     const sheet = await screen.findByTestId('recipes-sheet');
     expect(sheet).toHaveTextContent('Receitas para o Lanche');
     expect(within(sheet).getByTestId('recipes-target')).toHaveTextContent('206 kcal · P 5 · C 43 · G 2');
     expect(within(sheet).getByTestId('recipe-LT05')).toHaveTextContent('Bate com a refeição');
     expect(within(sheet).getByTestId('recipe-LT05')).toHaveTextContent('📖 receita');
+    expect(within(sheet).getByTestId('recipe-LT06')).toBeDisabled();
     // Sem ovo tira a panqueca.
     fireEvent.click(within(sheet).getByRole('button', { name: 'Sem ovo' }));
     expect(within(sheet).queryByTestId('recipe-LT06')).toBeNull();

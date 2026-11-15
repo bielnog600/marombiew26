@@ -414,17 +414,18 @@ const StudentMealCard: React.FC<StudentMealCardProps> = ({
                           recipeActive ? 'border-primary bg-primary/10' : 'border-border/60 bg-background/40 hover:border-primary/40'
                         }`}
                       >
-                        <span className={`inline-flex items-center gap-1 text-[10px] font-bold uppercase ${recipeActive ? 'text-primary' : 'text-muted-foreground'}`}>
-                          <BookOpen className="h-3 w-3" /> Receitas
-                        </span>
                         {recipeActive ? (<>
+                          <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase text-primary">
+                            <BookOpen className="h-3 w-3" /> Receitas
+                          </span>
                           <span className="mt-0.5 line-clamp-2 text-[11px] font-semibold leading-tight text-foreground">{show(recipe!.name)}</span>
                           <span className="mt-auto pt-1 text-[11px] font-bold text-primary">{round(totalKcal)} kcal</span>
                           {optionEdited && (
                             <span className="text-[9px] font-semibold text-muted-foreground" data-testid="meal-option-edited">✎ pesada / alterada</span>
                           )}
                         </>) : (<>
-                          <span className="mt-0.5 text-[11px] font-semibold leading-tight text-foreground">Receitas</span>
+                          <BookOpen className="h-4 w-4 text-primary" />
+                          <span className="mt-1 text-xs font-semibold leading-tight text-foreground">Receitas</span>
                           <span className="mt-auto pt-1 text-[11px] font-bold text-primary">{recipeCount} que batem</span>
                         </>)}
                       </button>
