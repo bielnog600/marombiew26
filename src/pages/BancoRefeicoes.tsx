@@ -16,7 +16,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Loader2, Plus, Search, Trash2 } from 'lucide-react';
+import { Download, Loader2, Plus, Search, Trash2, Upload } from 'lucide-react';
 import { toast } from 'sonner';
 import { buildFoodIndex, foodRecordFromRow, type FoodRecord } from '@/lib/nutritionEngine';
 import {
@@ -32,20 +32,12 @@ import {
 } from '@/lib/mealBank';
 import { MEAL_BANK_QUERY_KEY, useMealBank } from '@/hooks/useMealBank';
 import CanonicalFoodPickerDialog from '@/components/diet/CanonicalFoodPickerDialog';
-
-const SLOT_PREFIX: Record<MealSlot, string> = {
-  cafe_manha: 'CM', lanche_tarde: 'LT', pre_treino: 'PRE', pos_treino: 'POS', almoco: 'AL', jantar: 'JA', ceia: 'CE',
-};
+import MealBankImportDialog from '@/components/mealBank/MealBankImportDialog';
+import { buildBankExportSheets, nextBankCode } from '@/lib/mealBank/spreadsheet';
+import { downloadBankWorkbook } from '@/lib/mealBank/spreadsheetFile';
 
 /** Próximo código livre do horário (ex.: CM16). */
-export const nextBankCode = (bank: Pick<BankMeal, 'code'>[], slot: MealSlot): string => {
-  const prefix = SLOT_PREFIX[slot];
-  const max = bank.reduce((acc, m) => {
-    const match = m.code.match(new RegExp(`^${prefix}(\\d+)$`));
-    return match ? Math.max(acc, Number(match[1])) : acc;
-  }, 0);
-  return `${prefix}${String(max + 1).padStart(2, '0')}`;
-};
+export { nextBankCode };
 
 interface DraftMeal {
   id: string | null;
@@ -94,6 +86,22 @@ const BancoRefeicoes: React.FC = () => {
   const [draft, setDraft] = useState<DraftMeal | null>(null);
   const [picker, setPicker] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+  const [exporting, setExporting] = useState(false);
+
+  const exportSheet = async () => {
+    if (!bank || bank.length === 0 || foods.length === 0) { toast.warning('O banco ainda está carregando.'); return; }
+    setExporting(true);
+    try {
+      const day = new Date().toLocaleDateString('sv-SE');
+      await downloadBankWorkbook(buildBankExportSheets(bank, foods), `banco-de-refeicoes-${day}.xlsx`);
+    } catch (err) {
+      console.error('[BancoRefeicoes] exportar', err);
+      toast.error('Não deu para gerar a planilha. Tenta de novo.');
+    } finally {
+      setExporting(false);
+    }
+  };
 
   const rows = useMemo(() => {
     const q = normText(query);
@@ -190,6 +198,12 @@ const BancoRefeicoes: React.FC = () => {
             <Switch id="show-inactive" checked={showInactive} onCheckedChange={setShowInactive} />
             <Label htmlFor="show-inactive" className="text-xs">Mostrar inativas</Label>
           </div>
+          <Button variant="outline" onClick={() => setImportOpen(true)} className="gap-1.5" disabled={isLoading || foods.length === 0}>
+            <Upload className="h-4 w-4" /> Importar planilha
+          </Button>
+          <Button variant="outline" onClick={exportSheet} className="gap-1.5" disabled={isLoading || exporting || foods.length === 0}>
+            {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />} Exportar planilha
+          </Button>
           <Button onClick={newMeal} className="gap-1.5"><Plus className="h-4 w-4" /> Nova refeição</Button>
         </div>
 
@@ -304,6 +318,18 @@ const BancoRefeicoes: React.FC = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <MealBankImportDialog
+        open={importOpen}
+        onOpenChange={setImportOpen}
+        bank={bank ?? []}
+        foods={foods}
+        onImported={() => {
+          refresh();
+          qc.invalidateQueries({ queryKey: ['canonical-editor-foods'] });
+          qc.invalidateQueries({ queryKey: ['foods'] });
+        }}
+      />
 
       <CanonicalFoodPickerDialog
         open={picker}
