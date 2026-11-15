@@ -31,7 +31,8 @@ describe('ficha — Seus dados', () => {
     expect(screen.getByLabelText('Data de nascimento')).toHaveValue('1992-03-04');
     expect(screen.getByLabelText('Altura (cm)')).toHaveValue(165);
     expect(screen.getByLabelText('Telefone')).toHaveValue('911577317');
-    expect(screen.getByLabelText('Objetivo')).toHaveValue('Emagrecimento');
+    expect(screen.getByRole('button', { name: 'Emagrecimento' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: 'Pardo' })).toHaveAttribute('aria-pressed', 'true');
     expect(screen.queryByLabelText(/Peso corporal/)).toBeNull();
   });
 
@@ -45,10 +46,12 @@ describe('ficha — Seus dados', () => {
     expect(posts).toHaveLength(0);
 
     fireEvent.change(screen.getByLabelText(/Peso corporal/), { target: { value: '64.5' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Hipertrofia' }));
+    fireEvent.change(screen.getByLabelText('Outro objetivo'), { target: { value: 'chegar aos 60 kg' } });
     fireEvent.click(screen.getByText('Enviar Questionário'));
     await waitFor(() => expect(posts).toHaveLength(1));
     expect(posts[0].perfil).toMatchObject({
-      data_nascimento: '1992-03-04', altura: '165', telefone: '+351 911577317', raca: 'pardo', objetivo: 'Emagrecimento', peso: '64.5',
+      data_nascimento: '1992-03-04', altura: '165', telefone: '+351 911577317', raca: 'pardo', objetivo: 'Hipertrofia, Emagrecimento, Outro: chegar aos 60 kg', peso: '64.5',
     });
   });
 
