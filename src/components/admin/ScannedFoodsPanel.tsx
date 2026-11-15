@@ -156,7 +156,7 @@ const ScannedFoodsPanel: React.FC<ScannedFoodsPanelProps> = ({ scannerOpen, onSc
   };
 
   const restore = async (g: ProductGroup) => {
-    try { await saveReview(g, 'pendente', null); toast.success('Voltou para pendentes'); }
+    try { await saveReview(g, 'pendente', isAiReferenceGroup(g) ? data?.reviews.get(g.key)?.food_id ?? null : null); toast.success('Voltou para pendentes'); }
     catch (e: any) { toast.error(e.message ?? 'Erro'); }
   };
 
