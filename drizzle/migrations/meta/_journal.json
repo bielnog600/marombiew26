@@ -309,6 +309,13 @@
       "when": 1794708849921,
       "tag": "0043_scanner_unico_foods",
       "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "7",
+      "when": 1794743733250,
+      "tag": "0044_student_meal_weigh_logs_insert_own",
+      "breakpoints": true
     }
   ]
 }
