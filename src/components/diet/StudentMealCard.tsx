@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from 'react';
-import { Check, ChevronDown, Plus, SlidersHorizontal, Trash2, ArrowRightLeft, X, UtensilsCrossed, Scale, Pencil, Sparkles, ScanBarcode } from 'lucide-react';
+import { BookOpen, Check, ChevronDown, Plus, SlidersHorizontal, Trash2, ArrowRightLeft, X, UtensilsCrossed, Scale, Pencil, Sparkles, ScanBarcode } from 'lucide-react';
 import { toast } from 'sonner';
 import type { ParsedFood, ParsedMeal } from '@/lib/dietResultParser';
 import { scaleFood, parseNumeric } from '@/lib/dailyDietRebalance';
@@ -104,9 +104,16 @@ interface StudentMealCardProps {
   onRemoveWeighedFood?: (food: ParsedFood) => void;
   /** Refeição pesada: mover um alimento registrado para outra refeição ainda não pesada. */
   onMoveWeighedFood?: (food: ParsedFood, targetMealIndex: number) => void;
-  /** Até 3 opções da refeição (Opção 1 = plano). Com 1 opção nada aparece. */
+  /** Opção 1 (plano) e Opção 2 (banco). Sem Opção 2 e sem Receitas nada aparece. */
   options?: StudentMealOption[];
+  /** 0 = Opção 1, 1 = Opção 2, -1 = receita escolhida. */
   selectedOption?: number;
+  /** Receita escolhida para o dia (cartão "Receitas" selecionado). */
+  recipe?: StudentMealOption | null;
+  /** Quantas receitas do banco batem com a refeição. */
+  recipeCount?: number;
+  /** Abre a folha "Receitas para o <refeição>". */
+  onOpenRecipes?: () => void;
   onSelectOption?: (optionIndex: number) => void;
   /** A opção atual já foi pesada ou alterada pelo aluno neste dia. */
   optionEdited?: boolean;
@@ -137,9 +144,15 @@ const StudentMealCard: React.FC<StudentMealCardProps> = ({
   onSelectOption,
   optionEdited,
   prep,
+  recipe,
+  recipeCount = 0,
+  onOpenRecipes,
 }) => {
-  const hasOptions = !!options && options.length > 1;
-  const currentOption = hasOptions ? options![Math.min(Math.max(selectedOption, 0), options!.length - 1)] : null;
+  const hasOptions = !!options && (options.length > 1 || !!onOpenRecipes);
+  const recipeActive = hasOptions && selectedOption < 0 && !!recipe;
+  const currentOption = !hasOptions ? null
+    : recipeActive ? recipe!
+      : options![Math.min(Math.max(selectedOption, 0), options!.length - 1)];
   const show = displayText ?? ((text: string) => text);
   const [adjustMode, setAdjustMode] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
@@ -333,7 +346,7 @@ const StudentMealCard: React.FC<StudentMealCardProps> = ({
               <span className="truncate text-sm font-semibold text-foreground">{show(meal.name)}</span>
               {hasOptions && (
                 <span className="shrink-0 rounded-full bg-primary px-1.5 py-0.5 text-[10px] font-bold text-primary-foreground" data-testid="meal-option-badge">
-                  Opção {selectedOption + 1}/{options!.length}
+                  {recipeActive ? 'Receita' : `Opção ${Math.max(selectedOption, 0) + 1}`}
                 </span>
               )}
               {weighed && (
@@ -365,9 +378,9 @@ const StudentMealCard: React.FC<StudentMealCardProps> = ({
               {hasOptions && (
                 <div className="mb-3" data-testid="meal-option-picker">
                   <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Escolhe a opção</p>
-                  <div className="grid grid-cols-3 gap-2">
+                  <div className={`grid gap-2 ${options!.length + (onOpenRecipes ? 1 : 0) >= 3 ? 'grid-cols-3' : 'grid-cols-2'}`}>
                     {options!.map((opt, oi) => {
-                      const active = oi === selectedOption;
+                      const active = !recipeActive && oi === Math.max(selectedOption, 0);
                       return (
                         <button
                           key={`opt-${oi}`}
@@ -390,6 +403,32 @@ const StudentMealCard: React.FC<StudentMealCardProps> = ({
                         </button>
                       );
                     })}
+                    {onOpenRecipes && (
+                      <button
+                        type="button"
+                        aria-pressed={recipeActive}
+                        aria-label={recipeActive ? `Receitas: ${recipe!.name}` : `Receitas: ${recipeCount} que batem`}
+                        onClick={onOpenRecipes}
+                        data-testid="meal-recipes-card"
+                        className={`flex min-h-[84px] flex-col items-start rounded-xl border p-2 text-left transition-colors ${
+                          recipeActive ? 'border-primary bg-primary/10' : 'border-border/60 bg-background/40 hover:border-primary/40'
+                        }`}
+                      >
+                        <span className={`inline-flex items-center gap-1 text-[10px] font-bold uppercase ${recipeActive ? 'text-primary' : 'text-muted-foreground'}`}>
+                          <BookOpen className="h-3 w-3" /> Receitas
+                        </span>
+                        {recipeActive ? (<>
+                          <span className="mt-0.5 line-clamp-2 text-[11px] font-semibold leading-tight text-foreground">{show(recipe!.name)}</span>
+                          <span className="mt-auto pt-1 text-[11px] font-bold text-primary">{round(totalKcal)} kcal</span>
+                          {optionEdited && (
+                            <span className="text-[9px] font-semibold text-muted-foreground" data-testid="meal-option-edited">✎ pesada / alterada</span>
+                          )}
+                        </>) : (<>
+                          <span className="mt-0.5 text-[11px] font-semibold leading-tight text-foreground">Receitas</span>
+                          <span className="mt-auto pt-1 text-[11px] font-bold text-primary">{recipeCount} que batem</span>
+                        </>)}
+                      </button>
+                    )}
                   </div>
                 </div>
               )}
