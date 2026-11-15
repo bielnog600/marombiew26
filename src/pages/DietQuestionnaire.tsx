@@ -11,8 +11,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { toast } from 'sonner';
 import { Loader2, CheckCircle, UtensilsCrossed, ArrowLeft, Home } from 'lucide-react';
 import {
-  OBJETIVO_SUGESTOES, PHONE_DDI, RACA_OPTIONS, birthDateBounds, joinPhone, splitPhone, validatePerfil,
+  PHONE_DDI, birthDateBounds, joinPhone, normalizeObjetivo, splitPhone, validatePerfil,
 } from '../../supabase/functions/_shared/questionnaireProfile';
+import { ObjetivoChips, RacaChips } from '@/components/student/ProfileChoiceChips';
 
 const localTodayIso = () => {
   const d = new Date();
@@ -211,7 +212,7 @@ const DietQuestionnaire = () => {
       altura,
       telefone: joinPhone(ddi, telefoneNumero),
       raca,
-      objetivo,
+      objetivo: normalizeObjetivo(objetivo),
       ...(precisaPeso ? { peso } : {}),
     };
     const checked = validatePerfil(perfil, { today: hoje, pesoObrigatorio: precisaPeso });
@@ -365,12 +366,7 @@ const DietQuestionnaire = () => {
               </div>
               <div className="space-y-2">
                 <Label>Raça</Label>
-                <Select value={raca} onValueChange={setRaca}>
-                  <SelectTrigger aria-label="Raça"><SelectValue placeholder="Selecione" /></SelectTrigger>
-                  <SelectContent>
-                    {RACA_OPTIONS.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
-                  </SelectContent>
-                </Select>
+                <RacaChips value={raca} onChange={setRaca} />
               </div>
               {precisaPeso && (
                 <div className="space-y-2">
@@ -381,13 +377,8 @@ const DietQuestionnaire = () => {
                 </div>
               )}
               <div className="space-y-2 sm:col-span-2">
-                <Label htmlFor="ficha-objetivo">Objetivo</Label>
-                <Input id="ficha-objetivo" maxLength={200} placeholder="Ex: Hipertrofia" value={objetivo} onChange={e => setObjetivo(e.target.value)} />
-                <div className="flex flex-wrap gap-2">
-                  {OBJETIVO_SUGESTOES.map(o => (
-                    <Button key={o} type="button" size="sm" variant={objetivo === o ? 'default' : 'outline'} onClick={() => setObjetivo(o)}>{o}</Button>
-                  ))}
-                </div>
+                <Label>Objetivo <span className="text-xs font-normal text-muted-foreground">(pode marcar mais de um)</span></Label>
+                <ObjetivoChips value={objetivo} onChange={setObjetivo} idPrefix="ficha-objetivo" />
               </div>
             </div>
           </CardContent>

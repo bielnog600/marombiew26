@@ -10,7 +10,7 @@
  *    acrescentadas com a data, sem duplicar.
  */
 
-import { RACA_OPTIONS } from './studentProfileOptions.ts';
+import { RACA_OPTIONS, normalizeObjetivo } from './studentProfileOptions.ts';
 
 export { RACA_OPTIONS, OBJETIVO_OPTIONS, parseObjetivo, joinObjetivo, normalizeObjetivo } from './studentProfileOptions.ts';
 
@@ -124,7 +124,8 @@ export function validatePerfil(raw: unknown, opts: { today: string; pesoObrigato
   if (!blank(r.objetivo)) {
     const v = String(r.objetivo).trim();
     if (v.length > 300) return { ok: false, error: 'O objetivo tem de ter no máximo 300 caracteres.' };
-    out.objetivo = v;
+    const joined = normalizeObjetivo(v);
+    if (joined) out.objetivo = joined;
   }
   if (opts.pesoObrigatorio) {
     if (blank(r.peso)) return { ok: false, error: 'Informe o seu peso corporal (kg).' };
