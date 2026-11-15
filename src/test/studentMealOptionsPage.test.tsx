@@ -77,6 +77,8 @@ const item = (name: string, grams: number, m: { kcal: number; p: number; c: numb
   foodId, name, qtyGrams: grams, portionLabel: `${grams} g`, macros: m,
 });
 
+/** O plano publicado só aceita foodId em formato UUID. */
+const ARROZ_ID = '00000000-0000-4000-8000-0000000000a1';
 const food = (id: string, name: string, calories: number, protein: number, carbs: number, fats: number) =>
   ({ id, name, calories, protein, carbs, fats, portion: 'gramas', portion_size: 100, brand: null, source: null, barcode: null, sourceFoodId: null });
 const bankMeal = (code: string, slot: string, name: string, items: Array<[string, number]>, prep: string | null = null, tags: string[] = []) =>
@@ -84,7 +86,7 @@ const bankMeal = (code: string, slot: string, name: string, items: Array<[string
 
 beforeEach(() => {
   mock.foods = [
-    food('arroz', 'Arroz branco cozido', 130, 2.5, 28.5, 0.3),
+    food(ARROZ_ID, 'Arroz branco cozido', 130, 2.5, 28.5, 0.3),
     food('broc', 'Brócolis cozido', 25, 2.4, 4, 0.4),
     food('frango', 'Peito de frango grelhado', 160, 32, 0, 2.5),
     food('banana', 'Banana', 89, 1.1, 22.8, 0.3),
@@ -92,8 +94,8 @@ beforeEach(() => {
     food('ovo', 'Ovo', 143, 12.6, 0.7, 9.5),
   ];
   mock.bank = [
-    bankMeal('JA01', 'jantar', 'Arroz com brócolis', [['arroz', 180], ['broc', 50]], 'Cozinhar o arroz e juntar os brócolis.'),
-    bankMeal('JA02', 'jantar', 'Frango com arroz', [['frango', 200], ['arroz', 100]]),
+    bankMeal('JA01', 'jantar', 'Arroz com brócolis', [[ARROZ_ID, 180], ['broc', 50]], 'Cozinhar o arroz e juntar os brócolis.'),
+    bankMeal('JA02', 'jantar', 'Frango com arroz', [['frango', 200], [ARROZ_ID, 100]]),
     bankMeal('LT05', 'lanche_tarde', 'Banana amassada com aveia', [['banana', 100], ['aveia', 30]], 'Amassar a banana e misturar a aveia.'),
     bankMeal('LT06', 'lanche_tarde', 'Panqueca de banana', [['banana', 60], ['ovo', 50], ['aveia', 20]]),
   ];
@@ -119,7 +121,7 @@ beforeEach(() => {
             { foodId: 'pao', name: 'Pão integral', qtyGrams: 40, macros: { kcal: 100, p: 4, c: 18, g: 1 } },
           ] },
         ] },
-        { id: 'm1', order: 1, name: 'Jantar', time: '20:00', totals: jantar, items: [item('Arroz branco cozido', 200, jantar, 'arroz')] },
+        { id: 'm1', order: 1, name: 'Jantar', time: '20:00', totals: jantar, items: [item('Arroz branco cozido', 200, jantar, ARROZ_ID)] },
       ] }],
     },
   };
@@ -142,7 +144,6 @@ describe('Dieta do aluno — 3 opções por refeição', () => {
     render(<MinhasDietas />);
     await screen.findByText('Lanche');
     const card = lancheCard();
-    console.log('DEBUG', card.outerHTML.slice(0, 1500));
     expect(within(card).getByTestId('meal-option-badge')).toHaveTextContent('Opção 1');
     // A antiga Opção 3 não vira cartão: ficam Opção 1, Opção 2 e Receitas.
     expect(within(card).queryByRole('button', { name: /^Opção 3/ })).toBeNull();

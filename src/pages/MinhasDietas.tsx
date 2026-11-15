@@ -660,7 +660,6 @@ const MinhasDietas = () => {
       : []),
     [structuredPlan, usesMealOptions, activeGroupIndex, baseMealsForDay, autoWeek],
   );
-  console.log('DBG', JSON.stringify({sp: !!structuredPlan, umo: usesMealOptions, n: baseMealsForDay.length, names: (baseMealsForDay as any[]).map((m) => m.name), o: optionsByMeal.map((o) => o?.length ?? null)}));
   const prescribedMeals = useMemo(
     () => applyStudentMealOptions(baseMealsForDay as any[], optionsByMeal, choiceResolver(activeGroupIndex, selectedDate, baseMealsForDay as any[])),
     [baseMealsForDay, optionsByMeal, choiceResolver, activeGroupIndex, selectedDate],
