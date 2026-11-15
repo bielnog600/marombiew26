@@ -10,17 +10,9 @@
  *    acrescentadas com a data, sem duplicar.
  */
 
-export const RACA_OPTIONS: { value: string; label: string }[] = [
-  { value: 'branco', label: 'Branco' },
-  { value: 'negro', label: 'Negro' },
-  { value: 'pardo', label: 'Pardo' },
-  { value: 'asiatico', label: 'Asiático' },
-  { value: 'indigena', label: 'Indígena' },
-];
+import { RACA_OPTIONS } from './studentProfileOptions.ts';
 
-export const OBJETIVO_SUGESTOES = [
-  'Hipertrofia', 'Emagrecimento', 'Definição', 'Saúde e qualidade de vida', 'Condicionamento físico',
-];
+export { RACA_OPTIONS, OBJETIVO_OPTIONS, parseObjetivo, joinObjetivo, normalizeObjetivo } from './studentProfileOptions.ts';
 
 export const PHONE_DDI: { value: string; label: string }[] = [
   { value: '351', label: '🇵🇹 +351' },
@@ -131,7 +123,7 @@ export function validatePerfil(raw: unknown, opts: { today: string; pesoObrigato
   }
   if (!blank(r.objetivo)) {
     const v = String(r.objetivo).trim();
-    if (v.length > 200) return { ok: false, error: 'O objetivo tem de ter no máximo 200 caracteres.' };
+    if (v.length > 300) return { ok: false, error: 'O objetivo tem de ter no máximo 300 caracteres.' };
     out.objetivo = v;
   }
   if (opts.pesoObrigatorio) {
