@@ -21,6 +21,15 @@ const INTENSITIES: Array<{ value: CardioBlockIntensity; label: string }> = [
   { value: 'maxima', label: 'Máxima' },
 ];
 
+/** Posição na bike (opcional): "—" = não definido. */
+const NO_POSITION = 'none';
+const BIKE_POSITIONS: Array<{ value: NonNullable<CardioBlock['bikePosition']> | typeof NO_POSITION; label: string }> = [
+  { value: NO_POSITION, label: '—' },
+  { value: 'sentado', label: 'Sentado' },
+  { value: 'em_pe', label: 'Em pé' },
+  { value: 'alternado', label: 'Alternado' },
+];
+
 /** "2:30" / "150" / "2,5" → segundos. */
 export function parseDurationInput(v: string): number | null {
   const t = v.trim();
@@ -80,7 +89,12 @@ const CardioBlocksEditor: React.FC<{ protocol: CardioProtocol; onChange: (p: Car
     onChange({ ...protocol, blocks: next, totalDurationMin: totalMin(next) });
     if (remount) setVersion(v => v + 1);
   };
-  const update = (i: number, patch: Partial<CardioBlock>) => commit(blocks.map((b, k) => (k === i ? { ...b, ...patch } : b)));
+  const update = (i: number, patch: Partial<CardioBlock>) => commit(blocks.map((b, k) => {
+    if (k !== i) return b;
+    const next = { ...b, ...patch } as CardioBlock;
+    if ('bikePosition' in patch && !patch.bikePosition) delete next.bikePosition;
+    return next;
+  }));
   const move = (i: number, d: -1 | 1) => {
     const j = i + d;
     if (j < 0 || j >= blocks.length) return;
@@ -108,6 +122,7 @@ const CardioBlocksEditor: React.FC<{ protocol: CardioProtocol; onChange: (p: Car
   const showLevel = protocol.modality !== 'passadeira';
   const showCadence = protocol.modality === 'bike' || protocol.modality === 'eliptica';
   const showSteps = protocol.modality === 'escada';
+  const showPosition = protocol.modality === 'bike';
 
   return (
     <div className="space-y-3" data-testid="cardio-blocks-editor">
@@ -171,6 +186,18 @@ const CardioBlocksEditor: React.FC<{ protocol: CardioProtocol; onChange: (p: Car
             {showLevel && <NumField label="Nível" value={b.resistanceLevel} onChange={v => update(i, { resistanceLevel: v })} />}
             {showCadence && <NumField label={protocol.modality === 'bike' ? 'Cadência (rpm)' : 'Passadas (spm)'} value={b.cadenceRpm} onChange={v => update(i, { cadenceRpm: v })} />}
             {showSteps && <NumField label="Degraus/min" value={b.stepsPerMin} onChange={v => update(i, { stepsPerMin: v })} />}
+            {showPosition && (
+              <label className="space-y-0.5">
+                <span className="text-[10px] text-muted-foreground">Posição</span>
+                <Select
+                  value={b.bikePosition ?? NO_POSITION}
+                  onValueChange={v => update(i, { bikePosition: v === NO_POSITION ? undefined : (v as CardioBlock['bikePosition']) })}
+                >
+                  <SelectTrigger className="h-8 text-xs" aria-label={`Posição da etapa ${i + 1}`}><SelectValue /></SelectTrigger>
+                  <SelectContent className="bg-popover z-50">{BIKE_POSITIONS.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}</SelectContent>
+                </Select>
+              </label>
+            )}
           </div>
           <Input value={b.notes ?? ''} placeholder="Notas (opcional)" onChange={e => update(i, { notes: e.target.value || undefined })} className="h-8 text-xs" />
         </div>

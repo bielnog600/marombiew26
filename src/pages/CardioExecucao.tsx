@@ -781,7 +781,7 @@ const CardioExecucao: React.FC = () => {
                 <div
                   data-testid="cardio-bike-position"
                   data-emphasis={positionCue.emphasis ? 'true' : 'false'}
-                  className={cn('rounded-xl px-3 py-2 text-center', positionCue.emphasis ? 'animate-tabata-pulse' : 'bg-tabata-bg')}
+                  className={cn('rounded-xl px-3 py-2 text-center', !positionCue.emphasis && 'bg-tabata-bg')}
                   style={positionCue.emphasis ? { background: toneColor(tone, 0.18), border: `2px solid ${toneColor(tone)}` } : undefined}
                 >
                   <p className="text-[10px] uppercase tracking-wider text-tabata-soft">Posição</p>
