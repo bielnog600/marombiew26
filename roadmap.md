@@ -2,6 +2,7 @@
 
 ## Banco de refeições — importar/exportar planilha
 - [x] Exportar .xlsx (Refeições, Ingredientes, Alimentos usados) com kcal/macros calculados.
+- [x] Correspondência automática dos alimentos na importação (liga existentes, cria novos, sinónimos BR/PT, pré-visualização só para conferir).
 - [x] Importar .xlsx/.csv com pré-visualização (novas/atualizadas/sem mudança/erros), ligar ou criar alimentos não encontrados, nomes ligados guardados, desativar ausentes opcional; gravação tudo-ou-nada.
 - [x] Teste com o banco real (93): exportar → alterar CM01 + nova JA17 com "Atum ao natural" → 1 nova, 1 atualizada, 92 sem mudança, sugestão "Atum em água".
 - [ ] Conferir a tela no navegador com o login do admin — não consegui entrar como admin daqui.
