@@ -14,6 +14,9 @@ import {
   parseSlotLabel,
   suggestFoods,
   unmatchedFoods,
+  BUILTIN_FOOD_SYNONYMS,
+  classifyImportFoods,
+  foodNameSimilarity,
   type SheetInput,
 } from '@/lib/mealBank/spreadsheet';
 
@@ -64,7 +67,15 @@ describe('planilha do banco — leitura', () => {
     expect(matchFoodName('Ovos', m)?.food.id).toBe('f-ovo');
     expect(matchFoodName('Bananas', m)?.food.id).toBe('f-banana');
     expect(matchFoodName('Ovo Inteiro', m)).toMatchObject({ via: 'apelido', food: { id: 'f-ovo' } });
-    expect(matchFoodName('Atum ao natural', m)).toBeNull();
+    expect(matchFoodName('Atum ao natural', m)).toMatchObject({ via: 'sinonimo', food: { id: 'f-atum' } });
+    expect(matchFoodName('Tremoço', m)).toBeNull();
+  });
+
+  it('ignora hífen, barra e "de/da/do" no nome', () => {
+    const m = buildFoodMatcher([food('f-gb', 'Grão de bico cozido', 164, 9, 27, 2.6), food('f-pa', 'Pasta de amendoim', 588, 25, 20, 50)]);
+    expect(matchFoodName('Grão-de-bico cozido', m)?.food.id).toBe('f-gb');
+    expect(matchFoodName('Grão bico cozidos', m)?.food.id).toBe('f-gb');
+    expect(matchFoodName('pasta amendoim', m)?.food.id).toBe('f-pa');
   });
 
   it('sugere "Atum em água" para "Atum ao natural"', () => {
@@ -97,7 +108,7 @@ describe('planilha do banco — exportar e importar de volta', () => {
     expect(plan.counts.sem_mudanca).toBe(2);
   });
 
-  it('1 refeição alterada + 1 nova com "Atum ao natural": pendente até ligar, kcal da planilha ignorado', () => {
+  it('1 refeição alterada + 1 nova com "Atum ao natural": liga sozinho ao "Atum em água" e guarda a ligação; kcal da planilha ignorado', () => {
     const sheets = exported();
     const meals = sheet(sheets, 'Refeições').rows;
     const ingredients = sheet(sheets, 'Ingredientes').rows;
@@ -107,22 +118,26 @@ describe('planilha do banco — exportar e importar de volta', () => {
 
     const parsed = parseBankWorkbook(sheets);
     const matcher = buildFoodMatcher(FOODS);
-    let plan = buildImportPlan({ parsed, bank: BANK, matcher, resolutions: {} });
+    const plan = buildImportPlan({ parsed, bank: BANK, matcher, resolutions: {} });
     expect(plan.counts).toEqual({ nova: 1, atualizada: 1, sem_mudanca: 1, erro: 0 });
-    expect(plan.pendingCount).toBe(1);
+    expect(plan.pendingCount).toBe(0);
+    expect(plan.foodsToCreate).toEqual([]);
     const changed = plan.meals.find((m) => m.code === 'CM01')!;
     expect(changed.changes).toEqual(['nome', 'alimentos']);
     expect(changed.row.warnings[0]).toMatch(/Ingredientes/);
     const fresh = plan.meals.find((m) => m.status === 'nova')!;
     expect(fresh.code).toBe('JA01');
     expect(fresh.codeAssigned).toBe(true);
-    expect(fresh.pendingFoods).toEqual(['Atum ao natural']);
-
-    const key = unmatchedFoods(parsed, matcher)[0].key;
-    plan = buildImportPlan({ parsed, bank: BANK, matcher, resolutions: { [key]: { kind: 'link', foodId: 'f-atum' } } });
-    expect(plan.pendingCount).toBe(0);
+    expect(fresh.items[0].foodId).toBe('f-atum');
     expect(plan.aliasesToSave).toEqual([{ alias: 'atum ao natural', food_id: 'f-atum' }]);
-    expect(Math.round(plan.meals.find((m) => m.status === 'nova')!.totals.kcal)).toBe(193); // 104 + 89, não 9999
+    expect(Math.round(fresh.totals.kcal)).toBe(193); // 104 + 89, não 9999
+  });
+
+  it('o admin pode mudar uma ligação automática e ela é a que fica guardada', () => {
+    const parsed = parseBankWorkbook([{ name: 'Refeições', rows: [['ID', 'Horário', 'Refeição', 'Origem', 'Tags', 'Alimentos (g)'], ['JA05', 'Jantar', 'Atum', 'PT', '', 'Atum ao natural 120g']] }]);
+    const plan = buildImportPlan({ parsed, bank: BANK, matcher: buildFoodMatcher(FOODS), resolutions: { 'atum ao natural': { kind: 'link', foodId: 'f-atum2' } } });
+    expect(plan.meals[0].items[0].foodId).toBe('f-atum2');
+    expect(plan.aliasesToSave).toEqual([{ alias: 'atum ao natural', food_id: 'f-atum2' }]);
   });
 
   it('cria alimento com os valores da aba Alimentos', () => {
@@ -132,8 +147,7 @@ describe('planilha do banco — exportar e importar de volta', () => {
     ];
     const parsed = parseBankWorkbook(sheets);
     const matcher = buildFoodMatcher(FOODS);
-    const [u] = unmatchedFoods(parsed, matcher);
-    const plan = buildImportPlan({ parsed, bank: BANK, matcher, resolutions: { [u.key]: defaultResolution(u) } });
+    const plan = buildImportPlan({ parsed, bank: BANK, matcher, resolutions: {} });
     expect(plan.pendingCount).toBe(0);
     expect(plan.foodsToCreate).toEqual([{ key: 'skyr natural', tempId: 'novo:skyr natural', name: 'Skyr natural', kcal: 63, p: 11, c: 4, g: 0.2 }]);
     expect(Math.round(plan.meals[0].totals.kcal)).toBe(126);
@@ -145,6 +159,7 @@ describe('planilha do banco — exportar e importar de volta', () => {
     const matcher = buildFoodMatcher(FOODS);
     const [u] = unmatchedFoods(parsed, matcher);
     expect(defaultResolution(u)).toBeUndefined();
+    expect(buildImportPlan({ parsed, bank: BANK, matcher, resolutions: {} }).pendingCount).toBe(1);
     const half = buildImportPlan({ parsed, bank: BANK, matcher, resolutions: { [u.key]: { kind: 'create', name: 'Skyr natural', kcal: 63, p: null, c: 4, g: 0 } } });
     expect(half.pendingCount).toBe(1);
   });
@@ -174,5 +189,72 @@ describe('planilha do banco — exportar e importar de volta', () => {
 
   it('resumo final', () => {
     expect(importSummaryText({ novas: 12, atualizadas: 3, alimentosCriados: 2 })).toBe('12 novas, 3 atualizadas, 2 alimentos criados');
+  });
+});
+
+describe('importar — correspondência automática dos alimentos', () => {
+  const FOOD_SHEET_HEAD = ['Alimento', 'kcal/100g', 'Proteína/100g', 'Carbo/100g', 'Gordura/100g'];
+  const workbook = (names: string[], defs: Array<[string, number, number, number, number]>): SheetInput[] => [
+    { name: 'Refeições', rows: [['ID', 'Horário', 'Refeição', 'Origem', 'Tags', 'Alimentos (g)'], ...names.map((n, i) => [`JA${String(i + 1).padStart(2, '0')}`, 'Jantar', `Teste ${i}`, 'PT', '', `${n} 100g`])] },
+    { name: 'Alimentos', rows: [FOOD_SHEET_HEAD, ...defs] },
+  ];
+
+  it('cada sinónimo embutido liga ao alimento do banco, sem criar nada', () => {
+    const bankFoods = BUILTIN_FOOD_SYNONYMS.map(([, to], i) => food(`f-${i}`, to, 100, 10, 10, 2));
+    const names = BUILTIN_FOOD_SYNONYMS.map(([from]) => from);
+    const parsed = parseBankWorkbook(workbook(names, names.map((n) => [n, 100, 10, 10, 2])));
+    const plan = buildImportPlan({ parsed, bank: [], matcher: buildFoodMatcher(bankFoods), resolutions: {} });
+    expect(plan.foodsToCreate).toEqual([]);
+    expect(plan.pendingCount).toBe(0);
+    BUILTIN_FOOD_SYNONYMS.forEach(([from, to], i) => {
+      const item = plan.meals[i].items[0];
+      expect([from, bankFoods.find((f) => f.id === item.foodId)?.name]).toEqual([from, to]);
+    });
+    expect(plan.meals[BUILTIN_FOOD_SYNONYMS.findIndex(([f]) => f === 'Ovo inteiro')].items[0].foodId).toBe(bankFoods.find((f) => f.name === 'Ovo')!.id);
+  });
+
+  it('os 7 alimentos realmente novos são criados, mesmo com vizinhos parecidos no banco', () => {
+    const neighbours = [
+      food('n1', 'Couve-flor', 25, 1.9, 5, 0.3),
+      food('n2', 'Aveia em flocos', 352, 14.5, 57, 7.9),
+      food('n3', 'Fígado de frango', 165, 24, 0, 7),
+      food('n4', 'Bife de acém grelhado (PT)', 199, 28, 0, 9.7),
+      food('n5', 'Carne moída magra cozida', 212, 27, 0, 11),
+    ];
+    const defs: Array<[string, number, number, number, number]> = [
+      ['Acém moído refogado', 215, 26, 0, 12],
+      ['Almôndega de carne assada', 220, 18, 8, 13],
+      ['Arroz de couve-flor', 25, 2, 5, 0.3],
+      ['Farinha de aveia', 390, 14, 66, 8],
+      ['Fígado bovino grelhado', 175, 27, 5, 5],
+      ['Músculo bovino cozido', 220, 32, 0, 10],
+      ['Pipoca estourada sem óleo', 387, 13, 78, 4.5],
+    ];
+    const parsed = parseBankWorkbook(workbook(defs.map((d) => d[0]), defs));
+    const plan = buildImportPlan({ parsed, bank: [], matcher: buildFoodMatcher(neighbours), resolutions: {} });
+    expect(plan.foodsToCreate.map((f) => f.name).sort()).toEqual(defs.map((d) => d[0]).sort());
+    expect(plan.aliasesToSave).toEqual([]);
+    expect(plan.pendingCount).toBe(0);
+  });
+
+  it('nome muito parecido liga só quando os macros por 100 g batem (kcal ±15%, P/C/G ±5 g)', () => {
+    const bankFoods = [food('f-pf', 'Peito de frango grelhado', 159, 32, 0, 2.5)];
+    expect(foodNameSimilarity('Peito de frango grelhado sem pele', 'Peito de frango grelhado')).toBeLessThan(0.8);
+    expect(foodNameSimilarity('Peito frango cozido', 'Peito de frango grelhado')).toBe(1);
+    const ok = classifyImportFoods(parseBankWorkbook(workbook(['Peito frango cozido'], [['Peito frango cozido', 165, 31, 0, 3.6]])), buildFoodMatcher(bankFoods));
+    expect(ok[0].auto).toMatchObject({ kind: 'link', via: 'parecido', food: { id: 'f-pf' } });
+    const kcalOff = classifyImportFoods(parseBankWorkbook(workbook(['Peito frango cozido'], [['Peito frango cozido', 190, 31, 0, 3.6]])), buildFoodMatcher(bankFoods));
+    expect(kcalOff[0].auto.kind).toBe('create');
+    const fatOff = classifyImportFoods(parseBankWorkbook(workbook(['Peito frango cozido'], [['Peito frango cozido', 165, 31, 0, 8]])), buildFoodMatcher(bankFoods));
+    expect(fatOff[0].auto.kind).toBe('create');
+  });
+
+  it('a ligação "parecido" é guardada como apelido para a próxima importação', () => {
+    const bankFoods = [food('f-pf', 'Peito de frango grelhado', 159, 32, 0, 2.5)];
+    const parsed = parseBankWorkbook(workbook(['Peito frango cozido'], [['Peito frango cozido', 165, 31, 0, 3.6]]));
+    const plan = buildImportPlan({ parsed, bank: [], matcher: buildFoodMatcher(bankFoods), resolutions: {} });
+    expect(plan.aliasesToSave).toEqual([{ alias: 'peito frango cozido', food_id: 'f-pf' }]);
+    const next = classifyImportFoods(parsed, buildFoodMatcher(bankFoods, plan.aliasesToSave));
+    expect(next[0].auto).toMatchObject({ kind: 'link', via: 'apelido' });
   });
 });
