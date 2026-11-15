@@ -654,11 +654,9 @@ export const buildImportPlan = (args: {
     if (!isResolutionComplete(r)) { pendingCount += 1; continue; }
     if (r!.kind === 'link') {
       idByKey.set(e.key, r!.foodId);
-      const sameAsAuto = e.auto.kind === 'link' && e.auto.food.id === r!.foodId;
+      const alreadyKnown = e.auto.kind === 'link' && e.auto.food.id === r!.foodId && (e.auto.via === 'exato' || e.auto.via === 'apelido');
       // Toda ligação nova fica guardada para as próximas importações (exato/apelido já estão).
-      if (!(sameAsAuto && (e.auto as { via: FoodMatchVia }).via === 'exato') && !(sameAsAuto && (e.auto as { via: FoodMatchVia }).via === 'apelido')) {
-        aliasesToSave.push({ alias: e.key, food_id: r!.foodId });
-      }
+      if (!alreadyKnown) aliasesToSave.push({ alias: e.key, food_id: r!.foodId });
     } else {
       const tempId = newFoodTempId(e.key);
       idByKey.set(e.key, tempId);
