@@ -264,9 +264,9 @@ const SavingsGoalDialog: React.FC<Props> = ({ open, onOpenChange, api, selectedI
                   </div>
                 )}
                 <ToggleGroup type="single" value={filter} onValueChange={v => v && setFilter(v as Filter)} className="grid grid-cols-3 gap-1 rounded-xl bg-secondary p-1">
-                  <ToggleGroupItem value="todos" className="data-[state=on]:bg-background">Todos</ToggleGroupItem>
-                  <ToggleGroupItem value="faltam" className="data-[state=on]:bg-background">Faltam</ToggleGroupItem>
-                  <ToggleGroupItem value="feitos" className="data-[state=on]:bg-background">Feitos</ToggleGroupItem>
+                  <ToggleGroupItem value="todos" className="data-[state=on]:bg-primary data-[state=on]:text-primary-foreground">Todos</ToggleGroupItem>
+                  <ToggleGroupItem value="faltam" className="data-[state=on]:bg-primary data-[state=on]:text-primary-foreground">Faltam</ToggleGroupItem>
+                  <ToggleGroupItem value="feitos" className="data-[state=on]:bg-primary data-[state=on]:text-primary-foreground">Feitos</ToggleGroupItem>
                 </ToggleGroup>
                 <p className="text-[11px] text-muted-foreground">Toque marca com a data de hoje · toque longo muda a data.</p>
               </div>
@@ -354,7 +354,7 @@ const SavingsGoalDialog: React.FC<Props> = ({ open, onOpenChange, api, selectedI
             </AlertDialogHeader>
             <div className="space-y-1.5">
               <Label htmlFor="sg-dep-date">Data do depósito</Label>
-              <Input id="sg-dep-date" type="date" value={editor?.day ?? ''} onChange={e => editor && setEditor({ ...editor, day: e.target.value })} />
+              <Input id="sg-dep-date" type="date" max={today} value={editor?.day ?? ''} onChange={e => editor && setEditor({ ...editor, day: e.target.value })} />
             </div>
             <AlertDialogFooter className="gap-2">
               {editor?.dep && (
