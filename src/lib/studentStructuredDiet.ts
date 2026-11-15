@@ -201,7 +201,7 @@ const sumFoodsKcal = (foods: ParsedFood[]): number =>
 const sameMealName = (a: unknown, b: unknown) => strip(a).replace(/[^a-z0-9]+/g, '') === strip(b).replace(/[^a-z0-9]+/g, '');
 
 /** Dia canônico de um weekday; dieta com um único dia ("Padrão") vale para todos. */
-const canonicalDayFor = (plan: any, weekdayIndex: number) => {
+export const canonicalDayFor = (plan: any, weekdayIndex: number) => {
   const days = Array.isArray(plan?.days) ? plan.days : [];
   const key = STUDENT_WEEKDAY_KEYS[weekdayIndex];
   return (key ? getStructuredDietDay(plan, key) : null) ?? (days.length === 1 ? days[0] : null);

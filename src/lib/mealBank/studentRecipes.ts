@@ -12,7 +12,6 @@ import {
   eligibleBankMeals,
   fitBankMeal,
   fichaMatchScore,
-  foodViolates,
   mainProteinGroup,
   mealSlotsFor,
   mealTargetMacros,
@@ -247,4 +246,3 @@ export const autoBankOptionsForWeek = (input: AutoOptionsInput): Array<Array<Mea
 export const mealArticle = (name: string): 'o' | 'a' =>
   /^(ceia|merenda|refeicao|colacao|janta\b)/.test(normText(name)) ? 'a' : 'o';
 
-export { foodViolates };
