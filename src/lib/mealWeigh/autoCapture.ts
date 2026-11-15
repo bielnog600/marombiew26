@@ -162,6 +162,29 @@ export function screenRectToVideo(rect: Box, element: { width: number; height: n
   };
 }
 
+/** Inverso de `screenRectToVideo`: caixa do quadro da câmera → posição no elemento (object-fit: cover). */
+export function videoRectToScreen(rect: Box, element: { width: number; height: number }, video: { width: number; height: number }): Box {
+  const ew = Math.max(1, element.width);
+  const eh = Math.max(1, element.height);
+  const vw = Math.max(1, video.width);
+  const vh = Math.max(1, video.height);
+  const scale = Math.max(ew / vw, eh / vh);
+  const offX = (ew - vw * scale) / 2;
+  const offY = (eh - vh * scale) / 2;
+  return { x: rect.x * scale + offX, y: rect.y * scale + offY, width: rect.width * scale, height: rect.height * scale };
+}
+
+/** Quadrados amarelos: só prato/recipiente/comida (ou balança/produto) com nota mínima, no máximo 4. */
+export function overlayBoxes(detections: DetectionBox[], element: { width: number; height: number }, video: { width: number; height: number }): Box[] {
+  return (detections ?? [])
+    .filter((d) => (FOOD_DETECTION_LABELS.has(String(d.label ?? '').toLowerCase()) || OVERLAY_EXTRA_LABELS.has(String(d.label ?? '').toLowerCase())) && d.score >= FOOD_DETECTION_MIN_SCORE)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 4)
+    .map((d) => videoRectToScreen(d, element, video));
+}
+/** Balança e caixas de produto aparecem no detector como estes objetos. */
+const OVERLAY_EXTRA_LABELS = new Set(['cell phone', 'remote', 'book', 'laptop', 'keyboard', 'mouse']);
+
 const overlapArea = (a: Box, b: Box) => {
   const w = Math.min(a.x + a.width, b.x + b.width) - Math.max(a.x, b.x);
   const h = Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y);
