@@ -66,7 +66,7 @@ const MealBankPickerDialog: React.FC<Props> = ({ open, onOpenChange, bank, index
           </div>
           {rows.length === 0 && <p className="py-4 text-center text-muted-foreground">Nenhuma refeição do banco para este horário.</p>}
           <div className="space-y-1.5">
-            {rows.map(({ meal, totals, eligible, used }) => (
+            {rows.map(({ meal, totals, fits, eligible, used }) => (
               <button
                 key={meal.code}
                 type="button"
@@ -82,6 +82,7 @@ const MealBankPickerDialog: React.FC<Props> = ({ open, onOpenChange, bank, index
                   <Badge variant="outline" className="text-[9px]">{MEAL_SLOT_LABEL[meal.slot]}</Badge>
                   {!eligible && <Badge variant="outline" className="border-destructive/50 text-[9px] text-destructive">fora do horário/ficha</Badge>}
                   {used && <Badge variant="outline" className="text-[9px]">já usada no dia</Badge>}
+                  {!fits && <Badge variant="outline" className="border-destructive/50 text-[9px] text-destructive">não equivale à Opção 1</Badge>}
                   <span className="ml-auto font-semibold text-primary">{Math.round(totals.kcal)} kcal</span>
                 </div>
                 <p className="mt-0.5 text-[10px] text-muted-foreground">
