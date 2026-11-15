@@ -302,6 +302,13 @@
       "when": 1794705980119,
       "tag": "0042_cardio_session_protocol_index",
       "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1794708849921,
+      "tag": "0043_scanner_unico_foods",
+      "breakpoints": true
     }
   ]
 }

@@ -2468,6 +2468,7 @@ export type Database = {
       }
       food_scan_reviews: {
         Row: {
+          auto: boolean
           barcode: string | null
           created_at: string
           food_id: string | null
@@ -2477,6 +2478,7 @@ export type Database = {
           status: string
         }
         Insert: {
+          auto?: boolean
           barcode?: string | null
           created_at?: string
           food_id?: string | null
@@ -2486,6 +2488,7 @@ export type Database = {
           status?: string
         }
         Update: {
+          auto?: boolean
           barcode?: string | null
           created_at?: string
           food_id?: string | null
@@ -2596,11 +2599,13 @@ export type Database = {
           carbs: number
           created_at: string
           fats: number
+          fiber: number | null
           id: string
           name: string
           portion: string
           portion_size: number
           protein: number
+          reference_table: string | null
           source: string | null
           source_food_id: string | null
         }
@@ -2611,11 +2616,13 @@ export type Database = {
           carbs?: number
           created_at?: string
           fats?: number
+          fiber?: number | null
           id?: string
           name: string
           portion?: string
           portion_size?: number
           protein?: number
+          reference_table?: string | null
           source?: string | null
           source_food_id?: string | null
         }
@@ -2626,11 +2633,13 @@ export type Database = {
           carbs?: number
           created_at?: string
           fats?: number
+          fiber?: number | null
           id?: string
           name?: string
           portion?: string
           portion_size?: number
           protein?: number
+          reference_table?: string | null
           source?: string | null
           source_food_id?: string | null
         }
