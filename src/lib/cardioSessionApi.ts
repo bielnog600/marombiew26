@@ -208,3 +208,13 @@ export async function loadStudentWeightKg(studentId: string): Promise<number | n
     return Number.isFinite(pa) && pa > 20 ? pa : null;
   } catch { return null; }
 }
+
+/** Cardios concluídos recentes (tela Cardio: semana, "Feito terça" e a sugestão). */
+export async function loadCardioDoneSessions(studentId: string, limit = 60): Promise<import('./cardioChooser').CardioDoneSession[]> {
+  const { data, error } = await supabase.from('cardio_sessions')
+    .select('id, completed_at, duration_seconds, rpe, plan_id, protocol_index, protocol_name')
+    .eq('student_id', studentId).eq('status', 'completed').not('completed_at', 'is', null)
+    .order('completed_at', { ascending: false }).limit(limit);
+  if (error) throw error;
+  return (data ?? []) as import('./cardioChooser').CardioDoneSession[];
+}
