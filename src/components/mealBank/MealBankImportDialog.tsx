@@ -15,19 +15,19 @@ import { AlertTriangle, CheckCircle2, FileSpreadsheet, Link2, Loader2, Plus, Upl
 import type { FoodRecord } from '@/lib/nutritionEngine';
 import { MEAL_SLOT_LABEL, type BankMeal } from '@/lib/mealBank';
 import {
+  FOOD_MATCH_VIA_LABEL,
   buildFoodMatcher,
   buildImportPlan,
   defaultResolution,
+  effectiveResolution,
   importSummaryText,
   isResolutionComplete,
   parseBankWorkbook,
-  suggestFoods,
-  unmatchedFoods,
   type FoodAliasRow,
   type FoodResolution,
+  type ImportFoodEntry,
   type ImportStatus,
   type ParsedWorkbook,
-  type UnmatchedFood,
 } from '@/lib/mealBank/spreadsheet';
 import { readBankFile } from '@/lib/mealBank/spreadsheetFile';
 import CanonicalFoodPickerDialog from '@/components/diet/CanonicalFoodPickerDialog';
@@ -61,80 +61,87 @@ const numInput = (v: string): number | null => {
   const n = Number(s);
   return Number.isFinite(n) ? n : null;
 };
+const fmt = (v: number | null | undefined) => (v === null || v === undefined ? '—' : String(Math.round(v * 10) / 10).replace('.', ','));
 
-const UnmatchedFoodRow: React.FC<{
-  item: UnmatchedFood;
-  foods: FoodRecord[];
+/** Ligado automaticamente: nome da planilha → alimento do banco, com opção de mudar. */
+const LinkedFoodRow: React.FC<{
+  item: ImportFoodEntry;
+  food: FoodRecord | undefined;
+  overridden: boolean;
+  onChangeFood: () => void;
+  onCreate: (() => void) | null;
+  onUndo: () => void;
+}> = ({ item, food, overridden, onChangeFood, onCreate, onUndo }) => (
+  <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-background/60 px-2.5 py-2" data-testid="linked-food">
+    <div className="min-w-0 text-xs">
+      <p className="text-foreground">
+        "{item.name}" <span className="text-muted-foreground">→</span> <strong className="text-primary">{food?.name ?? '—'}</strong>
+      </p>
+      <p className="text-[11px] text-muted-foreground">
+        {overridden ? 'mudado por você' : item.auto.kind === 'link' ? FOOD_MATCH_VIA_LABEL[item.auto.via] : ''} · em {item.usedIn.join(', ')}
+      </p>
+    </div>
+    <div className="flex gap-1">
+      <Button size="sm" variant="ghost" className="h-7 gap-1 text-xs" onClick={onChangeFood} aria-label={`Mudar ${item.name}`}>
+        <Link2 className="h-3 w-3" /> Mudar
+      </Button>
+      {onCreate && <Button size="sm" variant="ghost" className="h-7 gap-1 text-xs" onClick={onCreate}><Plus className="h-3 w-3" /> Criar novo</Button>}
+      {overridden && <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={onUndo}>Desfazer</Button>}
+    </div>
+  </div>
+);
+
+/** Novo alimento: criado com os valores da aba Alimentos (ou preenchidos aqui quando faltam). */
+const NewFoodRow: React.FC<{
+  item: ImportFoodEntry;
   value: FoodResolution | undefined;
-  onChange: (r: FoodResolution | undefined) => void;
-  onSearch: () => void;
-}> = ({ item, foods, value, onChange, onSearch }) => {
-  const suggestions = useMemo(() => suggestFoods(item.name, foods), [item.name, foods]);
-  const linked = value?.kind === 'link' ? foods.find((f) => f.id === value.foodId) : null;
-  const done = isResolutionComplete(value);
+  overridden: boolean;
+  onChange: (r: FoodResolution) => void;
+  onLink: () => void;
+  onUndo: () => void;
+}> = ({ item, value, overridden, onChange, onLink, onUndo }) => {
   const create = value?.kind === 'create' ? value : null;
+  const complete = isResolutionComplete(value);
   const [draft, setDraft] = useState({
-    name: create?.name ?? item.name,
     kcal: String(create?.kcal ?? item.def?.kcal ?? ''),
     p: String(create?.p ?? item.def?.p ?? ''),
     c: String(create?.c ?? item.def?.c ?? ''),
     g: String(create?.g ?? item.def?.g ?? ''),
   });
-  const pushCreate = (d: typeof draft) => {
+  const push = (d: typeof draft) => {
     setDraft(d);
-    onChange({ kind: 'create', name: d.name, kcal: numInput(d.kcal), p: numInput(d.p), c: numInput(d.c), g: numInput(d.g) });
+    onChange({ kind: 'create', name: item.name, kcal: numInput(d.kcal), p: numInput(d.p), c: numInput(d.c), g: numInput(d.g) });
   };
-
+  const needsValues = !item.def || [item.def.kcal, item.def.p, item.def.c, item.def.g].some((v) => v === null);
   return (
-    <div className="space-y-2 rounded-lg border border-border bg-background/60 p-2.5" data-testid="unmatched-food">
-      <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0">
-          <p className="text-sm font-semibold text-foreground">"{item.name}"</p>
-          <p className="text-[11px] text-muted-foreground">Em {item.usedIn.join(', ')}</p>
+    <div className="space-y-1.5 rounded-lg border border-border bg-background/60 px-2.5 py-2" data-testid="new-food">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="min-w-0 text-xs">
+          <p className="font-semibold text-foreground">{item.name}</p>
+          <p className="text-[11px] text-muted-foreground">
+            {create ? <>{fmt(create.kcal)} kcal · P {fmt(create.p)} · C {fmt(create.c)} · G {fmt(create.g)} /100 g</> : 'Faltam os valores por 100 g'} · em {item.usedIn.join(', ')}
+          </p>
         </div>
-        <Badge variant="outline" className={done ? 'border-primary/60 text-primary' : 'border-destructive/60 text-destructive'}>
-          {done ? (value?.kind === 'link' ? 'Ligado' : 'Será criado') : 'Pendente'}
-        </Badge>
-      </div>
-      <div className="flex flex-wrap gap-1.5">
-        <Button size="sm" variant={value?.kind === 'link' || !value ? 'secondary' : 'ghost'} className="h-7 gap-1 text-xs"
-          onClick={() => onChange(linked ? value : undefined)}>
-          <Link2 className="h-3 w-3" /> Ligar a…
-        </Button>
-        <Button size="sm" variant={value?.kind === 'create' ? 'secondary' : 'ghost'} className="h-7 gap-1 text-xs"
-          onClick={() => pushCreate(draft)}>
-          <Plus className="h-3 w-3" /> Criar alimento
-        </Button>
-      </div>
-      {value?.kind !== 'create' ? (
-        <div className="space-y-1.5">
-          {linked && <p className="text-xs">Ligado a <strong className="text-primary">{linked.name}</strong></p>}
-          <div className="flex flex-wrap gap-1.5">
-            {suggestions.map((f) => (
-              <Button key={f.id} size="sm" variant={linked?.id === f.id ? 'default' : 'outline'} className="h-7 text-xs"
-                onClick={() => onChange({ kind: 'link', foodId: f.id })}>
-                {f.name}
-              </Button>
-            ))}
-            <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={onSearch}>Buscar outro…</Button>
-          </div>
-          {suggestions.length === 0 && <p className="text-[11px] text-muted-foreground">Nenhum alimento parecido. Busque outro ou crie um novo.</p>}
+        <div className="flex gap-1">
+          <Button size="sm" variant="ghost" className="h-7 gap-1 text-xs" onClick={onLink} aria-label={`Ligar ${item.name} a um alimento`}>
+            <Link2 className="h-3 w-3" /> Ligar a…
+          </Button>
+          {overridden && <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={onUndo}>Desfazer</Button>}
         </div>
-      ) : (
-        <div className="space-y-1.5">
-          <Input className="h-8 text-xs" aria-label={`Nome do alimento novo ${item.name}`} value={draft.name}
-            onChange={(e) => pushCreate({ ...draft, name: e.target.value })} />
+      </div>
+      {needsValues && (
+        <>
           <div className="grid grid-cols-4 gap-1.5">
             {([['kcal', 'kcal'], ['p', 'Proteína'], ['c', 'Carbo'], ['g', 'Gordura']] as const).map(([k, label]) => (
               <div key={k} className="space-y-0.5">
                 <Label className="text-[10px] text-muted-foreground">{label}/100 g</Label>
                 <Input className="h-8 text-xs" inputMode="decimal" aria-label={`${label} por 100 g de ${item.name}`} value={draft[k]}
-                  onChange={(e) => pushCreate({ ...draft, [k]: e.target.value })} />
+                  onChange={(e) => push({ ...draft, [k]: e.target.value })} />
               </div>
             ))}
           </div>
-          {!item.def && <p className="text-[11px] text-muted-foreground">A planilha não tem este alimento na aba Alimentos — preencha os valores por 100 g.</p>}
-        </div>
+          {!complete && <p className="text-[11px] text-destructive">A aba Alimentos não tem os valores deste alimento — preencha para importar.</p>}
+        </>
       )}
     </div>
   );
@@ -163,7 +170,6 @@ const MealBankImportDialog: React.FC<Props> = ({ open, onOpenChange, bank, foods
   }, [open]);
 
   const matcher = useMemo(() => buildFoodMatcher(foods, aliases), [foods, aliases]);
-  const unmatched = useMemo(() => (parsed ? unmatchedFoods(parsed, matcher) : []), [parsed, matcher]);
   const plan = useMemo(
     () => (parsed ? buildImportPlan({ parsed, bank, matcher, resolutions, deactivateMissing: deactivate }) : null),
     [parsed, bank, matcher, resolutions, deactivate],
@@ -171,6 +177,26 @@ const MealBankImportDialog: React.FC<Props> = ({ open, onOpenChange, bank, foods
   const toImport = plan ? plan.meals.filter((m) => m.status === 'nova' || m.status === 'atualizada') : [];
   const canImport = !!plan && plan.pendingCount === 0 && (toImport.length > 0 || plan.toDeactivate.length > 0) && !saving;
   const visible = plan ? plan.meals.filter((m) => filter === 'todas' || m.status === filter) : [];
+  const foodById = useMemo(() => new Map(foods.map((f) => [f.id, f])), [foods]);
+  const foodRows = useMemo(() => {
+    const linked: Array<{ item: ImportFoodEntry; foodId: string }> = [];
+    const created: Array<{ item: ImportFoodEntry; value: FoodResolution | undefined }> = [];
+    let sameName = 0;
+    for (const item of plan?.foods ?? []) {
+      const override = resolutions[item.key];
+      const r = effectiveResolution(item, override);
+      if (r?.kind === 'link') {
+        if (!override && item.auto.kind === 'link' && item.auto.via === 'exato') sameName += 1;
+        else linked.push({ item, foodId: r.foodId });
+      } else created.push({ item, value: r });
+    }
+    return { linked, created, sameName };
+  }, [plan, resolutions]);
+  const setOverride = (key: string, r: FoodResolution | undefined) => setResolutions((prev) => {
+    const next = { ...prev };
+    if (r) next[key] = r; else delete next[key];
+    return next;
+  });
 
   const onFile = async (file: File | undefined) => {
     if (!file) return;
@@ -180,9 +206,7 @@ const MealBankImportDialog: React.FC<Props> = ({ open, onOpenChange, bank, foods
       const sheets = await readBankFile(file);
       const p = parseBankWorkbook(sheets);
       setParsed(p);
-      const initial: Record<string, FoodResolution | undefined> = {};
-      for (const u of unmatchedFoods(p, matcher)) initial[u.key] = defaultResolution(u);
-      setResolutions(initial);
+      setResolutions({});
     } catch (err) {
       console.error('[MealBankImport] leitura', err);
       setParsed({ meals: [], foodDefs: new Map(), fileErrors: ['Não consegui ler este arquivo. Use .xlsx ou .csv.'], usedIngredientsSheet: false });
@@ -268,19 +292,40 @@ const MealBankImportDialog: React.FC<Props> = ({ open, onOpenChange, bank, foods
                   <Badge variant="outline" className={STATUS_CLASS.atualizada}>{plan.counts.atualizada} atualizadas</Badge>
                   <Badge variant="outline" className={STATUS_CLASS.sem_mudanca}>{plan.counts.sem_mudanca} sem mudança</Badge>
                   {plan.counts.erro > 0 && <Badge variant="outline" className={STATUS_CLASS.erro}>{plan.counts.erro} com erro (não entram)</Badge>}
-                  {plan.foodsToCreate.length > 0 && <Badge variant="secondary">{plan.foodsToCreate.length} alimentos a criar</Badge>}
+                  {foodRows.linked.length > 0 && <Badge variant="secondary">{foodRows.linked.length} alimentos ligados</Badge>}
+                  {plan.foodsToCreate.length > 0 && <Badge variant="secondary">{plan.foodsToCreate.length} alimentos novos</Badge>}
                 </div>
 
-                {unmatched.length > 0 && (
-                  <section className="space-y-2" data-testid="unmatched-foods">
-                    <h3 className="text-sm font-semibold text-foreground">
-                      Alimentos não encontrados ({unmatched.length}){plan.pendingCount > 0 && <span className="text-destructive"> · {plan.pendingCount} pendente(s)</span>}
-                    </h3>
-                    {unmatched.map((u) => (
-                      <UnmatchedFoodRow key={u.key} item={u} foods={foods} value={resolutions[u.key]}
-                        onChange={(r) => setResolutions((prev) => ({ ...prev, [u.key]: r }))}
-                        onSearch={() => setSearchFor(u.key)} />
-                    ))}
+                {plan.foods.length > 0 && (
+                  <section className="space-y-3" data-testid="import-foods">
+                    <p className="text-[11px] text-muted-foreground">
+                      Alimentos ligados e criados automaticamente — só para conferir.
+                      {foodRows.sameName > 0 && <> {foodRows.sameName} com o mesmo nome do banco.</>}
+                    </p>
+                    {foodRows.linked.length > 0 && (
+                      <div className="space-y-1.5" data-testid="linked-foods">
+                        <h3 className="text-sm font-semibold text-foreground">Ligados automaticamente ({foodRows.linked.length})</h3>
+                        {foodRows.linked.map(({ item, foodId }) => (
+                          <LinkedFoodRow key={item.key} item={item} food={foodById.get(foodId)} overridden={!!resolutions[item.key]}
+                            onChangeFood={() => setSearchFor(item.key)}
+                            onCreate={defaultResolution(item) ? () => setOverride(item.key, defaultResolution(item)) : null}
+                            onUndo={() => setOverride(item.key, undefined)} />
+                        ))}
+                      </div>
+                    )}
+                    {foodRows.created.length > 0 && (
+                      <div className="space-y-1.5" data-testid="new-foods">
+                        <h3 className="text-sm font-semibold text-foreground">
+                          Novos alimentos ({foodRows.created.length}){plan.pendingCount > 0 && <span className="text-destructive"> · {plan.pendingCount} sem valores</span>}
+                        </h3>
+                        {foodRows.created.map(({ item, value }) => (
+                          <NewFoodRow key={item.key} item={item} value={value} overridden={!!resolutions[item.key]}
+                            onChange={(r) => setOverride(item.key, r)}
+                            onLink={() => setSearchFor(item.key)}
+                            onUndo={() => setOverride(item.key, undefined)} />
+                        ))}
+                      </div>
+                    )}
                   </section>
                 )}
 
@@ -327,7 +372,7 @@ const MealBankImportDialog: React.FC<Props> = ({ open, onOpenChange, bank, foods
                         </p>
                         {m.row.errors.map((e) => <p key={e} className="mt-0.5 text-[11px] text-destructive">{e}</p>)}
                         {m.row.warnings.map((w) => <p key={w} className="mt-0.5 text-[11px] text-primary">{w}</p>)}
-                        {m.status !== 'erro' && m.pendingFoods.length > 0 && <p className="mt-0.5 text-[11px] text-destructive">Falta ligar: {m.pendingFoods.join(', ')}</p>}
+                        {m.status !== 'erro' && m.pendingFoods.length > 0 && <p className="mt-0.5 text-[11px] text-destructive">Faltam valores de: {m.pendingFoods.join(', ')}</p>}
                       </div>
                     ))}
                   </div>
@@ -366,7 +411,7 @@ const MealBankImportDialog: React.FC<Props> = ({ open, onOpenChange, bank, foods
         onSelect={(food) => {
           const key = searchFor;
           setSearchFor(null);
-          if (key) setResolutions((prev) => ({ ...prev, [key]: { kind: 'link', foodId: food.id } }));
+          if (key) setOverride(key, { kind: 'link', foodId: food.id });
         }}
       />
     </Dialog>
