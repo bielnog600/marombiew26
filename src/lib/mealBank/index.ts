@@ -284,8 +284,10 @@ export interface PortionRule {
   allowed?: number[];
 }
 
-/** Fontes de carboidrato: as únicas que crescem além do fator da receita. */
+/** Fontes de carboidrato: crescem além do fator da receita (até o limite). */
 export const CARB_KINDS: PortionKind[] = ['carb', 'bread', 'oat', 'fruit', 'tortilla'];
+/** Azeite/abacate da receita também crescem quando falta gordura. */
+export const FAT_KINDS: PortionKind[] = ['oil', 'avocado'];
 
 const FRUIT_RE = /^(banana|maca|pera|mamao|papaia|manga|morango|uvas?\b|kiwi|laranja|tangerina|mexerica|abacaxi|ananas|melancia|melao|mirtilo|frutas? vermelhas|ameixa|pessego|figo|framboesa|amora|goiaba|caqui|nectarina|cereja|roma|damasco|nespera|toranja|clementina|pitaya|jaca|maracuja|acerola|carambola|physalis|pinha|graviola|marmelo|jabuticaba)\b/;
 const MEAT_RE = /frango|sobrecoxa|\bperu\b|porco|lombo|camarao|atum|salmao|tilapia|pescada|bacalhau|sardinha|peixe|carne|alcatra|patinho|picanha|bife|fraldinha|coxao|hamburguer|polvo|lula|merluza|dourada|robalo|mignon|maminha|lagarto|pernil|coelho|carapau|cavala|\bpato\b|vitela|contra file|espetinho|figado|moela/;
@@ -561,7 +563,7 @@ export const fitBankItems = (
   // senão um prato rico em carbo viraria low carb à força.
   const carbBounds = (r: FitRow): [number, number] | null =>
     r.side ? [r.rule.min, r.rule.max]
-      : CARB_KINDS.includes(r.rule.kind) ? [Math.max(r.rule.min, r.base * fLo), r.rule.max]
+      : CARB_KINDS.includes(r.rule.kind) || FAT_KINDS.includes(r.rule.kind) ? [Math.max(r.rule.min, r.base * fLo), r.rule.max]
         : null;
   const issues = () => optionFitIssues(macrosOf(rows, index), target);
 
