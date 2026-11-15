@@ -151,24 +151,97 @@ const stem = (t: string) => {
   const s = t.replace(/s$/, '');
   return s.length > 4 ? s.slice(0, -1) : s;
 };
+
+/**
+ * Sinônimos PT-BR × PT-PT (e grafias comuns): trocados por uma forma única
+ * antes de comparar, para "Pimento" e "Pimentão" serem o mesmo alimento.
+ */
+const FOOD_SYNONYMS: Array<[RegExp, string]> = [
+  [/\bpimentos?\b/g, 'pimentao'],
+  [/\bpimentoes\b/g, 'pimentao'],
+  [/\bananas\b/g, 'abacaxi'],
+  [/\bfiambres?\b/g, 'presunto'],
+  [/\bnatas?\b/g, 'creme de leite'],
+  [/\bpequeno[ -]almoco\b/g, 'cafe da manha'],
+  [/\bsumos?\b/g, 'suco'],
+  [/\babacates?\b/g, 'abacate'],
+];
+const canonicalFoodText = (value: string): string => {
+  let out = normalizeFoodName(value).replace(/[^a-z0-9 -]/g, ' ');
+  for (const [re, rep] of FOOD_SYNONYMS) out = out.replace(re, rep);
+  return out.replace(/-/g, ' ');
+};
+
 export const foodTokens = (value: string): string[] =>
-  normalizeFoodName(value)
-    .replace(/[^a-z0-9 ]/g, ' ')
+  canonicalFoodText(value)
     .split(/\s+/)
     .filter((t) => t.length > 1 && !STOPWORDS.has(t))
     .map(stem);
 
-/** 0..1 — 1 = mesmo nome; palavras iguais (ignorando acento, plural e gênero) contam. */
+/**
+ * Palavras descritivas (cor, preparo, estado, versão): nunca casam dois
+ * alimentos sozinhas — "Pimentão verde" não é "Uva verde".
+ */
+const DESCRIPTOR_TOKENS = new Set([
+  'verde', 'vermelho', 'vermelha', 'amarelo', 'amarela', 'roxo', 'roxa', 'branco', 'branca', 'preto', 'preta',
+  'cozido', 'cozida', 'cru', 'crua', 'grelhado', 'grelhada', 'assado', 'assada', 'frito', 'frita', 'natural',
+  'inteiro', 'inteira', 'picado', 'picada', 'light', 'zero', 'diet', 'integral', 'desnatado', 'desnatada',
+  'semidesnatado', 'semidesnatada', 'magro', 'magra', 'fatiado', 'fatiada', 'ralado', 'ralada', 'desfiado',
+  'desfiada', 'refogado', 'refogada', 'vapor', 'torrado', 'torrada', 'moido', 'moida', 'fresco', 'fresca',
+  'congelado', 'congelada', 'desidratado', 'desidratada', 'caseiro', 'caseira', 'temperado', 'temperada',
+  'pequeno', 'pequena', 'medio', 'media', 'grande', 'maduro', 'madura', 'organico', 'organica', 'puro', 'pura',
+  'tradicional', 'cozimento', 'escaldado', 'escaldada', 'salteado', 'salteada', 'empanado', 'empanada',
+].map(stem));
+const isDescriptor = (t: string) => DESCRIPTOR_TOKENS.has(t);
+
+/** Palavras que dizem QUAL é o alimento (sem cor/preparo); a primeira é o alimento principal. */
+export const foodContentTokens = (value: string): string[] => foodTokens(value).filter((t) => !isDescriptor(t));
+
+/** Alimento principal (primeiro substantivo): "Pimentão verde" → pimentão. */
+export const foodHeadToken = (value: string): string | null => foodContentTokens(value)[0] ?? null;
+
+const dice = (a: string[], b: string[]): number => {
+  const ta = Array.from(new Set(a));
+  const tb = new Set(b);
+  if (ta.length === 0 || tb.size === 0) return 0;
+  return (2 * ta.filter((t) => tb.has(t)).length) / (ta.length + tb.size);
+};
+
+/**
+ * Dois nomes podem ser o mesmo alimento só quando o alimento principal bate
+ * ou quando as palavras sem os descritivos já são parecidas (≥ 0,5).
+ */
+export function sameFoodKind(a: string, b: string): boolean {
+  const ca = foodContentTokens(a);
+  const cb = foodContentTokens(b);
+  if (ca.length === 0 && cb.length === 0) return true; // só descritivos dos dois lados: decide a similaridade
+  if (ca.length === 0 || cb.length === 0) return false;
+  return ca[0] === cb[0] || dice(ca, cb) >= 0.5;
+}
+
+/** 0..1 — 1 = mesmo nome; palavras iguais (ignorando acento, plural, gênero e sinônimos PT-BR/PT-PT) contam. */
 export function foodNameSimilarity(a: string, b: string): number {
   const na = normalizeFoodName(a);
   const nb = normalizeFoodName(b);
   if (!na || !nb) return 0;
   if (na === nb) return 1;
-  const ta = Array.from(new Set(foodTokens(a)));
-  const tb = new Set(foodTokens(b));
-  if (ta.length === 0 || tb.size === 0) return 0;
-  const common = ta.filter((t) => tb.has(t)).length;
-  return (2 * common) / (ta.length + tb.size);
+  const ta = foodTokens(a);
+  const tb = foodTokens(b);
+  if (ta.length === 0 || tb.length === 0) return 0;
+  if (!sameFoodKind(a, b)) return 0;
+  return dice(ta, tb);
+}
+
+/** Alimentos da base com o mesmo alimento principal, do mais parecido ao menos. */
+export function sameHeadFoods(name: string, foods: WeighFood[], limit = 3): WeighFood[] {
+  const head = foodHeadToken(name);
+  if (!head) return [];
+  return (foods ?? [])
+    .filter((f) => foodContentTokens(f.name).includes(head))
+    .map((f) => ({ f, s: foodNameSimilarity(name, f.name) + (foodHeadToken(f.name) === head ? 0.2 : 0) - f.name.length / 10000 }))
+    .sort((x, y) => y.s - x.s)
+    .slice(0, limit)
+    .map((x) => x.f);
 }
 
 /** Similaridade mínima para considerar dois nomes o mesmo alimento. */
@@ -225,6 +298,13 @@ export function resolveWeighFood(
     if (!m) { unmatchedNames.push(name); continue; }
     if (m.id === food?.id || alternatives.some((a) => a.id === m.id)) continue;
     alternatives.push(m);
+  }
+  // Nada casou sozinho: primeiro as opções com o mesmo alimento principal ("Pimentão vermelho", "Pimento").
+  if (!food) {
+    const head = foodHeadToken(ai.alimento);
+    const same = sameHeadFoods(ai.alimento, foods).filter((f) => !alternatives.some((a) => a.id === f.id));
+    const byHead = (f: WeighFood) => (head && foodContentTokens(f.name).includes(head) ? 0 : 1);
+    alternatives.splice(0, alternatives.length, ...[...alternatives, ...same].map((f, i) => ({ f, i })).sort((x, y) => byHead(x.f) - byHead(y.f) || x.i - y.i).map((x) => x.f));
   }
   return {
     food,
