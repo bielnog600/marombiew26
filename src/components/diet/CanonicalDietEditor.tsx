@@ -159,6 +159,8 @@ const CanonicalDietEditor: React.FC<Props> = ({ plan, foods, targetsByDay, dayTy
 
   const [optionTab, setOptionTab] = useState<Record<string, number>>({});
   const [bankSwap, setBankSwap] = useState<{ mealIdx: number; optIdx: number } | null>(null);
+  /** Refeições em que o banco não teve 2 opções equivalentes na última geração (`dia-refeição` → quantas couberam). */
+  const [optionGaps, setOptionGaps] = useState<Record<string, number>>({});
   const { data: bank = [] } = useMealBank();
   const { data: studentCtx } = useStudentMealContext(studentId);
   const mealCtx = useMemo(() => studentCtx ?? buildStudentMealContext({}), [studentCtx]);
@@ -172,13 +174,14 @@ const CanonicalDietEditor: React.FC<Props> = ({ plan, foods, targetsByDay, dayTy
     const res = generatePlanMealOptions(plan, bank, foodRecords, mealCtx);
     setUndoSnapshot(clone(plan));
     setOptionTab({});
+    setOptionGaps(Object.fromEntries(res.gaps.map((g) => [`${g.dayIndex}-${g.mealIndex}`, g.found])));
     onChange(res.plan as DietPlan);
     if (res.generated > 0) {
       toast.success(`Opções 2 e 3 geradas para ${res.generated} refeição(ões).`);
     } else if (!silent) {
       toast.warning('Nenhuma refeição do banco combina com estes horários.');
     }
-    if (res.skipped.length && !silent) toast.info(`Sem opções do banco: ${Array.from(new Set(res.skipped)).join(', ')}.`);
+    if (res.skipped.length && !silent) toast.info(`Sem opção equivalente no banco: ${Array.from(new Set(res.skipped)).join(', ')}.`);
     return true;
   };
 
@@ -641,6 +644,16 @@ const CanonicalDietEditor: React.FC<Props> = ({ plan, foods, targetsByDay, dayTy
                 })}
               </div>
             )}
+            {optionGaps[`${activeIndex}-${mealIdx}`] != null && (
+              <p
+                data-testid={`meal-option-gap-${mealIdx}`}
+                className="rounded-md border border-border bg-muted/40 px-2 py-1 text-[11px] text-muted-foreground"
+              >
+                {optionGaps[`${activeIndex}-${mealIdx}`] === 0
+                  ? 'Sem opção equivalente no banco para esta refeição'
+                  : 'Só 1 opção equivalente no banco para esta refeição'}
+              </p>
+            )}
             {(() => {
               const oi = optionTab[`${activeIndex}-${mealIdx}`] ?? 0;
               const opt = (meal as any).options?.[oi] as MealOption | undefined;
@@ -754,11 +767,16 @@ const CanonicalDietEditor: React.FC<Props> = ({ plan, foods, targetsByDay, dayTy
           ctx={mealCtx}
           slots={mealSlotsFor(day.meals[bankSwap.mealIdx].name, day.meals[bankSwap.mealIdx].time)}
           targetKcal={computed?.meals[bankSwap.mealIdx]?.totals.kcal ?? 0}
+          targetMacros={computed?.meals[bankSwap.mealIdx]?.totals}
           excludeCodes={(day.meals ?? []).flatMap((m: any) => (m.options ?? []).map((o: any) => o.bankCode).filter(Boolean))}
           onSelect={(bm) => {
             const swap = bankSwap;
             setBankSwap(null);
-            updateOption(swap.mealIdx, swap.optIdx, bankMealToOption(bm, index, computed?.meals[swap.mealIdx]?.totals.kcal ?? 0));
+            const t = computed?.meals[swap.mealIdx]?.totals;
+            updateOption(swap.mealIdx, swap.optIdx, bankMealToOption(bm, index, t ?? 0, {
+              slots: mealSlotsFor(day.meals[swap.mealIdx].name, day.meals[swap.mealIdx].time),
+              ctx: mealCtx,
+            }));
             toast.success(`Opção ${swap.optIdx + 1}: ${bm.name}`);
           }}
         />

@@ -267,48 +267,106 @@ export const mainProteinGroup = (items: Array<{ name: string; macros?: Partial<E
 
 /* ---------------------------------------------------------------- portions */
 
+export type PortionKind =
+  | 'whey' | 'egg' | 'eggWhite' | 'yogurt' | 'milk' | 'bread' | 'tortilla' | 'fruit' | 'driedFruit'
+  | 'avocado' | 'nut' | 'oil' | 'coldCut' | 'meat' | 'veg' | 'carb' | 'oat' | 'legume' | 'cheese'
+  | 'sweet' | 'other';
+
 export interface PortionRule {
+  kind: PortionKind;
   step: number;
   min: number;
-  /** Valores permitidos (ex.: whey 15/20/30). */
+  /** Limite de porção: nunca passar. */
+  max: number;
+  /** Mínimo obrigatório (ovo, fruta, carne/peixe). Nos outros a receita pode ter menos. */
+  hardMin?: boolean;
+  /** Valores permitidos (ex.: whey 15/20/30/40). */
   allowed?: number[];
 }
 
-/** Porções reais: múltiplos de 5 g; ovo em unidades; whey em doses; fruta inteira/meia; pão em fatia/unidade. */
+/** Fontes de carboidrato: crescem além do fator da receita (até o limite). */
+export const CARB_KINDS: PortionKind[] = ['carb', 'bread', 'oat', 'fruit', 'tortilla'];
+/** Azeite/abacate da receita também crescem quando falta gordura. */
+export const FAT_KINDS: PortionKind[] = ['oil', 'avocado'];
+
+const FRUIT_RE = /^(banana|maca|pera|mamao|papaia|manga|morango|uvas?\b|kiwi|laranja|tangerina|mexerica|abacaxi|ananas|melancia|melao|mirtilo|frutas? vermelhas|ameixa|pessego|figo|framboesa|amora|goiaba|caqui|nectarina|cereja|roma|damasco|nespera|toranja|clementina|pitaya|jaca|maracuja|acerola|carambola|physalis|pinha|graviola|marmelo|jabuticaba)\b/;
+const MEAT_RE = /frango|sobrecoxa|\bperu\b|porco|lombo|camarao|atum|salmao|tilapia|pescada|bacalhau|sardinha|peixe|carne|alcatra|patinho|picanha|bife|fraldinha|coxao|hamburguer|polvo|lula|merluza|dourada|robalo|mignon|maminha|lagarto|pernil|coelho|carapau|cavala|\bpato\b|vitela|contra file|espetinho|figado|moela/;
+const VEG_RE = /abobrinha|abobora|curgete|brocolis|cenoura|espinafre|alface|tomate|pepino|couve|pimentao|cebola|cogumelo|salada|legumes|vagem|feijao verde|beringela|rucula|agriao|repolho|chuchu|quiabo|beterraba|\balho\b|berinjela|nabo|rabanete|acelga|palmito|aipo|espargo|pak choi|endivia|grelos|almeirao|chicoria|jilo|maxixe|alcachofra|funcho/;
+const CARB_RE = /^(arroz|massa|macarrao|esparguete|batata|cuscuz|mandioca|mandioquinha|aipim|inhame|cara|quinoa|milho|polenta|nhoque)\b/;
+
+/**
+ * Porção real e limites por alimento: múltiplos de 5 g; ovo em unidades de 50 g
+ * (50–200 g); whey 15/20/30/40; fruta inteira/meia (60–200 g); pão em fatia/unidade
+ * (≤ 100 g); carne/peixe 80–250 g; legumes ≤ 200 g; arroz/massa/batata ≤ 400 g…
+ */
 export const portionRuleFor = (foodName: string): PortionRule => {
   const n = normText(foodName);
-  if (/whey/.test(n)) return { step: 5, min: 15, allowed: [15, 20, 30] };
-  if (/^ovos?$|^ovo (cozido|inteiro|mexido)/.test(n)) return { step: 50, min: 50 };
-  if (/^clara/.test(n)) return { step: 33, min: 33 };
-  if (/^pao frances/.test(n)) return { step: 50, min: 50 };
-  if (/^pao/.test(n)) return { step: 25, min: 25 };
-  if (/^tortilha/.test(n)) return { step: 40, min: 40 };
-  if (/^banana/.test(n)) return { step: 50, min: 50 };
-  if (/^(maca|pera)\b/.test(n)) return { step: 65, min: 65 };
-  if (/^mamao|^papaia/.test(n)) return { step: 75, min: 75 };
-  if (/^manga/.test(n)) return { step: 60, min: 60 };
-  if (/^tamara/.test(n)) return { step: 10, min: 10 };
-  if (/^(leite|agua de coco|bebida)/.test(n)) return { step: 50, min: 100 };
-  return { step: 5, min: 5 };
+  if (/whey|caseina|albumina|^proteina (de|da|vegana)/.test(n)) return { kind: 'whey', step: 5, min: 15, max: 40, allowed: [15, 20, 30, 40] };
+  if (/^clara/.test(n)) return { kind: 'eggWhite', step: 33, min: 33, max: 198 };
+  if (/^ovos?\b|^omelete/.test(n)) return { kind: 'egg', step: 50, min: 50, max: 200, hardMin: true };
+  if (/iogurte|skyr|kefir/.test(n)) return { kind: 'yogurt', step: 5, min: 60, max: 340 };
+  if (/leite em po/.test(n)) return { kind: 'other', step: 5, min: 5, max: 30 };
+  if (/leite condensado/.test(n)) return { kind: 'sweet', step: 5, min: 5, max: 30 };
+  if (/^(leite|bebida|agua de coco|suco)/.test(n)) return { kind: 'milk', step: 50, min: 100, max: 400 };
+  if (/^pao frances/.test(n)) return { kind: 'bread', step: 50, min: 50, max: 100 };
+  if (/^pao|^pan\b|^broa|caco|^tosta|^torrada/.test(n)) return { kind: 'bread', step: 25, min: 25, max: 100 };
+  if (/^tortilha|^wrap/.test(n)) return { kind: 'tortilla', step: 40, min: 40, max: 80 };
+  if (/^tamara|passa|\bsec[oa]\b|desidratad/.test(n)) return { kind: 'driedFruit', step: 10, min: 10, max: 40 };
+  if (/^abacate/.test(n)) return { kind: 'avocado', step: 5, min: 20, max: 100 };
+  if (/^banana/.test(n)) return { kind: 'fruit', step: 60, min: 60, max: 180, hardMin: true };
+  if (/^(maca|pera)\b/.test(n)) return { kind: 'fruit', step: 65, min: 65, max: 195, hardMin: true };
+  if (/^mamao|^papaia/.test(n)) return { kind: 'fruit', step: 75, min: 75, max: 150, hardMin: true };
+  if (/^manga/.test(n)) return { kind: 'fruit', step: 60, min: 60, max: 180, hardMin: true };
+  if (FRUIT_RE.test(n)) return { kind: 'fruit', step: 5, min: 60, max: 200, hardMin: true };
+  if (/amendoim|amendoa|castanha|nozes|\bnoz\b|avela|semente|\bchia\b|linhaca/.test(n) && !/^feijao/.test(n)) return { kind: 'nut', step: 5, min: 5, max: 30 };
+  if (/^(azeite|oleo|manteiga|ghee)\b/.test(n)) return { kind: 'oil', step: 5, min: 5, max: 15 };
+  if (/fiambre|presunto|salpicao|peito de peru (fatiado|defumado)/.test(n)) return { kind: 'coldCut', step: 10, min: 20, max: 80 };
+  if (/^aveia|farelo de aveia/.test(n)) return { kind: 'oat', step: 5, min: 10, max: 100 };
+  if (/granola|flocos de milho/.test(n)) return { kind: 'oat', step: 5, min: 10, max: 60 };
+  if (/tapioca/.test(n)) return { kind: 'carb', step: 10, min: 20, max: 120 };
+  if (/biscoito de arroz|bolacha de (arroz|milho)/.test(n)) return { kind: 'carb', step: 5, min: 10, max: 40 };
+  if (/feijao|grao|lentilha|ervilha/.test(n) && !/feijao verde/.test(n)) return { kind: 'legume', step: 5, min: 40, max: 250 };
+  if (/^mel\b|geleia|doce de leite|dulce|cacau|acucar/.test(n)) return { kind: 'sweet', step: 5, min: 5, max: 30 };
+  if (/cottage|ricota/.test(n)) return { kind: 'cheese', step: 5, min: 30, max: 200 };
+  if (/requeijao|cream cheese/.test(n)) return { kind: 'cheese', step: 5, min: 10, max: 40 };
+  if (/queijo|mussarela|mozzarella/.test(n)) return { kind: 'cheese', step: 5, min: 10, max: 60 };
+  if (MEAT_RE.test(n)) return { kind: 'meat', step: 5, min: 80, max: 250, hardMin: true };
+  if (CARB_RE.test(n) || /^nhoque/.test(n)) return { kind: 'carb', step: 5, min: 50, max: 400 };
+  if (VEG_RE.test(n) || /^molho de tomate/.test(n)) return { kind: 'veg', step: 5, min: 10, max: 200 };
+  return { kind: 'other', step: 5, min: 5, max: 300 };
 };
 
+/** Arredonda para a porção real dentro dos limites. */
 export const snapPortion = (grams: number, rule: PortionRule): number => {
   if (rule.allowed?.length) {
-    return rule.allowed.reduce((best, v) => (Math.abs(v - grams) < Math.abs(best - grams) ? v : best), rule.allowed[0]);
+    const allowed = rule.allowed.filter((v) => v >= rule.min && v <= rule.max);
+    return allowed.reduce((best, v) => (Math.abs(v - grams) < Math.abs(best - grams) ? v : best), allowed[0]);
   }
   const snapped = Math.round(grams / rule.step) * rule.step;
-  return Math.max(rule.min, snapped);
+  const maxOnStep = Math.floor(rule.max / rule.step) * rule.step;
+  return Math.min(Math.max(rule.min, snapped), Math.max(rule.min, maxOnStep));
 };
 
 const nextPortion = (grams: number, rule: PortionRule, dir: 1 | -1): number | null => {
   if (rule.allowed?.length) {
-    const sorted = [...rule.allowed].sort((a, b) => a - b);
+    const sorted = rule.allowed.filter((v) => v >= rule.min && v <= rule.max).sort((a, b) => a - b);
     const i = sorted.indexOf(grams);
     const j = i + dir;
     return i >= 0 && j >= 0 && j < sorted.length ? sorted[j] : null;
   }
   const v = grams + dir * rule.step;
-  return v < rule.min ? null : v;
+  return v < rule.min || v > rule.max ? null : v;
+};
+
+/**
+ * Regra efetiva de um alimento numa receita: quando a receita usa menos que o
+ * mínimo de porção (ex.: leite 30 ml num omelete) e o mínimo não é obrigatório,
+ * a porção desce em passos de 5 g em vez de ser empurrada para cima.
+ */
+const recipeRule = (rule: PortionRule, base: number): PortionRule => {
+  if (rule.hardMin || rule.allowed?.length || base >= rule.min) return rule;
+  const min = Math.max(5, Math.floor((base * 0.7) / 5) * 5);
+  return { ...rule, step: 5, min };
 };
 
 /* ----------------------------------------------------------------- scaling */
@@ -324,72 +382,269 @@ export const computeOptionItems = (
     return { foodId: food?.id ?? r.foodId, name, qtyGrams: r.grams, macros: roundForDisplay(computed.macros) };
   });
 
-const kcalOf = (rows: Array<{ foodId: string | null; grams: number }>, index: FoodIndex): number =>
-  rows.reduce((acc, r) => {
-    const food = r.foodId ? index.byId.get(r.foodId) : null;
-    if (!food) return acc;
-    return acc + (num(food.calories) * r.grams) / (num(food.portion_size) || 100);
-  }, 0);
+export interface MacroTarget {
+  kcal: number;
+  p?: number;
+  c?: number;
+  g?: number;
+}
 
-/**
- * Escala as gramas para `targetKcal` (±10 %), arredondando para porções reais.
- * Primeiro proporcional; depois pequenos ajustes de uma porção por vez até
- * entrar na faixa (para quando chega a ±5 % ou não há ajuste que melhore).
- */
-export const scaleBankItems = (
-  items: Array<{ foodId: string; grams: number; name?: string }>,
-  index: FoodIndex,
-  targetKcal: number,
-): MealOptionItem[] => {
-  const named = items.map((it) => ({
-    foodId: it.foodId,
-    name: index.byId.get(it.foodId)?.name ?? it.name ?? '',
-    grams: num(it.grams),
-  }));
-  const base = kcalOf(named, index);
-  if (!(targetKcal > 0) || !(base > 0)) {
-    return computeOptionItems(named, index);
-  }
-  const factor = targetKcal / base;
-  const rows = named.map((r) => ({ ...r, rule: portionRuleFor(r.name) }));
-  rows.forEach((r) => { r.grams = snapPortion(r.grams * factor, r.rule); });
+/** Macros parecidos com a Opção 1: proteína ±25 %, carboidrato ±30 %, gordura ±40 %. */
+export const MACRO_OPTION_TOLERANCE = { p: 0.25, c: 0.3, g: 0.4 } as const;
+/** Folga mínima em gramas, para refeições com muito pouco de um macro (ex.: gordura 2 g). */
+export const MACRO_OPTION_FLOOR = { p: 8, c: 10, g: 6 } as const;
+/** Fator da receita inteira antes de mexer só nos carboidratos. */
+export const RECIPE_FACTOR_RANGE = [0.7, 1.5] as const;
 
-  const dist = () => Math.abs(kcalOf(rows, index) - targetKcal);
-  for (let iter = 0; iter < 40; iter++) {
-    const d = dist();
-    if (d <= targetKcal * 0.05) break;
-    let best: { i: number; g: number; d: number } | null = null;
-    rows.forEach((r, i) => {
-      for (const dir of [1, -1] as const) {
-        const g = nextPortion(r.grams, r.rule, dir);
-        if (g == null) continue;
-        const prev = r.grams;
-        r.grams = g;
-        const nd = dist();
-        r.grams = prev;
-        if (nd < d && (!best || nd < best.d)) best = { i, g, d: nd };
-      }
-    });
-    if (!best) break;
-    rows[(best as { i: number }).i].grams = (best as { g: number }).g;
-  }
-  return computeOptionItems(rows, index);
-};
+const MACRO_KEYS = ['p', 'c', 'g'] as const;
+type MacroKey = (typeof MACRO_KEYS)[number];
+
+const macrosOf = (rows: Array<{ foodId: string | null; grams: number }>, index: FoodIndex): EngineMacros =>
+  rows.reduce(
+    (acc, r) => {
+      const food = r.foodId ? index.byId.get(r.foodId) : null;
+      if (!food) return acc;
+      const k = r.grams / (num(food.portion_size) || 100);
+      acc.kcal += num(food.calories) * k;
+      acc.p += num(food.protein) * k;
+      acc.c += num(food.carbs) * k;
+      acc.g += num(food.fats) * k;
+      return acc;
+    },
+    { kcal: 0, p: 0, c: 0, g: 0 } as EngineMacros,
+  );
+
+const hasMacro = (t: MacroTarget, k: MacroKey) => typeof t[k] === 'number' && Number.isFinite(t[k]);
 
 export const isWithinKcalTolerance = (kcal: number, target: number, tol = KCAL_OPTION_TOLERANCE): boolean =>
   target <= 0 || Math.abs(kcal - target) <= target * tol;
 
-export const bankMealToOption = (meal: BankMeal, index: FoodIndex, targetKcal: number): MealOption => ({
-  source: 'bank',
-  bankCode: meal.code,
-  name: meal.name,
-  ...(meal.prep ? { prep: meal.prep } : {}),
-  items: scaleBankItems(
+/** O que fica fora da faixa da Opção 1: 'kcal', 'p', 'c' ou 'g'. */
+export const optionFitIssues = (m: EngineMacros, target: MacroTarget): string[] => {
+  const out: string[] = [];
+  if (!isWithinKcalTolerance(m.kcal, target.kcal)) out.push('kcal');
+  for (const k of MACRO_KEYS) {
+    if (!hasMacro(target, k)) continue;
+    const t = target[k] as number;
+    const tol = Math.max(t * MACRO_OPTION_TOLERANCE[k], MACRO_OPTION_FLOOR[k]);
+    if (Math.abs(m[k] - t) > tol) out.push(k);
+  }
+  return out;
+};
+
+const fitError = (m: EngineMacros, target: MacroTarget): number => {
+  let e = target.kcal > 0 ? Math.abs(m.kcal - target.kcal) / target.kcal : 0;
+  for (const k of MACRO_KEYS) {
+    if (!hasMacro(target, k)) continue;
+    const t = target[k] as number;
+    e += (0.35 * Math.abs(m[k] - t)) / Math.max(t, MACRO_OPTION_FLOOR[k] * 2);
+  }
+  return e;
+};
+
+interface FitRow {
+  foodId: string;
+  name: string;
+  base: number;
+  grams: number;
+  rule: PortionRule;
+  side?: boolean;
+}
+
+/** Arroz/massa/batata/cuscuz somados numa refeição: no máximo 400 g (não vale arroz 300 g + batata 400 g). */
+export const STARCH_MEAL_MAX = 400;
+const starchGrams = (rows: FitRow[]): number =>
+  rows.reduce((acc, r) => acc + (r.rule.kind === 'carb' ? r.grams : 0), 0);
+
+/** Uma porção por vez, no alimento que mais aproxima da Opção 1, só entre os que podem mexer. */
+const greedyFit = (
+  rows: FitRow[],
+  index: FoodIndex,
+  target: MacroTarget,
+  bounds: (row: FitRow) => [number, number] | null,
+) => {
+  for (let iter = 0; iter < 120; iter++) {
+    const cur = fitError(macrosOf(rows, index), target);
+    let best: { i: number; g: number; e: number } | null = null;
+    rows.forEach((r, i) => {
+      const b = bounds(r);
+      if (!b) return;
+      const lo = Math.min(b[0], r.grams);
+      const hi = Math.max(b[1], r.grams);
+      for (const dir of [1, -1] as const) {
+        const g = nextPortion(r.grams, r.rule, dir);
+        if (g == null || g < lo - 1e-9 || g > hi + 1e-9) continue;
+        const prev = r.grams;
+        r.grams = g;
+        const valid = dir < 0 || starchGrams(rows) <= STARCH_MEAL_MAX + 1e-9;
+        const e = fitError(macrosOf(rows, index), target);
+        r.grams = prev;
+        if (!valid) continue;
+        if (e < cur - 1e-6 && (!best || e < best.e)) best = { i, g, e };
+      }
+    });
+    if (!best) break;
+    const { i, g } = best as { i: number; g: number };
+    rows[i].grams = g;
+  }
+};
+
+const BREAKFAST_LIKE: MealSlot[] = ['cafe_manha', 'lanche_tarde', 'pre_treino', 'pos_treino', 'ceia'];
+
+/** Acompanhamentos simples por horário (nomes exatos da tabela de alimentos). */
+export const SIDE_FOODS = {
+  carbBreakfast: ['Banana', 'Pão integral', 'Aveia em flocos', 'Maçã'],
+  carbMain: ['Arroz branco cozido', 'Batata inglesa cozida', 'Batata-doce cozida'],
+  fatBreakfast: ['Abacate', 'Pasta de amendoim'],
+  fatMain: ['Azeite de oliva', 'Abacate'],
+} as const;
+
+const findFoodByName = (index: FoodIndex, name: string): FoodRecord | null =>
+  index.byName.get(normText(name).replace(/\s+/g, ' '))?.[0] ??
+  [...index.byId.values()].find((f) => normText(f.name) === normText(name)) ??
+  null;
+
+export interface BankFitOptions {
+  slots?: MealSlot[];
+  ctx?: StudentMealContext;
+}
+
+export interface BankFit {
+  option: MealOption;
+  /** Dentro de ±10 % kcal e dos macros da Opção 1, sem passar limites de porção. */
+  ok: boolean;
+  issues: string[];
+  /** Acompanhamentos acrescentados para fechar as kcal. */
+  sides: string[];
+}
+
+/**
+ * Ajusta uma receita do banco à Opção 1, por componente:
+ * 1. receita inteira num fator 0,7–1,5 (cada alimento dentro dos seus limites);
+ * 2. se faltar/sobrar, só as fontes de carboidrato até o limite;
+ * 3. se ainda faltar, um acompanhamento simples do horário (fruta/pão/aveia no
+ *    café e lanches; arroz/batata no almoço/jantar; azeite/abacate se faltar gordura);
+ * 4. se não fechar ±10 % kcal e macros parecidos, `ok = false` (a refeição fica de fora).
+ */
+export const fitBankItems = (
+  items: Array<{ foodId: string; grams: number; name?: string }>,
+  index: FoodIndex,
+  target: MacroTarget,
+  opts: BankFitOptions = {},
+): { items: MealOptionItem[]; ok: boolean; issues: string[]; sides: string[] } => {
+  const rows: FitRow[] = items.map((it) => {
+    const name = index.byId.get(it.foodId)?.name ?? it.name ?? '';
+    const base = num(it.grams);
+    return { foodId: it.foodId, name, base, grams: base, rule: recipeRule(portionRuleFor(name), base) };
+  });
+  const base = macrosOf(rows, index);
+  if (!(target.kcal > 0) || !(base.kcal > 0)) {
+    return { items: computeOptionItems(rows, index), ok: false, issues: ['kcal'], sides: [] };
+  }
+  const [fLo, fHi] = RECIPE_FACTOR_RANGE;
+  const factor = Math.min(fHi, Math.max(fLo, target.kcal / base.kcal));
+  rows.forEach((r) => { r.grams = snapPortion(r.base * factor, r.rule); });
+  const starch0 = starchGrams(rows);
+  if (starch0 > STARCH_MEAL_MAX) {
+    const k = STARCH_MEAL_MAX / starch0;
+    rows.forEach((r) => {
+      if (r.rule.kind !== 'carb') return;
+      r.grams = Math.max(r.rule.min, Math.floor((r.grams * k) / r.rule.step) * r.rule.step);
+    });
+  }
+
+  // 1. Receita inteira, cada alimento entre 0,7× e 1,5× da receita.
+  const recipeBounds = (r: FitRow): [number, number] => [
+    Math.max(r.rule.min, r.base * fLo),
+    Math.min(r.rule.max, r.base * fHi),
+  ];
+  greedyFit(rows, index, target, recipeBounds);
+  // Carboidrato da receita só cresce (até o limite) — nunca abaixo de 0,7× da receita,
+  // senão um prato rico em carbo viraria low carb à força.
+  const carbBounds = (r: FitRow): [number, number] | null =>
+    r.side ? [r.rule.min, r.rule.max]
+      : CARB_KINDS.includes(r.rule.kind) || FAT_KINDS.includes(r.rule.kind) ? [Math.max(r.rule.min, r.base * fLo), r.rule.max]
+        : null;
+  const issues = () => optionFitIssues(macrosOf(rows, index), target);
+
+  // 2. Só os carboidratos, até o limite de porção.
+  if (issues().length) greedyFit(rows, index, target, carbBounds);
+
+  // 3. Acompanhamento simples do horário.
+  const sides: string[] = [];
+  const mainMeal = (opts.slots ?? []).some((s) => s === 'almoco' || s === 'jantar') &&
+    !(opts.slots ?? []).some((s) => BREAKFAST_LIKE.includes(s));
+  for (let n = 0; n < 2; n++) {
+    const m = macrosOf(rows, index);
+    if (m.kcal >= target.kcal * (1 - KCAL_OPTION_TOLERANCE * 0.5) || !issues().length) break;
+    const carbDef = hasMacro(target, 'c') ? ((target.c as number) - m.c) / Math.max(target.c as number, 20) : 1;
+    const fatDef = hasMacro(target, 'g') ? ((target.g as number) - m.g) / Math.max(target.g as number, 10) : 0;
+    const wantFat = fatDef > 0.2 && fatDef > carbDef;
+    const list = wantFat
+      ? (mainMeal ? SIDE_FOODS.fatMain : SIDE_FOODS.fatBreakfast)
+      : (mainMeal ? SIDE_FOODS.carbMain : SIDE_FOODS.carbBreakfast);
+    const ctx = opts.ctx;
+    const candidates = [...list]
+      .map((name) => findFoodByName(index, name))
+      .filter((f): f is FoodRecord => !!f)
+      .filter((f) => !rows.some((r) => r.foodId === f.id))
+      .filter((f) => !ctx || !foodViolates(f.name, ctx.restrictions, ctx.dislikes))
+      .sort((a, b) => (ctx ? fichaMatchScore([b.name], ctx.ficha) - fichaMatchScore([a.name], ctx.ficha) : 0));
+    // Almoço/jantar que já tem arroz/batata/massa não ganha um segundo carboidrato.
+    const hasStarch = rows.some((r) => r.rule.kind === 'carb');
+    const side = candidates.find((f) => wantFat || !mainMeal || !hasStarch);
+    if (!side) break;
+    const rule = portionRuleFor(side.name);
+    rows.push({ foodId: side.id, name: side.name, base: rule.min, grams: snapPortion(rule.min, rule), rule, side: true });
+    sides.push(side.name);
+    greedyFit(rows, index, target, carbBounds);
+  }
+
+  const finalIssues = issues();
+  const overLimit =
+    starchGrams(rows) > STARCH_MEAL_MAX + 1e-9 ||
+    rows.some((r) => r.grams > r.rule.max + 1e-9 || (r.rule.hardMin && r.grams < r.rule.min - 1e-9));
+  return {
+    items: computeOptionItems(rows, index),
+    ok: finalIssues.length === 0 && !overLimit,
+    issues: overLimit ? [...finalIssues, 'limite'] : finalIssues,
+    sides,
+  };
+};
+
+/** Escala só por kcal (sem comparar macros), com os mesmos limites de porção. */
+export const scaleBankItems = (
+  items: Array<{ foodId: string; grams: number; name?: string }>,
+  index: FoodIndex,
+  targetKcal: number,
+): MealOptionItem[] => fitBankItems(items, index, { kcal: targetKcal }).items;
+
+const toTarget = (t: MacroTarget | number): MacroTarget => (typeof t === 'number' ? { kcal: t } : t);
+
+export const fitBankMeal = (meal: BankMeal, index: FoodIndex, target: MacroTarget | number, opts: BankFitOptions = {}): BankFit => {
+  const res = fitBankItems(
     [...meal.items].sort((a, b) => a.ordem - b.ordem).map((i) => ({ foodId: i.foodId, grams: i.grams })),
     index,
-    targetKcal,
-  ),
-});
+    toTarget(target),
+    { slots: opts.slots ?? [meal.slot], ctx: opts.ctx },
+  );
+  const sideLabel = res.sides.map((s) => s.toLowerCase()).join(' e ');
+  return {
+    option: {
+      source: 'bank',
+      bankCode: meal.code,
+      name: res.sides.length ? `${meal.name} + ${sideLabel}` : meal.name,
+      ...(meal.prep ? { prep: meal.prep } : {}),
+      items: res.items,
+    },
+    ok: res.ok,
+    issues: res.issues,
+    sides: res.sides,
+  };
+};
+
+export const bankMealToOption = (meal: BankMeal, index: FoodIndex, target: MacroTarget | number, opts: BankFitOptions = {}): MealOption =>
+  fitBankMeal(meal, index, target, opts).option;
 
 /* --------------------------------------------------------------- selection */
 
@@ -436,6 +691,8 @@ export interface RankInput {
   planProtein: string | null;
   usedToday: Set<string>;
   usedOtherDays: Set<string>;
+  /** Refeições do banco usadas neste mesmo horário no dia anterior. */
+  usedPrevDaySameMeal?: Set<string>;
   targetKcal: number;
 }
 
@@ -446,76 +703,100 @@ export const rankBankMeals = (candidates: BankMeal[], input: RankInput, ctx: Stu
     .map((m) => {
       const names = bankFoodNames(m, index);
       const protein = mainProteinGroup(computeOptionItems(m.items.map((i) => ({ foodId: i.foodId, grams: i.grams })), index));
-      const baseKcal = kcalOf(m.items.map((i) => ({ foodId: i.foodId, grams: i.grams })), index);
-      const ratio = input.targetKcal > 0 && baseKcal > 0 ? input.targetKcal / baseKcal : 1;
       let score = fichaMatchScore(names, ctx.ficha) * 3;
       if (m.slot === input.slots[0]) score += 5;
       if (protein && protein === input.planProtein) score -= 15;
+      if (input.usedPrevDaySameMeal?.has(m.code)) score -= 30;
       if (input.usedOtherDays.has(m.code)) score -= 2;
-      if (ratio < 0.5 || ratio > 2) score -= 4;
       return { meal: m, protein, score };
     })
     .sort((a, b) => b.score - a.score || a.meal.code.localeCompare(b.meal.code));
 
 /** Escolhe até 2 refeições do banco (proteínas diferentes entre si quando possível). */
-export const pickTwoBankMeals = (ranked: Array<{ meal: BankMeal; protein: string | null }>): BankMeal[] => {
+export const pickTwoBankMeals = <T extends { protein: string | null }>(ranked: T[]): T[] => {
   const first = ranked[0];
   if (!first) return [];
   const second = ranked.find((r) => r !== first && r.protein !== first.protein) ?? ranked[1];
-  return second ? [first.meal, second.meal] : [first.meal];
+  return second ? [first, second] : [first];
 };
 
-const mealKcal = (meal: any): number => {
-  const fromItems = sumOptionItems(meal?.items ?? []).kcal;
-  return fromItems > 0 ? fromItems : num(meal?.totals?.kcal);
+const mealMacros = (meal: any): MacroTarget => {
+  const fromItems = sumOptionItems(meal?.items ?? []);
+  if (fromItems.kcal > 0) return fromItems;
+  const t = meal?.totals ?? {};
+  return { kcal: num(t.kcal), p: num(t.p), c: num(t.c), g: num(t.g) };
 };
+
+export interface MealOptionGap {
+  dayIndex: number;
+  mealIndex: number;
+  dayLabel: string;
+  mealName: string;
+  /** Quantas opções do banco couberam (0 ou 1). */
+  found: number;
+}
 
 /**
  * "Gerar opções": para cada refeição de cada dia, opção 1 = refeição do plano
- * e opções 2/3 = banco escalado para a kcal da opção 1. Nada muda em `items`.
+ * e opções 2/3 = banco ajustado à Opção 1 (kcal ±10 % e macros parecidos, sem
+ * passar limites de porção). Refeição do banco que não fecha fica de fora; se
+ * nenhuma couber, a refeição fica só com a Opção 1. Nada muda em `items`.
  */
 export const generatePlanMealOptions = (
   plan: any,
   bank: BankMeal[],
   foods: FoodRecord[],
   ctx: StudentMealContext,
-): { plan: any; generated: number; skipped: string[] } => {
+): { plan: any; generated: number; skipped: string[]; gaps: MealOptionGap[] } => {
   const index = buildFoodIndex(foods);
   const usedOtherDays = new Set<string>();
   const skipped: string[] = [];
+  const gaps: MealOptionGap[] = [];
   let generated = 0;
-  const days = (plan?.days ?? []).map((day: any) => {
+  let prevDay = new Map<string, Set<string>>();
+  const days = (plan?.days ?? []).map((day: any, dayIndex: number) => {
     const usedToday = new Set<string>();
-    const meals = (day?.meals ?? []).map((meal: any) => {
+    const thisDay = new Map<string, Set<string>>();
+    const meals = (day?.meals ?? []).map((meal: any, mealIndex: number) => {
       const slots = mealSlotsFor(meal?.name ?? '', meal?.time);
-      const target = mealKcal(meal);
+      const mealKey = `${slots[0] ?? ''}|${normText(meal?.name)}`;
+      const target = mealMacros(meal);
       const candidates = slots.length ? eligibleBankMeals(bank, slots, ctx, index) : [];
       const ranked = rankBankMeals(candidates, {
         slots,
         planProtein: mainProteinGroup((meal?.items ?? []).map(planItemToOptionItem)),
         usedToday,
         usedOtherDays,
-        targetKcal: target,
+        usedPrevDaySameMeal: prevDay.get(mealKey),
+        targetKcal: target.kcal,
       }, ctx, index);
-      const picks = pickTwoBankMeals(ranked);
+      const fitted = ranked
+        .map((r) => ({ ...r, fit: fitBankMeal(r.meal, index, target, { slots, ctx }) }))
+        .filter((r) => r.fit.ok);
+      const picks = pickTwoBankMeals(fitted);
       const { options: _old, ...rest } = meal ?? {};
+      if (picks.length < 2) {
+        gaps.push({ dayIndex, mealIndex, dayLabel: String(day?.label ?? ''), mealName: String(meal?.name ?? 'Refeição'), found: picks.length });
+      }
       if (picks.length === 0) {
         skipped.push(String(meal?.name ?? 'Refeição'));
         return rest;
       }
-      picks.forEach((p) => { usedToday.add(p.code); usedOtherDays.add(p.code); });
+      picks.forEach((p) => { usedToday.add(p.meal.code); usedOtherDays.add(p.meal.code); });
+      thisDay.set(mealKey, new Set(picks.map((p) => p.meal.code)));
       generated += 1;
       return syncMealOptions({
         ...rest,
         options: [
           { source: 'plan', name: planOptionName(rest.items ?? []), items: [] },
-          ...picks.map((p) => bankMealToOption(p, index, target)),
+          ...picks.map((p) => p.fit.option),
         ],
-      });
+      }, index);
     });
+    prevDay = thisDay;
     return { ...day, meals };
   });
-  return { plan: { ...plan, days }, generated, skipped };
+  return { plan: { ...plan, days }, generated, skipped, gaps };
 };
 
 /** Diferença em kcal da opção vs. opção 1. */

@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import type { FoodIndex } from '@/lib/nutritionEngine';
 import {
   MEAL_SLOT_LABEL,
-  bankMealToOption,
+  fitBankMeal,
   eligibleBankMeals,
   normText,
   sumOptionItems,
@@ -24,12 +24,14 @@ interface Props {
   ctx: StudentMealContext;
   slots: MealSlot[];
   targetKcal: number;
+  /** Macros da Opção 1: com eles, a lista mostra o que fica fora da faixa. */
+  targetMacros?: { kcal: number; p: number; c: number; g: number };
   excludeCodes?: string[];
   onSelect: (meal: BankMeal) => void;
 }
 
 /** "Trocar refeição": banco filtrado pelo horário, com kcal já escalada. */
-const MealBankPickerDialog: React.FC<Props> = ({ open, onOpenChange, bank, index, ctx, slots, targetKcal, excludeCodes = [], onSelect }) => {
+const MealBankPickerDialog: React.FC<Props> = ({ open, onOpenChange, bank, index, ctx, slots, targetKcal, targetMacros, excludeCodes = [], onSelect }) => {
   const [query, setQuery] = useState('');
   const [allSlots, setAllSlots] = useState(false);
 
@@ -41,11 +43,11 @@ const MealBankPickerDialog: React.FC<Props> = ({ open, onOpenChange, bank, index
       .filter((m) => (allSlots ? true : eligible.has(m.code)))
       .filter((m) => !q || normText(`${m.code} ${m.name} ${m.tags.join(' ')}`).includes(q))
       .map((m) => {
-        const opt = bankMealToOption(m, index, targetKcal);
-        return { meal: m, totals: sumOptionItems(opt.items), eligible: eligible.has(m.code), used: excludeCodes.includes(m.code) };
+        const fit = fitBankMeal(m, index, targetMacros ?? targetKcal, { slots, ctx });
+        return { meal: m, totals: sumOptionItems(fit.option.items), fits: fit.ok, eligible: eligible.has(m.code), used: excludeCodes.includes(m.code) };
       })
-      .sort((a, b) => Number(b.eligible) - Number(a.eligible) || a.meal.code.localeCompare(b.meal.code));
-  }, [bank, slots, ctx, index, query, allSlots, targetKcal, excludeCodes]);
+      .sort((a, b) => Number(b.eligible) - Number(a.eligible) || Number(b.fits) - Number(a.fits) || a.meal.code.localeCompare(b.meal.code));
+  }, [bank, slots, ctx, index, query, allSlots, targetKcal, targetMacros, excludeCodes]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -64,7 +66,7 @@ const MealBankPickerDialog: React.FC<Props> = ({ open, onOpenChange, bank, index
           </div>
           {rows.length === 0 && <p className="py-4 text-center text-muted-foreground">Nenhuma refeição do banco para este horário.</p>}
           <div className="space-y-1.5">
-            {rows.map(({ meal, totals, eligible, used }) => (
+            {rows.map(({ meal, totals, fits, eligible, used }) => (
               <button
                 key={meal.code}
                 type="button"
@@ -80,6 +82,7 @@ const MealBankPickerDialog: React.FC<Props> = ({ open, onOpenChange, bank, index
                   <Badge variant="outline" className="text-[9px]">{MEAL_SLOT_LABEL[meal.slot]}</Badge>
                   {!eligible && <Badge variant="outline" className="border-destructive/50 text-[9px] text-destructive">fora do horário/ficha</Badge>}
                   {used && <Badge variant="outline" className="text-[9px]">já usada no dia</Badge>}
+                  {!fits && <Badge variant="outline" className="border-destructive/50 text-[9px] text-destructive">não equivale à Opção 1</Badge>}
                   <span className="ml-auto font-semibold text-primary">{Math.round(totals.kcal)} kcal</span>
                 </div>
                 <p className="mt-0.5 text-[10px] text-muted-foreground">
