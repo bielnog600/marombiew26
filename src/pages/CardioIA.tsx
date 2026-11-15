@@ -507,6 +507,13 @@ const CardioProtocolPreview: React.FC<{ protocol: CardioProtocol; onChange?: (p:
         </div>
         )}
 
+        {!editing && protocol.coachTip?.trim() && (
+          <div className="rounded-lg border border-primary/30 bg-primary/5 p-3" data-testid="cardio-coach-tip-preview">
+            <p className="text-[10px] uppercase tracking-wider text-primary font-bold mb-1">Dica do Fabiew (aluno vê)</p>
+            <p className="text-xs whitespace-pre-line">{protocol.coachTip.trim()}</p>
+          </div>
+        )}
+
         {protocol.executionTips && protocol.executionTips.length > 0 && (
           <div className="rounded-lg bg-secondary/50 p-3">
             <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-bold mb-1">Dicas</p>
