@@ -42,6 +42,7 @@ const CardioIA = lazyWithRetry(() => import("./pages/CardioIA"));
 const CardioExecucao = lazyWithRetry(() => import("./pages/CardioExecucao"));
 const CardioAluno = lazyWithRetry(() => import("./pages/CardioAluno"));
 const Alimentos = lazyWithRetry(() => import("./pages/Alimentos"));
+const BancoRefeicoes = lazyWithRetry(() => import("./pages/BancoRefeicoes"));
 const Exercicios = lazyWithRetry(() => import("./pages/Exercicios"));
 const ExerciseMetadataReview = lazyWithRetry(() => import("./pages/ExerciseMetadataReview"));
 const HumanFirstReview = lazyWithRetry(() => import("./pages/HumanFirstReview"));
@@ -151,6 +152,7 @@ const App = () => {
               <Route path="/cardio" element={<ProtectedRoute><CardioAluno /></ProtectedRoute>} />
               <Route path="/cardio/:index" element={<ProtectedRoute><CardioAluno /></ProtectedRoute>} />
               <Route path="/alimentos" element={<ProtectedRoute requiredRole="admin"><Alimentos /></ProtectedRoute>} />
+              <Route path="/banco-refeicoes" element={<ProtectedRoute requiredRole="admin"><BancoRefeicoes /></ProtectedRoute>} />
               <Route path="/alimentos-escaneados" element={<Navigate to="/alimentos?aba=escaneados" replace />} />
               <Route path="/exercicios" element={<ProtectedRoute requiredRole="admin"><Exercicios /></ProtectedRoute>} />
               <Route path="/exercicios/metadados" element={<ProtectedRoute requiredRole="admin"><ExerciseMetadataReview /></ProtectedRoute>} />
