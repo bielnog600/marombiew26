@@ -287,10 +287,10 @@ export interface PortionRule {
 /** Fontes de carboidrato: as únicas que crescem além do fator da receita. */
 export const CARB_KINDS: PortionKind[] = ['carb', 'bread', 'oat', 'fruit', 'tortilla'];
 
-const FRUIT_RE = /^(banana|maca|pera|mamao|papaia|manga|morango|uvas?\b|kiwi|laranja|tangerina|mexerica|abacaxi|ananas|melancia|melao|mirtilo|frutas? vermelhas|ameixa|pessego|figo|framboesa|amora|goiaba|caqui|nectarina|cereja)/;
+const FRUIT_RE = /^(banana|maca|pera|mamao|papaia|manga|morango|uvas?\b|kiwi|laranja|tangerina|mexerica|abacaxi|ananas|melancia|melao|mirtilo|frutas? vermelhas|ameixa|pessego|figo|framboesa|amora|goiaba|caqui|nectarina|cereja)\b/;
 const MEAT_RE = /frango|sobrecoxa|\bperu\b|porco|lombo|camarao|atum|salmao|tilapia|pescada|bacalhau|sardinha|peixe|carne|alcatra|patinho|picanha|bife|fraldinha|coxao|hamburguer|polvo|lula|merluza|dourada|robalo/;
 const VEG_RE = /abobrinha|abobora|curgete|brocolis|cenoura|espinafre|alface|tomate|pepino|couve|pimentao|cebola|cogumelo|salada|legumes|vagem|feijao verde|beringela|rucula|agriao|repolho|chuchu|quiabo|beterraba|\balho\b/;
-const CARB_RE = /^(arroz|massa|macarrao|esparguete|batata|cuscuz|mandioca|aipim|inhame|quinoa|milho|polenta|nhoque)/;
+const CARB_RE = /^(arroz|massa|macarrao|esparguete|batata|cuscuz|mandioca|aipim|inhame|quinoa|milho|polenta|nhoque)\b/;
 
 /**
  * Porção real e limites por alimento: múltiplos de 5 g; ovo em unidades de 50 g
