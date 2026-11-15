@@ -1299,7 +1299,7 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
               </Button>
             ) : (
               <Button variant="outline" className="flex-1 gap-1.5" onClick={toCamera}>
-                <Plus className="h-4 w-4" /> {mode === 'plate' ? 'Outra foto de prato' : 'Escanear mais'}
+                <Plus className="h-4 w-4" /> {mode === 'plate' ? 'Outra foto de prato' : 'Próximo alimento'}
               </Button>
             )}
             <Button className="flex-1 gap-1.5 font-semibold" disabled={items.length === 0} onClick={() => conclude()}>
