@@ -3473,6 +3473,74 @@ export type Database = {
           },
         ]
       }
+      savings_deposits: {
+        Row: {
+          created_at: string
+          depositado_em: string
+          goal_id: string
+          id: string
+          valor: number
+        }
+        Insert: {
+          created_at?: string
+          depositado_em?: string
+          goal_id: string
+          id?: string
+          valor: number
+        }
+        Update: {
+          created_at?: string
+          depositado_em?: string
+          goal_id?: string
+          id?: string
+          valor?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "savings_deposits_goal_id_fkey"
+            columns: ["goal_id"]
+            isOneToOne: false
+            referencedRelation: "savings_goals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      savings_goals: {
+        Row: {
+          created_at: string
+          fim: string
+          id: string
+          inicio: string
+          max_valor: number
+          meta_valor: number
+          nome: string
+          owner_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          fim: string
+          id?: string
+          inicio: string
+          max_valor: number
+          meta_valor: number
+          nome?: string
+          owner_id?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          fim?: string
+          id?: string
+          inicio?: string
+          max_valor?: number
+          meta_valor?: number
+          nome?: string
+          owner_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       scheduled_notifications: {
         Row: {
           created_at: string
