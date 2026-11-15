@@ -119,7 +119,7 @@ beforeEach(() => {
             { foodId: 'pao', name: 'Pão integral', qtyGrams: 40, macros: { kcal: 100, p: 4, c: 18, g: 1 } },
           ] },
         ] },
-        { id: 'm1', order: 1, name: 'Jantar', time: '20:00', totals: jantar, items: [item('Arroz branco cozido', 200, jantar)] },
+        { id: 'm1', order: 1, name: 'Jantar', time: '20:00', totals: jantar, items: [item('Arroz branco cozido', 200, jantar, 'arroz')] },
       ] }],
     },
   };
