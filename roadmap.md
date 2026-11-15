@@ -1,5 +1,11 @@
 # Roadmap
 
+## 3 opções por refeição + Banco de refeições
+- [x] Banco com as 93 refeições (alimentos ligados pelo nome exato) e página "Banco de refeições" do admin (filtros, editar, ativar/desativar, nova).
+- [x] "Gerar opções" no editor (e automático ao gerar a dieta), chips Opção 1|2|3, editar/substituir/remover/adicionar e "Trocar refeição"; publicação guarda as opções.
+- [x] Aluno: selo "Opção N/3", "Escolhe a opção", "Como preparar", diálogo "Voltar para a Opção N?", Escanear no card de calorias, Protocolos escondido, mover/remover alimentos pesados; admin vê a opção escolhida.
+- [ ] Conferir no celular com o login de um aluno (troca de opção e pesagem) — sem acesso ao login do aluno daqui.
+
 ## Custos de IA por uso
 - [x] Registro de cada chamada de IA (Claude, OpenAI, IA do Lovable, ElevenLabs) com tokens/caracteres/imagens e custo pela tabela de preços editável.
 - [x] Tela "Custos de IA" (períodos, aluno, por funcionalidade, médio por uso, top alunos, por aluno ativo/mês, gráfico diário, projeção, USD/EUR, calculadora de margem) e card na ficha do aluno.
