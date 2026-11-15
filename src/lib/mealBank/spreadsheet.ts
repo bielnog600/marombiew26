@@ -12,6 +12,7 @@
 import { buildFoodIndex, type FoodIndex, type FoodRecord } from '@/lib/nutritionEngine';
 import {
   computeOptionItems,
+  MEAL_SLOTS,
   normText,
   sumOptionItems,
   type BankMeal,
@@ -533,7 +534,8 @@ export const formatGrams = (grams: number, unit: string) => `${r1(grams)}${unit}
 
 export const buildBankExportSheets = (bank: BankMeal[], foods: FoodRecord[]): SheetInput[] => {
   const index = buildFoodIndex(foods);
-  const sorted = [...bank].sort((a, b) => a.code.localeCompare(b.code, 'pt', { numeric: true }));
+  // Mesma ordem da planilha original: por horário (CM, LT, PRE, POS, AL, JA, CE) e código.
+  const sorted = [...bank].sort((a, b) => MEAL_SLOTS.indexOf(a.slot) - MEAL_SLOTS.indexOf(b.slot) || a.code.localeCompare(b.code, 'pt', { numeric: true }));
   const meals: SheetRows = [['ID', 'Horário', 'Refeição', 'Origem', 'Tags', 'Alimentos (g)', 'kcal', 'Proteína (g)', 'Carbo (g)', 'Gordura (g)', 'Preparo']];
   const ingredients: SheetRows = [['ID', 'Horário', 'Refeição', 'Alimento', 'Gramas', 'kcal', 'Proteína (g)', 'Carbo (g)', 'Gordura (g)']];
   const used = new Map<string, FoodRecord>();
