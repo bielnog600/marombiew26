@@ -165,14 +165,20 @@ export function naturaMacros(food: WeighFood, unitGrams: number | null) {
 /* ---------------- Registrar na refeição do dia ---------------- */
 
 /** Item "Escaneado" de um produto embalado (macros do rótulo, por 100 g). */
-export function scannedProductItem(name: string, brand: string | null, product: ProductData, grams: number, foodId: string | null = null): WeighedItem {
+export function scannedProductItem(
+  name: string, brand: string | null, product: ProductData, grams: number, foodId: string | null = null,
+  extra: { score?: number | null; label?: string | null; gramsFrom?: 'balanca' | 'porcao' | 'padrao' | null; edited?: boolean } = {},
+): WeighedItem {
   const g = round1(Math.max(0, Number(grams) || 0));
   const m = macrosFor(product.nutriments ?? {}, g);
-  return {
+  const item: WeighedItem = {
     alimento: brand && !name.toLowerCase().includes(brand.toLowerCase()) ? `${name} (${brand})` : name,
     food_id: foodId, gramas: g, kcal: Math.round(m.kcal), p: round1(m.protein), c: round1(m.carbs), g: round1(m.fat),
-    foto_url: null, editado_pelo_aluno: false, indice_plano: null, origem: 'escaneado',
+    foto_url: null, editado_pelo_aluno: !!extra.edited, indice_plano: null, origem: 'escaneado',
   };
+  if (extra.score != null) { item.nota = extra.score; item.nota_label = extra.label ?? null; }
+  if (extra.gramsFrom) item.fonte_gramas = extra.gramsFrom;
+  return item;
 }
 
 /** Item "Escaneado" de um alimento da base (in natura). */
