@@ -1646,6 +1646,7 @@ export type Database = {
           baixa_energia: boolean | null
           como_se_sente: string | null
           created_at: string
+          dados_perfil: Json | null
           dias_treino: string | null
           dor_cabeca: boolean | null
           dores_articulares: string[] | null
@@ -1675,6 +1676,7 @@ export type Database = {
           baixa_energia?: boolean | null
           como_se_sente?: string | null
           created_at?: string
+          dados_perfil?: Json | null
           dias_treino?: string | null
           dor_cabeca?: boolean | null
           dores_articulares?: string[] | null
@@ -1704,6 +1706,7 @@ export type Database = {
           baixa_energia?: boolean | null
           como_se_sente?: string | null
           created_at?: string
+          dados_perfil?: Json | null
           dias_treino?: string | null
           dor_cabeca?: boolean | null
           dores_articulares?: string[] | null

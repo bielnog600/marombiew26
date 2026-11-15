@@ -10,6 +10,28 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger
 } from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
+import { RACA_OPTIONS, formatDayPt, type DadosPerfil } from '../../supabase/functions/_shared/questionnaireProfile';
+
+const PerfilEnviado = ({ dados }: { dados: DadosPerfil | null | undefined }) => {
+  if (!dados?.enviados) return null;
+  const e = dados.enviados;
+  const raca = RACA_OPTIONS.find(o => o.value === e.raca)?.label ?? e.raca;
+  return (
+    <div className="rounded-lg border border-border p-3 space-y-1" data-testid="ficha-dados-perfil">
+      <p className="font-semibold">Dados do perfil enviados</p>
+      <InfoRow label="Nascimento" value={e.data_nascimento ? formatDayPt(e.data_nascimento) : null} />
+      <InfoRow label="Altura" value={e.altura != null ? `${e.altura} cm` : null} />
+      <InfoRow label="Telefone" value={e.telefone} />
+      <InfoRow label="Raça" value={raca} />
+      <InfoRow label="Objetivo" value={e.objetivo} />
+      <InfoRow
+        label="Peso"
+        value={e.peso != null ? `${e.peso} kg${dados.hoje ? ` (registrado em ${formatDayPt(dados.hoje)})` : ''}`
+          : dados.peso_solicitado === false ? 'Não pedido — já tinha pesagem nos últimos 15 dias' : null}
+      />
+    </div>
+  );
+};
 
 interface Props {
   studentId: string;
@@ -164,6 +186,7 @@ const DietQuestionnairesList: React.FC<Props> = ({ studentId, studentPhone, stud
           </DialogHeader>
           {viewItem && (
             <div className="space-y-3 text-sm">
+              <PerfilEnviado dados={viewItem.dados_perfil} />
               <InfoRow label="Estilo de Dieta" value={viewItem.estilo_dieta} />
               <InfoRow label="Fase Atual" value={viewItem.fase_atual} />
               <InfoRow label="Nº Refeições" value={viewItem.num_refeicoes} />

@@ -1,0 +1,2 @@
+ALTER TABLE public.diet_questionnaires ADD COLUMN IF NOT EXISTS dados_perfil jsonb;
+COMMENT ON COLUMN public.diet_questionnaires.dados_perfil IS 'Dados do perfil enviados pela ficha (nascimento, altura, telefone, raça, objetivo, peso) e o que foi gravado no perfil, para histórico.';
