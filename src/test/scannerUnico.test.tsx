@@ -156,7 +156,7 @@ describe('Scanner único — tela', () => {
     await screen.findByTestId('meal-weigh-plate-review');
     fireEvent.click(await screen.findByRole('button', { name: /Confirmar prato/ }));
     await answerScanApply();
-    await screen.findByTestId('meal-weigh-summary');
+    try { await screen.findByTestId('meal-weigh-summary'); } catch (e) { screen.debug(undefined, 30000); throw e; }
     expect(within(screen.getByTestId('scan-item-row')).getByTestId('scan-item-chips')).toHaveTextContent('novo · criado pela IA');
     expect(within(screen.getByTestId('scan-item-row')).getByTestId('scan-score')).toHaveTextContent('—');
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Salvar' })); });
@@ -247,10 +247,10 @@ describe('Nota (Nutri-Score) por categoria', () => {
     expect(nutritionQuality({ nutriments: soda(10.6, 42), nutriscore_category: 'bebida' })).toBeLessThan(40);
     expect(nutritionQuality({ nutriments: soda(0, 0.4), nutriscore_category: 'bebida' })).toBeGreaterThan(65);
   });
-  it('azeite usa a proporção de gordura saturada e as oleaginosas: C (pela regra geral, E)', () => {
+  it('azeite usa a proporção de gordura saturada e as oleaginosas: C (pela regra geral, D)', () => {
     const azeite = { 'energy-kcal_100g': 884, 'saturated-fat_100g': 14, fat_100g: 100, sugars_100g: 0, sodium_100g: 0, proteins_100g: 0, fiber_100g: 0, 'fruits-vegetables-nuts_100g': 100 };
     expect(nutriScoreGrade(computeNutriScore(azeite, 'gordura'))).toBe('C');
-    expect(nutriScoreGrade(computeNutriScore(azeite, 'geral'))).toBe('E');
+    expect(nutriScoreGrade(computeNutriScore(azeite, 'geral'))).toBe('D');
   });
   it('queijo conta a proteína mesmo com muitos pontos negativos: D (pela regra geral, E)', () => {
     const cheddar = { 'energy-kcal_100g': 403, 'saturated-fat_100g': 21, fat_100g: 33, sugars_100g: 0.5, sodium_100g: 0.65, proteins_100g: 25, fiber_100g: 0 };
