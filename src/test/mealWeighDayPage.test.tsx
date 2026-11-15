@@ -183,7 +183,8 @@ describe('Pesar refeição — salvar entra na refeição do dia', () => {
     render(<MinhasDietas />);
     await screen.findByText('Lanche');
     const card = lancheCard();
-    expect(within(card).queryByRole('button', { name: /^Remover / })).toBeNull();
+    // Alimentos registrados (pesados/fora do plano) mantêm remover, como os do plano.
+    expect(within(card).getAllByRole('button', { name: /^Remover / }).length).toBeGreaterThan(0);
     fireEvent.click(within(card).getByRole('button', { name: /Itens do plano não consumidos/ }));
     fireEvent.click(within(card).getByRole('button', { name: 'Pesar Aveia' }));
     const fake = await screen.findByTestId('fake-weigh');
