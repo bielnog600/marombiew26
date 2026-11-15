@@ -7289,6 +7289,19 @@ var MealItem = external_exports.object({
   manualLocked: external_exports.boolean().optional(),
   macros: Macros
 });
+var MealOptionItemSchema = external_exports.object({
+  foodId: external_exports.string().nullable(),
+  name: external_exports.string(),
+  qtyGrams: external_exports.number().min(0),
+  macros: Macros
+});
+var MealOptionSchema = external_exports.object({
+  source: external_exports.enum(["plan", "bank"]),
+  bankCode: external_exports.string().optional(),
+  name: external_exports.string(),
+  prep: external_exports.string().nullable().optional(),
+  items: external_exports.array(MealOptionItemSchema)
+});
 var Meal = external_exports.object({
   id: external_exports.string(),
   name: external_exports.string(),
@@ -7297,7 +7310,12 @@ var Meal = external_exports.object({
   order: external_exports.number().int().min(0),
   items: external_exports.array(MealItem),
   totals: Macros,
-  notes: external_exports.string().optional()
+  notes: external_exports.string().optional(),
+  /**
+   * Até 3 opções da refeição. Opção 1 (source 'plan') espelha `items`;
+   * opções 2/3 (source 'bank') vêm do Banco de refeições. Ausente = 1 opção.
+   */
+  options: external_exports.array(MealOptionSchema).max(3).optional()
 });
 var DietDay = external_exports.object({
   label: external_exports.string(),
