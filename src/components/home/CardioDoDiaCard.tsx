@@ -37,8 +37,8 @@ const CardioDoDiaCard: React.FC<CardioDoDiaCardProps> = ({ conteudo, planId = nu
         <img
           src={cardioHero}
           alt="Cardio"
-          width={1536}
-          height={768}
+          width={1024}
+          height={512}
           loading="eager"
           decoding="async"
           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
