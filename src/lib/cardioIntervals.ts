@@ -46,6 +46,36 @@ const numOrZero = (v: unknown): number | undefined => {
 const clean = <T extends object>(o: T): T =>
   Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined)) as T;
 
+export type BikePositionMode = 'picos_em_pe' | 'sentado';
+
+/** Posição escolhida no passo da bike: em pé / alternado = picos em pé e o resto sentado; sentado = tudo sentado. */
+export function bikePositionMode(equipment: EquipmentInput | null | undefined): BikePositionMode | null {
+  const p = equipment?.bike?.position;
+  if (p === 'em_pe' || p === 'alternado') return 'picos_em_pe';
+  if (p === 'sentado') return 'sentado';
+  return null;
+}
+
+const isPeakBlock = (b: CardioBlock) => isHardBlock(b) && b.type !== 'aquecimento' && b.type !== 'desaceleracao';
+
+/**
+ * Posição das etapas de uma sessão de bike. "picos_em_pe": só sessões com picos (HIIT/intervalado ou etapa
+ * do tipo pico) — picos em pé, recuperação/aquecimento/desaceleração sentado; contínuas ficam como estão.
+ * "sentado": todas as etapas sentado. Outras modalidades não mudam. Idempotente.
+ */
+export function applyBikePositions(protocol: CardioProtocol, mode: BikePositionMode | null): CardioProtocol {
+  if (!mode || protocol?.modality !== 'bike' || !Array.isArray(protocol.blocks)) return protocol;
+  if (mode === 'picos_em_pe') {
+    const hasPeaks = isIntervalStructure(protocol.structure) || protocol.blocks.some(b => b.type === 'pico');
+    if (!hasPeaks || !protocol.blocks.some(isPeakBlock)) return protocol;
+  }
+  const blocks = protocol.blocks.map(b => {
+    const pos: CardioBlock['bikePosition'] = mode === 'sentado' ? 'sentado' : isPeakBlock(b) ? 'em_pe' : 'sentado';
+    return b.bikePosition === pos ? b : { ...b, bikePosition: pos };
+  });
+  return blocks.every((b, i) => b === protocol.blocks[i]) ? protocol : { ...protocol, blocks };
+}
+
 /** Picos definidos pelo coach (esteira e/ou bike). Precisa do tempo do pico e da recuperação. */
 export function intervalSpecs(equipment: EquipmentInput | null | undefined): IntervalSpec[] {
   const eq = equipment && typeof equipment === 'object' ? equipment : {};
@@ -68,8 +98,9 @@ export function intervalSpecs(equipment: EquipmentInput | null | undefined): Int
   if (bWork && bRest) {
     let workPos: IntervalStep['bikePosition'];
     let restPos: IntervalStep['bikePosition'];
-    if (b.position === 'sentado') { workPos = 'sentado'; restPos = 'sentado'; }
-    else if (b.position === 'em_pe') { workPos = 'em_pe'; restPos = 'em_pe'; }
+    const mode = bikePositionMode(eq);
+    if (mode === 'sentado') { workPos = 'sentado'; restPos = 'sentado'; }
+    else if (mode === 'picos_em_pe') { workPos = 'em_pe'; restPos = 'sentado'; }
     else if (!hard && stand) { workPos = 'em_pe'; restPos = 'sentado'; }
     out.push({
       modality: 'bike',
@@ -216,7 +247,8 @@ export interface NormalizeResult<T extends CardioPayload> {
  */
 export function normalizeCardioIntervals<T extends CardioPayload>(payload: T, opts: NormalizeOptions): NormalizeResult<T> {
   const specs = intervalSpecs(opts.equipment);
-  if (!specs.length || !payload) return { payload, changed: [] };
+  const posMode = bikePositionMode(opts.equipment);
+  if ((!specs.length && !posMode) || !payload) return { payload, changed: [] };
   const weekly = isWeeklyPlan(payload);
   const list: CardioProtocol[] = weekly ? [...(payload as any).protocols] : [payload as CardioProtocol];
   const allowed = (opts.modalities ?? []).filter(Boolean);
@@ -246,6 +278,12 @@ export function normalizeCardioIntervals<T extends CardioPayload>(payload: T, op
       list[i] = next;
     }
   }
+  if (posMode && (!allowed.length || allowed.includes('bike'))) {
+    list.forEach((p, i) => {
+      const next = applyBikePositions(p, posMode);
+      if (next !== p) { changed.add(i); list[i] = next; }
+    });
+  }
   const out = weekly ? { ...(payload as any), protocols: list } : list[0];
   return { payload: out as T, changed: [...changed].sort((a, b) => a - b) };
 }
@@ -266,7 +304,7 @@ export function repeatIntervalPair(protocol: CardioProtocol, rounds: number, wor
     { ...work, notes: `Ciclo ${i} de ${n}` },
     { ...rest, notes: `Ciclo ${i} de ${n}` },
   ];
-  // Mantém os campos de cada bloco do par (elíptica/escada também), só repete.
+  // Mantém os campos de cada bloco do par (posição da bike, elíptica/escada também), só repete.
   const cycles = Array.from({ length: n }, (_, k) => pair(k + 1)).flat();
   const out = [...warmup, ...cycles, ...cooldown];
   return { ...protocol, totalDurationMin: Math.round(out.reduce((s, b) => s + (b.durationSec || 0), 0) / 60), blocks: out };
