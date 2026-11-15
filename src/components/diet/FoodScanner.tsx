@@ -18,6 +18,7 @@ import { buildScanMealLog, foodScanInsert, scannedFoodItem, scannedProductItem, 
 import FoodScanResult, { ScoreDot, type ScanRecord } from './FoodScanResult';
 import AddToMealPanel from './foodScan/AddToMealPanel';
 import PhotoScanTab from './foodScan/PhotoScanTab';
+import { registerProduct } from './mealWeigh/scannerApi';
 
 /** Dieta do aluno no dia: o que o scanner precisa para registrar numa refeição. */
 export interface ScanMealContext {
@@ -100,6 +101,8 @@ export default function FoodScanner({ open, onOpenChange, dailyKcal, mode = 'alu
         .single();
       if (error) throw error;
       const rec = data as unknown as ScanRecord;
+      // Completo e sem duplicado: entra sozinho no banco de alimentos (o servidor decide). Best-effort.
+      if (mode !== 'admin') void registerProduct(product, barcode, String(source), null);
       if (mode === 'admin') {
         stopCamera();
         onOpenChange(false);
