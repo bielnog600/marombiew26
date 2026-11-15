@@ -528,7 +528,6 @@ const BlockParameters: React.FC<{ block: any; modality: CardioModality }> = ({ b
   } else if (modality === 'bike') {
     if (block.cadenceRpm != null) params.push(`${block.cadenceRpm} rpm`);
     if (block.resistanceLevel != null) params.push(`Nível ${block.resistanceLevel}`);
-    if (block.bikePosition) params.push(block.bikePosition === 'em_pe' ? 'Em pé' : block.bikePosition === 'sentado' ? 'Sentado' : 'Alternado');
   } else if (modality === 'eliptica') {
     if (block.cadenceRpm != null) params.push(`${block.cadenceRpm} spm`);
     if (block.resistanceLevel != null) params.push(`Nível ${block.resistanceLevel}`);
@@ -537,10 +536,23 @@ const BlockParameters: React.FC<{ block: any; modality: CardioModality }> = ({ b
     if (block.resistanceLevel != null) params.push(`Nível ${block.resistanceLevel}`);
   }
   if (block.targetHrRange) params.push(block.targetHrRange);
-  if (params.length === 0) return null;
+  const position = modality === 'bike' && block.bikePosition
+    ? ({ em_pe: 'Em pé', sentado: 'Sentado', alternado: 'Alternado' } as Record<string, string>)[block.bikePosition]
+    : undefined;
+  if (params.length === 0 && !position) return null;
   return (
-    <p className="text-[11px] text-muted-foreground mt-1">
-      {params.join(' • ')}
+    <p className="text-[11px] text-muted-foreground mt-1 flex flex-wrap items-center gap-1.5">
+      {position && (
+        <span
+          data-testid="cardio-block-position"
+          className={block.bikePosition === 'em_pe'
+            ? 'rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide bg-primary/15 text-primary'
+            : 'rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide bg-secondary text-foreground'}
+        >
+          {position}
+        </span>
+      )}
+      {params.length > 0 && <span>{params.join(' • ')}</span>}
     </p>
   );
 };
@@ -551,7 +563,7 @@ const TIMES = CARDIO_TIMES;
 const LEVELS = CARDIO_BIKE_LEVELS;
 const ROUNDS = CARDIO_ROUNDS;
 const BIKE_POSITIONS = CARDIO_BIKE_POSITIONS;
-const fmtBikePos = (v: string) => ({ auto: 'Auto (IA)', alternado: 'Em pé e sentado', sentado: 'Apenas sentado', em_pe: 'Apenas em pé' }[v] || v);
+const fmtBikePos = (v: string) => ({ auto: 'Auto (IA)', alternado: 'Alternado (picos em pé)', sentado: 'Apenas sentado', em_pe: 'Em pé nos picos' }[v] || v);
 const fmtSec = (v: string) => { const n = +v; return n < 60 ? `${n}s` : n % 60 ? `${Math.floor(n/60)}min ${n%60}s` : `${n/60} min`; };
 
 const EqSelect: React.FC<{ label: string; value?: string; onChange: (v: string) => void; options: string[]; suffix?: string; fmt?: (v: string) => string }> = ({ label, value, onChange, options, suffix = '', fmt }) => (

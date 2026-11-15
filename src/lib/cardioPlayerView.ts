@@ -41,9 +41,10 @@ export function blockParams(b: CardioBlock | undefined, modality: CardioModality
     if (n(b.speedKmh)) out.push({ label: 'Velocidade', value: n(b.speedKmh)!, unit: 'km/h' });
     if (n(b.inclinePct) != null) out.push({ label: 'Inclinação', value: n(b.inclinePct)!, unit: '%' });
   } else if (modality === 'bike') {
+    // Posição primeiro: aparece no "A seguir" ("Pico forte · Em pé · nível 12 · 0:30").
+    if (b.bikePosition) out.push({ label: 'Posição', value: POSITION[b.bikePosition] ?? b.bikePosition });
     if (n(b.resistanceLevel)) out.push({ label: 'Nível', value: n(b.resistanceLevel)! });
     if (n(b.cadenceRpm)) out.push({ label: 'Cadência', value: n(b.cadenceRpm)!, unit: 'rpm' });
-    if (b.bikePosition) out.push({ label: 'Posição', value: POSITION[b.bikePosition] ?? b.bikePosition });
   } else if (modality === 'eliptica') {
     if (n(b.resistanceLevel)) out.push({ label: 'Nível', value: n(b.resistanceLevel)! });
     if (n(b.cadenceRpm)) out.push({ label: 'Cadência', value: n(b.cadenceRpm)!, unit: 'spm' });
@@ -52,6 +53,14 @@ export function blockParams(b: CardioBlock | undefined, modality: CardioModality
     if (n(b.resistanceLevel)) out.push({ label: 'Nível', value: n(b.resistanceLevel)! });
   }
   return out;
+}
+
+export interface PositionCue { text: string; emphasis: boolean }
+
+/** Posição da bike em destaque no player ("EM PÉ"); destaque forte quando é em pé (picos). Só bike. */
+export function bikePositionCue(b: CardioBlock | undefined, modality: CardioModality): PositionCue | null {
+  if (modality !== 'bike' || !b?.bikePosition || !POSITION[b.bikePosition]) return null;
+  return { text: POSITION[b.bikePosition].toUpperCase(), emphasis: b.bikePosition === 'em_pe' || (b.bikePosition === 'alternado' && isHardBlock(b)) };
 }
 
 /** "Recuperação · 4 km/h · 1:00". */

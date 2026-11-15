@@ -316,5 +316,6 @@ Fora do escopo desta entrega (Fases 3-6): LOW/MEDIUM/HIGH, novo carb cycling, aj
 - [x] Editor de etapas no Cardio IA (nome, tempo, tipo, intensidade, velocidade, inclinação, nível, notas) + "Repetir par forte/recuperação × N"
 - [x] Execução em tela cheia no visual do TABATA: anel mm:ss, fase X de N, barra por fase, parâmetros grandes, Zona FC, "A seguir" nos últimos 10 s, 3-2-1 + voz, anterior/pausar/próximo, Finalizar sessão
 - [x] Pausa ao sair, retomada em até 15 s, card "Cardio em andamento" (home e Player), tela ligada
+- [x] Bike: Posição por etapa no editor, copiada no "Repetir par", no resumo e em destaque no player; em pé/alternado → picos em pé e resto sentado na geração
 - [x] Tela Finalizar: duração editável, Como foi? (5 barras), estrelas, modalidade, distância, FC média, calorias estimadas, observação; salva e aparece na ficha (admin) e em Meu progresso
 - [ ] Testar no iPhone real (sair/voltar, bloquear tela, som) — não consegui entrar como aluno no navegador daqui

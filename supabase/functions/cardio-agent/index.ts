@@ -239,7 +239,9 @@ serve(withAiUsage("cardio_ia", "cardio-agent", async (req) => {
         eqLines.push(`- POSIÇÃO OBRIGATÓRIA: TODOS os blocos de bike devem usar bikePosition="sentado" — O ALUNO NÃO PODE PEDALAR EM PÉ (restrição física). NUNCA use bikePosition="em_pe" ou "alternado".`);
         eqLines.push(`- Os picos de HIIT são feitos SENTADO, com carga alta (maior resistanceLevel) e cadência firme; as recuperações sentado com carga baixa.`);
       } else if (standingOnly) {
-        eqLines.push(`- POSIÇÃO OBRIGATÓRIA: TODOS os blocos de bike devem usar bikePosition="em_pe". NUNCA use bikePosition="sentado" ou "alternado".`);
+        eqLines.push(`- POSIÇÃO: nas sessões com picos, os blocos de pico usam bikePosition="em_pe"; recuperação, aquecimento e desaceleração usam bikePosition="sentado".`);
+      } else if (b.position === "alternado") {
+        eqLines.push(`- POSIÇÃO: alterne — blocos de pico com bikePosition="em_pe"; recuperação, aquecimento e desaceleração com bikePosition="sentado".`);
       }
       if (b.hiit) eqLines.push(`- Pelo menos uma sessão de bike deve ser HIIT (structure="hiit") com blocos alternados pico/recuperação.`);
       if (b.standSec && !seatedOnly) eqLines.push(`- Blocos EM PÉ: bikePosition="em_pe", durationSec=${b.standSec}, intensityLabel forte/maxima.`);

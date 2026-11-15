@@ -10722,6 +10722,25 @@ var numOrZero = (v) => {
   return typeof n === "number" && Number.isFinite(n) && n >= 0 ? n : void 0;
 };
 var clean = (o) => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== void 0));
+function bikePositionMode(equipment) {
+  const p = equipment?.bike?.position;
+  if (p === "em_pe" || p === "alternado") return "picos_em_pe";
+  if (p === "sentado") return "sentado";
+  return null;
+}
+var isPeakBlock = (b) => isHardBlock(b) && b.type !== "aquecimento" && b.type !== "desaceleracao";
+function applyBikePositions(protocol, mode) {
+  if (!mode || protocol?.modality !== "bike" || !Array.isArray(protocol.blocks)) return protocol;
+  if (mode === "picos_em_pe") {
+    const hasPeaks = isIntervalStructure(protocol.structure) || protocol.blocks.some((b) => b.type === "pico");
+    if (!hasPeaks || !protocol.blocks.some(isPeakBlock)) return protocol;
+  }
+  const blocks = protocol.blocks.map((b) => {
+    const pos = mode === "sentado" ? "sentado" : isPeakBlock(b) ? "em_pe" : "sentado";
+    return b.bikePosition === pos ? b : { ...b, bikePosition: pos };
+  });
+  return blocks.every((b, i) => b === protocol.blocks[i]) ? protocol : { ...protocol, blocks };
+}
 function intervalSpecs(equipment) {
   const eq = equipment && typeof equipment === "object" ? equipment : {};
   const rounds = num3(eq.rounds);
@@ -10743,12 +10762,13 @@ function intervalSpecs(equipment) {
   if (bWork && bRest) {
     let workPos;
     let restPos;
-    if (b.position === "sentado") {
+    const mode = bikePositionMode(eq);
+    if (mode === "sentado") {
       workPos = "sentado";
       restPos = "sentado";
-    } else if (b.position === "em_pe") {
+    } else if (mode === "picos_em_pe") {
       workPos = "em_pe";
-      restPos = "em_pe";
+      restPos = "sentado";
     } else if (!hard && stand) {
       workPos = "em_pe";
       restPos = "sentado";
@@ -10859,7 +10879,8 @@ function applyIntervalSpec(protocol, spec) {
 }
 function normalizeCardioIntervals(payload, opts) {
   const specs = intervalSpecs(opts.equipment);
-  if (!specs.length || !payload) return { payload, changed: [] };
+  const posMode = bikePositionMode(opts.equipment);
+  if (!specs.length && !posMode || !payload) return { payload, changed: [] };
   const weekly = isWeeklyPlan(payload);
   const list2 = weekly ? [...payload.protocols] : [payload];
   const allowed = (opts.modalities ?? []).filter(Boolean);
@@ -10885,6 +10906,15 @@ function normalizeCardioIntervals(payload, opts) {
       if (JSON.stringify(next) !== JSON.stringify(list2[i])) changed.add(i);
       list2[i] = next;
     }
+  }
+  if (posMode && (!allowed.length || allowed.includes("bike"))) {
+    list2.forEach((p, i) => {
+      const next = applyBikePositions(p, posMode);
+      if (next !== p) {
+        changed.add(i);
+        list2[i] = next;
+      }
+    });
   }
   const out = weekly ? { ...payload, protocols: list2 } : list2[0];
   return { payload: out, changed: [...changed].sort((a, b) => a - b) };
