@@ -185,7 +185,7 @@ describe('Pesar refeição — salvar entra na refeição do dia', () => {
     render(<MinhasDietas />);
     await screen.findByText('Lanche');
     const jantarBefore = jantarKcal();
-    fireEvent.click(screen.getByRole('button', { name: /Escanear alimento/ }));
+    fireEvent.click(screen.getByRole('button', { name: /^Escanear$/ }));
     // 09:00 → refeição sugerida é o Lanche (08:00).
     await act(async () => { fireEvent.click(await screen.findByRole('button', { name: 'Adicionar escaneado (Lanche)' })); });
     const card = lancheCard();
