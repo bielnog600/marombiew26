@@ -58,7 +58,7 @@ export const weightWindowStart = (today: string): string => addDays(today, -(WEI
 export const needsWeight = (lastLogDate: string | null | undefined, today: string): boolean => {
   if (!lastLogDate) return true;
   const d = String(lastLogDate).slice(0, 10);
-  return d < weightWindowStart(today) || d > addDays(today, 1) ? d < weightWindowStart(today) : false;
+  return d < weightWindowStart(today);
 };
 
 export const formatDayPt = (iso: string): string => {
