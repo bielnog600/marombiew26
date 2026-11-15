@@ -15,6 +15,7 @@ import AddFoodDialog from './AddFoodDialog';
 import { formatDayWeighLabel, type DayFoodWeigh } from '@/lib/mealWeigh';
 import { groupDayMealFoods } from '@/lib/mealWeigh/dayEdit';
 import FoodSubstitutionDialog from './FoodSubstitutionDialog';
+import type { StudentMealOption } from '@/lib/studentStructuredDiet';
 
 const parseNum = (v?: string) => {
   if (!v) return 0;
@@ -99,6 +100,18 @@ interface StudentMealCardProps {
   onEditWeigh?: () => void;
   /** Refeição registrada: tocar num alimento abre o painel (trocar, gramas, Não comi/Comi sem pesar, apagar). */
   onEditWeighedFood?: (food: ParsedFood) => void;
+  /** Refeição pesada: remover um alimento registrado (vira "Não comeu" quando era do plano). */
+  onRemoveWeighedFood?: (food: ParsedFood) => void;
+  /** Refeição pesada: mover um alimento registrado para outra refeição ainda não pesada. */
+  onMoveWeighedFood?: (food: ParsedFood, targetMealIndex: number) => void;
+  /** Até 3 opções da refeição (Opção 1 = plano). Com 1 opção nada aparece. */
+  options?: StudentMealOption[];
+  selectedOption?: number;
+  onSelectOption?: (optionIndex: number) => void;
+  /** A opção atual já foi pesada ou alterada pelo aluno neste dia. */
+  optionEdited?: boolean;
+  /** "Como preparar" da opção escolhida. */
+  prep?: string | null;
 }
 
 const StudentMealCard: React.FC<StudentMealCardProps> = ({
@@ -117,7 +130,16 @@ const StudentMealCard: React.FC<StudentMealCardProps> = ({
   weighed,
   onEditWeigh,
   onEditWeighedFood,
+  onRemoveWeighedFood,
+  onMoveWeighedFood,
+  options,
+  selectedOption = 0,
+  onSelectOption,
+  optionEdited,
+  prep,
 }) => {
+  const hasOptions = !!options && options.length > 1;
+  const currentOption = hasOptions ? options![Math.min(Math.max(selectedOption, 0), options!.length - 1)] : null;
   const show = displayText ?? ((text: string) => text);
   const [adjustMode, setAdjustMode] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
@@ -169,6 +191,10 @@ const StudentMealCard: React.FC<StudentMealCardProps> = ({
     const locked = !!weighed;
     // Refeição já pesada: a balança continua nos alimentos do plano para pesar/atualizar só aquele item.
     const canWeighFood = !!onWeighFood && !adjustMode && (!locked || (!!weigh && weigh.status !== 'fora_do_plano'));
+    // Alimento registrado (pesado, fora do plano, sem pesar) também pode ir para outra refeição ou sair.
+    const registeredRow = locked && !!weigh && weigh.status !== 'nao_comeu';
+    const canMoveWeighed = registeredRow && !!onMoveWeighedFood && moveTargets.length > 0;
+    const canRemoveWeighed = registeredRow && !!onRemoveWeighedFood;
     // Livre: substituir; registrada: abre o painel do item (qualquer origem).
     const tap: (() => void) | null = adjustMode
       ? null
@@ -229,7 +255,7 @@ const StudentMealCard: React.FC<StudentMealCardProps> = ({
           <span className="text-chart-5">G {food.g || '0'}</span>
         </div>
       </div>
-      {(!locked || canWeighFood) && <div className="flex shrink-0 items-center gap-1">
+      {(!locked || canWeighFood || canMoveWeighed || canRemoveWeighed) && <div className="flex shrink-0 items-center gap-1">
         {canWeighFood && (
           <button
             type="button"
@@ -240,7 +266,7 @@ const StudentMealCard: React.FC<StudentMealCardProps> = ({
             <Scale className="h-3.5 w-3.5" />
           </button>
         )}
-        {!locked && moveTargets.length > 0 && (
+        {(canMoveWeighed || (!locked && moveTargets.length > 0)) && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button
@@ -257,7 +283,7 @@ const StudentMealCard: React.FC<StudentMealCardProps> = ({
                 <DropdownMenuItem
                   key={t.index}
                   className="text-xs"
-                  onClick={() => onMoveFood(food, t.index)}
+                  onClick={() => (locked ? onMoveWeighedFood?.(food, t.index) : onMoveFood(food, t.index))}
                 >
                   {t.name}
                 </DropdownMenuItem>
@@ -265,10 +291,10 @@ const StudentMealCard: React.FC<StudentMealCardProps> = ({
             </DropdownMenuContent>
           </DropdownMenu>
         )}
-        {!locked && (
+        {(!locked || canRemoveWeighed) && (
         <button
           type="button"
-          onClick={() => handleRemove(foodIndex)}
+          onClick={() => (locked ? onRemoveWeighedFood?.(food) : handleRemove(foodIndex))}
           aria-label={`Remover ${food.food}`}
           className="p-1.5 text-muted-foreground transition-colors hover:text-destructive"
         >
@@ -305,6 +331,11 @@ const StudentMealCard: React.FC<StudentMealCardProps> = ({
             <div className="flex items-center gap-2">
               {meal.time && <span className="text-xs font-semibold text-primary">{meal.time}</span>}
               <span className="truncate text-sm font-semibold text-foreground">{show(meal.name)}</span>
+              {hasOptions && (
+                <span className="shrink-0 rounded-full bg-primary px-1.5 py-0.5 text-[10px] font-bold text-primary-foreground" data-testid="meal-option-badge">
+                  Opção {selectedOption + 1}/{options!.length}
+                </span>
+              )}
               {weighed && (
                 <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-primary/50 bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold text-primary" data-testid="meal-weighed-badge">
                   {mealBadge === 'Escaneado' ? <ScanBarcode className="h-3 w-3" /> : mealBadge === 'Estimado' ? <Sparkles className="h-3 w-3" /> : <Scale className="h-3 w-3" />} {mealBadge}
@@ -314,6 +345,7 @@ const StudentMealCard: React.FC<StudentMealCardProps> = ({
             <p className="mt-0.5 text-[11px] text-muted-foreground">
               {totalKcal > 0 ? `Aprox. ${round(totalKcal)} kcal` : 'Sem calorias registradas'}
               {foods.length > 0 ? ` · ${foods.length} ${foods.length === 1 ? 'item' : 'itens'}` : ''}
+              {currentOption ? ` · ${show(currentOption.name)}` : ''}
             </p>
           </div>
           <ChevronDown
@@ -330,6 +362,37 @@ const StudentMealCard: React.FC<StudentMealCardProps> = ({
         >
           <div className="overflow-hidden">
             <div className="border-t border-border/50 px-3 pb-3 pt-3">
+              {hasOptions && (
+                <div className="mb-3" data-testid="meal-option-picker">
+                  <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Escolhe a opção</p>
+                  <div className="grid grid-cols-3 gap-2">
+                    {options!.map((opt, oi) => {
+                      const active = oi === selectedOption;
+                      return (
+                        <button
+                          key={`opt-${oi}`}
+                          type="button"
+                          aria-pressed={active}
+                          aria-label={`Opção ${oi + 1}: ${opt.name}`}
+                          onClick={() => onSelectOption?.(oi)}
+                          className={`flex min-h-[84px] flex-col items-start rounded-xl border p-2 text-left transition-colors ${
+                            active ? 'border-primary bg-primary/10' : 'border-border/60 bg-background/40 hover:border-primary/40'
+                          }`}
+                        >
+                          <span className={`text-[10px] font-bold uppercase ${active ? 'text-primary' : 'text-muted-foreground'}`}>Opção {oi + 1}</span>
+                          <span className="mt-0.5 line-clamp-2 text-[11px] font-semibold leading-tight text-foreground">{show(opt.name)}</span>
+                          <span className="mt-auto pt-1 text-[11px] font-bold text-primary">
+                            {round(active ? totalKcal : opt.kcal)} kcal
+                          </span>
+                          {active && optionEdited && (
+                            <span className="text-[9px] font-semibold text-muted-foreground" data-testid="meal-option-edited">✎ pesada / alterada</span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
               <div className="flex gap-2">
                 {!weighed && (<>
                 <button
@@ -401,6 +464,12 @@ const StudentMealCard: React.FC<StudentMealCardProps> = ({
                   </>);
                 })()}
               </div>
+
+              {prep && (
+                <p className="mt-3 rounded-xl bg-background/40 px-3 py-2 text-[11px] text-muted-foreground" data-testid="meal-option-prep">
+                  <span className="font-semibold text-foreground">Como preparar:</span> {show(prep)}
+                </p>
+              )}
 
               {onToggleComplete && (
                 <button
