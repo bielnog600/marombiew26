@@ -34,53 +34,59 @@ export interface PlayerBeeper {
   dispose(): void;
 }
 
-export function createPlayerBeeper(isMuted: () => boolean): PlayerBeeper {
-  let ctx: AudioContext | null = null;
-  let html: Partial<Record<BeepKind, HTMLAudioElement[]>> = {};
-  const cursor: Record<BeepKind, number> = { countdown: 0, transition: 0 };
+// Um só contexto de áudio para o app: liberado num toque (ex.: "INICIAR CARDIO" antes de abrir o player)
+// continua liberado quando o player monta. Por isso não é fechado ao sair do player.
+const shared: { ctx: AudioContext | null; html: Partial<Record<BeepKind, HTMLAudioElement[]>> } = { ctx: null, html: {} };
 
-  const audioCtx = () => {
+function audioCtx(): AudioContext | null {
+  try {
+    if (!shared.ctx || shared.ctx.state === 'closed') {
+      const C = window.AudioContext || (window as any).webkitAudioContext;
+      if (!C) return null;
+      shared.ctx = new C();
+    }
+    if (shared.ctx.state === 'suspended') shared.ctx.resume().catch(() => {});
+    return shared.ctx;
+  } catch { return null; }
+}
+
+function ensureHtml() {
+  if (shared.html.countdown?.length || typeof Audio === 'undefined') return;
+  try {
+    (Object.keys(TONE) as BeepKind[]).forEach((k) => {
+      const src = beepDataUri(TONE[k].freq, TONE[k].dur, 0.34);
+      shared.html[k] = Array.from({ length: 3 }, () => { const a = new Audio(src); a.preload = 'auto'; return a; });
+    });
+  } catch { shared.html = {}; }
+}
+
+/** Libera o som no iPhone. Chamar dentro do toque do usuário (pode ser antes de abrir o player). */
+export function unlockPlayerAudio(): void {
+  const c = audioCtx();
+  try {
+    if (c) {
+      const s = c.createBufferSource();
+      s.buffer = c.createBuffer(1, 1, c.sampleRate || 44100);
+      s.connect(c.destination); s.start(0);
+    }
+  } catch { /* noop */ }
+  ensureHtml();
+  Object.values(shared.html).flat().forEach((a) => {
     try {
-      if (!ctx || ctx.state === 'closed') {
-        const C = window.AudioContext || (window as any).webkitAudioContext;
-        if (!C) return null;
-        ctx = new C();
-      }
-      if (ctx.state === 'suspended') ctx.resume().catch(() => {});
-      return ctx;
-    } catch { return null; }
-  };
-  const ensureHtml = () => {
-    if (html.countdown?.length || typeof Audio === 'undefined') return;
-    try {
-      (Object.keys(TONE) as BeepKind[]).forEach((k) => {
-        const src = beepDataUri(TONE[k].freq, TONE[k].dur, 0.34);
-        html[k] = Array.from({ length: 3 }, () => { const a = new Audio(src); a.preload = 'auto'; return a; });
-      });
-    } catch { html = {}; }
-  };
-  const onVisible = () => { if (ctx?.state === 'suspended') ctx.resume().catch(() => {}); };
+      a!.muted = true;
+      const p = a!.play();
+      p?.then(() => { a!.pause(); a!.currentTime = 0; a!.muted = false; }).catch(() => { a!.muted = false; });
+    } catch { /* noop */ }
+  });
+}
+
+export function createPlayerBeeper(isMuted: () => boolean): PlayerBeeper {
+  const cursor: Record<BeepKind, number> = { countdown: 0, transition: 0 };
+  const onVisible = () => { if (shared.ctx?.state === 'suspended') shared.ctx.resume().catch(() => {}); };
   if (typeof document !== 'undefined') document.addEventListener('visibilitychange', onVisible);
 
   return {
-    unlock() {
-      const c = audioCtx();
-      try {
-        if (c) {
-          const s = c.createBufferSource();
-          s.buffer = c.createBuffer(1, 1, c.sampleRate || 44100);
-          s.connect(c.destination); s.start(0);
-        }
-      } catch { /* noop */ }
-      ensureHtml();
-      Object.values(html).flat().forEach((a) => {
-        try {
-          a!.muted = true;
-          const p = a!.play();
-          p?.then(() => { a!.pause(); a!.currentTime = 0; a!.muted = false; }).catch(() => { a!.muted = false; });
-        } catch { /* noop */ }
-      });
-    },
+    unlock: unlockPlayerAudio,
     beep(kind) {
       if (isMuted()) return;
       const t = TONE[kind];
@@ -103,7 +109,7 @@ export function createPlayerBeeper(isMuted: () => boolean): PlayerBeeper {
       }
       if (!ok) {
         ensureHtml();
-        const pool = html[kind];
+        const pool = shared.html[kind];
         if (pool?.length) {
           const a = pool[cursor[kind]++ % pool.length];
           try { a.currentTime = 0; a.muted = false; void a.play()?.catch(() => {}); } catch { /* noop */ }
@@ -112,8 +118,6 @@ export function createPlayerBeeper(isMuted: () => boolean): PlayerBeeper {
     },
     dispose() {
       if (typeof document !== 'undefined') document.removeEventListener('visibilitychange', onVisible);
-      try { ctx?.close(); } catch { /* noop */ }
-      ctx = null;
     },
   };
 }

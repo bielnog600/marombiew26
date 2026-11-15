@@ -14,6 +14,7 @@ import {
   type CardioProtocol, type CardioBlock,
 } from '@/lib/cardioParser';
 import { mmss } from '@/lib/cardioIntervals';
+import { shortCardioTitle } from '@/lib/cardioChooser';
 import { toneColor, type PhaseTone } from '@/lib/tabataPlayerView';
 import { PhaseChip } from '@/components/tabata/player/TabataPlayerParts';
 import {
@@ -78,6 +79,8 @@ const CardioExecucao: React.FC = () => {
   const navState = (location.state as any) || {};
   const planId: string | null = navState.planId ?? null;
   const isPreview = navState.preview === true;
+  /** Aluno tocou "INICIAR" na tela Cardio: começa direto no "Prepare-se" (sem a tela inicial). */
+  const autoStart = navState.autoStart === true;
   /** Qual sessão do plano o aluno escolheu na tela Cardio (para o "Feito terça" e o "Sugerido"). */
   const navProtocolIndex: number | null = Number.isInteger(navState.protocolIndex) ? navState.protocolIndex : null;
   /** Pré-visualização do admin: nada é salvo nem pausa ao sair. */
@@ -604,8 +607,10 @@ const CardioExecucao: React.FC = () => {
     return () => document.removeEventListener('pointerdown', onTap, { capture: true });
   }, []);
 
-  // Abriu: retoma direto (Continuar da home) ou oferece o card se este cardio está em andamento.
+  // Abriu: começa direto (INICIAR da tela Cardio), retoma direto (Continuar da home)
+  // ou oferece o card se este cardio está em andamento.
   useEffect(() => {
+    if (autoStart && navProtocol && !navResume) { unlockAudio(); start(); return; }
     if (!persistEnabled || !navProtocol) return;
     if (navResume) {
       if (restoreSnapshot(navResume)) { unlockAudio(); runResumeCountdown(true); }
@@ -704,7 +709,7 @@ const CardioExecucao: React.FC = () => {
             <X className="h-5 w-5" />
           </Button>
           <div className="flex-1 min-w-0 text-center">
-            <p className="text-[11px] uppercase tracking-widest text-tabata-soft truncate">{protocol.title}</p>
+            <p className="text-[11px] uppercase tracking-widest text-tabata-soft truncate">{shortCardioTitle(protocol)}</p>
             {running && (
               <p className="text-sm font-black" data-testid="cardio-phase-count">
                 {phase === 'prep' ? 'Prepare-se' : phaseCountLabel(blockIndex, blocks.length)}
