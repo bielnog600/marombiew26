@@ -34,6 +34,7 @@ import ProtocolsDialog from '@/components/diet/ProtocolsDialog';
 import { protocolsToKeys, type SavedProtocols, type ProtocolKey } from '@/lib/dietProtocols';
 import { ListChecks, ScanBarcode } from 'lucide-react';
 import { toast } from 'sonner';
+import { MEAL_SAVE_ERROR_MESSAGE } from '@/lib/mealWeigh/saveError';
 const FoodScanner = lazyWithRetry(() => import('@/components/diet/FoodScanner'));
 const MealWeighScreen = lazyWithRetry(() => import('@/components/diet/mealWeigh/MealWeighScreen'));
 const DayWeighFoodSheet = lazyWithRetry(() => import('@/components/diet/mealWeigh/DayWeighFoodSheet'));
@@ -994,7 +995,7 @@ const MinhasDietas = () => {
       mealName: String(meal?.name ?? ''), mealTime: (meal?.time as string | undefined) ?? null,
     }, next);
     setDayEditSaving(false);
-    if (!log) { toast.error('Não foi possível salvar: ' + (error ?? '')); return false; }
+    if (!log) { toast.error(error ?? MEAL_SAVE_ERROR_MESSAGE); return false; }
     handleWeighSaved(log);
     toast.success(message);
     setDayEdit(null);

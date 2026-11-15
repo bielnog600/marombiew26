@@ -8,6 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
+import { mealSaveErrorMessage } from '@/lib/mealWeigh/saveError';
 import { Camera, History, ImageIcon, Loader2, ScanBarcode, X } from 'lucide-react';
 import { computeFoodScore, type ProductData } from '@/lib/foodScore';
 import type { ParsedMeal } from '@/lib/dietResultParser';
@@ -238,7 +239,7 @@ export default function FoodScanner({ open, onOpenChange, dailyKcal, mode = 'alu
       items: row.items as any, unweighed: row.unweighed as any, planned: row.planned as any,
       total_kcal: row.total_kcal, total_p: row.total_p, total_c: row.total_c, total_g: row.total_g,
     }).select('id, log_date, meal_index, items, unweighed, planned, created_at').single();
-    if (error || !data) { toast.error('Não foi possível adicionar à refeição.'); return false; }
+    if (error || !data) { toast.error(mealSaveErrorMessage('scanner de alimentos', error ?? 'sem resposta')); return false; }
     mealContext.onSaved(data as unknown as WeighLogRecord);
     toast.success(`${mode === 'replace' ? 'Refeição substituída' : 'Adicionado'} em ${meal.name}: ${item.alimento} ${Math.round(item.gramas)} g · ${item.kcal} kcal`);
     if (mode === 'review' && mealContext.onReview) {
