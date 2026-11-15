@@ -43,6 +43,8 @@ export interface CardioProtocol {
   targetZoneSummary?: string;
   safetyNotes?: string[];
   executionTips?: string[];
+  /** "Dica do Fabiew" (opcional, escrita pelo admin) mostrada ao aluno antes de iniciar. */
+  coachTip?: string;
   blocks: CardioBlock[];
 }
 
