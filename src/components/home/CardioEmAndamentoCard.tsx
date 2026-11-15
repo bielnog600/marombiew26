@@ -5,6 +5,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { fetchExerciseImageByNames, getCachedExerciseImage, CARDIO_IMAGE_BY_MODALITY } from '@/lib/homeHeroImages';
 import { STALE_WARMUP_TEXT, cardioSnapshotLabel, resumeStatus, stoppedAgoText, type CardioSnapshot } from '@/lib/cardioResume';
+import { shortCardioTitle } from '@/lib/cardioChooser';
 import workoutHero from '@/assets/workout-hero.jpg';
 
 interface Props {
@@ -32,9 +33,10 @@ const CardioEmAndamentoCard: React.FC<Props> = ({ snapshot, onDiscard }) => {
     state: { protocol: snapshot.protocol, planId: snapshot.planId, resumeSnapshot: snapshot },
   });
   const recomecar = async () => {
-    const protocol = snapshot.protocol;
+    // Recomeçar = escolher de novo na tela nova (detalhe da sessão, ou a lista se o retrato é antigo).
+    const index = snapshot.protocolIndex;
     await onDiscard();
-    navigate('/cardio-execucao', { state: { protocol, planId: snapshot.planId, protocolIndex: snapshot.protocolIndex ?? null } });
+    navigate(Number.isInteger(index) ? `/cardio/${index}` : '/cardio');
   };
   const descartar = () => {
     if (!window.confirm('Descartar este cardio em andamento? Ele não vai contar como feito.')) return;
@@ -58,7 +60,7 @@ const CardioEmAndamentoCard: React.FC<Props> = ({ snapshot, onDiscard }) => {
         </Button>
         <div className="absolute bottom-0 left-0 right-0 p-4">
           <p className="text-[10px] uppercase tracking-widest text-primary font-semibold">Cardio em andamento</p>
-          <h3 className="text-base font-bold text-foreground mt-0.5 uppercase truncate">{snapshot.title || 'Cardio'}</h3>
+          <h3 className="text-base font-bold text-foreground mt-0.5 uppercase truncate">{shortCardioTitle(snapshot.protocol)}</h3>
           <p className="text-xs text-primary font-bold mt-0.5" data-testid="home-active-cardio-where">
             {cardioSnapshotLabel(snapshot)} · parou {stoppedAgoText(status.stoppedMs)}
           </p>

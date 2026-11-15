@@ -13,6 +13,7 @@ import {
   groupParams, intensityBars, isPeak, optionStatuses, paramBoxes, shortCardioTitle, stepsLegend, suggestedOption,
   type OptionStatus,
 } from '@/lib/cardioChooser';
+import { unlockPlayerAudio } from '@/lib/playerBeeper';
 import { CardioScreen, IntensityBars, ModalityIcon } from '@/components/cardio/choice/CardioChoiceParts';
 
 type NavState = { conteudo?: string | null; planId?: string | null; selected?: number } | null;
@@ -48,7 +49,9 @@ const CardioAluno: React.FC = () => {
   const startCardio = (i: number, replace: boolean) => {
     const protocol = data.options[i];
     if (!protocol) return;
-    navigate('/cardio-execucao', { replace, state: { protocol, planId: data.planId, protocolIndex: i } });
+    // Dentro do toque: libera os bipes no iPhone antes de abrir o player, que já começa no "Prepare-se".
+    unlockPlayerAudio();
+    navigate('/cardio-execucao', { replace, state: { protocol, planId: data.planId, protocolIndex: i, autoStart: true } });
   };
 
   if (index != null) {
