@@ -521,6 +521,3 @@ export const generatePlanMealOptions = (
 /** Diferença em kcal da opção vs. opção 1. */
 export const optionKcalDiff = (option: MealOption, planKcal: number): number =>
   Math.round(sumOptionItems(option.items).kcal - planKcal);
-
-export { planOptionName, sumOptionItems };
-export type { MealOption, MealOptionItem };
