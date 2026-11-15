@@ -54,7 +54,7 @@ describe('food-scanner weigh (Pesar refeição)', () => {
     expect(await res.json()).toEqual({ result: {
       alimento: 'Arroz branco cozido',
       alimento_alternativas: ['Arroz integral', 'Risoto', 'Arroz de pato'],
-      gramas_lidas: 182.5, confianca_alimento: 0.9, confianca_leitura: 0.8, visor_legivel: true, observacao: '',
+      gramas_lidas: 182.5, confianca_alimento: 0.9, confianca_leitura: 0.8, visor_legivel: true, observacao: '', ref_100g: null,
     } });
     const [url, options] = ctx.fetch.mock.calls[0] as unknown as [string, RequestInit];
     expect(url).toBe('https://api.anthropic.com/v1/messages');
