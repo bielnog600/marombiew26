@@ -1,0 +1,1 @@
+- Home photo cards (Treino, Cardio, TABATA and their "em andamento" variants) use the `hero-card-media`/`hero-card-img`/`hero-card-gradient` classes from index.css: the zoom transforms only the photo layer and gradient/content keep explicit z-index layers, because iOS Safari otherwise paints the scaled photo over the text during touch-and-drag.
