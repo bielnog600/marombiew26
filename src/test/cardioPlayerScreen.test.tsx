@@ -135,4 +135,31 @@ describe('Execução do cardio — tela cheia', () => {
     const saved = writes.filter(w => w.table === 'cardio_sessions' && w.op === 'upsert').pop()!.row;
     expect(saved).toMatchObject({ status: 'completed', rpe: 3, rating: 4, modality: 'bike', completed_blocks: 2, total_blocks: 18, plan_id: 'plan-c', student_id: 'aluno-1' });
   });
+
+  it('faixa de cadência só aparece na bike com cadência no bloco atual (esteira não muda)', async () => {
+    const bike: CardioProtocol = {
+      ...base, title: 'Bike', modality: 'bike',
+      blocks: [
+        { name: 'Aquecimento', type: 'aquecimento', durationSec: 120, intensityLabel: 'leve', resistanceLevel: 4 },
+        { name: 'Pico', type: 'pico', durationSec: 60, intensityLabel: 'forte', cadenceRpm: 90, resistanceLevel: 10 },
+      ],
+    };
+    const view = render(
+      <MemoryRouter initialEntries={['/', { pathname: '/cardio-execucao', state: { protocol: bike, planId: 'plan-b' } }]} initialIndex={1}>
+        <Routes><Route path="/" element={<p>home</p>} /><Route path="/cardio-execucao" element={<CardioExecucao />} /></Routes>
+      </MemoryRouter>,
+    );
+    click(/Iniciar/);
+    expect(screen.queryByTestId('cadence-band')).toBeNull(); // Prepare-se
+    click(/Próxima fase/); // aquecimento sem cadência
+    expect(screen.queryByTestId('cadence-band')).toBeNull();
+    click(/Próxima fase/); // pico 90 rpm
+    expect(screen.getByTestId('cadence-band')).toHaveAttribute('data-rpm', '90');
+    expect(screen.getByTestId('cadence-rpm')).toHaveTextContent('90');
+    view.unmount();
+
+    open(); // esteira
+    click(/Iniciar/); click(/Próxima fase/); click(/Próxima fase/);
+    expect(screen.queryByTestId('cadence-band')).toBeNull();
+  });
 });

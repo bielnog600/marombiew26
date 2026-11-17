@@ -35,6 +35,8 @@ import {
 } from '@/lib/cardioSessionApi';
 import { useScreenWakeLock } from '@/hooks/useScreenWakeLock';
 import CardioFinishScreen, { type CardioFinishValues } from '@/components/cardio/CardioFinishScreen';
+import CadenceBand from '@/components/cardio/CadenceBand';
+import { bikeCadenceRpm } from '@/lib/cadenceMetronome';
 
 type ResumeOffer = { snapshot: CardioSnapshot; stale: boolean; restore: boolean };
 
@@ -696,6 +698,8 @@ const CardioExecucao: React.FC = () => {
   const params = blockParams(current, protocol.modality).filter(p => !(positionCue && p.label === 'Posição'));
   const bpm = resolveBpmRange(current);
   const showNext = running && !!next && (phase === 'prep' || secondsLeft <= NEXT_CARD_SECONDS);
+  // Faixa de cadência: só bike com cadência no bloco atual (esteira, escada etc. não mudam).
+  const cadenceRpm = phase === 'block' ? bikeCadenceRpm(current, protocol.modality) : null;
 
   return (
     <div
@@ -850,6 +854,16 @@ const CardioExecucao: React.FC = () => {
           </Button>
         ) : running && (
           <>
+            {cadenceRpm != null && (
+              <CadenceBand
+                key={blockIndex}
+                rpm={cadenceRpm}
+                anchorMs={phaseStartTime}
+                blockEndMs={phaseStartTime + phaseTotalSeconds * 1000}
+                paused={paused}
+                playerMuted={muted}
+              />
+            )}
             <div className="flex items-center justify-center gap-6">
               <Button variant="ghost" size="icon" aria-label="Fase anterior" onClick={skipPrev}
                 className="h-14 w-14 rounded-full border border-tabata-border bg-tabata-panel hover:bg-tabata-panel active:scale-95">

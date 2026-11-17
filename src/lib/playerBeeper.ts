@@ -1,5 +1,7 @@
 // Bipes do Player do cardio: Web Audio (mistura com a música no iPhone) + <audio> curto de reserva,
 // o mesmo esquema do TABATA. `unlock()` precisa ser chamado dentro de um toque.
+import { unlockCadenceAudio } from './cadenceAudio';
+
 export type BeepKind = 'countdown' | 'transition';
 
 const TONE: Record<BeepKind, { freq: number; dur: number; vol: number }> = {
@@ -38,6 +40,9 @@ export interface PlayerBeeper {
 // continua liberado quando o player monta. Por isso não é fechado ao sair do player.
 const shared: { ctx: AudioContext | null; html: Partial<Record<BeepKind, HTMLAudioElement[]>> } = { ctx: null, html: {} };
 
+/** Contexto de áudio do player (o mesmo dos bipes), para a faixa de cadência agendar no mesmo relógio. */
+export function playerAudioContext(): AudioContext | null { return audioCtx(); }
+
 function audioCtx(): AudioContext | null {
   try {
     if (!shared.ctx || shared.ctx.state === 'closed') {
@@ -71,6 +76,7 @@ export function unlockPlayerAudio(): void {
     }
   } catch { /* noop */ }
   ensureHtml();
+  unlockCadenceAudio();
   Object.values(shared.html).flat().forEach((a) => {
     try {
       a!.muted = true;

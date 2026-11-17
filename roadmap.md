@@ -366,3 +366,9 @@ Fora do escopo desta entrega (Fases 3-6): LOW/MEDIUM/HIGH, novo carb cycling, aj
 - [x] Modal: totais, barra com esperado hoje, ritmo, sorteio, filtros, grade 10 colunas, fora da grade, últimos depósitos, gráfico por mês
 - [x] Mudar a meta com antes/depois sem perder depósitos; card resumo no Financeiro
 - [ ] Criar a primeira meta real com o login de admin — não consigo entrar como admin daqui (conferi com dados de exemplo)
+
+## Cardio bike — faixa de cadência
+- [x] Faixa (luz no ritmo, rpm, dica, barrinhas, mudo) só na bike com cadência, entre o card e os botões
+- [x] Beep por volta + acento a cada 4, silêncio no bipe de troca e nos 3-2-1, pausa/retoma, troca de bloco muda o ritmo
+- [x] Configuração (volta/perna, beep/clique/mudo) lembrada; iPhone toca no silencioso; reduced motion
+- [ ] Ouvir no iPhone real com a chave no silencioso — daqui só conferi no navegador sem som
