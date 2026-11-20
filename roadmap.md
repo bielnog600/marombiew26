@@ -1,5 +1,11 @@
 # Roadmap
 
+## Vídeos, ao vivo e plano em tempo real
+- [x] Vídeo do Cloudflare salvo e exibido sempre com autoplay, loop e muted (só acrescenta o que falta).
+- [x] Ao vivo do admin: exercício e série atuais, última série (carga × reps), "Atualizado há X s"; relê ao reconectar, ao voltar e a cada 20 s.
+- [x] Treino aberto do aluno recebe a edição do coach na hora, mantendo as séries feitas, com aviso; dieta e cardio também.
+- [ ] Conferir com login real (admin a ver um aluno a treinar; aluno com treino aberto enquanto o coach salva) — sem acesso aos logins daqui.
+
 ## Desempenho — Dashboard e Consultoria
 - [x] Regras de acesso do banco avaliadas uma vez por consulta (mesmas permissões).
 - [x] Consultoria lê o histórico de séries numa chamada e guarda por 5 min.

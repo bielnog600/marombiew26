@@ -59,6 +59,7 @@ import { mealSlotsFor, mealTargetMacros, type MealSlot } from '@/lib/mealBank';
 import { autoBankOptionsForWeek, defaultRecipeFilters, mealArticle, studentRecipesFor, type StudentRecipe } from '@/lib/mealBank/studentRecipes';
 import { useStudentRecipeData } from '@/hooks/useStudentRecipeData';
 import MealRecipesSheet from '@/components/diet/MealRecipesSheet';
+import { useStudentPlanRealtime } from '@/hooks/useStudentPlanRealtime';
 import { adjustStudentPortions, type PortionAdjustResult } from '@/lib/studentPortionAdjust';
 import {
   formatSignedKcalDiff,
@@ -317,26 +318,22 @@ const MinhasDietas = () => {
     }
   }, [user]);
 
-  // Realtime: re-fetch when admin edits diet plans
+  // Realtime: o coach salvou a dieta → relê e avisa discretamente se mudou.
+  const coachUpdateRef = React.useRef(false);
+  const shownVersionRef = React.useRef<string | null>(null);
+  useStudentPlanRealtime(user?.id, 'dieta', () => {
+    coachUpdateRef.current = true;
+    void loadDiet();
+  });
   useEffect(() => {
-    if (!user) return;
-    const channel = supabase
-      .channel('minhas-dietas-realtime')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'ai_plans',
-          filter: `student_id=eq.${user.id}`,
-        },
-        () => {
-          loadDiet();
-        }
-      )
-      .subscribe();
-    return () => { supabase.removeChannel(channel); };
-  }, [user]);
+    if (!planVersion) return;
+    const before = shownVersionRef.current;
+    shownVersionRef.current = planVersion;
+    if (coachUpdateRef.current && before && before !== planVersion) {
+      toast('Sua dieta foi atualizada pelo coach', { id: 'coach-diet-update', duration: 4000 });
+    }
+    coachUpdateRef.current = false;
+  }, [planVersion]);
 
   // A dieta nunca espera a tradução: carrega e mostra o original, e a
   // tradução (só texto exibido) chega depois em segundo plano.

@@ -24,6 +24,7 @@ import { Pencil, Search, Check, Plus, Trash2, Upload, Download, X, ImageIcon, Lo
 import { toast } from 'sonner';
 import ExerciseVariationsDialog from '@/components/admin/ExerciseVariationsDialog';
 import MuscleGroupPicker from '@/components/admin/MuscleGroupPicker';
+import { normalizeVideoEmbed } from '@/lib/exerciseVideoSrc';
 
 const STANDARD_FIELDS = [
   'Banco',
@@ -138,7 +139,8 @@ const Exercicios: React.FC = () => {
         grupo_muscular: (form.grupos[0] ?? '').trim(),
         grupos_musculares: form.grupos,
         imagem_url: form.imagem_url.trim() || null,
-        video_embed: form.video_embed.trim() || null,
+        // Cloudflare Stream: sempre com autoplay, loop e muted (só acrescenta o que faltar).
+        video_embed: normalizeVideoEmbed(form.video_embed) || null,
         ajustes,
       };
       if (!payload.nome || !payload.grupo_muscular) {
@@ -283,7 +285,7 @@ const Exercicios: React.FC = () => {
         xhr.send(fd);
       });
 
-      setForm((f) => ({ ...f, video_embed: embed }));
+      setForm((f) => ({ ...f, video_embed: normalizeVideoEmbed(embed) }));
       toast.success('Vídeo enviado. Pode levar alguns segundos para processar no Cloudflare.');
     } catch (err: any) {
       console.error(err);

@@ -113,7 +113,7 @@ const MeusTreinos = () => {
   useEffect(() => {
     if (!user) return;
     const channel = supabase
-      .channel('meus-treinos-realtime')
+      .channel(`meus-treinos-realtime-${Math.random().toString(36).slice(2)}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'ai_plans', filter: `student_id=eq.${user.id}` }, () => {
         loadTraining();
       })

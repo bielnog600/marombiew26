@@ -35,6 +35,8 @@ vi.mock('@/lib/workoutSessionResolution', async importOriginal => ({
   ...await importOriginal<typeof import('@/lib/workoutSessionResolution')>(),
   resolveStaleWorkoutSessionsThrottled: async () => {},
 }));
+// Atualização do plano em tempo real não é o assunto destes testes.
+vi.mock('@/hooks/useStudentPlanRealtime', () => ({ useStudentPlanRealtime: () => {} }));
 vi.mock('@/integrations/supabase/client', () => ({ supabase: {
   from: (table: string) => {
     let operation = 'select'; let payload: any;

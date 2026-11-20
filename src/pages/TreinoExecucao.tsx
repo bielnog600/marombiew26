@@ -62,6 +62,8 @@ import { variationPrefKey, backendVariationPref } from '@/lib/exerciseVariationP
 import { WorkoutViewportDebug } from '@/components/training/WorkoutViewportDebug';
 import { parsePauseSeconds } from '@/components/training/TrainerLogSheetUtils';
 import { restAfterSet } from '@/lib/setTypeRest';
+import { mergeLivePlanUpdate, type LiveSetsByIndex } from '@/lib/livePlanUpdate';
+import { useStudentPlanRealtime } from '@/hooks/useStudentPlanRealtime';
 
 
 import {
@@ -680,6 +682,52 @@ const TreinoExecucaoInner = () => {
     };
   }, [sets, currentIndex, sessionId, sessionMeta]);
 
+
+  // O coach salvou o treino no admin: aplica na hora, mesmo com o treino em
+  // andamento, mantendo as séries já feitas (regras em livePlanUpdate).
+  const livePlanRef = useRef({ exercises, sets, currentIndex, dayName, rest: inlineRest.rest, finished: false });
+  livePlanRef.current = { exercises, sets, currentIndex, dayName, rest: inlineRest.rest, finished: isFinishing || !!summary };
+  const applyCoachPlanUpdate = useCallback(async () => {
+    if (!user || livePlanRef.current.finished || livePlanRef.current.exercises.length === 0) return;
+    const { data: plan, error } = await supabase
+      .from('ai_plans')
+      .select('id, conteudo, conteudo_json, migration_status, fase, fase_inicio_data')
+      .eq('student_id', user.id)
+      .eq('tipo', 'treino')
+      .eq('is_draft', false)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    const cur = livePlanRef.current;
+    if (error || !plan || cur.finished) return;
+    const { days } = getSafeWorkoutDays({ ...plan, tipo: 'treino' } as any);
+    const day = days.find((d) => isSameWorkoutDay(d.day, cur.dayName));
+    if (!day) return;
+    const merged = mergeLivePlanUpdate({
+      current: cur.exercises,
+      next: day.exercises,
+      sets: cur.sets as unknown as LiveSetsByIndex,
+      currentIndex: cur.currentIndex,
+      setCount: (ex) => buildSetPlan(ex.series, ex.series2, ex.reps, ex.setScheme).length || 3,
+    });
+    if (!merged.changed) return;
+    setLoadedExercises(merged.exercises as ParsedExercise[]);
+    setSets(merged.sets as unknown as Record<number, ExerciseSet[]>);
+    setLoadedLogsForIndex(new Set(Object.keys(merged.sets).map(Number)));
+    setCurrentIndex(merged.currentIndex);
+    if (cur.rest) {
+      const moved = merged.indexMap[cur.rest.exIdx];
+      if (moved == null) inlineRest.cancel();
+      else if (moved !== cur.rest.exIdx) inlineRest.reindex(moved);
+    }
+    setGroupPause((gp) => {
+      if (!gp) return gp;
+      const moved = merged.indexMap[gp.nextIndex];
+      return moved == null ? null : { ...gp, nextIndex: moved };
+    });
+    toast('Seu treino foi atualizado pelo coach', { id: 'coach-workout-update', duration: 4000 });
+  }, [user, inlineRest.cancel, inlineRest.reindex]);
+  useStudentPlanRealtime(user?.id, 'treino', applyCoachPlanUpdate, !!sessionId);
 
   // Auto-load training plan from DB when accessed directly (no state)
   useEffect(() => {

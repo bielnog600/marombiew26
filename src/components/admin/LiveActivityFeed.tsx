@@ -183,7 +183,8 @@ const LiveActivityFeed: React.FC = () => {
   // Realtime subscriptions
   useEffect(() => {
     const ch = supabase
-      .channel('live-activity-feed')
+      // Nome único: reabrir o Dashboard antes de o canal antigo fechar reaproveitaria um canal morto.
+      .channel(`live-activity-feed-${Math.random().toString(36).slice(2)}`)
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'workout_sessions' },

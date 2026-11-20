@@ -16,6 +16,7 @@ import { activitySetDisplay, activityRepLabel } from '@/lib/adminActivitySets';
 import { exerciseProgress, type ActivityHistoryLog } from '@/lib/adminExerciseProgress';
 import { buildActivityExercises, type ActivitySet, type ActivityExercise } from '@/lib/adminActivityExercises';
 import { createWorkoutLogTransition } from '@/lib/adminWorkoutLogTransition';
+import { liveAgo, liveCurrent, liveFreshness, nextLastSet, type LiveSetRef } from '@/lib/liveWorkoutProgress';
 import { ExerciseProgressSummary, type ExerciseProgressData } from './ExerciseProgressSummary';
 import { diffMealFoods, foodName, sumMeals, type OverrideMeal } from '@/lib/studentDietOverrideDiff';
 import { WATER_STEP_ML, ML_PER_KG_REST, TRAINING_DAY_MULTIPLIER, DEFAULT_WATER_GOAL_GLASSES } from '@/hooks/useDailyTracking';
@@ -206,10 +207,13 @@ const useWorkoutSession = (sessionId: string, studentId: string) => {
   const [planDay, setPlanDay] = useState<any[] | null>(null);
   const [media, setMedia] = useState<any[]>([]);
   const [previous, setPrevious] = useState<{ session: any; logs: any[] } | null>(null);
+  const [realtime, setRealtime] = useState<'connecting' | 'live' | 'offline'>('connecting');
 
   useEffect(() => {
     let alive = true;
     let logRequest = 0;
+    let lastSeen = Date.now();
+    let status: string | null = null;
     const transition = createWorkoutLogTransition(setSession, () => { void loadLogs(); });
     const loadLogs = async () => {
       const request = ++logRequest;
@@ -221,6 +225,7 @@ const useWorkoutSession = (sessionId: string, studentId: string) => {
     (async () => {
       const { data: s } = await supabase.from('workout_sessions').select('*').eq('id', sessionId).maybeSingle();
       if (!alive || !s) return;
+      status = s.status;
       transition.receiveSession(s);
       void loadLogs();
       const planQ = supabase.from('ai_plans').select('id, conteudo, conteudo_json, migration_status, tipo');
@@ -244,18 +249,40 @@ const useWorkoutSession = (sessionId: string, studentId: string) => {
         }
       }
     })();
+    // Releitura da sessão: ao (re)conectar o tempo real, ao voltar para a aba e,
+    // como rede de segurança, a cada 20 s sem novidades enquanto o treino corre.
+    const receive = (row: any) => {
+      if (!alive || !row) return;
+      lastSeen = Date.now();
+      status = row.status ?? status;
+      transition.receiveSession(row);
+      if (row.status !== 'in_progress') void loadLogs();
+    };
+    const refetch = async () => {
+      const { data } = await supabase.from('workout_sessions').select('*').eq('id', sessionId).maybeSingle();
+      if (data) receive(data);
+    };
     const ch = supabase.channel(`activity-ws-${sessionId}-${Math.random().toString(36).slice(2)}`)
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'workout_sessions', filter: `id=eq.${sessionId}` }, (p) => {
-        if (!alive) return;
-        transition.receiveSession(p.new);
-        if ((p.new as any).status !== 'in_progress') void loadLogs();
-      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'workout_sessions', filter: `id=eq.${sessionId}` }, (p) => receive(p.new))
       .on('postgres_changes', { event: '*', schema: 'public', table: 'exercise_set_logs', filter: `session_id=eq.${sessionId}` }, () => { void loadLogs(); })
-      .subscribe();
-    return () => { alive = false; transition.dispose(); supabase.removeChannel(ch); };
+      .subscribe((st) => {
+        if (!alive) return;
+        if (st === 'SUBSCRIBED') { setRealtime('live'); void refetch(); }
+        else if (st === 'CHANNEL_ERROR' || st === 'TIMED_OUT' || st === 'CLOSED') setRealtime('offline');
+      });
+    const poll = window.setInterval(() => {
+      if (document.visibilityState !== 'visible' || status !== 'in_progress') return;
+      if (Date.now() - lastSeen >= 20000) void refetch();
+    }, 5000);
+    const onVisible = () => { if (document.visibilityState === 'visible') void refetch(); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      alive = false; transition.dispose(); supabase.removeChannel(ch);
+      window.clearInterval(poll); document.removeEventListener('visibilitychange', onVisible);
+    };
   }, [sessionId, studentId]);
 
-  return { session, logs, planDay, media, previous };
+  return { session, logs, planDay, media, previous, realtime };
 };
 
 const buildExercises = (session: any, logs: any[], planDay: any[] | null, media: any[]): ExView[] => {
@@ -334,8 +361,50 @@ const ExerciseSlide: React.FC<{ ex: ExView; index: number; total: number; isCurr
   );
 };
 
+/** Ao vivo: exercício e série atuais, última série registrada e há quanto tempo chegou a última atualização. */
+const LiveNowCard: React.FC<{
+  exercises: ActivityExercise[]; currentIndex: number; lastSet: LiveSetRef | null;
+  lastActiveAt?: string | null; now: number; realtime: 'connecting' | 'live' | 'offline';
+}> = ({ exercises, currentIndex, lastSet, lastActiveAt, now, realtime }) => {
+  const cur = liveCurrent(exercises, currentIndex);
+  const fresh = liveFreshness(lastActiveAt, now);
+  return (
+    <div className="rounded-xl border border-primary/40 bg-primary/5 p-3 space-y-2" data-testid="live-now-card">
+      <div className="flex items-center justify-between gap-2 text-[11px]">
+        <span className={cn('flex items-center gap-1.5 font-medium',
+          fresh === 'fresh' ? 'text-emerald-500' : fresh === 'idle' ? 'text-amber-500' : 'text-muted-foreground')}>
+          <span className={cn('h-2 w-2 rounded-full', fresh === 'fresh' ? 'bg-emerald-500 animate-pulse' : fresh === 'idle' ? 'bg-amber-500' : 'bg-muted-foreground')} />
+          Atualizado {liveAgo(lastActiveAt, now)}{lastActiveAt ? ` · ${new Date(lastActiveAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}` : ''}
+        </span>
+        <span className="text-muted-foreground">{realtime === 'live' ? 'Tempo real' : realtime === 'offline' ? 'Confere a cada 20 s' : 'Conectando…'}</span>
+      </div>
+      {cur ? (
+        <div className="grid grid-cols-2 gap-2 text-xs">
+          <div className="min-w-0">
+            <p className="text-[10px] uppercase text-muted-foreground">Exercício atual · {cur.exerciseIndex + 1}/{cur.totalExercises}</p>
+            <p className="font-semibold leading-tight break-words">{cur.exerciseName}</p>
+          </div>
+          <div className="min-w-0">
+            <p className="text-[10px] uppercase text-muted-foreground">Série atual</p>
+            <p className="font-semibold">{cur.setNumber ? `${cur.setNumber} de ${cur.plannedSets}` : `Todas feitas (${cur.doneSets}/${cur.plannedSets})`}</p>
+          </div>
+        </div>
+      ) : <p className="text-xs text-muted-foreground">Sem exercícios no treino.</p>}
+      <div className="border-t border-border/50 pt-2 text-xs">
+        <p className="text-[10px] uppercase text-muted-foreground">Última série registrada</p>
+        {lastSet ? (
+          <p className="break-words">
+            <strong>{lastSet.weight} × {lastSet.reps}</strong>
+            <span className="text-muted-foreground"> · {lastSet.exerciseName} · série {lastSet.setIndex + 1}{lastSet.at ? ` · ${liveAgo(lastSet.at, now)}` : ''}</span>
+          </p>
+        ) : <p className="text-muted-foreground">Nenhuma série registrada ainda.</p>}
+      </div>
+    </div>
+  );
+};
+
 const WorkoutView: React.FC<{ a: ActivityRef }> = ({ a }) => {
-  const { session, logs, planDay, media, previous } = useWorkoutSession(a.sessionId ?? '', a.studentId);
+  const { session, logs, planDay, media, previous, realtime } = useWorkoutSession(a.sessionId ?? '', a.studentId);
   const [now, setNow] = useState(Date.now());
   const [viewIdx, setViewIdx] = useState<number | null>(null); // null = seguindo o ao vivo
   const touchX = useRef<number | null>(null);
@@ -343,6 +412,19 @@ const WorkoutView: React.FC<{ a: ActivityRef }> = ({ a }) => {
   useEffect(() => { const t = window.setInterval(() => setNow(Date.now()), 1000); return () => window.clearInterval(t); }, []);
 
   const exercises = useMemo(() => buildExercises(session, logs, planDay, media), [session, logs, planDay, media]);
+  // Última série registrada: detectada comparando cada atualização com a anterior.
+  const prevExercisesRef = useRef<ActivityExercise[] | null>(null);
+  const [lastSet, setLastSet] = useState<LiveSetRef | null>(null);
+  const sessionCurrentIndex = Number(session?.session_state?.currentIndex) || 0;
+  useEffect(() => {
+    if (!session) return;
+    // Captura a lista anterior agora: o atualizador do estado só roda no próximo render.
+    const previous = prevExercisesRef.current;
+    const at = session.last_active_at ?? session.updated_at;
+    setLastSet((last) => nextLastSet(previous, exercises, sessionCurrentIndex, last, at));
+    if (exercises.length) prevExercisesRef.current = exercises;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [exercises]);
   const [history, setHistory] = useState<ActivityHistoryLog[]>([]);
   const [historyLoading, setHistoryLoading] = useState(true);
   const [historyError, setHistoryError] = useState<string | null>(null);
@@ -411,6 +493,8 @@ const WorkoutView: React.FC<{ a: ActivityRef }> = ({ a }) => {
           {state}
         </Badge>
       </div>
+
+      {live && <LiveNowCard exercises={exercises} currentIndex={liveIdx} lastSet={lastSet} lastActiveAt={session.last_active_at} now={now} realtime={realtime} />}
 
       <div className="grid w-full min-w-0 grid-cols-3 gap-2 text-center">
         <div className="rounded-lg bg-secondary/40 p-2">

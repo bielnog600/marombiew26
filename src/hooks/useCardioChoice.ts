@@ -1,4 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { toast } from 'sonner';
+import { useStudentPlanRealtime } from '@/hooks/useStudentPlanRealtime';
 import { supabase } from '@/integrations/supabase/client';
 import { fetchWithCache } from '@/lib/offlineCache';
 import { parseCardioPayload, type CardioProtocol } from '@/lib/cardioParser';
@@ -22,6 +24,12 @@ export function useCardioChoice(userId: string | undefined, initial?: { conteudo
     loading: true, planId: initial?.planId ?? null, options: initialOptions, sessions: [],
   });
 
+  // O coach salvou o cardio: relê na hora (sem fechar o app) e avisa se mudou.
+  const [reload, setReload] = useState(0);
+  const fromCoach = useRef(false);
+  const shownContent = useRef<string | null>(null);
+  useStudentPlanRealtime(userId, 'cardio', () => { fromCoach.current = true; setReload((n) => n + 1); });
+
   useEffect(() => {
     if (!userId) return;
     let off = false;
@@ -34,6 +42,12 @@ export function useCardioChoice(userId: string | undefined, initial?: { conteudo
       ]);
       if (off) return;
       const plan = planRes.data as { id: string; conteudo: string | null } | null;
+      const content = plan ? `${plan.id}|${plan.conteudo ?? ''}` : null;
+      if (fromCoach.current && content && shownContent.current && content !== shownContent.current) {
+        toast('Seu cardio foi atualizado pelo coach', { id: 'coach-cardio-update', duration: 4000 });
+      }
+      fromCoach.current = false;
+      if (content) shownContent.current = content;
       setState(prev => ({
         loading: false,
         planId: plan?.id ?? prev.planId,
@@ -42,7 +56,7 @@ export function useCardioChoice(userId: string | undefined, initial?: { conteudo
       }));
     })().catch(() => { if (!off) setState(prev => ({ ...prev, loading: false })); });
     return () => { off = true; };
-  }, [userId]);
+  }, [userId, reload]);
 
   return state;
 }
