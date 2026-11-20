@@ -43,13 +43,22 @@ export function getCurrentMonth() {
 const dismissListeners = new Set<(id: string) => void>();
 const refreshListeners = new Set<() => void>();
 
+/**
+ * The bell sits in the admin header, so every screen change remounted it and re-ran ~10 reads.
+ * Mounts reuse the last list for 2 minutes and share a load already in progress; the refresh
+ * button, refresh events and dismissals still update it right away.
+ */
+const NOTIF_CACHE_MS = 2 * 60_000;
+let notifCache: { at: number; list: Notification[] } | null = null;
+let inflightLoad: Promise<void> | null = null;
+
 export function useNotifications() {
-  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [notifications, setNotifications] = useState<Notification[]>(() => notifCache?.list ?? []);
   const [dismissedKeys, setDismissedKeys] = useState<Set<string>>(new Set());
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => !notifCache);
 
   useEffect(() => {
-    loadNotifications();
+    loadNotifications(false);
   }, []);
 
   useEffect(() => {
@@ -62,7 +71,21 @@ export function useNotifications() {
     return () => { dismissListeners.delete(onDismiss); refreshListeners.delete(onRefresh); };
   }, []);
 
-  const loadNotifications = async () => {
+  const loadNotifications = async (force: unknown = true) => {
+    if (force === false) {
+      if (inflightLoad) await inflightLoad.catch(() => {});
+      if (notifCache && Date.now() - notifCache.at < NOTIF_CACHE_MS) {
+        setNotifications(notifCache.list);
+        setLoading(false);
+        return;
+      }
+    }
+    const run = loadFresh();
+    inflightLoad = run;
+    try { await run; } finally { if (inflightLoad === run) inflightLoad = null; }
+  };
+
+  const loadFresh = async () => {
     setLoading(true);
     try {
       const currentMonth = getCurrentMonth();
@@ -333,7 +356,9 @@ export function useNotifications() {
         return priorityOrder[a.priority] - priorityOrder[b.priority];
       });
 
-      setNotifications(notifs.filter(n => !dismissedSet.has(n.id)));
+      const visible = notifs.filter(n => !dismissedSet.has(n.id));
+      notifCache = { at: Date.now(), list: visible };
+      setNotifications(visible);
     } catch (err) {
       console.error('Error loading notifications:', err);
     } finally {
@@ -350,6 +375,7 @@ export function useNotifications() {
       notification_key: notificationId,
       dismissed_month: currentMonth,
     }, { onConflict: 'user_id,notification_key,dismissed_month' });
+    if (notifCache) notifCache = { ...notifCache, list: notifCache.list.filter(n => n.id !== notificationId) };
     setNotifications(prev => prev.filter(n => n.id !== notificationId));
     setDismissedKeys(prev => new Set(Array.from(prev)).add(notificationId));
   };

@@ -5,6 +5,8 @@
 - [x] Consultoria lê o histórico de séries numa chamada e guarda por 5 min.
 - [x] Dashboard com tempo limite, repetição automática, esqueleto e blocos isolados.
 - [x] Medir antes/depois e rever as outras consultas lentas.
+- [x] Sininho de notificações do admin reaproveita a lista por 2 min ao trocar de tela.
+- [ ] Regras de acesso dos arquivos (fotos, áudios, scans) ainda verificam "é admin" linha a linha — aguardando o usuário decidir.
 - [ ] Publicar para o app publicado receber as mudanças do app (o banco já está corrigido).
 
 ## Ficha do aluno preenche o perfil
