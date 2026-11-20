@@ -1,0 +1,1 @@
+- RLS policies in `public` must call `(SELECT auth.uid())` and `(SELECT public.has_role((SELECT auth.uid()), 'admin'::public.app_role))` (initPlan form), never the bare calls, so Postgres evaluates them once per statement instead of once per row.

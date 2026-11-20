@@ -365,6 +365,13 @@
       "when": 1794785830272,
       "tag": "0051_savings_goals",
       "breakpoints": true
+    },
+    {
+      "idx": 52,
+      "version": "7",
+      "when": 1795198886451,
+      "tag": "0052_rls_initplan_and_set_logs_rpc",
+      "breakpoints": true
     }
   ]
 }

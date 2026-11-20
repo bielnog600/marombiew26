@@ -83,10 +83,11 @@ const AdminTodayOverview: React.FC = () => {
     setNow(Date.now());
   }, []);
 
-  // Mount + a cada 15 s + aba visível / janela em foco.
+  // Mount + a cada 60 s + aba visível / janela em foco.
   useEffect(() => {
     void loadToday();
-    const t = window.setInterval(() => { void loadToday(); }, 15000);
+    // Realtime already brings changes instantly; the safety poll is spaced to 60 s to spare the backend.
+    const t = window.setInterval(() => { void loadToday(); }, 60000);
     const onVisible = () => { if (document.visibilityState === 'visible') void loadToday(); };
     const onFocus = () => { void loadToday(); };
     document.addEventListener('visibilitychange', onVisible);

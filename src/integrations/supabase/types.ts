@@ -5053,6 +5053,10 @@ export type Database = {
           status: string
         }[]
       }
+      set_logs_since: {
+        Args: { _compact?: boolean; _since: string; _student_ids: string[] }
+        Returns: Json
+      }
       set_my_app_language: { Args: { _language: string }; Returns: undefined }
       student_access_heartbeat: {
         Args: never

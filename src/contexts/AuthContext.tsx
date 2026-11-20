@@ -94,6 +94,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [role, setRole] = useState<UserRole | null>(null);
   const [loading, setLoading] = useState(true);
   const [accessStatus, setAccessStatus] = useState<AccessStatus | null>(null);
+  const accessStatusRef = useRef<AccessStatus | null>(null);
+  accessStatusRef.current = accessStatus;
   const [suspensionReason, setSuspensionReason] = useState<SuspensionReason | null>(null);
   const [lastActiveAt, setLastActiveAt] = useState<string | null>(null);
   const [accessLoading, setAccessLoading] = useState(true);
@@ -266,7 +268,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
     const throttleKey = `marombiew_access_hb_${user.id}`;
     const last = Number(localStorage.getItem(throttleKey) ?? 0);
-    const withinThrottle = !force && accessStatus === 'active' && Date.now() - last < LAST_ACTIVE_THROTTLE_MS;
+    // Read the latest status through a ref: the visibility listener keeps the first callback,
+    // whose captured status was null, so the throttle never applied and every return to the app
+    // called the heartbeat.
+    const withinThrottle = !force && accessStatusRef.current === 'active' && Date.now() - last < LAST_ACTIVE_THROTTLE_MS;
     if (withinThrottle) return;
 
     try {
@@ -293,7 +298,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } finally {
       setAccessLoading(false);
     }
-  }, [user, role, accessStatus]);
+  }, [user, role]);
 
   useEffect(() => {
     if (loading) return;

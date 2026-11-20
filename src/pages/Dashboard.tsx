@@ -13,6 +13,8 @@ import StudentsNeedingAttentionCard from '@/components/admin/StudentsNeedingAtte
 import FinancialAttentionCard from '@/components/admin/FinancialAttentionCard';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { resilientQuery } from '@/lib/resilientQuery';
+import DashboardSection from '@/components/admin/DashboardSection';
 
 type LoadState = 'idle' | 'loading' | 'success' | 'error';
 
@@ -27,7 +29,8 @@ function logQueryError(where: string, error: unknown) {
 }
 
 const Dashboard = () => {
-  const [state, setState] = useState<LoadState>('idle');
+  // Start in 'loading' so the first paint shows skeletons, never a red "—".
+  const [state, setState] = useState<LoadState>('loading');
   const [stats, setStats] = useState<{ totalAlunos: number | null; avaliacoesMes: number | null }>({
     totalAlunos: null,
     avaliacoesMes: null,
@@ -44,65 +47,10 @@ const Dashboard = () => {
     setState('loading');
     const failures: string[] = [];
 
-    // 1) Total de alunos
-    const totalAlunosRes = await supabase
-      .from('user_roles')
-      .select('*', { count: 'exact', head: true })
-      .eq('role', 'aluno');
-    if (totalAlunosRes.error) {
-      logQueryError('user_roles.count', totalAlunosRes.error);
-      failures.push('user_roles');
-    }
-
-    // 2) Avaliações no mês
     const startOfMonth = new Date();
     startOfMonth.setDate(1);
     startOfMonth.setHours(0, 0, 0, 0);
-    const avaliacoesMesRes = await supabase
-      .from('assessments')
-      .select('*', { count: 'exact', head: true })
-      .gte('created_at', startOfMonth.toISOString());
-    if (avaliacoesMesRes.error) {
-      logQueryError('assessments.count(month)', avaliacoesMesRes.error);
-      failures.push('assessments');
-    }
 
-    setStats({
-      totalAlunos: totalAlunosRes.error ? null : (totalAlunosRes.count ?? 0),
-      avaliacoesMes: avaliacoesMesRes.error ? null : (avaliacoesMesRes.count ?? 0),
-    });
-
-    // 3) Últimos alunos
-    const alunoRolesRes = await supabase
-      .from('user_roles')
-      .select('user_id')
-      .eq('role', 'aluno');
-    if (alunoRolesRes.error) {
-      logQueryError('user_roles.list', alunoRolesRes.error);
-      failures.push('user_roles(list)');
-      setRecentStudents(null);
-    } else {
-      const alunoIds = (alunoRolesRes.data ?? []).map((r: any) => r.user_id);
-      if (alunoIds.length === 0) {
-        setRecentStudents([]);
-      } else {
-        const recentRes = await supabase
-          .from('profiles')
-          .select('*')
-          .in('user_id', alunoIds)
-          .order('created_at', { ascending: false })
-          .limit(5);
-        if (recentRes.error) {
-          logQueryError('profiles.recent', recentRes.error);
-          failures.push('profiles');
-          setRecentStudents(null);
-        } else {
-          setRecentStudents(recentRes.data ?? []);
-        }
-      }
-    }
-
-    // 4) Gráfico — 6 últimos meses
     const months: Array<{ name: string; start: string; end: string }> = [];
     for (let i = 5; i >= 0; i--) {
       const d = new Date();
@@ -115,23 +63,82 @@ const Dashboard = () => {
         end: end.toISOString(),
       });
     }
-    let chartFailed = false;
-    const chartResults = await Promise.all(
-      months.map(async (m) => {
-        const res = await supabase
+
+    // Each read: short timeout + up to 2 spaced retries before showing "—"; all run in parallel.
+    const [totalAlunosRes, avaliacoesMesRes, alunoRolesRes, chartResults] = await Promise.all([
+      resilientQuery((signal) => supabase
+        .from('user_roles')
+        .select('user_id', { count: 'exact', head: true })
+        .eq('role', 'aluno')
+        .abortSignal(signal)),
+      resilientQuery((signal) => supabase
+        .from('assessments')
+        .select('id', { count: 'exact', head: true })
+        .gte('created_at', startOfMonth.toISOString())
+        .abortSignal(signal)),
+      resilientQuery((signal) => supabase
+        .from('user_roles')
+        .select('user_id')
+        .eq('role', 'aluno')
+        .abortSignal(signal)),
+      Promise.all(months.map(async (m) => {
+        const res = await resilientQuery((signal) => supabase
           .from('assessments')
-          .select('*', { count: 'exact', head: true })
+          .select('id', { count: 'exact', head: true })
           .gte('created_at', m.start)
-          .lte('created_at', m.end);
-        if (res.error) {
-          logQueryError(`assessments.chart(${m.name})`, res.error);
-          chartFailed = true;
-        }
-        return { name: m.name, avaliacoes: res.error ? null : (res.count ?? 0) };
-      })
-    );
+          .lte('created_at', m.end)
+          .abortSignal(signal));
+        if (res.error) logQueryError(`assessments.chart(${m.name})`, res.error);
+        return { name: m.name, avaliacoes: res.error ? null : (res.count ?? 0), failed: !!res.error };
+      })),
+    ]);
+
+    // 1) Total de alunos
+    if (totalAlunosRes.error) {
+      logQueryError('user_roles.count', totalAlunosRes.error);
+      failures.push('user_roles');
+    }
+    // 2) Avaliações no mês
+    if (avaliacoesMesRes.error) {
+      logQueryError('assessments.count(month)', avaliacoesMesRes.error);
+      failures.push('assessments');
+    }
+    setStats({
+      totalAlunos: totalAlunosRes.error ? null : (totalAlunosRes.count ?? 0),
+      avaliacoesMes: avaliacoesMesRes.error ? null : (avaliacoesMesRes.count ?? 0),
+    });
+
+    // 4) Gráfico — 6 últimos meses
+    const chartFailed = chartResults.some((r) => r.failed);
     if (chartFailed) failures.push('assessments(chart)');
-    setChartData(chartFailed ? null : chartResults);
+    setChartData(chartFailed ? null : chartResults.map(({ name, avaliacoes }) => ({ name, avaliacoes })));
+
+    // 3) Últimos alunos
+    if (alunoRolesRes.error) {
+      logQueryError('user_roles.list', alunoRolesRes.error);
+      failures.push('user_roles(list)');
+      setRecentStudents(null);
+    } else {
+      const alunoIds = (alunoRolesRes.data ?? []).map((r: any) => r.user_id);
+      if (alunoIds.length === 0) {
+        setRecentStudents([]);
+      } else {
+        const recentRes = await resilientQuery((signal) => supabase
+          .from('profiles')
+          .select('id, user_id, nome, email, created_at')
+          .in('user_id', alunoIds)
+          .order('created_at', { ascending: false })
+          .limit(5)
+          .abortSignal(signal));
+        if (recentRes.error) {
+          logQueryError('profiles.recent', recentRes.error);
+          failures.push('profiles');
+          setRecentStudents(null);
+        } else {
+          setRecentStudents(recentRes.data ?? []);
+        }
+      }
+    }
 
     setFailedQueries(failures);
     setState(failures.length > 0 ? 'error' : 'success');
@@ -214,7 +221,7 @@ const Dashboard = () => {
           <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
             Atividade dos alunos hoje
           </h2>
-          <AdminTodayOverview />
+          <DashboardSection name="AdminTodayOverview"><AdminTodayOverview /></DashboardSection>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -239,18 +246,18 @@ const Dashboard = () => {
           ))}
         </div>
 
-        <LiveActivityFeed />
+        <DashboardSection name="LiveActivityFeed"><LiveActivityFeed /></DashboardSection>
 
         {/* Activity ranking + Birthdays */}
-        <StudentsNeedingAttentionCard />
+        <DashboardSection name="StudentsNeedingAttentionCard"><StudentsNeedingAttentionCard /></DashboardSection>
 
-        <FinancialAttentionCard />
+        <DashboardSection name="FinancialAttentionCard"><FinancialAttentionCard /></DashboardSection>
 
 
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <StudentActivityCard />
-          <BirthdaysCard />
+          <DashboardSection name="StudentActivityCard"><StudentActivityCard /></DashboardSection>
+          <DashboardSection name="BirthdaysCard"><BirthdaysCard /></DashboardSection>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

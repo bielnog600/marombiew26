@@ -1,5 +1,12 @@
 # Roadmap
 
+## Desempenho — Dashboard e Consultoria
+- [x] Regras de acesso do banco avaliadas uma vez por consulta (mesmas permissões).
+- [x] Consultoria lê o histórico de séries numa chamada e guarda por 5 min.
+- [x] Dashboard com tempo limite, repetição automática, esqueleto e blocos isolados.
+- [x] Medir antes/depois e rever as outras consultas lentas.
+- [ ] Publicar para o app publicado receber as mudanças do app (o banco já está corrigido).
+
 ## Ficha do aluno preenche o perfil
 - [x] "Seus dados" na ficha (nascimento, altura, telefone PT/BR, raça, objetivo, peso só sem pesagem em 15 dias), pré-preenchido.
 - [x] Envio atualiza perfil, telefone, restrições, lesões, observações e peso; validação no servidor; histórico na ficha.

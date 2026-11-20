@@ -16,6 +16,11 @@ const backend = vi.hoisted(() => ({
 
 vi.mock('@/integrations/supabase/client', () => ({
   supabase: {
+    rpc: async (fn: string, args: { _student_ids: string[]; _compact?: boolean }) => {
+      backend.calls.push({ table: `rpc:${fn}`, columns: args._compact ? 'compact' : '*', from: 0, to: 0, ids: args._student_ids, head: false });
+      if (backend.gate) await backend.gate;
+      return { data: backend.logs, error: null };
+    },
     from: (table: string) => {
       const call = { table, columns: '', from: 0, to: 999, ids: undefined as string[] | undefined, head: false, count: undefined as string | undefined };
       const builder: any = {
@@ -58,15 +63,16 @@ describe('dados compartilhados da Consultoria', () => {
     expect(summaryInputs).toBe(reviewInputs);
     expect(reviewInputs.logs).toHaveLength(1001);
     expect(reviewInputs.logs[1000].id).toBe(1000);
-    expect(backend.calls.filter(c => c.table === 'exercise_set_logs' && !c.head).map(c => [c.from, c.to]))
-      .toEqual([[0, 999], [1000, 1999]]);
+    // Histórico inteiro numa única chamada ao servidor (sem páginas OFFSET).
+    expect(backend.calls.filter(c => c.table === 'rpc:set_logs_since')).toHaveLength(1);
+    expect(backend.calls.filter(c => c.table === 'exercise_set_logs')).toHaveLength(0);
     expect(backend.calls.filter(c => c.table === 'ai_plans')).toHaveLength(1);
     expect(backend.calls.filter(c => c.table === 'workout_sessions')).toHaveLength(1);
     expect(backend.calls.filter(c => c.ids).every(c => c.ids?.join() === 'active')).toBe(true);
     queryClient.clear();
   });
 
-  it('conta logs, planos e sessões antes de ler todas as páginas na mesma ordem', async () => {
+  it('lê todas as séries numa chamada e conta planos e sessões antes de ler as páginas na mesma ordem', async () => {
     backend.logs = Array.from({ length: 22001 }, (_, id) => ({ id, student_id: 'active' }));
     backend.plans = Array.from({ length: 1001 }, (_, id) => ({ id, student_id: 'active' }));
     backend.sessions = Array.from({ length: 2001 }, (_, id) => ({ id, student_id: 'active' }));
@@ -75,7 +81,11 @@ describe('dados compartilhados da Consultoria', () => {
     expect(result.logs).toEqual(backend.logs);
     expect(result.plans).toEqual(backend.plans);
     expect(result.sessions).toEqual(backend.sessions);
-    for (const table of ['exercise_set_logs', 'ai_plans', 'workout_sessions']) {
+    const rpc = backend.calls.filter(c => c.table === 'rpc:set_logs_since');
+    expect(rpc).toHaveLength(1);
+    expect(rpc[0].columns).toBe('compact');
+    expect(rpc[0].ids?.join()).toBe('active');
+    for (const table of ['ai_plans', 'workout_sessions']) {
       const calls = backend.calls.filter(c => c.table === table);
       expect(calls[0].head).toBe(true);
       expect(calls[0].count).toBe('exact');
@@ -93,7 +103,7 @@ describe('dados compartilhados da Consultoria', () => {
     const { result, unmount } = renderHook(() => ({
       review: useWeeklyProgressionReview(), summary: useStudentsWeeklySummary(),
     }), { wrapper });
-    await waitFor(() => expect(backend.calls.some(c => c.table === 'exercise_set_logs')).toBe(true));
+    await waitFor(() => expect(backend.calls.some(c => c.table === 'rpc:set_logs_since')).toBe(true));
     expect(result.current.review.isFetching).toBe(true);
     expect(result.current.review.data).toBeUndefined();
     expect(result.current.summary.loading).toBe(true);
@@ -101,10 +111,25 @@ describe('dados compartilhados da Consultoria', () => {
     await waitFor(() => expect(result.current.review.isFetching).toBe(false));
     await waitFor(() => expect(result.current.summary.loading).toBe(false));
     expect(result.current.review.data).toEqual([]);
-    expect(backend.calls.filter(c => c.table === 'exercise_set_logs')).toHaveLength(1);
+    expect(backend.calls.filter(c => c.table === 'rpc:set_logs_since')).toHaveLength(1);
     expect(backend.calls.filter(c => c.table === 'profiles')).toHaveLength(1);
     expect(backend.calls.filter(c => c.table === 'ai_plans')).toHaveLength(1);
     unmount();
+    queryClient.clear();
+  });
+  it('reabrir a Consultoria em menos de 5 min reutiliza os dados (sem nova leitura nem refazer ao focar)', async () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const wrapper = ({ children }: { children: React.ReactNode }) =>
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>;
+    const first = renderHook(() => useStudentsWeeklySummary(), { wrapper });
+    await waitFor(() => expect(first.result.current.loading).toBe(false));
+    first.unmount();
+    const second = renderHook(() => useStudentsWeeklySummary(), { wrapper });
+    await act(async () => { window.dispatchEvent(new Event('focus')); document.dispatchEvent(new Event('visibilitychange')); });
+    expect(second.result.current.loading).toBe(false);
+    expect(backend.calls.filter(c => c.table === 'rpc:set_logs_since')).toHaveLength(1);
+    expect(backend.calls.filter(c => c.table === 'user_roles')).toHaveLength(1);
+    second.unmount();
     queryClient.clear();
   });
 });

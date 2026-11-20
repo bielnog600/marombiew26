@@ -1,15 +1,17 @@
 import type { QueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { readProgressionLogs } from '@/lib/progressionHistory';
+import { readProgressionLogs, PROGRESSION_LOG_COLUMNS } from '@/lib/progressionHistory';
 import { readCountedPages } from '@/lib/countedPagination';
 
 export const CONSULTORIA_TRAINING_QUERY_KEY = ['consultoria-training-data'];
+/** Consultoria data is heavy and changes slowly: reuse it for 5 min (manual reload invalidates). */
+export const CONSULTORIA_STALE_TIME_MS = 5 * 60_000;
 
 /** Shared raw inputs only: each consumer keeps its own plan/phase/session rules. */
 export function readConsultoriaTrainingData(queryClient: QueryClient) {
   return queryClient.fetchQuery({
     queryKey: CONSULTORIA_TRAINING_QUERY_KEY,
-    staleTime: 30_000,
+    staleTime: CONSULTORIA_STALE_TIME_MS,
     queryFn: async () => {
       const { data: students, error } = await supabase.from('students_profile')
         .select('user_id').eq('ativo', true);
@@ -27,8 +29,7 @@ export function readConsultoriaTrainingData(queryClient: QueryClient) {
           .select('id, student_id, tipo, conteudo, created_at, fase, fase_inicio_data, cycle_days')
           .eq('is_draft', false).in('student_id', ids)
           .order('created_at', { ascending: false }).order('id', { ascending: true }).range(from, to)),
-        readProgressionLogs(ids, historyStart,
-          'id, student_id, exercise_name, reps, weight_kg, rpe, rir, set_type, set_number, performed_at, phase, session_id, sub_records, source'),
+        readProgressionLogs(ids, historyStart, PROGRESSION_LOG_COLUMNS),
         readAllPages(() => supabase.from('workout_sessions')
           .select('id, student_id, status, avg_rpe, phase, completed_at, started_at, created_at, plan_id', { count: 'exact', head: true })
           .in('student_id', ids).or(`created_at.gte.${historyStart},completed_at.gte.${historyStart}`), (from, to) => supabase.from('workout_sessions')

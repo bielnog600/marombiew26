@@ -6,7 +6,7 @@ import { resolveCurrentTrainingPhase } from '@/lib/currentPhase';
 import { buildExercisePerformance, lastExerciseSessions, withPlannedSetTypes, repRangeFromPlanned } from '@/lib/weeklyProgression';
 import { normalizeExerciseKey } from '@/lib/loadIncrement';
 import { buildPrescribedWorkSets } from '@/lib/sessionProgression';
-import { readConsultoriaTrainingData, groupByStudent } from '@/lib/consultoriaTrainingData';
+import { readConsultoriaTrainingData, groupByStudent, CONSULTORIA_STALE_TIME_MS } from '@/lib/consultoriaTrainingData';
 import { parseTrainingSections } from '@/lib/trainingResultParser';
 import {
   buildAttentionPriority,
@@ -43,6 +43,10 @@ export const useWeeklyProgressionReview = () => {
   const queryClient = useQueryClient();
   return useQuery({
     queryKey: ['weekly-progression-review'],
+    // Cached for 5 min, no refetch on window focus; the Consultoria reload button refetches.
+    staleTime: CONSULTORIA_STALE_TIME_MS,
+    refetchOnWindowFocus: false,
+    retry: 1,
     queryFn: async () => {
       const now = new Date();
       const weekStart = startOfWeek(now, { weekStartsOn: 1 });
