@@ -172,8 +172,6 @@ const Dashboard = () => {
           </Card>
         )}
 
-        <DashboardSection name="ExecutionVideosCard"><ExecutionVideosCard /></DashboardSection>
-
         {/* Student activity overview — online, today's accesses, today's workouts */}
         <div className="space-y-2">
           <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
@@ -205,6 +203,8 @@ const Dashboard = () => {
         </div>
 
         <DashboardSection name="LiveActivityFeed"><LiveActivityFeed /></DashboardSection>
+
+        <DashboardSection name="ExecutionVideosCard"><ExecutionVideosCard /></DashboardSection>
 
         {/* Activity ranking + Birthdays */}
         <DashboardSection name="StudentsNeedingAttentionCard"><StudentsNeedingAttentionCard /></DashboardSection>
