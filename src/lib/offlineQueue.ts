@@ -71,6 +71,13 @@ export async function enqueue(rawOp: Omit<QueuedOp, 'id' | 'createdAt' | 'attemp
     for (const item of existing) {
       const itemKey = upsertDedupKey(item) ?? updateDedupKey(item) ?? idDedupKey(item);
       if (item.id == null || itemKey !== key) continue;
+      // Uma atualização da mesma sessão não pode substituir sua criação ainda
+      // pendente. Mescla o estado final no INSERT para manter sessão -> séries.
+      if (item.op === 'insert' && op.op === 'update' && !Array.isArray(item.payload) && !Array.isArray(op.payload)) {
+        await db.put(STORE, { ...item, payload: { ...item.payload, ...op.payload }, lastError: undefined, nextAttemptAt: undefined });
+        notifyChange();
+        return;
+      }
       if (item.op === 'update' && op.op === 'update' && !Array.isArray(item.payload) && !Array.isArray(op.payload)) {
         await db.put(STORE, { ...item, payload: { ...item.payload, ...op.payload }, lastError: undefined, nextAttemptAt: undefined });
       } else {

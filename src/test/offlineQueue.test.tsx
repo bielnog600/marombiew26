@@ -109,6 +109,20 @@ describe('fila offline', () => {
     });
   });
 
+  it('atualização final não apaga a criação pendente da mesma sessão', async () => {
+    Object.defineProperty(navigator, 'onLine', { configurable: true, value: false });
+    await writeWithFallback({ table: 'workout_sessions', op: 'insert', payload: { id: 'session-1', student_id: 'u1', status: 'in_progress', total_exercises: 1 } });
+    await writeWithFallback({ table: 'workout_sessions', op: 'update', matchId: 'session-1', payload: { status: 'completed', total_sets: 3 } });
+    const items = await getPending();
+    expect(items).toHaveLength(1);
+    expect(items[0]).toMatchObject({ op: 'insert' });
+    expect(items[0].matchId).toBeUndefined();
+    expect(items[0].payload).toMatchObject({ id: 'session-1', student_id: 'u1', status: 'completed', total_exercises: 1, total_sets: 3 });
+    Object.defineProperty(navigator, 'onLine', { configurable: true, value: true });
+    await flushQueue();
+    expect(h.upserts[0]).toMatchObject({ table: 'workout_sessions', payload: { id: 'session-1', status: 'completed', total_sets: 3 } });
+  });
+
   it('progresso repetido da mesma sessão mantém uma operação e os campos mais recentes', async () => {
     Object.defineProperty(navigator, 'onLine', { configurable: true, value: false });
     await writeWithFallback({ table: 'workout_sessions', op: 'update', matchId: 's1', payload: { session_state: { currentIndex: 0 }, duration_minutes: 0 } });

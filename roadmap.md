@@ -1,11 +1,12 @@
 # Roadmap
 
 ## App do aluno offline — treino completo
-- [ ] Pré-baixar dados e telas do aluno após login/abertura online; indicar a atualização no Perfil.
-- [ ] Abrir sem rede com sessão e papel locais, sem loading infinito; shell e chunks pelo PWA publicado.
-- [ ] Iniciar, registrar séries e finalizar treino offline com IDs do aparelho e fila idempotente.
-- [ ] Sincronizar em ordem ao reconectar, com retry sem perda e estado visível.
-- [ ] E2E em build de produção: login online → offline/recarregar/nova aba → 3 séries/finalizar → reabrir → sincronizar e conferir banco sem duplicar.
+- [x] Pré-baixar dados e telas do aluno após login/abertura online; indicar a atualização no Perfil.
+- [x] Abrir sem rede com sessão e papel locais, sem loading infinito; shell e chunks pelo PWA publicado.
+- [x] Iniciar, registrar séries e finalizar treino offline com IDs do aparelho e fila idempotente.
+- [x] Sincronizar em ordem ao reconectar, com retry sem perda e estado visível.
+- [x] E2E em build de produção: login online → offline/recarregar/nova aba → 3 séries/finalizar → reabrir → sincronizar e conferir banco sem duplicar.
+- [ ] Validar num iPhone físico e após reiniciar o aparelho — requer dispositivo e versão publicada; o E2E fechou e reabriu páginas no Chromium.
 
 ## Vídeos, ao vivo e plano em tempo real
 - [x] Vídeo do Cloudflare salvo e exibido sempre com autoplay, loop e muted (só acrescenta o que falta).

@@ -1,4 +1,5 @@
 import type { User } from '@supabase/supabase-js';
+import { supabase } from '@/integrations/supabase/client';
 
 export const ROLE_CACHE_KEY = 'marombiew_user_role';
 export const SESSION_CACHE_KEY = 'marombiew_cached_session';
@@ -53,10 +54,19 @@ export async function getLocalUserId(): Promise<string | null> {
   try {
     const { data } = await Promise.race([
       // getSession lê a sessão persistida; o timeout cobre refresh de token lento.
-      import('@/integrations/supabase/client').then(({ supabase }) => supabase.auth.getSession()),
+      supabase.auth.getSession(),
       new Promise<never>((_, reject) => setTimeout(() => reject(new Error('timeout')), 500)),
     ]);
     if (data.session?.user?.id) return data.session.user.id;
-  } catch { /* usa a cópia local abaixo */ }
+  } catch { /* tenta o caminho legado somente online */ }
+  if (typeof navigator === 'undefined' || navigator.onLine) {
+    try {
+      const { data } = await Promise.race([
+        supabase.auth.getUser(),
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error('timeout')), 500)),
+      ]);
+      if (data.user?.id) return data.user.id;
+    } catch { /* usa a cópia local abaixo */ }
+  }
   return getCachedOfflineUser()?.id ?? null;
 }
