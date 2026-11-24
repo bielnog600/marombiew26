@@ -155,7 +155,9 @@ const MinhaArea = () => {
         fetchWithCache(`plan:cardio:${user!.id}`, async () => {
           return (await supabase.from('ai_plans').select('id, conteudo').eq('student_id', user!.id).eq('tipo', 'cardio').order('created_at', { ascending: false }).limit(1).maybeSingle()).data;
         }),
-        supabase.from('ai_plans').select('*').eq('student_id', user!.id).eq('tipo', 'treino').eq('pending_checkin', true).order('created_at', { ascending: false }).limit(1).maybeSingle()
+        fetchWithCache(`workout:pending-checkin:${user!.id}`, async () =>
+          (await supabase.from('ai_plans').select('*').eq('student_id', user!.id).eq('tipo', 'treino').eq('pending_checkin', true).order('created_at', { ascending: false }).limit(1).maybeSingle()).data
+        )
       ]);
 
       const prof = profRes.data;

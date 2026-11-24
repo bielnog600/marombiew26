@@ -58,7 +58,8 @@ export default defineConfig(({ mode }) => ({
             handler: "NetworkFirst",
             options: {
               cacheName: "html-cache",
-              networkTimeoutSeconds: 2,
+              // Modo avião falha imediatamente; redes lentas caem no shell em 0,5 s.
+              networkTimeoutSeconds: 0.5,
               expiration: { maxEntries: 20, maxAgeSeconds: 60 * 60 * 24 * 30 },
               cacheableResponse: { statuses: [0, 200] },
             },

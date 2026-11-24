@@ -11,6 +11,7 @@ import { toast } from 'sonner';
 import { WorkoutSummaryShare } from '@/components/training/WorkoutSummaryShare';
 import type { TrainingPhase } from '@/lib/trainingPhase';
 import { fetchWithCache } from '@/lib/offlineCache';
+import OfflineReadyBadge from '@/components/OfflineReadyBadge';
 
 interface RecentSession {
   id: string;
@@ -139,6 +140,8 @@ const Perfil = () => {
             <p className="text-xs text-muted-foreground">{profile?.email}</p>
           </div>
         </div>
+
+        {user && <OfflineReadyBadge userId={user.id} />}
 
         {/* Info Card */}
         {infoItems.length > 0 && (

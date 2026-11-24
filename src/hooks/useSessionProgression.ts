@@ -13,6 +13,7 @@ import {
 } from '@/lib/sessionProgression';
 import type { ParsedExercise } from '@/lib/trainingResultParser';
 import type { TrainingPhase } from '@/lib/trainingPhase';
+import { getCachedProgressionInputs } from '@/lib/offlineWorkoutHistory';
 
 /** Janela de histórico considerada para performance/inferência de incremento. */
 const HISTORY_DAYS = 180;
@@ -140,8 +141,27 @@ export function useSessionProgression({
     inFlight.current = chave;
 
     let cancelled = false;
+    const applyCached = async () => {
+      const cached = await getCachedProgressionInputs(studentId);
+      if (!cached || cancelled) return false;
+      const novo = buildSessionProgressionRecommendations({
+        exercises: alvo,
+        logs: cached.logs,
+        currentSessionId: sessionId,
+        activePhase: phase,
+        configuredIncrements: cached.increments,
+        sessionMeta: cached.sessionMeta,
+        currentPlanId: planId,
+        currentPlanStartedAt: planStartedAt,
+      });
+      setSnapshot(atual => (atual && !faseMudou ? mergeProgressionSnapshots(atual, novo) : novo));
+      setStatus('ready');
+      inFlight.current = null;
+      return true;
+    };
     (async () => {
       if (!base) setStatus('loading');
+      if (!navigator.onLine && await applyCached()) return;
       const since = new Date(Date.now() - HISTORY_DAYS * 24 * 60 * 60 * 1000).toISOString();
       const keys = new Set(alvo.map((e) => normalizeExerciseKey(e?.exercise || '')).filter(Boolean));
 
@@ -162,6 +182,7 @@ export function useSessionProgression({
 
       // Erro de busca ≠ "sem dados": não congelar snapshot vazio por falha.
       if (!incRes.ok || sessionsRes.error || !logsRes.ok) {
+        if (await applyCached()) return;
         inFlight.current = null;
         setStatus('load_error');
         if (retries.current < MAX_RETRIES) {

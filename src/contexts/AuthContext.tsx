@@ -3,6 +3,12 @@ import { supabase } from '@/integrations/supabase/client';
 import type { User, Session } from '@supabase/supabase-js';
 import type { AccessStatus, SuspensionReason } from '@/lib/accessControl';
 import { LAST_ACTIVE_THROTTLE_MS } from '@/lib/accessControl';
+import {
+  cacheOfflineUser,
+  getCachedOfflineUser,
+  getCachedRole,
+  setCachedRole,
+} from '@/lib/offlineAuth';
 
 type UserRole = 'admin' | 'aluno';
 
@@ -26,54 +32,6 @@ const AuthContext = createContext<AuthContextType>({} as AuthContextType);
 
 export const useAuth = () => useContext(AuthContext);
 
-
-// Cache role in localStorage to avoid refetching on every reload
-const ROLE_CACHE_KEY = 'marombiew_user_role';
-const SESSION_CACHE_KEY = 'marombiew_cached_session';
-
-const getCachedRole = (userId: string): UserRole | null => {
-  try {
-    const cached = localStorage.getItem(ROLE_CACHE_KEY);
-    if (cached) {
-      const parsed = JSON.parse(cached);
-      if (parsed.userId === userId) return parsed.role as UserRole;
-    }
-  } catch {}
-  return null;
-};
-
-const setCachedRole = (userId: string, role: UserRole) => {
-  try {
-    localStorage.setItem(ROLE_CACHE_KEY, JSON.stringify({ userId, role }));
-  } catch {}
-};
-
-const cacheSession = (session: Session | null) => {
-  try {
-    if (session) {
-      localStorage.setItem(SESSION_CACHE_KEY, JSON.stringify({
-        user: { id: session.user.id, email: session.user.email },
-        timestamp: Date.now()
-      }));
-    } else {
-      localStorage.removeItem(SESSION_CACHE_KEY);
-    }
-  } catch {}
-};
-
-const getCachedSession = () => {
-  try {
-    const cached = localStorage.getItem(SESSION_CACHE_KEY);
-    if (cached) {
-      const parsed = JSON.parse(cached);
-      // Cache valid for 30 days
-      if (Date.now() - parsed.timestamp < 30 * 24 * 60 * 60 * 1000) {
-        return parsed;
-      }
-    }
-  } catch {}
-  return null;
-};
 
 /** Mesmo usuário com os mesmos dados (a renovação do token não muda nada disso). */
 export const isSameUser = (a: User | null, b: User | null): boolean => {
@@ -137,8 +95,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const applySession = async (nextSession: Session | null) => {
       if (!mounted) return;
 
+      // Sem rede, a cópia local é suficiente para abrir o app. O token será
+      // renovado pelo Supabase ao reconectar; nunca deslogamos por expiração offline.
+      if (!nextSession?.user && !intentionalSignOut.current && !navigator.onLine) {
+        const cachedUser = getCachedOfflineUser();
+        if (cachedUser) {
+          setSession(null);
+          setUser(prev => (isSameUser(prev, cachedUser) ? prev : cachedUser));
+          setRole(getCachedRole(cachedUser.id) ?? 'aluno');
+          return;
+        }
+      }
+
       if (!nextSession?.user && !intentionalSignOut.current && !isRefreshing.current) {
-        const cachedInfo = getCachedSession();
+        const cachedInfo = getCachedOfflineUser();
         if (cachedInfo) {
           try {
             isRefreshing.current = true;
@@ -167,14 +137,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (!nextSession?.user) {
         if (intentionalSignOut.current) {
           setRole(null);
-          cacheSession(null);
-          localStorage.removeItem(ROLE_CACHE_KEY);
+          cacheOfflineUser(null);
+          localStorage.removeItem('marombiew_user_role');
           intentionalSignOut.current = false;
         }
         return;
       }
 
-      cacheSession(nextSession);
+      cacheOfflineUser(nextSession.user);
       const userRole = await fetchRole(nextSession.user.id);
       if (mounted) setRole(userRole);
     };
@@ -191,14 +161,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           if (data?.session && mounted) {
             applySession(data.session);
           } else if (mounted) {
-            // Really signed out
-            setSession(null);
-            setUser(null);
-            setRole(null);
+            if (!navigator.onLine && getCachedOfflineUser()) {
+              void applySession(null);
+            } else {
+              setSession(null);
+              setUser(null);
+              setRole(null);
+            }
             setLoading(false);
           }
         }).catch(() => {
           isRefreshing.current = false;
+          if (mounted && !navigator.onLine && getCachedOfflineUser()) void applySession(null);
           if (mounted) setLoading(false);
         });
         return;
@@ -218,11 +192,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     void (async () => {
       try {
+        if (!navigator.onLine) {
+          await applySession(null);
+          return;
+        }
         const { data, error } = await supabase.auth.getSession();
         if (error) {
           console.error('Erro ao recuperar sessão:', error);
           // Try cached session info to avoid logout
-          const cached = getCachedSession();
+          const cached = getCachedOfflineUser();
           if (cached) {
             // Try refresh
             try {
@@ -238,7 +216,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       } catch (error) {
         console.error('Erro inesperado ao inicializar sessão:', error);
         // Don't clear state if we have cached info
-        const cached = getCachedSession();
+        const cached = getCachedOfflineUser();
         if (!cached && mounted) {
           setSession(null);
           setUser(null);
@@ -259,6 +237,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Ordem: AUTH -> ROLE -> ACCESS STATUS. Suspenso nunca renova last_active_at
   // (o heartbeat no banco é quem decide, e é ele que aplica a rede de proteção dos 15 dias).
   const runHeartbeat = useCallback(async (force = false) => {
+    if (!navigator.onLine) {
+      setAccessStatus(prev => prev ?? 'active');
+      setAccessLoading(false);
+      return;
+    }
     if (!user || role !== 'aluno') {
       setAccessStatus(role === 'admin' ? 'active' : null);
       setSuspensionReason(null);
@@ -336,8 +319,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const signOut = async () => {
     intentionalSignOut.current = true;
-    cacheSession(null);
-    localStorage.removeItem(ROLE_CACHE_KEY);
+    cacheOfflineUser(null);
+    localStorage.removeItem('marombiew_user_role');
     setAccessStatus(null);
     setSuspensionReason(null);
     setLastActiveAt(null);

@@ -1,6 +1,8 @@
 // Sessão do TABATA concluída (tabata_sessions): o aluno grava o RPE no fim e o coach lê na ficha.
 import { supabase } from '@/integrations/supabase/client';
 import type { Json } from '@/integrations/supabase/types';
+import { writeWithFallback } from '@/lib/offlineQueue';
+import { getLocalUserId } from '@/lib/offlineAuth';
 import {
   activeSeconds, clearLocalTabataSnapshot, isTabataSnapshot, newestSnapshot, readLocalTabataSnapshot, resumeStatus,
   type TabataSnapshot,
@@ -73,14 +75,11 @@ export function tabataSessionRow(input: TabataSessionInput, now = new Date()) {
  * (em andamento → concluída); sem ele cria uma linha nova, como antes.
  */
 export async function saveTabataSession(input: TabataSessionInput, sessionId?: string | null): Promise<void> {
-  const { data: auth } = await supabase.auth.getUser();
-  const uid = auth?.user?.id;
+  const uid = await getLocalUserId();
   if (!uid) throw new Error('Faça login de novo para salvar.');
   const row = { id: sessionId || crypto.randomUUID(), student_id: uid, ...tabataSessionRow(input) };
-  const { error } = sessionId
-    ? await supabase.from('tabata_sessions').upsert(row, { onConflict: 'id' })
-    : await supabase.from('tabata_sessions').insert(row);
-  if (error) throw error;
+  const result = await writeWithFallback({ table: 'tabata_sessions', op: 'upsert', onConflict: 'id', payload: row });
+  if ('failed' in result && result.failed) throw new Error('Não foi possível salvar o TABATA.');
 }
 
 // ───────────── TABATA em andamento (pausa ao sair / retomada) ─────────────
@@ -109,26 +108,25 @@ export function tabataProgressRow(s: TabataSnapshot, status: TabataActiveStatus)
 /** Grava o ponto atual no banco (outro aparelho consegue retomar). Falha em silêncio (offline). */
 export async function saveTabataProgress(s: TabataSnapshot, status: TabataActiveStatus): Promise<boolean> {
   try {
-    const { error } = await supabase.from('tabata_sessions').upsert(tabataProgressRow(s, status), { onConflict: 'id' });
-    return !error;
+    const result = await writeWithFallback({ table: 'tabata_sessions', op: 'upsert', onConflict: 'id', payload: tabataProgressRow(s, status) });
+    return !('failed' in result && result.failed);
   } catch { return false; }
 }
 
 /** Fecha como abandonada (Recomeçar, Descartar ou mais de 24 h parada). Só mexe se ainda estiver ativa. */
 export async function abandonTabataSession(sessionId: string): Promise<void> {
   try {
-    await supabase.from('tabata_sessions')
-      .update({ status: 'abandoned' })
-      .eq('id', sessionId)
-      .in('status', [...ACTIVE_STATUSES]);
+    await writeWithFallback({ table: 'tabata_sessions', op: 'update', matchId: sessionId, payload: { status: 'abandoned' } });
   } catch { /* offline: o retrato local já foi apagado */ }
 }
 
 /** Grava o fim (sem RPE ainda), para a sessão sair de "em andamento" mesmo sem salvar o RPE. */
 export async function finishTabataSession(sessionId: string, studentId: string, input: TabataFinishInput): Promise<void> {
   try {
-    await supabase.from('tabata_sessions').upsert(
-      { id: sessionId, student_id: studentId, ...tabataFinishedRow(input) }, { onConflict: 'id' });
+    await writeWithFallback({
+      table: 'tabata_sessions', op: 'upsert', onConflict: 'id',
+      payload: { id: sessionId, student_id: studentId, ...tabataFinishedRow(input) },
+    });
   } catch { /* offline */ }
 }
 

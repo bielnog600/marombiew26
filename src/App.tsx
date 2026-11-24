@@ -21,6 +21,7 @@ import Login from "./pages/Login";
 import { lazyWithRetry } from "@/lib/appUpdate/lazyWithRetry";
 import { preloadWhenIdle } from "@/lib/appUpdate/idlePreload";
 import AppUpdateToast from "@/components/AppUpdateToast";
+import { prefetchStudentOfflineData, shouldPrefetchStudent } from "@/lib/studentOfflinePrefetch";
 const Dashboard = lazyWithRetry(() => import("./pages/Dashboard"));
 const CorrecaoAoVivoTeste = lazyWithRetry(() => import("./pages/CorrecaoAoVivoTeste"));
 const PesarRefeicaoTeste = lazyWithRetry(() => import("./pages/PesarRefeicaoTeste"));
@@ -82,8 +83,31 @@ const RoutePreloader = () => {
     if (loading || !user || !role) return;
     const screens = role === 'admin'
       ? [Alunos, AlunoDetail]
-      : [MeusTreinos, TreinoExecucao, MinhasDietas, Evolucao, MeuProgresso];
+      : [MinhaArea, MeusTreinos, TreinoPreview, TreinoExecucao, CardioAluno, CardioExecucao, TabataExecucao, MinhasDietas, Perfil, Evolucao, MeuProgresso, MinhasAvaliacoes, MinhaAgenda];
     return preloadWhenIdle(screens.map(screen => screen.preload));
+  }, [loading, user?.id, role]);
+  return null;
+};
+
+/** Uma abertura online prepara todo o treino para a próxima abertura sem rede. */
+const StudentOfflinePrefetch = () => {
+  const { user, role, loading } = useAuth();
+  useEffect(() => {
+    if (loading || !user || role !== 'aluno') return;
+    let timer: number | undefined;
+    const run = () => {
+      if (!navigator.onLine || !shouldPrefetchStudent(user.id)) return;
+      timer = window.setTimeout(() => { void prefetchStudentOfflineData(user.id); }, 800);
+    };
+    const onVisible = () => { if (document.visibilityState === 'visible') run(); };
+    run();
+    window.addEventListener('online', run);
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      if (timer !== undefined) window.clearTimeout(timer);
+      window.removeEventListener('online', run);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
   }, [loading, user?.id, role]);
   return null;
 };
@@ -125,6 +149,7 @@ const App = () => {
             <AdminTrainerSessionProvider>
             <AppUpdateToast />
             <RoutePreloader />
+            <StudentOfflinePrefetch />
             <PushNotificationsInit />
             <StudentAppOpenTracker />
             <AdminTrainerSessionMount />

@@ -64,6 +64,8 @@ import { parsePauseSeconds } from '@/components/training/TrainerLogSheetUtils';
 import { restAfterSet } from '@/lib/setTypeRest';
 import { mergeLivePlanUpdate, type LiveSetsByIndex } from '@/lib/livePlanUpdate';
 import { useStudentPlanRealtime } from '@/hooks/useStudentPlanRealtime';
+import { writeWithFallback } from '@/lib/offlineQueue';
+import { getCachedPreviousExerciseSets } from '@/lib/offlineWorkoutHistory';
 
 
 import {
@@ -360,7 +362,7 @@ const TreinoExecucaoInner = () => {
       const requestedDay = stateData?.dayName ?? null;
 
       // 0. Fecha só sessões abandonadas há muito tempo (resolução de segundo plano).
-      await resolveStaleWorkoutSessionsThrottled(user.id, true);
+      if (navigator.onLine) await resolveStaleWorkoutSessionsThrottled(user.id, true);
 
       // 1. Verifica se já existe sessão em andamento
       const { data: existing, error: existingError } = await supabase
@@ -422,24 +424,22 @@ const TreinoExecucaoInner = () => {
       sessionInitRef.current = true;
 
       const startedAtIso = new Date().toISOString();
-      const { data: newSession, error: createSessionError } = await supabase
-        .from('workout_sessions')
-        .insert({
-          student_id: user.id,
-          day_name: dayName,
-          plan_id: sessionPlanId,
-          phase: phase ?? null,
-          status: 'in_progress',
-          started_at: startedAtIso,
-          last_active_at: startedAtIso,
-          duration_minutes: 0,
-          exercises_completed: 0,
-          total_exercises: exercises.length,
-        })
-        .select('id, started_at')
-        .single();
+      const newSession = {
+        id: crypto.randomUUID(),
+        student_id: user.id,
+        day_name: dayName,
+        plan_id: sessionPlanId,
+        phase: phase ?? null,
+        status: 'in_progress',
+        started_at: startedAtIso,
+        last_active_at: startedAtIso,
+        duration_minutes: 0,
+        exercises_completed: 0,
+        total_exercises: exercises.length,
+      };
+      const createResult = await writeWithFallback({ table: 'workout_sessions', op: 'insert', payload: newSession });
 
-      if (!createSessionError && newSession) {
+      if (!('failed' in createResult && createResult.failed)) {
         setSessionId(newSession.id);
         setSessionStartAt(new Date(newSession.started_at).getTime());
         setLocalActiveSession({
@@ -453,10 +453,15 @@ const TreinoExecucaoInner = () => {
           session_state: null,
         });
 
-        await supabase.from('student_events').insert({
-          student_id: user.id,
-          event_type: 'workout_started',
-          metadata: { day_name: dayName ?? null, session_id: newSession.id },
+        await writeWithFallback({
+          table: 'student_events',
+          op: 'insert',
+          payload: {
+            id: crypto.randomUUID(),
+            student_id: user.id,
+            event_type: 'workout_started',
+            metadata: { day_name: dayName ?? null, session_id: newSession.id },
+          },
         });
       }
       } finally {
@@ -651,11 +656,12 @@ const TreinoExecucaoInner = () => {
   useEffect(() => {
     if (!sessionId) return;
     const t = setTimeout(() => {
-      supabase
-        .from('workout_sessions')
-        .update({ session_state: { sets, currentIndex, ...sessionMeta } as any, last_active_at: new Date().toISOString() })
-        .eq('id', sessionId)
-        .then(() => {});
+      void writeWithFallback({
+        table: 'workout_sessions',
+        op: 'update',
+        matchId: sessionId,
+        payload: { session_state: { sets, currentIndex, ...sessionMeta } as any, last_active_at: new Date().toISOString() },
+      });
     }, 800);
     return () => clearTimeout(t);
   }, [sets, currentIndex, sessionId, sessionMeta]);
@@ -665,11 +671,12 @@ const TreinoExecucaoInner = () => {
   useEffect(() => {
     if (!sessionId) return;
     const flush = () => {
-      supabase
-        .from('workout_sessions')
-        .update({ session_state: { sets, currentIndex, ...sessionMeta } as any })
-        .eq('id', sessionId)
-        .then(() => {});
+      void writeWithFallback({
+        table: 'workout_sessions',
+        op: 'update',
+        matchId: sessionId,
+        payload: { session_state: { sets, currentIndex, ...sessionMeta } as any },
+      });
     };
     const onHide = () => {
       if (document.visibilityState === 'hidden') flush();
@@ -1009,14 +1016,14 @@ const TreinoExecucaoInner = () => {
       [VARIATION_NAME_FIELD]: normalizeExerciseKey(exercise.variation || ''),
     };
 
-    const { error } = await supabase
-      .from('student_exercise_adjustments')
-      .upsert(
-        { student_id: user.id, exercise_id: matchedExercise.id, valores: payload },
-        { onConflict: 'student_id,exercise_id' }
-      );
+    const result = await writeWithFallback({
+      table: 'student_exercise_adjustments',
+      op: 'upsert',
+      payload: { student_id: user.id, exercise_id: matchedExercise.id, valores: payload },
+      onConflict: 'student_id,exercise_id',
+    });
 
-    if (error) {
+    if ('failed' in result && result.failed) {
       setShowingVariation(!next);
       setShowingVariationFor(cacheKey);
       setVariationPrefs((prev) => ({ ...prev, [cacheKey]: !next }));
@@ -1074,6 +1081,14 @@ const TreinoExecucaoInner = () => {
 
     // Fetch last session logs for this exercise
     (async () => {
+      if (!navigator.onLine) {
+        const cachedRows = await getCachedPreviousExerciseSets(user.id, exName, sessionId);
+        if (cachedRows) {
+          setLastLogsByExercise(prev => ({ ...prev, [exName.toUpperCase().trim()]: cachedRows }));
+          ensureSets(cachedRows);
+          return;
+        }
+      }
       const { data: lastSession } = await supabase
         .from('exercise_set_logs')
         .select('session_id, performed_at')
@@ -1153,14 +1168,15 @@ const TreinoExecucaoInner = () => {
       // Persist imediatamente para não perder a série marcada se o app fechar
       // antes do auto-save debounced disparar.
       if (sessionId) {
-        supabase
-          .from('workout_sessions')
-          .update({
+        void writeWithFallback({
+          table: 'workout_sessions',
+          op: 'update',
+          matchId: sessionId,
+          payload: {
             session_state: { sets: next, currentIndex, ...sessionMeta } as any,
             last_active_at: new Date().toISOString(),
-          })
-          .eq('id', sessionId)
-          .then(() => {});
+          },
+        });
       }
       return next;
     });
@@ -1197,7 +1213,7 @@ const TreinoExecucaoInner = () => {
     updated[index] = { ...entry, completed: !!entry.completed };
     const next = { ...sets, [currentIndex]: updated };
     setSets(next); syncLocalActiveSession(next, currentIndex);
-    if (sessionId) void supabase.from('workout_sessions').update({ session_state: { sets: next, currentIndex, ...sessionMeta } as any, last_active_at: new Date().toISOString() }).eq('id', sessionId).then(() => {});
+    if (sessionId) void writeWithFallback({ table: 'workout_sessions', op: 'update', matchId: sessionId, payload: { session_state: { sets: next, currentIndex, ...sessionMeta } as any, last_active_at: new Date().toISOString() } });
   };
   const completeMethodSet = (index: number, entry: MethodSetEntry) => {
     const updated = [...(sets[currentIndex] ?? [])]; updated[index] = { ...entry, completed: true };
@@ -1536,6 +1552,11 @@ const TreinoExecucaoInner = () => {
                 data-testid="video-play-fallback"
                 className="absolute inset-0 z-20 touch-manipulation"
               >
+                {!navigator.onLine && (
+                  <span className="absolute inset-x-4 bottom-4 rounded-lg bg-background/85 px-3 py-2 text-center text-xs text-foreground backdrop-blur">
+                    Este vídeo precisa de internet. O treino continua normalmente.
+                  </span>
+                )}
                 <span className="absolute bottom-3 right-3 h-8 w-8 rounded-full bg-background/60 backdrop-blur flex items-center justify-center">
                   <Play className="h-4 w-4 ml-0.5 text-foreground" />
                 </span>
@@ -1674,6 +1695,10 @@ const TreinoExecucaoInner = () => {
             <button
               type="button"
               onClick={() => {
+                if (!navigator.onLine) {
+                  toast.error('A Correção ao vivo precisa de internet.');
+                  return;
+                }
                 const setIdx = currentSets.findIndex((s) => !s.completed);
                 setLiveCorrectionTarget(setIdx >= 0 ? { exIdx: currentIndex, setIdx } : null);
                 setLiveCorrectionName(effectiveNameFor(exercise));
@@ -1908,90 +1933,77 @@ const TreinoExecucaoInner = () => {
             if (user) {
               let finalSessionId = sessionId;
 
+              const completedAt = new Date().toISOString();
+              const finalSnapshot = progressionSnapshot ?? restoredSnapshot ?? activeSession?.session_state?.progressionRecommendations ?? null;
+              const finalFields = {
+                status: 'completed',
+                completion_source: 'manual',
+                completed_at: completedAt,
+                last_active_at: completedAt,
+                duration_minutes: durationMinutes,
+                exercises_completed: exercisesCompleted,
+                total_exercises: exercises.length,
+                avg_rpe: sessionRpe,
+                total_volume_kg: totalVolumeKg || null,
+                total_sets: totalSets,
+                session_state: { progressionRecommendations: finalSnapshot } as any,
+              };
+              let finalWrite;
               if (finalSessionId) {
-                // Atualiza a sessão em andamento existente para completed
-                await supabase
-                  .from('workout_sessions')
-                  .update({
-                    status: 'completed',
-                    completion_source: 'manual',
-                    completed_at: new Date().toISOString(),
-                    last_active_at: new Date().toISOString(),
-                    duration_minutes: durationMinutes,
-                    exercises_completed: exercisesCompleted,
-                    total_exercises: exercises.length,
-                    avg_rpe: sessionRpe,
-                    total_volume_kg: totalVolumeKg || null,
-                    total_sets: totalSets,
-                    session_state: {
-                      progressionRecommendations: progressionSnapshot ?? restoredSnapshot ?? activeSession?.session_state?.progressionRecommendations ?? null
-                    } as any,
-                  })
-                  .eq('id', finalSessionId);
+                finalWrite = await writeWithFallback({
+                  table: 'workout_sessions', op: 'update', matchId: finalSessionId, payload: finalFields,
+                });
               } else {
-                // Fallback: cria nova já completada (não havia sessão em andamento)
-                const finalSnapshot = progressionSnapshot ?? restoredSnapshot ?? activeSession?.session_state?.progressionRecommendations ?? null;
-                
-                const { data: sessionRow } = await supabase
-                  .from('workout_sessions')
-                  .insert({
+                finalSessionId = crypto.randomUUID();
+                finalWrite = await writeWithFallback({
+                  table: 'workout_sessions',
+                  op: 'insert',
+                  payload: {
+                    id: finalSessionId,
                     student_id: user.id,
                     plan_id: sessionPlanId,
                     day_name: dayName,
                     phase: phase ?? null,
-                    status: 'completed',
-                    completion_source: 'manual',
-                    completed_at: new Date().toISOString(),
-                    duration_minutes: durationMinutes,
-                    exercises_completed: exercisesCompleted,
-                    total_exercises: exercises.length,
-                    avg_rpe: sessionRpe,
-                    total_volume_kg: totalVolumeKg || null,
-                    total_sets: totalSets,
-                    session_state: {
-                      progressionRecommendations: finalSnapshot
-                    } as any,
-                  })
-                  .select('id')
-                  .single();
-                finalSessionId = sessionRow?.id ?? null;
+                    ...finalFields,
+                  },
+                });
               }
+              if ('failed' in finalWrite && finalWrite.failed) throw new Error('Não foi possível guardar a finalização.');
 
               if (setLogRows.length > 0 && finalSessionId) {
-                const { writeWithFallback } = await import('@/lib/offlineQueue');
-                await writeWithFallback({
+                const logsWrite = await writeWithFallback({
                   table: 'exercise_set_logs',
                   op: 'upsert',
                   onConflict: 'session_id,student_id,exercise_name,set_number',
-                  payload: setLogRows.map((r) => ({ ...r, session_id: finalSessionId })),
+                  payload: setLogRows.map((r) => ({ ...r, id: crypto.randomUUID(), session_id: finalSessionId, performed_at: completedAt })),
                 });
+                if ('failed' in logsWrite && logsWrite.failed) throw new Error('Não foi possível guardar as séries.');
                 await writeWithFallback({
                   table: 'student_events',
                   op: 'insert',
                   payload: {
+                    id: crypto.randomUUID(),
                     student_id: user.id,
                     event_type: 'workout_load_logged',
                     metadata: { sets: setLogRows.length, session_id: finalSessionId },
                   },
                 });
               }
-              {
-                const { writeWithFallback } = await import('@/lib/offlineQueue');
-                await writeWithFallback({
-                  table: 'student_events',
-                  op: 'insert',
-                  payload: {
-                    student_id: user.id,
-                    event_type: 'workout_completed',
-                    metadata: {
-                      day_name: dayName,
-                      duration_minutes: durationMinutes,
-                      exercises_completed: exercisesCompleted,
-                      session_rpe: sessionRpe,
-                    },
+              await writeWithFallback({
+                table: 'student_events',
+                op: 'insert',
+                payload: {
+                  id: crypto.randomUUID(),
+                  student_id: user.id,
+                  event_type: 'workout_completed',
+                  metadata: {
+                    day_name: dayName,
+                    duration_minutes: durationMinutes,
+                    exercises_completed: exercisesCompleted,
+                    session_rpe: sessionRpe,
                   },
-                });
-              }
+                },
+              });
 
               // Push aos admins (best-effort) — endpoint dedicado valida a sessão do próprio aluno
               try {
@@ -2000,6 +2012,18 @@ const TreinoExecucaoInner = () => {
                 }).catch(() => {});
               } catch {}
 
+              const finishedSummary = {
+                id: finalSessionId,
+                duration_minutes: durationMinutes,
+                exercises_completed: exercisesCompleted,
+                total_exercises: exercises.length,
+                completed_at: completedAt,
+                day_name: dayName,
+                phase: phase ?? null,
+              };
+              const cachedRecent = await getCached<any[]>(`sessions:recent:${user.id}`) ?? [];
+              await setCache(`sessions:recent:${user.id}`, [finishedSummary, ...cachedRecent.filter(row => row.id !== finalSessionId)].slice(0, 5));
+              await setCache(`workout:last-finished:${user.id}`, finishedSummary);
               inlineRest.cancel();
               clearActiveSession();
             }

@@ -213,8 +213,8 @@ const CardioExecucao: React.FC = () => {
     if (!persistEnabled) return;
     uidPromiseRef.current = (async () => {
       try {
-        const r = await supabase.auth.getUser();
-        const id = r?.data?.user?.id ?? null;
+        const { getLocalUserId } = await import('@/lib/offlineAuth');
+        const id = await getLocalUserId();
         if (id) studentIdRef.current = id;
         return id;
       } catch { return null; }

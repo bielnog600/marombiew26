@@ -35,6 +35,7 @@ import {
   stoppedAgoText, writeLocalTabataSnapshot, type PauseReason, type TabataSnapshot,
 } from '@/lib/tabataResume';
 import { useScreenWakeLock } from '@/hooks/useScreenWakeLock';
+import { getLocalUserId } from '@/lib/offlineAuth';
 import {
   PhaseChip, RoundDots, RpePicker, SegmentedProgress, TimerRing,
 } from '@/components/tabata/player/TabataPlayerParts';
@@ -999,8 +1000,7 @@ const TabataExecucao: React.FC = () => {
     if (!persistEnabled) return;
     const job = (async () => {
       try {
-        const r = await supabase.auth.getUser();
-        const id = r?.data?.user?.id ?? null;
+        const id = await getLocalUserId();
         if (id) studentIdRef.current = id;
         return id;
       } catch { return null; }

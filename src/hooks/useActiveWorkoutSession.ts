@@ -2,6 +2,8 @@ import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { isSessionForgotten } from '@/lib/activeWorkoutSession';
+import { getCached } from '@/lib/offlineCache';
+import { pendingCount } from '@/lib/offlineQueue';
 
 export interface ActiveWorkoutSession {
   id: string;
@@ -53,6 +55,20 @@ export function useActiveWorkoutSession() {
       setLoading(false);
       return;
     }
+    const local = readLocal();
+    if (local && local.student_id !== user.id) {
+      localStorage.removeItem(LOCAL_KEY);
+      setSession(null);
+    }
+    if (!navigator.onLine) {
+      const cached = local?.student_id === user.id ? local : await getCached<ActiveWorkoutSession>(`workout:active:${user.id}`);
+      const valid = cached && !isSessionForgotten(cached) ? cached : null;
+      setSession(valid);
+      setForgotten(cached && !valid ? cached : null);
+      if (cached) localStorage.setItem(LOCAL_KEY, JSON.stringify(cached));
+      setLoading(false);
+      return;
+    }
     const { data, error } = await supabase
       .from('workout_sessions')
       .select('id, student_id, plan_id, day_name, phase, started_at, created_at, last_active_at, session_state, status')
@@ -90,9 +106,12 @@ export function useActiveWorkoutSession() {
         localStorage.setItem(LOCAL_KEY, JSON.stringify(active));
       }
     } else {
-      localStorage.removeItem(LOCAL_KEY);
-      setSession(null);
-      setForgotten(null);
+      const hasPendingWrites = await pendingCount() > 0;
+      if (!(hasPendingWrites && local?.student_id === user.id)) {
+        localStorage.removeItem(LOCAL_KEY);
+        setSession(null);
+        setForgotten(null);
+      }
     }
     setLoading(false);
   }, [user]);

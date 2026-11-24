@@ -7,16 +7,19 @@ import { cn } from '@/lib/utils';
  * Aparece como pill flutuante no topo quando offline ou com itens pendentes.
  */
 const OfflineIndicator = () => {
-  const { online, pending, syncing } = useOnlineStatus();
+  const { online, pending, syncing, synced } = useOnlineStatus();
 
-  // Não renderiza se está tudo OK
-  if (online && !syncing) return null;
+  if (online && !syncing && !synced && pending === 0) return null;
 
   const label = !online
     ? pending > 0
       ? `Offline · ${pending} pendente${pending > 1 ? 's' : ''}`
       : 'Offline'
-    : 'Sincronizando…';
+    : syncing
+      ? 'Sincronizando…'
+      : synced
+        ? 'Tudo sincronizado'
+        : `${pending} pendente${pending === 1 ? '' : 's'} para sincronizar`;
 
   return (
     <div

@@ -1,6 +1,8 @@
 // Sessões de cardio (cardio_sessions): em andamento (retrato para retomar), fim e "Finalizar Cardio".
 import { supabase } from '@/integrations/supabase/client';
 import type { Json } from '@/integrations/supabase/types';
+import { writeWithFallback } from '@/lib/offlineQueue';
+import { getLocalUserId } from '@/lib/offlineAuth';
 import {
   activeSeconds, clearLocalCardioSnapshot, isCardioSnapshot, newestCardioSnapshot, readLocalCardioSnapshot,
   resumeStatus, type CardioSnapshot,
@@ -35,14 +37,14 @@ export function cardioProgressRow(s: CardioSnapshot, status: CardioActiveStatus)
 
 export async function saveCardioProgress(s: CardioSnapshot, status: CardioActiveStatus): Promise<boolean> {
   try {
-    const { error } = await supabase.from('cardio_sessions').upsert(cardioProgressRow(s, status), { onConflict: 'id' });
-    return !error;
+    const result = await writeWithFallback({ table: 'cardio_sessions', op: 'upsert', onConflict: 'id', payload: cardioProgressRow(s, status) });
+    return !('failed' in result && result.failed);
   } catch { return false; }
 }
 
 export async function abandonCardioSession(sessionId: string): Promise<void> {
   try {
-    await supabase.from('cardio_sessions').update({ status: 'abandoned' }).eq('id', sessionId).in('status', [...ACTIVE]);
+    await writeWithFallback({ table: 'cardio_sessions', op: 'update', matchId: sessionId, payload: { status: 'abandoned' } });
   } catch { /* offline */ }
 }
 
@@ -159,12 +161,11 @@ export function cardioFinishRow(input: CardioFinishInput, now = new Date()) {
 
 /** Grava o fim na mesma linha que acompanhou a sessão (ou numa nova). */
 export async function saveCardioFinish(input: CardioFinishInput, sessionId?: string | null): Promise<void> {
-  const { data: auth } = await supabase.auth.getUser();
-  const uid = auth?.user?.id;
+  const uid = await getLocalUserId();
   if (!uid) throw new Error('Faça login de novo para salvar.');
   const row = { id: sessionId || crypto.randomUUID(), student_id: uid, ...cardioFinishRow(input) };
-  const { error } = await supabase.from('cardio_sessions').upsert(row, { onConflict: 'id' });
-  if (error) throw error;
+  const result = await writeWithFallback({ table: 'cardio_sessions', op: 'upsert', onConflict: 'id', payload: row });
+  if ('failed' in result && result.failed) throw new Error('Não foi possível salvar o cardio.');
 }
 
 export interface CardioSessionSummary {

@@ -24,6 +24,8 @@ import {
   todayIso,
 } from '@/lib/weightCheckin';
 import { normalizeWeights, type WeightEntry } from '@/lib/weightReview';
+import { writeWithFallback } from '@/lib/offlineQueue';
+import { getLocalUserId } from '@/lib/offlineAuth';
 
 interface Props {
   studentId: string;
@@ -122,42 +124,41 @@ const StudentWeightCard: React.FC<Props> = ({ studentId }) => {
       toast.error('Não é possível registrar uma data futura.');
       return;
     }
-    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
-      toast.error('Sem conexão. Tente novamente quando estiver online.');
-      return;
-    }
-
     setSaving(true);
-    // student_id derivado exclusivamente da sessão autenticada
-    const { data: auth } = await supabase.auth.getUser();
-    const authedId = auth?.user?.id;
-    if (!authedId) {
+    const authedId = await getLocalUserId();
+    if (!authedId || authedId !== studentId) {
       setSaving(false);
       toast.error('Sessão expirada. Faça login novamente.');
       return;
     }
 
-    const { error } = await supabase.from('weight_logs').insert({
-      student_id: authedId,
-      peso: pesoNum,
-      data,
-      observacao: observacao.trim() || null,
+    const result = await writeWithFallback({
+      table: 'weight_logs',
+      op: 'insert',
+      payload: {
+        id: crypto.randomUUID(),
+        student_id: authedId,
+        peso: pesoNum,
+        data,
+        observacao: observacao.trim() || null,
+      },
     });
     setSaving(false);
-    if (error) {
-      toast.error('Erro ao salvar: ' + error.message);
+    if ('failed' in result && result.failed) {
+      toast.error('Erro ao salvar o peso.');
       return;
     }
 
-    toast.success('Peso registrado com sucesso.');
+    setEntries(prev => normalizeWeights([{ date: data, kg: pesoNum }, ...prev]));
+    toast.success(result.queued ? 'Peso salvo neste aparelho. Será sincronizado ao voltar a internet.' : 'Peso registrado com sucesso.');
     setOpen(false);
     setPeso('');
     setObservacao('');
     setData(todayIso());
-    await load();
-
-    // Gate determinístico + eventual revisão da dieta roda no servidor.
-    supabase.functions.invoke('weight-checkin-review', { body: {} }).catch(() => {});
+    if (navigator.onLine) {
+      await load();
+      supabase.functions.invoke('weight-checkin-review', { body: {} }).catch(() => {});
+    }
   };
 
   const deltaIcon =
