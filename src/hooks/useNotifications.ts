@@ -3,7 +3,10 @@ import { supabase } from '@/integrations/supabase/client';
 import { differenceInDays, parseISO, format } from 'date-fns';
 import { normalizeWhatsAppPhone } from '@/lib/phone';
 
-export type NotificationType = 'reavaliacao' | 'aniversario' | 'sem_telefone' | 'sem_treino' | 'sem_dieta' | 'ficha_mensal';
+export type NotificationType = 'reavaliacao' | 'aniversario' | 'sem_telefone' | 'sem_treino' | 'sem_dieta' | 'ficha_mensal' | 'video_execucao';
+
+/** Notification ids for pending execution videos: `video-<execution video id>`. */
+export const VIDEO_NOTIF_PREFIX = 'video-';
 
 export interface Notification {
   id: string;
@@ -52,6 +55,25 @@ const NOTIF_CACHE_MS = 2 * 60_000;
 let notifCache: { at: number; list: Notification[] } | null = null;
 let inflightLoad: Promise<void> | null = null;
 
+// One shared realtime channel: a new execution video refreshes every mounted bell/list.
+let videoChannel: ReturnType<typeof supabase.channel> | null = null;
+let videoChannelUsers = 0;
+function acquireVideoChannel() {
+  videoChannelUsers += 1;
+  if (videoChannel || typeof (supabase as any).channel !== 'function') return;
+  videoChannel = supabase
+    .channel('notif-execution-videos')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'exercise_execution_videos' }, () => {
+      notifCache = null;
+      refreshListeners.forEach((fn) => fn());
+    })
+    .subscribe();
+}
+function releaseVideoChannel() {
+  videoChannelUsers = Math.max(0, videoChannelUsers - 1);
+  if (videoChannelUsers === 0 && videoChannel) { try { supabase.removeChannel(videoChannel); } catch { /* */ } videoChannel = null; }
+}
+
 export function useNotifications() {
   const [notifications, setNotifications] = useState<Notification[]>(() => notifCache?.list ?? []);
   const [dismissedKeys, setDismissedKeys] = useState<Set<string>>(new Set());
@@ -68,7 +90,8 @@ export function useNotifications() {
     const onRefresh = () => { loadNotifications(); };
     dismissListeners.add(onDismiss);
     refreshListeners.add(onRefresh);
-    return () => { dismissListeners.delete(onDismiss); refreshListeners.delete(onRefresh); };
+    acquireVideoChannel();
+    return () => { dismissListeners.delete(onDismiss); refreshListeners.delete(onRefresh); releaseVideoChannel(); };
   }, []);
 
   const loadNotifications = async (force: unknown = true) => {
@@ -350,6 +373,28 @@ export function useNotifications() {
           }
         }
       }
+
+      // Pending execution videos (light: only pending, newest 20).
+      const { data: pendingVideos } = await supabase
+        .from('exercise_execution_videos')
+        .select('id, student_id, exercise_name, created_at')
+        .eq('status', 'pending_review')
+        .order('created_at', { ascending: false })
+        .limit(20);
+      const nameById = new Map((profiles ?? []).map((p: any) => [p.user_id, p.nome]));
+      (pendingVideos ?? []).forEach((v: any) => {
+        const name = nameById.get(v.student_id) ?? 'Aluno';
+        notifs.push({
+          id: `${VIDEO_NOTIF_PREFIX}${v.id}`,
+          type: 'video_execucao',
+          title: 'Vídeo de execução',
+          description: `${name} enviou vídeo de execução: ${v.exercise_name}`,
+          studentId: v.student_id,
+          studentName: name,
+          date: v.created_at,
+          priority: 'high',
+        });
+      });
 
       notifs.sort((a, b) => {
         const priorityOrder = { high: 0, medium: 1, low: 2 };

@@ -5,7 +5,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent } from '@/components/ui/tabs';
-import { MessageSquare, CalendarClock, Cake, Phone, AlertTriangle, RefreshCw, ExternalLink, Dumbbell, UtensilsCrossed, X, FileText } from 'lucide-react';
+import { MessageSquare, CalendarClock, Cake, Phone, AlertTriangle, RefreshCw, ExternalLink, Dumbbell, UtensilsCrossed, X, FileText, Video } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Skeleton } from '@/components/ui/skeleton';
 
@@ -15,6 +15,7 @@ const typeConfig: Record<string, { icon: React.ElementType; label: string; color
   sem_treino: { icon: Dumbbell, label: 'Sem Treino', color: 'text-amber-500' },
   sem_dieta: { icon: UtensilsCrossed, label: 'Sem Dieta', color: 'text-emerald-500' },
   ficha_mensal: { icon: FileText, label: 'Ficha Mensal', color: 'text-violet-500' },
+  video_execucao: { icon: Video, label: 'Vídeo', color: 'text-primary' },
 };
 
 const priorityBadge: Record<string, string> = {
@@ -86,9 +87,18 @@ const Notificacoes: React.FC = () => {
     sem_treino: notifications.filter(n => n.type === 'sem_treino').length,
     sem_dieta: notifications.filter(n => n.type === 'sem_dieta').length,
     ficha_mensal: notifications.filter(n => n.type === 'ficha_mensal').length,
+    video_execucao: notifications.filter(n => n.type === 'video_execucao').length,
   };
 
   const renderNotifAction = (n: Notification) => {
+    if (n.type === 'video_execucao') {
+      return (
+        <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => navigate(`/dashboard?video=${n.id.slice('video-'.length)}`)}>
+          <Video className="h-3 w-3 mr-1" />
+          Assistir
+        </Button>
+      );
+    }
     if (n.type === 'sem_telefone') {
       return (
         <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => navigate(`/alunos?edit=${n.studentId}`)}>
@@ -166,6 +176,7 @@ const Notificacoes: React.FC = () => {
                 { value: 'sem_treino', label: 'Sem Treino', count: tabCounts.sem_treino, icon: Dumbbell },
                 { value: 'sem_dieta', label: 'Sem Dieta', count: tabCounts.sem_dieta, icon: UtensilsCrossed },
                 { value: 'ficha_mensal', label: 'Ficha', count: tabCounts.ficha_mensal, icon: FileText },
+                { value: 'video_execucao', label: 'Vídeos', count: tabCounts.video_execucao, icon: Video },
               ].map((t) => {
                 const isActive = tab === t.value;
                 const Icon = t.icon;

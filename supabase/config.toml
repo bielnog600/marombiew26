@@ -30,3 +30,6 @@ verify_jwt = false
 
 [functions.office-gerar]
 verify_jwt = false
+
+[functions.notify-execution-video]
+verify_jwt = false

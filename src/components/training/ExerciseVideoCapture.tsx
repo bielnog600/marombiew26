@@ -162,6 +162,9 @@ const ExerciseVideoCapture: React.FC<Props> = ({
 
       if (upErr) throw upErr;
 
+      // Avisa o coach (push); falha aqui nunca afeta o envio do vídeo.
+      supabase.functions.invoke('notify-execution-video', { body: { video_id: (row as any).id } }).catch(() => {});
+
       setExisting(row as Existing);
       toast.success('Vídeo enviado!');
     } catch (e: any) {

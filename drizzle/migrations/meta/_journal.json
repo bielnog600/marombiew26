@@ -379,6 +379,13 @@
       "when": 1795538808604,
       "tag": "0053_consultoria_lightweight_summaries",
       "breakpoints": true
+    },
+    {
+      "idx": 54,
+      "version": "7",
+      "when": 1795540578722,
+      "tag": "0054_execution_videos_realtime",
+      "breakpoints": true
     }
   ]
 }
