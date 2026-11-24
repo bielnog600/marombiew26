@@ -23,6 +23,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { countsTowardWorkoutCompletion } from './exerciseLoadType';
 import { normalizeExName } from '@/components/training/TrainerLogSheetUtils';
 import { logSetTypeFor } from './setTypes';
+import { executedRepsForLog } from './setRepsInput';
 
 export type WorkoutSessionStatus = 'in_progress' | 'completed' | 'partial' | 'abandoned';
 export type CompletionSource = 'manual' | 'automatic';
@@ -236,7 +237,7 @@ export const buildSessionStateLogRows = (
     const arr = Array.isArray(sets[key]) ? sets[key] : [];
     arr.forEach((s, i) => {
       if (!s?.completed && !s?.subRecords?.some(part => part.completed)) return;
-      const reps = parseInt(String(s.reps ?? ''), 10) || 0;
+      const reps = executedRepsForLog(s.reps) ?? 0;
       const weight = parseFloat(String(s.weight ?? '').replace(',', '.')) || 0;
       const rirRaw = String(s.rir ?? '').trim();
       const rirNum = rirRaw === '' ? null : Number(rirRaw);

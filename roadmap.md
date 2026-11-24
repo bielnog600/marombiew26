@@ -1,5 +1,11 @@
 # Roadmap
 
+## Repetições executadas — sem preencher pela meta
+- [x] Aluno e Modo Treino admin começam com reps vazias; meta só no placeholder e carga pré-preenchida preservada.
+- [x] Bloquear confirmação sem reps válidas; aceitar somente inteiro digitado em session_state/logs; tempo e mobilidade sem nova exigência.
+- [x] Limpar faixas antigas ao retomar rascunhos em andamento, sem alterar dados históricos.
+- [x] Cobrir aluno, admin individual/dupla/grupos/métodos com testes; 2.498 testes aprovados, typecheck e build OK.
+
 ## App do aluno offline — treino completo
 - [x] Pré-baixar dados e telas do aluno após login/abertura online; indicar a atualização no Perfil.
 - [x] Abrir sem rede com sessão e papel locais, sem loading infinito; shell e chunks pelo PWA publicado.

@@ -24,6 +24,7 @@ import { adminPrefillSets, adminSetLoadDefaults, lastWorkRows } from '@/lib/admi
 import { SessionVariationButton } from './SessionVariationButton';
 import { MethodSetRows } from './MethodSetRows';
 import { restAfterSet } from '@/lib/setTypeRest';
+import { executedRepsInteger } from '@/lib/setRepsInput';
 
 interface SetEntry {
   weight: string;
@@ -399,7 +400,7 @@ const ExerciseLogCard: React.FC<Props> = ({
                   disabled={!!inlineRest && s.completed}
                   className={inlineRest ? 'h-11 min-w-0 text-base text-center' : 'h-8 text-xs'}
                 />
-                {inlineRest && <Button size="icon" variant="outline" className={`h-11 w-11 ${s.completed ? 'bg-chart-3/15 border-chart-3/50 text-chart-3 hover:bg-chart-3/20 hover:text-chart-3' : ''}`} aria-label={`Confirmar série ${setIdx + 1}`} disabled={!!s.completed || !(Number(s.reps) > 0)} onClick={() => {
+                {inlineRest && <Button size="icon" variant="outline" className={`h-11 w-11 ${s.completed ? 'bg-chart-3/15 border-chart-3/50 text-chart-3 hover:bg-chart-3/20 hover:text-chart-3' : ''}`} aria-label={`Confirmar série ${setIdx + 1}`} disabled={!!s.completed || executedRepsInteger(s.reps) == null} onClick={() => {
                   onCompleteSet?.(exIdx, setIdx, { ...s, completed: true });
                   const r = restFor(setIdx);
                   inlineRest.start(r.seconds, exIdx, setIdx, r.label);
@@ -417,7 +418,7 @@ const ExerciseLogCard: React.FC<Props> = ({
                 </button>
                 ) : <span />}
               </div>
-              {setIdx === finalWorkingSetIndex(st.sets.map((_, i) => st.plan?.[i]?.kind ?? "work")) && (s.completed || (!inlineRest && Number(s.reps) > 0)) && <FinalSetRir value={s.rir} onChange={v => onUpdateSet(exIdx, setIdx, "rir", v)} />}
+              {setIdx === finalWorkingSetIndex(st.sets.map((_, i) => st.plan?.[i]?.kind ?? "work")) && (s.completed || (!inlineRest && executedRepsInteger(s.reps) != null)) && <FinalSetRir value={s.rir} onChange={v => onUpdateSet(exIdx, setIdx, "rir", v)} />}
               </WorkoutSetCard>
             );
           })}

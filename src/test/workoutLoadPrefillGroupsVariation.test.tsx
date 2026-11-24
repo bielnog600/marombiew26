@@ -14,6 +14,7 @@ const mock = vi.hoisted(() => ({
       { set_number: 2, set_type: 'preparatory', target_reps: '10' },
       { set_number: 3, set_type: 'work', target_reps: '6-8' },
     ] } },
+    { id: 'slot-5', exercise: 'PRANCHA', series: '1', reps: '45s', pause: '30s' },
   ] as any[],
   history: {
     'SUPINO RETO': 40, CRUCIFIXO: 14, 'HACK MACHINE': 100, 'AGACHAMENTO LIVRE': 60, 'LEG PRESS': 200, 'AGACHAMENTO SMITH': 100,
@@ -117,17 +118,54 @@ describe('student load prefill — bi-set and variation', () => {
   });
 });
 
+describe('student executed reps', () => {
+  it('starts empty with the plan target as placeholder, keeps load prefilled and requires typed reps', async () => {
+    render(<TreinoExecucao />);
+    await screen.findByText('SUPINO RETO', { selector: 'h1' });
+    await waitFor(() => expect(weights()).toEqual(['40', '40']));
+    const reps = screen.getByLabelText('Série 1 repetições') as HTMLInputElement;
+    const confirm = screen.getByLabelText('Confirmar série 1') as HTMLButtonElement;
+    expect(reps.value).toBe('');
+    expect(reps.placeholder).toBe('8-10');
+    expect(confirm.disabled).toBe(true);
+    fireEvent.change(reps, { target: { value: '8-10' } });
+    expect(reps.value).toBe('');
+    fireEvent.change(reps, { target: { value: '9' } });
+    expect(confirm.disabled).toBe(false);
+    fireEvent.click(confirm);
+    await waitFor(() => expect(mock.updates.some(update => update.session_state?.sets?.[0]?.[0]?.reps === '9')).toBe(true));
+    const saved = mock.updates.map(update => update.session_state?.sets?.[0]?.[0]).find(row => row?.completed);
+    expect(saved).toMatchObject({ reps: '9', weight: '40', completed: true });
+  });
+
+  it('time-based exercise still confirms without requiring reps', async () => {
+    mock.currentIndex = 5;
+    render(<TreinoExecucao />);
+    await screen.findByText('PRANCHA', { selector: 'h1' });
+    const reps = screen.getByLabelText('Série 1 repetições') as HTMLInputElement;
+    expect(reps.value).toBe('');
+    expect(reps.placeholder).toBe('45s');
+    const confirm = screen.getByLabelText('Confirmar série 1') as HTMLButtonElement;
+    expect(confirm.disabled).toBe(false);
+    fireEvent.click(confirm);
+    await waitFor(() => expect(mock.updates.some(update => update.session_state?.sets?.[5]?.[0]?.completed)).toBe(true));
+  });
+});
+
 describe('student rest by set type', () => {
   it('Aquecimento 60s, Preparatória 120s and Trabalho 180s, showing which rest is running', async () => {
     mock.currentIndex = 4;
     render(<TreinoExecucao />);
     await screen.findByText('AGACHAMENTO SMITH', { selector: 'h1' });
+    fireEvent.change(screen.getByLabelText('Série 1 repetições'), { target: { value: '15' } });
     fireEvent.click(screen.getByLabelText('Confirmar série 1'));
     await screen.findByText(/Descanso · Aquecimento 1 min/);
     expect(document.querySelector('[data-testid="inline-rest"] [role="timer"]')?.textContent).toBe('1:00');
+    fireEvent.change(screen.getByLabelText('Série 2 repetições'), { target: { value: '10' } });
     fireEvent.click(screen.getByLabelText('Confirmar série 2'));
     await screen.findByText(/Descanso · Preparatória 2 min/);
     expect(document.querySelector('[data-testid="inline-rest"] [role="timer"]')?.textContent).toBe('2:00');
+    fireEvent.change(screen.getByLabelText('Série 3 repetições'), { target: { value: '8' } });
     fireEvent.click(screen.getByLabelText('Confirmar série 3'));
     await screen.findByText(/Descanso · Trabalho 3 min/);
     expect(document.querySelector('[data-testid="inline-rest"] [role="timer"]')?.textContent).toBe('3:00');
@@ -137,6 +175,7 @@ describe('student rest by set type', () => {
     mock.currentIndex = 3;
     render(<TreinoExecucao />);
     await screen.findByText('LEG PRESS', { selector: 'h1' });
+    fireEvent.change(screen.getByLabelText('Série 1 repetições'), { target: { value: '10' } });
     fireEvent.click(screen.getByLabelText('Confirmar série 1'));
     await screen.findByText('DESCANSO');
     expect(document.querySelector('[data-testid="inline-rest"] [role="timer"]')?.textContent).toBe('1:00');

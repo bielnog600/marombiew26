@@ -66,6 +66,7 @@ import { mergeLivePlanUpdate, type LiveSetsByIndex } from '@/lib/livePlanUpdate'
 import { useStudentPlanRealtime } from '@/hooks/useStudentPlanRealtime';
 import { writeWithFallback } from '@/lib/offlineQueue';
 import { getCachedPreviousExerciseSets } from '@/lib/offlineWorkoutHistory';
+import { executedRepsForLog, executedRepsInteger, repsInputValue, requiresExecutedReps, sanitizeResumedSetReps } from '@/lib/setRepsInput';
 
 
 import {
@@ -344,8 +345,12 @@ const TreinoExecucaoInner = () => {
           setCurrentIndex(Math.max(0, state.currentIndex));
         }
         if (state?.sets) {
-          setSets(state.sets);
-          const idxs = new Set<number>(Object.keys(state.sets).map((k) => Number(k)));
+          const resumedSets = Object.fromEntries(Object.entries(state.sets).map(([idx, rows]) => [
+            idx,
+            Array.isArray(rows) ? rows.map(row => sanitizeResumedSetReps(row as ExerciseSet)) : rows,
+          ])) as Record<number, ExerciseSet[]>;
+          setSets(resumedSets);
+          const idxs = new Set<number>(Object.keys(resumedSets).map((k) => Number(k)));
           setLoadedLogsForIndex(idxs);
         }
         if (state?.inlineRest) pendingRestRestore.current = state.inlineRest;
@@ -1054,8 +1059,10 @@ const TreinoExecucaoInner = () => {
       return base.map((s, i) => {
         const prev = prevSets.find((row) => row.set_number === i + 1);
         if (!prev) return s;
+        const targetReps = setPlan[i]?.reps || exercise?.reps || '';
         return {
-          reps: prev.reps != null ? String(prev.reps) : s.reps,
+          // Reps executadas não vêm do histórico; tempo/mobilidade mantêm o prefill legado.
+          reps: !requiresExecutedReps(exName, targetReps) && prev.reps != null ? String(prev.reps) : '',
           weight: '',
           completed: false,
         };
@@ -1121,6 +1128,11 @@ const TreinoExecucaoInner = () => {
   }, [currentIndex, totalSeries, exercise, user, lastLogsByExercise, sessionId, selectedExerciseName]);
 
   const updateSet = (setIndex: number, field: 'reps' | 'weight' | 'rir', value: string) => {
+    if (field === 'reps') {
+      const accepted = repsInputValue(value);
+      if (accepted == null) return;
+      value = accepted;
+    }
     setSets((prev) => {
       const current = [...(prev[currentIndex] || [])];
       current[setIndex] = { ...current[setIndex], [field]: value };
@@ -1132,14 +1144,16 @@ const TreinoExecucaoInner = () => {
       return next;
     });
   };
-  /** Valor assumido ao confirmar com o campo vazio: usa o placeholder (última vez / alvo / sugestão). */
+  /** Carga mantém o fallback atual; reps de exercícios por repetição nunca são assumidas. */
   const assumedSetValues = (setIndex: number): { weight: string; reps: string } => {
     const prevRows = lastLogsByExercise[selectedExerciseName.toUpperCase().trim()] ?? [];
     const prev = prevRows.find((row) => row.set_number === setIndex + 1);
     const weightPh = studentWeightPlaceholder(setIndex + 1, prevRows, effectiveShowingVariation ? {} : { kg: exercise?.targetLoadKg, note: exercise?.targetLoadNote, perSet: exercise?.targetLoadPerSet }, getRecommendationFor(progressionSnapshot, selectedExerciseName), setTypeContexts(setPlan.map((p) => p.type), selectedExerciseName)[setIndex]);
     const weight = weightPh !== 'kg' ? weightPh : (prev?.weight_kg != null ? String(prev.weight_kg).replace('.', ',') : '');
     const plannedReps = setPlan[setIndex]?.reps || exercise?.reps || '';
-    const reps = plannedReps || (prev?.reps != null ? String(prev.reps) : '');
+    const reps = requiresExecutedReps(selectedExerciseName, plannedReps)
+      ? ''
+      : plannedReps || (prev?.reps != null ? String(prev.reps) : '');
     return { weight, reps };
   };
 
@@ -1152,6 +1166,12 @@ const TreinoExecucaoInner = () => {
     };
 
     const completing = !sets[currentIndex]?.[setIndex]?.completed;
+    const targetReps = setPlan[setIndex]?.reps || exercise?.reps || '';
+    const currentReps = sets[currentIndex]?.[setIndex]?.reps ?? '';
+    if (completing && requiresExecutedReps(selectedExerciseName, targetReps) && executedRepsInteger(currentReps) == null) {
+      toast.error('Coloca quantas repetições fez.');
+      return;
+    }
     const assumed = completing ? assumedSetValues(setIndex) : null;
 
     setSets((prev) => {
@@ -1160,7 +1180,7 @@ const TreinoExecucaoInner = () => {
       current[setIndex] = {
         ...row,
         completed: !row.completed,
-        // Campo vazio ao confirmar assume o placeholder (nunca salva 0 kg).
+        // Carga vazia mantém o fallback; reps normais já foram validadas acima.
         ...(assumed ? { weight: row.weight.trim() || assumed.weight, reps: row.reps.trim() || assumed.reps } : {}),
       };
       const next = { ...prev, [currentIndex]: current };
@@ -1198,7 +1218,7 @@ const TreinoExecucaoInner = () => {
   /** Botões rápidos ±: carga em passos de 2,5 kg (arredonda em 0,5), reps em 1. */
   const stepSetValue = (setIndex: number, field: 'weight' | 'reps', delta: number) => {
     const row = sets[currentIndex]?.[setIndex];
-    // Campo vazio parte do valor sugerido (placeholder), ex.: "6-10" → 6.
+    // Carga vazia parte da sugestão; reps normais partem de zero, nunca da meta.
     const raw = ((row?.[field] ?? '').trim() || assumedSetValues(setIndex)[field]).replace(',', '.');
     const n = parseFloat(raw);
     const base = Number.isFinite(n) ? n : 0;
@@ -1731,7 +1751,9 @@ const TreinoExecucaoInner = () => {
             const isNextPending = i === nextPendingIndex && (!inlineRest.rest || inlineRest.rest.exIdx !== currentIndex);
             const restProps = groupFlow.indices.length === 2 ? undefined : { exIdx: currentIndex, rest: inlineRest.rest, completion: inlineRest.completion, next: isNextPending, onAdd: inlineRest.adjust, onSkip: () => inlineRest.skip() };
             if (methodOnSet(exercise, i, currentSets.length, isPrepType)) return <MethodSetRows key={i} exercise={exercise} set={set} index={i} count={currentSets.length} finalWork={i === finalWorkingSetIndex(currentSets.map((_, idx) => setPlan[idx]?.type ?? 'work'))} recognition={isRecognition} setType={plannedType} restPresentation={restProps} disabled={!!groupFlow.pause || (groupFlow.indices.length === 2 && !set.completed && groupFlow.indices.some(idx => sets[idx]?.slice(0, i).some(prior => !prior.completed)))} targetReps={planned?.reps} weightPlaceholder={studentWeightPlaceholder(i + 1, previousSets, loadTarget, recommendation, setTypeCtx[i])} onChange={entry => changeMethodSet(i, entry)} onComplete={entry => completeMethodSet(i, entry)} />;
-            const repsPlaceholder = planned?.reps || String(previousSets.find((row) => row.set_number === i + 1)?.reps ?? '') || '10';
+            const repsPlaceholder = planned?.reps || exercise?.reps || 'reps';
+            const repsRequired = requiresExecutedReps(selectedExerciseName, repsPlaceholder);
+            const repsMissing = repsRequired && executedRepsInteger(set.reps) == null;
             return (
               <WorkoutSetCard key={i} index={i} exIdx={currentIndex} {...restProps} done={!!set.completed} className={set.completed ? 'bg-secondary/40' : isRecognition ? 'bg-accent/10' : 'bg-secondary/50'}>
                 {showSetTypes && (
@@ -1753,10 +1775,10 @@ const TreinoExecucaoInner = () => {
                   </div>
                   <div className="flex items-center gap-0.5 min-w-0">
                     <button type="button" aria-label={`Série ${i + 1} diminuir reps`} disabled={set.completed} onClick={() => stepSetValue(i, 'reps', -1)} className="h-11 w-6 shrink-0 rounded-md text-muted-foreground hover:text-foreground hover:bg-background/60 disabled:opacity-30 text-xs font-bold touch-manipulation">−</button>
-                    <Input type="text" inputMode="numeric" value={set.reps} onChange={(e) => updateSet(i, 'reps', e.target.value)} onFocus={(e) => e.currentTarget.scrollIntoView({ block: 'center', behavior: 'smooth' })} placeholder={repsPlaceholder} className="h-11 text-center bg-background/50 border-border/50 min-w-0 px-1" disabled={set.completed} />
+                    <Input aria-label={`Série ${i + 1} repetições`} type="text" inputMode="numeric" value={set.reps} onChange={(e) => updateSet(i, 'reps', e.target.value)} onFocus={(e) => e.currentTarget.scrollIntoView({ block: 'center', behavior: 'smooth' })} placeholder={repsPlaceholder} className="h-11 text-center bg-background/50 border-border/50 min-w-0 px-1" disabled={set.completed} />
                     <button type="button" aria-label={`Série ${i + 1} aumentar reps`} disabled={set.completed} onClick={() => stepSetValue(i, 'reps', 1)} className="h-11 w-6 shrink-0 rounded-md text-muted-foreground hover:text-foreground hover:bg-background/60 disabled:opacity-30 text-xs font-bold touch-manipulation">+</button>
                   </div>
-                  <Button size="icon" aria-label={`Confirmar série ${i + 1}`} variant="outline" className={`h-11 w-11 mx-auto rounded-full ${set.completed ? 'bg-chart-3/15 border-chart-3/50 text-chart-3 hover:bg-chart-3/20 hover:text-chart-3' : isNextPending ? 'border-primary/40 text-primary' : ''}`} onClick={() => toggleSetComplete(i)}>
+                  <Button size="icon" aria-label={`Confirmar série ${i + 1}`} title={repsMissing ? 'Coloca quantas repetições fez' : undefined} disabled={!set.completed && repsMissing} variant="outline" className={`h-11 w-11 mx-auto rounded-full ${set.completed ? 'bg-chart-3/15 border-chart-3/50 text-chart-3 hover:bg-chart-3/20 hover:text-chart-3' : isNextPending ? 'border-primary/40 text-primary' : ''}`} onClick={() => toggleSetComplete(i)}>
                     <Check className="h-4 w-4" />
                   </Button>
                 </div>
@@ -1902,7 +1924,7 @@ const TreinoExecucaoInner = () => {
               const plannedTypes = buildSetPlan(ex?.series, ex?.series2, ex?.reps, ex?.setScheme).map((p) => p.type);
               arr.forEach((s, i) => {
                 if (!s.completed && !s.subRecords?.some(part => part.completed)) return;
-                const reps = parseInt(s.reps) || 0;
+                const reps = executedRepsForLog(s.reps) ?? 0;
                 const weight = parseFloat(s.weight.replace(',', '.')) || 0;
                 const rirRaw = (s.rir ?? '').trim();
                 const rirNum = rirRaw === '' ? null : Number(rirRaw);

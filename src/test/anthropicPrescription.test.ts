@@ -46,7 +46,8 @@ describe("official Anthropic prescription boundary", () => {
     expect(url).toBe("https://api.anthropic.com/v1/messages");
     expect(init.headers).toEqual({ "x-api-key": "test-secret", "anthropic-version": "2023-06-01", "content-type": "application/json" });
     const sent = JSON.parse(String(init.body));
-    expect(sent).toEqual({ model: "claude-sonnet-5", max_tokens: 4000, thinking: { type: "disabled" }, stream: false, system: [{ type: "text", text: "Prompt exato" }], messages: [messages[1]], temperature: 0.4 });
+    expect(sent).toEqual({ model: "claude-sonnet-5", max_tokens: 4000, thinking: { type: "disabled" }, stream: false, system: [{ type: "text", text: "Prompt exato" }], messages: [messages[1]] });
+    expect(sent).not.toHaveProperty("temperature");
     expect(ctx.env).toHaveBeenCalledWith("ANTHROPIC_API_KEY");
     expect(data.choices[0].message.content).toBe("Resposta");
     expect(data.usage).toEqual({ prompt_tokens: 10, completion_tokens: 5, total_tokens: 15, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 });

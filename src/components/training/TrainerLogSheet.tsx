@@ -57,6 +57,7 @@ import { adminPrefillSets } from '@/lib/adminSetLoadPrefill';
 import { toggleSessionVariation } from '@/lib/sessionVariation';
 import { EMPTY_LAST_LOAD, fetchExerciseLastLoad } from './exerciseLastLoad';
 import { formatHistoryKg, historyRowsByDate, historySetDisplay } from '@/lib/setHistoryDisplay';
+import { executedRepsForLog, repsInputValue, requiresExecutedReps, sanitizeResumedSetReps } from '@/lib/setRepsInput';
 import { isPreparationLogSetType, kindToSetType, SET_TYPE_BADGE_CLASS, SET_TYPE_LABEL, SET_TYPE_TAG, type SetPlanKind } from '@/lib/setTypes';
 import {
   buildExerciseUids,
@@ -560,7 +561,7 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
               );
             }
           }
-          if (draft.sets?.[idx]) initial[idx].sets = initial[idx].sets.map((s, i) => draft.sets[idx][i] || s);
+          if (draft.sets?.[idx]) initial[idx].sets = initial[idx].sets.map((s, i) => sanitizeResumedSetReps(draft.sets[idx][i] || s));
           if (draft.notes?.[idx]) initial[idx].notes = draft.notes[idx];
           if (draft.savedSets?.[idx]) initial[idx].savedSets = draft.savedSets[idx];
           if (draft.exerciseNames?.[idx]) initial[idx].exerciseName = draft.exerciseNames[idx];
@@ -605,6 +606,11 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
   }, [open, day?.day, daySignature, studentId]);
 
   const updateSet = (exIdx: number, setIdx: number, field: 'weight' | 'reps' | 'rir', value: string) => {
+    if (field === 'reps') {
+      const accepted = repsInputValue(value);
+      if (accepted == null) return;
+      value = accepted;
+    }
     if (field === "rir") {
       const entry = state[exIdx]?.sets[setIdx];
       if (entry) changeMethodSet(exIdx, setIdx, { ...entry, rir: value });
@@ -680,7 +686,7 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
     });
     const ex = currentExercises[exIdx];
     if (ex && session.id && (entry.completed || entry.subRecords?.some(part => part.completed))) {
-      void import('@/lib/offlineQueue').then(({ writeWithFallback }) => writeWithFallback({ table: 'exercise_set_logs', op: 'upsert', onConflict: 'session_id,student_id,exercise_name,set_number', payload: { ...methodLogFields(ex, entry), rir: optionalRirValue(entry.rir), student_id: studentId, session_id: session.id, exercise_name: normalizeExName(ex.exercise), set_number: setIdx + 1, weight_kg: Number(entry.weight.replace(',', '.')) || null, reps: Number(entry.reps) || null, set_type: kindToSetType(state[exIdx]?.plan[setIdx]?.kind), day_name: day.day, phase: effectivePhase, source: 'admin' } }));
+      void import('@/lib/offlineQueue').then(({ writeWithFallback }) => writeWithFallback({ table: 'exercise_set_logs', op: 'upsert', onConflict: 'session_id,student_id,exercise_name,set_number', payload: { ...methodLogFields(ex, entry), rir: optionalRirValue(entry.rir), student_id: studentId, session_id: session.id, exercise_name: normalizeExName(ex.exercise), set_number: setIdx + 1, weight_kg: Number(entry.weight.replace(',', '.')) || null, reps: executedRepsForLog(entry.reps), set_type: kindToSetType(state[exIdx]?.plan[setIdx]?.kind), day_name: day.day, phase: effectivePhase, source: 'admin' } }));
     }
   };
   const saveMethodSet = async (exIdx: number, setIdx: number, entry: MethodSetEntry) => {
@@ -691,7 +697,7 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
     const result = await writeWithFallback({ table: 'exercise_set_logs', op: 'upsert', onConflict: 'session_id,student_id,exercise_name,set_number', payload: {
       ...methodLogFields(ex, entry), rir: optionalRirValue(entry.rir), student_id: studentId, session_id: session.id,
       exercise_name: normalizeExName(ex.exercise), set_number: setIdx + 1,
-      weight_kg: Number(entry.weight.replace(',', '.')) || null, reps: Number(entry.reps) || null,
+      weight_kg: Number(entry.weight.replace(',', '.')) || null, reps: executedRepsForLog(entry.reps),
       set_type: kindToSetType(state[exIdx]?.plan[setIdx]?.kind),
       day_name: day.day, phase: effectivePhase, source: 'admin', performed_at: new Date().toISOString(),
     } });
@@ -752,7 +758,7 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
     setStructureDirty(true);
     const entry = cur.sets[setIdx];
     if (entry && session.id && (entry.completed || (entry as MethodSetEntry).subRecords?.some((part) => part.completed))) {
-      void import('@/lib/offlineQueue').then(({ writeWithFallback }) => writeWithFallback({ table: 'exercise_set_logs', op: 'upsert', onConflict: 'session_id,student_id,exercise_name,set_number', payload: { ...methodLogFields(ex, entry as MethodSetEntry), rir: optionalRirValue(entry.rir), student_id: studentId, session_id: session.id, exercise_name: normalizeExName(cur.exerciseName || ex.exercise), set_number: setIdx + 1, weight_kg: Number(String(entry.weight).replace(',', '.')) || null, reps: Number(entry.reps) || null, set_type: kindToSetType(kind), day_name: day.day, phase: effectivePhase, source: 'admin' } }));
+      void import('@/lib/offlineQueue').then(({ writeWithFallback }) => writeWithFallback({ table: 'exercise_set_logs', op: 'upsert', onConflict: 'session_id,student_id,exercise_name,set_number', payload: { ...methodLogFields(ex, entry as MethodSetEntry), rir: optionalRirValue(entry.rir), student_id: studentId, session_id: session.id, exercise_name: normalizeExName(cur.exerciseName || ex.exercise), set_number: setIdx + 1, weight_kg: Number(String(entry.weight).replace(',', '.')) || null, reps: executedRepsForLog(entry.reps), set_type: kindToSetType(kind), day_name: day.day, phase: effectivePhase, source: 'admin' } }));
     }
   };
 
@@ -1058,12 +1064,13 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
     if (!ex || !st) return;
     const exerciseName = (st.exerciseName || ex.exercise || '').trim();
     // Série só com a carga pré-preenchida (sem reps) não é registro.
+    const repsRequired = requiresExecutedReps(exerciseName, ex.reps);
     const validSets = st.sets
-      .map((s, idx) => ({ idx, weight: parseFloat(s.weight), reps: parseInt(s.reps, 10), prefillOnly: isPrefillOnlySet(s) }))
-      .filter((s) => !s.prefillOnly && (!Number.isNaN(s.weight) || !Number.isNaN(s.reps)));
+      .map((s, idx) => ({ idx, weight: parseFloat(s.weight), reps: executedRepsForLog(s.reps), prefillOnly: isPrefillOnlySet(s) }))
+      .filter((s) => !s.prefillOnly && (!repsRequired || s.reps != null) && (!Number.isNaN(s.weight) || s.reps != null));
 
     if (validSets.length === 0) {
-      toast.error('Preencha ao menos uma série');
+      toast.error(repsRequired && st.sets.some(s => s.weight.trim()) ? 'Coloca quantas repetições fez.' : 'Preencha ao menos uma série');
       return;
     }
 
@@ -1079,7 +1086,7 @@ export const TrainerLogSheet: React.FC<Props> = ({ open, onOpenChange, studentId
         exercise_name: normalizeExName(exerciseName),
         set_number: s.idx + 1,
         weight_kg: Number.isNaN(s.weight) ? null : s.weight,
-        reps: Number.isNaN(s.reps) ? null : s.reps,
+        reps: s.reps,
         set_type: kindToSetType(p?.kind),
         day_name: day.day,
         phase: effectivePhase,

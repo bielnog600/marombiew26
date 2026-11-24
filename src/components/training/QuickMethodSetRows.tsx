@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import type { ParsedExercise } from '@/lib/trainingResultParser';
 import { makeSubRecords, methodParameters, seriesMethod, type MethodSetEntry } from '@/lib/workoutExecutionMethods';
 import { WorkoutSetCard, type SetRestPresentation } from './WorkoutSetCard';
+import { executedRepsInteger, repsInputValue } from '@/lib/setRepsInput';
 
 export function QuickMethodSetRows({ exercise, set, index, targetReps, weightPlaceholder, disabled, onChange, onComplete, restPresentation }: {
   exercise: ParsedExercise; set: MethodSetEntry; index: number; targetReps?: string;
@@ -40,6 +41,11 @@ export function QuickMethodSetRows({ exercise, set, index, targetReps, weightPla
   }, [remaining, set.pauseUntil, now, onChange]);
 
   const update = (partIndex: number, field: 'weight' | 'reps', value: string) => {
+    if (field === 'reps') {
+      const accepted = repsInputValue(value);
+      if (accepted == null) return;
+      value = accepted;
+    }
     const updated = records.map((part, i) => i === partIndex || (partIndex === 0 && field === 'weight' && !part.completed)
       ? { ...part, [field]: value } : part);
     onChange({ ...set, weight: updated[0].weight, reps: updated[0].reps, subRecords: updated });
@@ -75,11 +81,11 @@ export function QuickMethodSetRows({ exercise, set, index, targetReps, weightPla
             placeholder={cluster ? String(params.reps_bloco) : primary ? targetReps || 'reps' : 'reps'}
             disabled={disabled || (!correction && (!primary || part.completed || remaining > 0))}
             className="h-11 min-w-0 text-center text-base" onChange={e => update(i, 'reps', e.target.value)} />
-          {part.completed ? <Button size="icon" variant="outline" className="h-11 w-11 text-chart-3" disabled={disabled}
+          {part.completed ? <Button size="icon" variant="outline" className="h-11 w-11 text-chart-3" disabled={disabled || (correction && executedRepsInteger(part.reps) == null)}
             aria-label={`Corrigir série ${index + 1} ${part.label}`} onClick={() => setEditing(correction ? null : i)}>
             {correction ? <Check className="h-4 w-4" /> : <Pencil className="h-4 w-4" />}
           </Button> : primary ? <Button size="icon" variant="outline" className="h-11 w-11" aria-label={`Confirmar série ${index + 1} Principal`}
-            disabled={disabled || remaining > 0 || !(Number(part.reps) > 0)} onClick={() => confirm(Number(part.reps))}><Check className="h-4 w-4" /></Button>
+            disabled={disabled || remaining > 0 || executedRepsInteger(part.reps) == null} onClick={() => confirm(executedRepsInteger(part.reps) ?? 0)}><Check className="h-4 w-4" /></Button>
             : <span className="text-center text-chart-3">{i === next ? '' : '·'}</span>}
         </div>;
       })}

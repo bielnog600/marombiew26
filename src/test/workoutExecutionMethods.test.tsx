@@ -103,6 +103,15 @@ describe('métodos de treino — regras', () => {
     expect(result.rows[0].sub_records).toHaveLength(3);
     expect(result.totalVolumeKg).toBe(subRecordVolume(set));
   });
+  it('uma faixa legada nunca vira o mínimo da faixa no log automático', () => {
+    const result = buildSessionStateLogRows(
+      { id: 's', student_id: 'u', phase: null, day_name: 'Terça' },
+      { exerciseNames: ['SUPINO VERTICAL 2'], sets: { 0: [{ weight: '25', reps: '6-8', completed: true }] } },
+      '2026-11-24T14:00:00Z',
+    );
+    expect(result.rows[0].reps).toBeNull();
+    expect(result.totalVolumeKg).toBe(0);
+  });
   it('treino sem método mantém registros simples e não cria sub-registros', () => {
     const ex = exercise('a');
     expect(methodOnSet(ex, 2, 3)).toBe(false);

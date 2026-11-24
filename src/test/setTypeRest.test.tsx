@@ -66,6 +66,19 @@ describe('Modo Treino admin — exercício normal no formato do grupo', () => {
     expect(screen.getByText(/alvo 12-15 reps/)).toBeTruthy();
   });
 
+  it('reps começam vazias com a meta como placeholder; carga preenchida não libera a confirmação', () => {
+    render(<AdminCard ex={typed} initial={[{ weight: '50', reps: '' }, { weight: '85', reps: '' }, { weight: '100', reps: '' }, { weight: '100', reps: '' }]} onRest={() => {}} />);
+    const reps = screen.getByLabelText('Série 1 Aquecimento reps') as HTMLInputElement;
+    const load = screen.getByLabelText('Série 1 Aquecimento carga') as HTMLInputElement;
+    const confirm = screen.getByLabelText('Confirmar série 1 Aquecimento') as HTMLButtonElement;
+    expect(reps.value).toBe('');
+    expect(reps.placeholder).toBe('12-15');
+    expect(load.value).toBe('50');
+    expect(confirm.disabled).toBe(true);
+    fireEvent.change(reps, { target: { value: '12' } });
+    expect(confirm.disabled).toBe(false);
+  });
+
   it('confirmar cada tipo inicia o descanso do tipo e mostra qual está rodando', () => {
     vi.useFakeTimers();
     let latest: ReturnType<typeof useInlineWorkoutRest> | undefined;
