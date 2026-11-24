@@ -372,6 +372,13 @@
       "when": 1795198886451,
       "tag": "0052_rls_initplan_and_set_logs_rpc",
       "breakpoints": true
+    },
+    {
+      "idx": 53,
+      "version": "7",
+      "when": 1795538808604,
+      "tag": "0053_consultoria_lightweight_summaries",
+      "breakpoints": true
     }
   ]
 }

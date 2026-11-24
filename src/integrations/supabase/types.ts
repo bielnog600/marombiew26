@@ -4883,6 +4883,24 @@ export type Database = {
         Returns: boolean
       }
       coach_voice_name_phrases_enabled: { Args: never; Returns: boolean }
+      consultoria_plan_summaries: {
+        Args: { _student_ids: string[] }
+        Returns: {
+          created_at: string
+          published_at: string
+          student_id: string
+          tipo: string
+          titulo: string
+          treino_days: number
+        }[]
+      }
+      consultoria_workout_counts: {
+        Args: { _since: string; _student_ids: string[] }
+        Returns: {
+          student_id: string
+          workouts_30d: number
+        }[]
+      }
       estimate_calibration_samples: {
         Args: { _food_keys: string[] }
         Returns: {

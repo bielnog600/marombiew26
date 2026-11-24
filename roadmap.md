@@ -387,3 +387,10 @@ Fora do escopo desta entrega (Fases 3-6): LOW/MEDIUM/HIGH, novo carb cycling, aj
 - [x] Beep por volta + acento a cada 4, silêncio no bipe de troca e nos 3-2-1, pausa/retoma, troca de bloco muda o ritmo
 - [x] Configuração (volta/perna, beep/clique/mudo) lembrada; iPhone toca no silencioso; reduced motion
 - [ ] Ouvir no iPhone real com a chave no silencioso — daqui só conferi no navegador sem som
+
+## Consultoria — abas e dados corrigidos
+- [x] Remover Alertas/Fichas e carregar cada aba somente quando aberta; links antigos caem no Dashboard.
+- [x] Alunos: Todos inclui suspensos; último acesso pelo perfil; sessões de 30d, aderência, risco e filtros Sem treino/Sem dieta corrigidos.
+- [x] Dietas/Treinos/Dashboard: plano mais recente por aluno sem carga excessiva, ciclo pela data base do título e alunos sem plano visíveis.
+- [x] Testes de regras, verificação visual e build.
+- [ ] Conferir com login real do admin — validação visual usou sessão e dados simulados, sem gravações.
