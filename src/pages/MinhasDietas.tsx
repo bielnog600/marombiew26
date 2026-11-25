@@ -1375,16 +1375,22 @@ const MinhasDietas = () => {
           {WEEKDAY_LABELS.map((label, i) => {
             const status = weekSummary.statuses[i];
             const active = selectedWeekday === i;
+            const cycleTag = !usesMealOptions
+              ? displayGroups[i]?.label.match(/\(([^)]+)\)$/)?.[1] ?? ''
+              : '';
+            const cycleLabel = /alto|high/i.test(cycleTag) ? 'Alto'
+              : /m[eé]dio|medium|moderad/i.test(cycleTag) ? 'Médio'
+              : /baixo|low/i.test(cycleTag) ? 'Baixo' : '';
             return (
               <Button key={label} variant={active ? 'default' : 'ghost'}
                 aria-pressed={active} aria-label={`${label} ${weekDates[i]}`}
                 onClick={() => setSelectedWeekday(i)}
-                className="h-12 min-w-0 flex-col gap-1 px-1 text-xs rounded-full">
-                <span>{label}</span>
-                {!usesMealOptions && displayGroups[i]?.label.match(/\(([^)]+)\)$/)?.[1] && (
-                  <span className="text-[9px] leading-none">{displayGroups[i].label.match(/\(([^)]+)\)$/)?.[1]}</span>
-                )}
-                <span className="flex h-3 items-center" aria-label={status === 'within' ? 'Dentro da meta' : status === 'above' ? 'Acima da meta' : status === 'below' ? 'Abaixo da meta' : 'Sem registro'}>
+                className="h-[60px] w-full min-w-0 flex-col gap-0.5 overflow-hidden rounded-full px-1 py-2 text-xs">
+                <span className="w-full text-center leading-4">{label}</span>
+                <span className={`block h-3 w-full whitespace-nowrap text-center text-[10px] font-medium leading-3 ${active ? 'text-primary-foreground' : 'text-muted-foreground'}`}>
+                  {cycleLabel}
+                </span>
+                <span className="flex h-3 shrink-0 items-center" aria-label={status === 'within' ? 'Dentro da meta' : status === 'above' ? 'Acima da meta' : status === 'below' ? 'Abaixo da meta' : 'Sem registro'}>
                   {status === 'within' ? <span className={active ? 'text-primary-foreground' : 'text-score-good'}>✓</span>
                     : status ? <span className={`h-1.5 w-1.5 rounded-full ${status === 'above' ? 'bg-destructive' : 'bg-score-poor'}`} /> : null}
                 </span>
@@ -1430,13 +1436,6 @@ const MinhasDietas = () => {
 
         {/* Calorias do dia */}
         {/* Meta PRESCRITA (nunca a soma da versão editada pelo aluno). */}
-        {isStructuredDiet && structuredGroups[activeGroupIndex]?.carbLabel && (
-          <div className="flex justify-start">
-            <span className="rounded-full border border-primary/40 bg-primary/10 px-3 py-1 text-[11px] font-semibold text-primary">
-              {structuredGroups[activeGroupIndex]?.carbLabel}
-            </span>
-          </div>
-        )}
         <DailyCaloriesCard
           label={selectedDate === trackingToday ? 'Calorias de hoje' : `Calorias de ${WEEKDAY_LABELS[selectedWeekday]}`}
           consumed={consumed.kcal}

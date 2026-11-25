@@ -1,5 +1,9 @@
 # Roadmap
 
+## Dieta do aluno — seletor de dias compacto
+- [x] Remover selo repetido e manter Alto/Médio/Baixo dentro dos sete dias, com altura estável e indicadores separados.
+- [x] Conferido em 390×844 e 360×844 com a tela real e dados isolados: sete dias sem cortes, 60 px de altura, ciclo curto e dia base vazio; 16 testes de regressão passaram e compilação automática OK. Nenhum dado de aluno alterado.
+
 ## Substituir alimento — folha compacta no iPhone
 - [x] Linhas compactas para substitutos, combinações e “Melhor para você”, com seletor global proteína/calorias.
 - [x] Excluir o alimento atual e duplicados equivalentes sem alterar cálculos, escolhas ou gravação.
