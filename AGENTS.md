@@ -44,5 +44,4 @@
 - The `office-alunos` feed stays read-only and its published-plan summary (cadastro/acesso/planos) resolves in the pure `supabase/functions/office-alunos/planos.ts`: only `is_draft = false` rows of tipo treino/dieta/cardio count, the date is `published_at ?? created_at` rendered as a Lisbon day, so office drafts (`office_plan_drafts` or diet `is_draft=true`) can never reach the assistant.
 - Carb cycle: `dietCarbCycle`; day targets also in weekly_day_targets.
 - Set types live in `setTypes` (labels, %, logs); null log = work, so legacy history keeps counting.
-- Lazy routes/heavy libs; shared helpers in vendor chunk.
-- Student self-signup (`/cadastro`) sends profile data as `cadastro` auth metadata and `handle_new_user` writes profiles/students_profile/weight_logs with server-side range checks, so data is saved even when email confirmation leaves no session.
+- `/cadastro` data goes via `cadastro` auth metadata into `handle_new_user` (range-checked), so it saves even without a session.
