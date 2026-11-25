@@ -1,5 +1,10 @@
 # Roadmap
 
+## Login e cadastro — visual premium sem rolagem no iPhone
+- [x] Login no padrão visual do cadastro, sem abas, com olho da senha, recuperação por e-mail e redirecionamentos admin/aluno preservados.
+- [x] Login, quatro etapas e confirmação com altura da viewport visível, safe-area e compactação para telas baixas; desktop mantém cartão centralizado.
+- [x] 12 capturas em 375×667 e 390×844; documento/cartão/corpo sem rolagem em todas, toque em Criar conta conferido e etapas 2/3 completas. 2.543 testes aprovados, 3 ignorados, tipagem e compilação OK. Teclado físico do iPhone não testado.
+
 ## Substituir alimento — recomendações e famílias do iogurte
 - [x] Categorias reais dos iogurtes conferidas em leitura; objetivo do perfil validado em teste isolado. Skyr/proteicos no cutting e hipertrofia; naturais na manutenção, incluindo kefir/coalhada.
 - [x] Mesma família primeiro, compatíveis depois e outras opções recolhidas; deltas somente |ΔP| ≥4 g ou |Δkcal| ≥10%.

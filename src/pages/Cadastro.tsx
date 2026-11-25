@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Calendar, Check, Eye, EyeOff, Lock, Mail, Phone, Ruler, Scale, User, Activity } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { Dados, forcaSenha, imc, metadadosCadastro, validarEtapa } from '@/lib/cadastro/validacao';
+import { useAuthViewport } from '@/hooks/useAuthViewport';
 import './cadastro.css';
 
 const PASSOS = ['Conta', 'Corpo', 'Treino', 'Objetivo'];
@@ -30,6 +31,7 @@ function Chips({ opcoes, valor, onChange }: { opcoes: [string, string][]; valor:
 
 export default function Cadastro() {
   const navigate = useNavigate();
+  const tela = useAuthViewport<HTMLDivElement>();
   const [etapa, setEtapa] = useState(1);
   const [d, setD] = useState<Dados>(inicial);
   const [erro, setErro] = useState<{ msg: string; campo?: string } | null>(null);
@@ -65,7 +67,7 @@ export default function Cadastro() {
   const [t1, t2, sub] = TITULOS[etapa - 1];
 
   return (
-    <div className="cad">
+    <div className="cad" ref={tela}>
       <main className="card">
         <div className="hero">
           <img src="https://images.unsplash.com/photo-1534438327276-14e5300c3a48?auto=format&fit=crop&w=1000&q=80" alt="" />
