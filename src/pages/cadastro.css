@@ -73,4 +73,7 @@
 @media (max-width:380px){.cad .corpo{padding-left:16px;padding-right:16px}.cad .passo{width:70px}.cad .linha{flex-basis:18px}.cad .tel .campo:first-child{flex-basis:104px}}
 @media (max-height:700px) and (max-width:600px){.cad .hero{flex-basis:clamp(96px,17dvh,124px)}.cad .marca{bottom:11px;gap:5px}.cad .marca h1{font-size:32px}.cad .selo{font-size:9px;padding:4px 10px}.cad .corpo{padding-top:10px;padding-bottom:max(8px,env(safe-area-inset-bottom))}.cad .passos{margin-bottom:8px}.cad .bolinha{width:26px;height:26px;font-size:12px}.cad .passo{gap:4px}.cad .linha{margin-bottom:16px}.cad h2{font-size:23px}.cad .sub{font-size:12px;margin:4px auto 10px}.cad .etapa{gap:7px}.cad .campo input,.cad .campo select{height:48px;border-radius:14px}.cad .chips{gap:6px}.cad .chips button{padding:7px 11px;font-size:12px}.cad .rotulo{font-size:10px;margin-top:0}.cad .imc{padding:7px}.cad .botao,.cad .voltar{height:48px}.cad .rodape{margin-top:8px}.cad .assina{margin-top:8px}.cad .sucesso .sub{margin-bottom:12px}}
 @media (prefers-reduced-motion:reduce){.cad .botao::after,.cad .card,.cad .etapa{animation:none}}
-.cad .login-card .corpo{justify-content:center}
+.cad .login-card .hero{flex:1 1 auto;min-height:clamp(120px,34dvh,360px)}
+.cad .login-card .corpo{flex:0 0 auto;justify-content:flex-start;padding-top:clamp(12px,1.8dvh,16px)}
+@media (max-height:700px){.cad .login-card .hero{min-height:120px}}
+@media (min-width:601px){.cad .login-card{max-width:420px}.cad .login-card .hero{min-height:clamp(160px,30dvh,300px)}}
