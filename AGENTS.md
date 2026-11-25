@@ -46,4 +46,4 @@
 - Set types live in `setTypes` (labels, %, logs); null log = work, so legacy history keeps counting.
 - `/cadastro` data goes via `cadastro` auth metadata into `handle_new_user` (range-checked), so it saves even without a session.
 
-- Signup role is always aluno in handle_new_user; client metadata never sets roles (privilege escalation). Other roles only via service-role server code after has_role admin check.
+- Signups always get role aluno; never read roles from client metadata (escalation).
