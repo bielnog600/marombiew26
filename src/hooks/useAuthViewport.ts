@@ -12,6 +12,7 @@ export function useAuthViewport<T extends HTMLElement>() {
     const ajustar = () => {
       const altura = Math.round(viewport?.height ?? window.innerHeight);
       elemento.style.setProperty('--auth-viewport-height', `${altura}px`);
+      elemento.style.setProperty('--auth-viewport-top', `${Math.round(viewport?.offsetTop ?? 0)}px`);
       elemento.classList.toggle('teclado-aberto', !!viewport && viewport.height < window.innerHeight - 120);
     };
 
@@ -27,6 +28,8 @@ export function useAuthViewport<T extends HTMLElement>() {
       }, 300);
     };
 
+    // Trava o documento só nas telas de acesso: o body tem padding de safe-area que somaria altura à tela.
+    document.documentElement.classList.add('auth-screen-open');
     ajustar();
     viewport?.addEventListener('resize', ajustar);
     viewport?.addEventListener('scroll', ajustar);
@@ -35,6 +38,7 @@ export function useAuthViewport<T extends HTMLElement>() {
       viewport?.removeEventListener('resize', ajustar);
       viewport?.removeEventListener('scroll', ajustar);
       elemento.removeEventListener('focusin', manterCampoVisivel);
+      document.documentElement.classList.remove('auth-screen-open');
     };
   }, []);
 

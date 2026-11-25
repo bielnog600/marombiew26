@@ -67,7 +67,7 @@ const Login = () => {
   if (wantsSignup) return <Navigate to="/cadastro" replace />;
 
   return (
-    <div className="cad" ref={tela}>
+    <div className="cad" ref={tela} data-no-translate>
       <main className="card login-card">
         <div className="hero">
           <img src="https://images.unsplash.com/photo-1534438327276-14e5300c3a48?auto=format&fit=crop&w=1000&q=80" alt="" />

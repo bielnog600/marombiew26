@@ -160,6 +160,15 @@
 }
 
 @layer utilities {
+  /* Telas de login/cadastro: documento fixo, sem rolagem nem padding de safe-area somado. */
+  html.auth-screen-open,
+  html.auth-screen-open body,
+  html.auth-screen-open #root {
+    height: 100%;
+    min-height: 0;
+    padding: 0;
+    overflow: hidden;
+  }
   /* Scoped to the student's player; other pages and the admin retain their layout. */
   /* Somente com a tela de treino aberta: no PWA standalone do iOS, height:100%
      usa a viewport reduzida e recortava o app ~45pt acima do fundo real. */

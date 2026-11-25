@@ -1,0 +1,1 @@
+- useAuthViewport locks the document with `html.auth-screen-open` and login/cadastro opt out of AutoTranslate via `data-no-translate`: body safe-area padding never adds scroll and access screens stay PT.
