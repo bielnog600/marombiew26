@@ -25,9 +25,11 @@ import {
   type PendingPlanFood, type ScanWeighResolution, type UnweighedChoice, type WeighAiResult, type WeighFood, type WeighedItem,
   type WeighLogRecord,
 } from '@/lib/mealWeigh';
-import { editWeighedItem, finishPhase, removeWeighedItem, startFromWeighLog, type WeighItemChange } from '@/lib/mealWeigh/editItems';
+import { editWeighedItem, finishPhase, removeWeighedItem, replaceWeighedItemWithCombination, startFromWeighLog, type WeighItemChange } from '@/lib/mealWeigh/editItems';
 import { SCALE_DISPLAY_HINT, readAutoCapturePref, writeAutoCapturePref } from '@/lib/mealWeigh/autoCapture';
 import WeighItemEditSheet, { MacroLine } from './WeighItemEditSheet';
+import CanonicalFoodSubstitutionDialog from '@/components/diet/CanonicalFoodSubstitutionDialog';
+import { foodRecordFromRow } from '@/lib/nutritionEngine';
 import ScanApplyChoice from './ScanApplyChoice';
 import {
   needsScanApplyChoice, readScanApplyPref, replaceMealWithScan, sessionScanItems, writeScanApplyPref, type ScanApplyMode,
@@ -176,6 +178,8 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
   const [photos, setPhotos] = useState<string[]>(() => editStart?.photos ?? []);
   /** Item aberto no painel de edição. */
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
+  /** Item escaneado sendo associado a um alimento do plano pela troca inteligente. */
+  const [smartSwap, setSmartSwap] = useState<{ itemIndex: number; planIndex: number } | null>(null);
   /** Foto automática: preferência (lembrada) e armada até disparar uma vez. */
   const [autoOn, setAutoOn] = useState(() => readAutoCapturePref(typeof window !== 'undefined' ? window.localStorage : null));
   const [autoArmed, setAutoArmed] = useState(true);
@@ -755,6 +759,38 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
     refreshDraft(nextItems);
   };
 
+  /** "No lugar de": mantém o item real ou aplica porção/combo calculada, sem perder os demais. */
+  const applySmartSwap = (changes: WeighItemChange[]) => {
+    if (!smartSwap) return;
+    const original = planned.alimentos[smartSwap.planIndex];
+    if (!original) return;
+    const out = replaceWeighedItemWithCombination(itemsRef.current, photosRef.current, smartSwap.itemIndex, changes, {
+      indice_plano: smartSwap.planIndex,
+      alimento: original.alimento,
+    });
+    const nextItems = dropStaleSubstitutions(out.items, buildUnweighedEntries(pendingPlanFoods(planned, out.items), choicesRef.current));
+    itemsRef.current = nextItems;
+    photosRef.current = out.photos;
+    setItems(nextItems);
+    setPhotos(out.photos);
+    setDirty(true);
+    setSmartSwap(null);
+  };
+
+  const keepScannedSwap = () => {
+    if (!smartSwap) return;
+    const original = planned.alimentos[smartSwap.planIndex];
+    if (!original) return;
+    const nextItems = applySubstitution(itemsRef.current, smartSwap.itemIndex, {
+      indice_plano: smartSwap.planIndex,
+      alimento: original.alimento,
+    });
+    itemsRef.current = nextItems;
+    setItems(nextItems);
+    setDirty(true);
+    setSmartSwap(null);
+  };
+
   const deleteItem = (index: number) => {
     const out = removeWeighedItem(planned, itemsRef.current, photosRef.current, index, unweighedChoices);
     const nextItems = dropStaleSubstitutions(out.items, buildUnweighedEntries(pendingPlanFoods(planned, out.items), out.choices));
@@ -841,6 +877,7 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
   const progress = planned.alimentos.length > 0 ? planProgressLabel(planIdx, planned.alimentos.length) : '';
 
   const searchResults = useMemo(() => (search.trim() ? filterFoodsBySearch(foods, search).slice(0, 25) : []), [foods, search]);
+  const substitutionFoods = useMemo(() => foods.map(foodRecordFromRow), [foods]);
   const pickFood = (f: WeighFood) => {
     if (mode === 'plan') setPlanDraft((d) => (d ? { ...d, override: f } : d));
     else {
@@ -1345,7 +1382,7 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
                       const active = it.substituiu?.indice_plano === u.indice_plano;
                       return (
                         <Button key={u.indice_plano} size="sm" variant={active ? 'default' : 'outline'} aria-pressed={active}
-                          onClick={() => setItems((prev) => applySubstitution(prev, ii, u))}>{u.alimento}</Button>
+                          onClick={() => setSmartSwap({ itemIndex: ii, planIndex: u.indice_plano })}>{u.alimento}</Button>
                       );
                     })}
                     <Button size="sm" variant={it.extra ? 'default' : 'outline'} aria-pressed={!!it.extra}
@@ -1429,6 +1466,30 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
           onSave={(change) => applyItemEdit(editingIndex, change)}
           onDelete={() => deleteItem(editingIndex)}
           onClose={() => setEditingIndex(null)}
+        />
+      )}
+
+      {smartSwap && items[smartSwap.itemIndex] && planned.alimentos[smartSwap.planIndex] && (
+        <CanonicalFoodSubstitutionDialog
+          open
+          elevated
+          onOpenChange={(open) => { if (!open) setSmartSwap(null); }}
+          foods={substitutionFoods}
+          currentName={planned.alimentos[smartSwap.planIndex].alimento}
+          currentQtyGrams={planned.alimentos[smartSwap.planIndex].gramas ?? (Number.parseFloat(String(planned.alimentos[smartSwap.planIndex].qty ?? '').replace(',', '.')) || 0)}
+          currentMacros={{
+            kcal: Number(planned.alimentos[smartSwap.planIndex].kcal) || 0,
+            p: Number(planned.alimentos[smartSwap.planIndex].p) || 0,
+            c: Number(planned.alimentos[smartSwap.planIndex].c) || 0,
+            g: Number(planned.alimentos[smartSwap.planIndex].g) || 0,
+          }}
+          mealTotals={totals}
+          keepCurrent={{
+            label: `Manter ${items[smartSwap.itemIndex].alimento} · ${Math.round(items[smartSwap.itemIndex].gramas)} g no lugar de ${planned.alimentos[smartSwap.planIndex].alimento}`,
+            onSelect: keepScannedSwap,
+          }}
+          onSelect={(food, qtyGrams) => applySmartSwap([{ food, grams: qtyGrams, planIndex: null }])}
+          onSelectCombination={(combo) => applySmartSwap(combo.map((item) => ({ food: item.food, grams: item.qtyGrams, planIndex: null })))}
         />
       )}
 

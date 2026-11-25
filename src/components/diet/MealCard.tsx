@@ -92,13 +92,10 @@ const MealCard: React.FC<MealCardProps> = ({ meal: initialMeal, index, onCopy, i
     totalG: fmt(totalG),
   };
 
-  const handleSubstitute = (newFood: ParsedFood) => {
+  const handleSubstitute = (newFood: ParsedFood | ParsedFood[]) => {
     if (selectedFoodIndex === null) return;
-    updateFoods((prev) => {
-      const updated = [...prev];
-      updated[selectedFoodIndex] = newFood;
-      return updated;
-    });
+    const replacements = Array.isArray(newFood) ? newFood : [newFood];
+    updateFoods((prev) => prev.flatMap((food, index) => index === selectedFoodIndex ? replacements : [food]));
   };
 
   const handleRemoveFood = useCallback((foodIndex: number) => {

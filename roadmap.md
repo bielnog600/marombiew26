@@ -1,5 +1,11 @@
 # Roadmap
 
+## Troca inteligente de fonte de proteína
+- [x] Motor determinístico: detectar proteína, opções mesma proteína/mesmas calorias, equivalência, ordenação, avisos e unidades.
+- [x] Até 3 combinações calculadas, começando por ovo+claras, ovo+whey, atum/frango+ovo, iogurte proteico+whey e tofu+PTS.
+- [x] Mesma experiência no aluno, admin e troca “no lugar de” do Pesar refeição/scanner; combos gravam todos os itens.
+- [x] Testes dos casos pedidos, suíte completa, tipagem e build; nenhuma chamada de IA nem alteração retroativa em dietas.
+
 ## Repetições executadas — sem preencher pela meta
 - [x] Aluno e Modo Treino admin começam com reps vazias; meta só no placeholder e carga pré-preenchida preservada.
 - [x] Bloquear confirmação sem reps válidas; aceitar somente inteiro digitado em session_state/logs; tempo e mobilidade sem nova exigência.

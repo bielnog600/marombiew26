@@ -596,12 +596,13 @@ const DietPlanEditor: React.FC<DietPlanEditorProps> = ({ markdown, onMealsChange
     updateMeals((prev) => prev.map((m, mi) => mi !== mealIdx ? m : { ...m, foods: m.foods.filter((_, fi) => fi !== foodIdx) }));
   };
 
-  const handleSubstitute = (newFood: ParsedFood) => {
+  const handleSubstitute = (newFood: ParsedFood | ParsedFood[]) => {
     if (!subTarget) return;
     const { mealIdx, foodIdx } = subTarget;
+    const replacements = Array.isArray(newFood) ? newFood : [newFood];
     updateMeals((prev) => prev.map((m, mi) => mi !== mealIdx ? m : {
       ...m,
-      foods: m.foods.map((f, fi) => fi === foodIdx ? { ...newFood, sub: f.sub } : f),
+      foods: m.foods.flatMap((f, fi) => fi === foodIdx ? replacements.map((r) => ({ ...r, sub: f.sub })) : [f]),
     }));
     setSubTarget(null);
   };

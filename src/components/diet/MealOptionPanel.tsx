@@ -129,6 +129,13 @@ const MealOptionPanel: React.FC<Props> = ({ option, optionNumber, planKcal, food
             setReplacing(null);
             update(option.items.map((it, j) => (j === at ? { foodId: food.id, name: food.name, qtyGrams: qty, macros: it.macros } : it)));
           }}
+          onSelectCombination={(items) => {
+            const at = replacing;
+            setReplacing(null);
+            update(option.items.flatMap((it, j) => j === at
+              ? items.map((item) => ({ foodId: item.food.id, name: item.food.name, qtyGrams: item.qtyGrams, macros: item.macros }))
+              : [it]));
+          }}
         />
       )}
     </div>

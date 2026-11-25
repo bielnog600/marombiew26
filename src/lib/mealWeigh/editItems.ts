@@ -92,6 +92,33 @@ export function editWeighedItem(items: WeighedItem[], index: number, change: Wei
   return (items ?? []).map((it, i) => (i === index ? rebuildWeighedItem(it, change) : it));
 }
 
+/**
+ * Troca inteligente no scanner: um item fora do plano pode virar uma porção
+ * calculada ou uma combinação. Todos os novos itens ficam ligados ao mesmo
+ * alimento do plano ("no lugar de") e as fotos continuam alinhadas por índice.
+ */
+export function replaceWeighedItemWithCombination(
+  items: WeighedItem[],
+  photos: string[],
+  index: number,
+  changes: WeighItemChange[],
+  replaced: { indice_plano: number; alimento: string },
+): { items: WeighedItem[]; photos: string[] } {
+  const original = items[index];
+  if (!original || changes.length === 0) return { items, photos };
+  const replacements = changes.map((change, i) => {
+    const built = i === 0
+      ? rebuildWeighedItem(original, change)
+      : { ...buildWeighedItem(change.food, change.grams, { edited: true, planIndex: null }), origem: 'manual' as const };
+    return { ...built, substituiu: replaced, extra: false };
+  });
+  const nextItems = [...items];
+  nextItems.splice(index, 1, ...replacements);
+  const nextPhotos = [...photos];
+  nextPhotos.splice(index, 1, photos[index] ?? '', ...changes.slice(1).map(() => ''));
+  return { items: nextItems, photos: nextPhotos };
+}
+
 export interface WeighItemRemoval {
   items: WeighedItem[];
   photos: string[];

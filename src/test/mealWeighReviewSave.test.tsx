@@ -14,7 +14,9 @@ vi.mock('@/integrations/supabase/client', () => ({
   supabase: {
     from: (table: string) => table === 'foods'
       ? { select: () => ({ order: () => Promise.resolve({ data: FOODS, error: null }) }) }
-      : { insert: (row: any) => { mock.insert(row); return { select: () => ({ single: async () => ({ data: { id: 'log-1', created_at: 'now', ...row }, error: null }) }) }; } },
+      : table === 'food_unit_weights'
+        ? { select: async () => ({ data: [], error: null }) }
+        : { insert: (row: any) => { mock.insert(row); return { select: () => ({ single: async () => ({ data: { id: 'log-1', created_at: 'now', ...row }, error: null }) }) }; } },
     functions: { invoke: mock.invoke },
   },
 }));
@@ -80,6 +82,8 @@ describe('Pesar refeição — concluir com itens não pesados', () => {
     expect(swap).toHaveTextContent('A Pasta de amendoim substituiu algum item?');
     expect(screen.getByRole('button', { name: /Ver resumo/ })).toBeDisabled();
     fireEvent.click(within(swap).getByRole('button', { name: 'Aveia' }));
+    // Nova troca inteligente: conservar o peso real escaneado continua disponível.
+    fireEvent.click(await screen.findByRole('button', { name: /Manter Pasta de amendoim · 57 g no lugar de Aveia/ }));
     fireEvent.click(screen.getByRole('button', { name: /Ver resumo/ }));
 
     const summary = await screen.findByTestId('meal-weigh-summary');

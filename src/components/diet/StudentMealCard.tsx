@@ -546,8 +546,9 @@ const StudentMealCard: React.FC<StudentMealCardProps> = ({
           onSubstitute={(newFood) => {
             const idx = subIndex;
             setSubIndex(null);
-            onFoodsChange(foods.map((f, i) => (i === idx ? newFood : f)));
-            toast.success('Alimento substituído — refeições futuras reajustadas');
+            const replacements = Array.isArray(newFood) ? newFood : [newFood];
+            onFoodsChange(foods.flatMap((f, i) => (i === idx ? replacements : [f])));
+            toast.success(replacements.length > 1 ? 'Combinação adicionada no lugar do alimento' : 'Alimento substituído — refeições futuras reajustadas');
           }}
         />
       )}

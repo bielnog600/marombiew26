@@ -982,6 +982,24 @@ const CanonicalDietEditor: React.FC<Props> = ({ plan, foods, targetsByDay, dayTy
           dayTotals={computed?.totals ?? null}
           dayTarget={target}
           onSelect={applySubstitution}
+          onSelectCombination={(items) => {
+            if (!substitution) return;
+            const next = clone(plan);
+            const meal = next.days?.[activeIndex]?.meals?.[substitution.mealIdx];
+            if (!meal?.items?.[substitution.itemIdx]) return;
+            setUndoSnapshot(clone(plan));
+            meal.items.splice(substitution.itemIdx, 1, ...items.map((item) => ({
+              foodId: item.food.id,
+              name: item.food.name,
+              qtyGrams: item.qtyGrams,
+              resolutionStatus: 'resolved_by_id' as const,
+              manualLocked: true,
+              macros: item.macros,
+            })));
+            setSubstitution(null);
+            applyPlan(next);
+            toast.success('Combinação adicionada no lugar do alimento.');
+          }}
         />
       )}
 
