@@ -451,7 +451,7 @@ export const buildBestSubstitutionChoices = (input: {
     carbs: input.currentMacros.c,
     fats: input.currentMacros.g,
   };
-  const ranked = rankFoodsForGoal(input.foods, original, input.preference, input.limit ?? 3);
+  const ranked = rankFoodsForGoal(input.foods, original, input.preference, input.foods.length);
   return ranked.flatMap((choice) => {
     if (!choice.reasons.length) return [];
     const candidate = buildSmartSubstitutionCandidates(
@@ -459,7 +459,7 @@ export const buildBestSubstitutionChoices = (input: {
     ).candidates[0];
     const option = candidate?.sameProtein ?? candidate?.sameCalories;
     return option ? [{ ...choice, option }] : [];
-  });
+  }).slice(0, input.limit ?? 3);
 };
 
 /** Dica só quando a diferença no prato é relevante; números vêm da porção calculada. */

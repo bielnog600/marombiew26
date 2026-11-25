@@ -1,5 +1,10 @@
 # Roadmap
 
+## Substituir alimento — recomendações e famílias do iogurte
+- [x] Categorias reais dos iogurtes conferidas em leitura; objetivo do perfil validado em teste isolado. Skyr/proteicos no cutting e hipertrofia; naturais na manutenção, incluindo kefir/coalhada.
+- [x] Mesma família primeiro, compatíveis depois e outras opções recolhidas; deltas somente |ΔP| ≥4 g ou |Δkcal| ≥10%.
+- [x] Conferido em 390×844 com componente real e dados isolados, sem gravações: alça a 8 px, X 44×44, seleção/rodapé e outras opções. Compilação OK; 2.530 testes passaram, 3 ignorados. Login real e iPhone físico não testados.
+
 ## Dieta do aluno — seletor de dias compacto
 - [x] Remover selo repetido e manter Alto/Médio/Baixo dentro dos sete dias, com altura estável e indicadores separados.
 - [x] Conferido em 390×844 e 360×844 com a tela real e dados isolados: sete dias sem cortes, 60 px de altura, ciclo curto e dia base vazio; 16 testes de regressão passaram e compilação automática OK. Nenhum dado de aluno alterado.

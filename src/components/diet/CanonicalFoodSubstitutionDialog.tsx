@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Search, ArrowRightLeft, AlertTriangle, Check, Star, X } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { filterFoodsBySearch } from '@/lib/foodSearch';
+import { substitutionFamilyTier, substitutionDisplayDelta } from '@/lib/foodPreference';
 import { buildFoodIndex, type EngineMacros, type FoodRecord } from '@/lib/nutritionEngine';
 import {
   buildBestSubstitutionChoices,
@@ -80,14 +81,6 @@ const LEVEL_CLASS: Record<SubstitutionCandidate['level'], string> = {
   different: 'border-chart-5/50 bg-chart-5/10 text-chart-5',
 };
 
-const relevantDelta = (diff: EngineMacros): { text: string; positive: boolean } | null => {
-  if (Math.abs(diff.p) >= 2) return { text: `${sign(diff.p)} g P`, positive: diff.p > 0 };
-  if (Math.abs(diff.kcal) >= 20) return { text: `${sign(diff.kcal, 0)} kcal`, positive: false };
-  if (Math.abs(diff.c) >= 5) return { text: `${sign(diff.c)} g C`, positive: false };
-  if (Math.abs(diff.g) >= 3) return { text: `${sign(diff.g)} g G`, positive: false };
-  return null;
-};
-
 const shortFoodName = (name: string): string => name.split(/\s*[([].*/)[0].trim() || name;
 const combinationItemLabel = (item: SubstitutionCombinationItem, unitWeights: FoodUnitWeight[]): string => {
   const quantity = formatSubstitutionQuantity(item.food, item.qtyGrams, unitWeights);
@@ -126,7 +119,8 @@ const CanonicalFoodSubstitutionDialog: React.FC<Props> = ({
   const [unitWeights, setUnitWeights] = useState<FoodUnitWeight[]>([]);
 
   useEffect(() => {
-    if (!open || !studentId || objective != null) return;
+    setProfileObjective(null);
+    if (!open || !studentId || objective?.trim()) return;
     let cancelled = false;
     void supabase.from('students_profile').select('objetivo').eq('user_id', studentId).maybeSingle().then(({ data }) => {
       if (!cancelled) setProfileObjective((data as any)?.objetivo ?? null);
@@ -157,14 +151,21 @@ const CanonicalFoodSubstitutionDialog: React.FC<Props> = ({
   const smart = useMemo(() => {
     if (!open) return { proteinSource: false, candidates: [] };
     const list = filterFoodsBySearch(availableFoods, search);
-    return buildSmartSubstitutionCandidates(list, currentMacros, currentName, index, unitWeights);
-  }, [open, availableFoods, search, currentMacros, currentName, index, unitWeights]);
+    const result = buildSmartSubstitutionCandidates(list, currentMacros, currentName, index, unitWeights, list.length);
+    const original = foods.find(food => food.id === currentFoodId) ?? { id: 'current-food', name: currentName, calories: 0, protein: 0, carbs: 0, fats: 0 };
+    const tier = (food: FoodRecord) => substitutionFamilyTier(original, food);
+    return { ...result, candidates: result.candidates.sort((a, b) => tier(a.food) - tier(b.food)).slice(0, 60) };
+  }, [open, availableFoods, search, currentMacros, currentName, currentFoodId, foods, index, unitWeights]);
+
+  const originalFood = foods.find(food => food.id === currentFoodId) ?? { id: 'current-food', name: currentName, calories: 0, protein: 0, carbs: 0, fats: 0 };
+  const primaryCandidates = smart.candidates.filter(candidate => substitutionFamilyTier(originalFood, candidate.food) < 2);
+  const otherCandidates = smart.candidates.filter(candidate => substitutionFamilyTier(originalFood, candidate.food) === 2);
 
   const bestChoices = useMemo(() => {
     if (!open || search.trim()) return [];
     return buildBestSubstitutionChoices({
       foods: availableFoods, currentName, currentQtyGrams, currentMacros, index, unitWeights,
-      preference: { objective: objective ?? profileObjective, dietPhase, mealName, mealTime, workoutTime, trainingContext },
+      preference: { objective: objective?.trim() || profileObjective, dietPhase, mealName, mealTime, workoutTime, trainingContext },
     });
   }, [open, search, availableFoods, currentName, currentQtyGrams, currentMacros, index, unitWeights, objective, profileObjective, dietPhase, mealName, mealTime, workoutTime, trainingContext]);
 
@@ -208,7 +209,7 @@ const CanonicalFoodSubstitutionDialog: React.FC<Props> = ({
       food: option.food,
       qtyGrams: option.qtyGrams,
       proteinNote: option.proteinLimitedByCalories && (option.proteinShortfall ?? 0) >= 0.05
-        ? `−${n1(option.proteinShortfall!).replace(/,0$/, '')} g P por causa do limite de calorias`
+        ? `−${n1(option.proteinShortfall ?? 0).replace(/,0$/, '')} g P por causa do limite de calorias`
         : undefined,
     });
   };
@@ -233,7 +234,7 @@ const CanonicalFoodSubstitutionDialog: React.FC<Props> = ({
     testId: string,
     reasons?: string[],
   ) => {
-    const delta = relevantDelta(option.diff);
+    const delta = substitutionDisplayDelta(option.diff, currentMacros.kcal);
     const selected = selection?.key === key;
     return (
       <button
@@ -266,7 +267,7 @@ const CanonicalFoodSubstitutionDialog: React.FC<Props> = ({
   const combinationRow = (combo: SubstitutionCombination) => {
     const key = `combo-${combo.id}`;
     const selected = selection?.key === key;
-    const delta = relevantDelta(combo.diff);
+    const delta = substitutionDisplayDelta(combo.diff, currentMacros.kcal);
     return (
       <button
         key={combo.id}
@@ -295,6 +296,13 @@ const CanonicalFoodSubstitutionDialog: React.FC<Props> = ({
   };
 
   const mealAfter = mealTotals && selection ? totalsAfterSwap(mealTotals, currentMacros, selection.macros) : null;
+  const candidateRows = (candidates: typeof smart.candidates) => candidates.map(candidate => {
+    const option = mode === 'protein' && smart.proteinSource ? candidate.sameProtein ?? candidate.sameCalories : candidate.sameCalories;
+    const activeMode = mode === 'protein' && candidate.sameProtein ? 'protein' : 'calories';
+    return <div key={candidate.food.id} data-testid={`substitution-food-${candidate.food.id}`}>
+      {optionRow(option, `food-${candidate.food.id}-${activeMode}`, `substitution-option-${candidate.food.id}-${activeMode}`)}
+    </div>;
+  });
   const dayAfter = dayTotals && selection ? totalsAfterSwap(dayTotals, currentMacros, selection.macros) : null;
   const warnings = selection ? substitutionWarnings(selection.macros, currentMacros) : [];
 
@@ -315,15 +323,15 @@ const CanonicalFoodSubstitutionDialog: React.FC<Props> = ({
   return (
     <Dialog open={open} onOpenChange={(next) => { if (!next) close(); else onOpenChange(true); }}>
       <DialogContent
-        className={`inset-x-0 bottom-0 top-auto mx-auto flex h-[92dvh] max-h-[860px] w-full max-w-lg translate-x-0 translate-y-0 flex-col gap-0 overflow-hidden rounded-t-3xl border-b-0 p-0 data-[state=closed]:slide-out-to-bottom data-[state=open]:slide-in-from-bottom [&>button:last-child]:hidden ${elevated ? 'z-[90]' : ''}`}
+        className={`inset-x-0 bottom-0 top-auto mx-auto flex h-[calc(100dvh-env(safe-area-inset-top,0px)-8px)] max-h-[860px] w-full max-w-lg translate-x-0 translate-y-0 flex-col gap-0 overflow-hidden rounded-t-3xl border-b-0 p-0 data-[state=closed]:slide-out-to-bottom data-[state=open]:slide-in-from-bottom [&>button:last-child]:hidden ${elevated ? 'z-[90]' : ''}`}
         style={{ transform: dragY ? `translateY(${dragY}px)` : undefined, transition: dragStart.current != null ? 'none' : undefined }}
         data-testid="food-substitution-sheet"
       >
         <DialogDescription className="sr-only">Compare porções por proteína ou calorias e escolha um alimento ou combinação.</DialogDescription>
 
-        <div className="shrink-0 border-b border-border/60 bg-background px-4 pb-3" style={{ paddingTop: 'max(4px, env(safe-area-inset-top))' }}>
+        <div className="shrink-0 border-b border-border/60 bg-background px-4 pb-3">
           <div
-            className="flex h-6 cursor-grab items-center justify-center touch-none active:cursor-grabbing"
+            className="flex h-6 cursor-grab items-start justify-center pt-[7px] touch-none active:cursor-grabbing"
             onPointerDown={dragStartHandler}
             onPointerMove={dragMoveHandler}
             onPointerUp={dragEndHandler}
@@ -413,26 +421,22 @@ const CanonicalFoodSubstitutionDialog: React.FC<Props> = ({
             </section>
           )}
 
-          <section>
+          <section data-testid="primary-substitutes">
             <h3 className="mb-2 text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
               Substitutos{smart.proteinSource ? ` · ${mode === 'protein' ? 'mesma proteína' : 'mesmas calorias'}` : ''}
             </h3>
             <div className="space-y-1.5">
               {smart.candidates.length === 0 ? (
                 <p className="py-6 text-center text-xs text-muted-foreground">Nenhum alimento encontrado</p>
-              ) : smart.candidates.map((candidate) => {
-                const option = mode === 'protein' && smart.proteinSource
-                  ? candidate.sameProtein ?? candidate.sameCalories
-                  : candidate.sameCalories;
-                const activeMode = mode === 'protein' && candidate.sameProtein ? 'protein' : 'calories';
-                return (
-                  <div key={candidate.food.id} data-testid={`substitution-food-${candidate.food.id}`}>
-                    {optionRow(option, `food-${candidate.food.id}-${activeMode}`, `substitution-option-${candidate.food.id}-${activeMode}`)}
-                  </div>
-                );
-              })}
+              ) : candidateRows(primaryCandidates)}
             </div>
           </section>
+          {otherCandidates.length > 0 && (
+            <details className="mt-4" data-testid="other-substitutes">
+              <summary className="cursor-pointer py-2 text-xs font-medium text-muted-foreground">Outras opções</summary>
+              <div className="mt-2 space-y-1.5">{candidateRows(otherCandidates)}</div>
+            </details>
+          )}
         </div>
 
         <div className="shrink-0 border-t border-border bg-background px-4 pt-3" style={{ paddingBottom: 'max(12px, env(safe-area-inset-bottom))' }} data-testid="substitution-footer">
