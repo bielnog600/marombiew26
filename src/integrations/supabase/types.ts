@@ -7,11 +7,6 @@ export type Json =
   | Json[]
 
 export type Database = {
-  // Allows to automatically instantiate createClient with right options
-  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
-  __InternalSupabase: {
-    PostgrestVersion: "14.1"
-  }
   public: {
     Tables: {
       admin_notifications: {
@@ -4007,13 +4002,16 @@ export type Database = {
           camera_depth_level: string
           created_at: string
           data_nascimento: string | null
+          dias_treino_semana: number | null
           fotos: string[] | null
           id: string
           last_active_at: string | null
           lesoes: string | null
+          local_treino: string | null
           low_cost: boolean
           objetivo: string | null
           observacoes: string | null
+          peso_inicial: number | null
           premium_camera: boolean
           premium_scale: boolean
           presencial: boolean
@@ -4023,6 +4021,7 @@ export type Database = {
           suspended_at: string | null
           suspended_by: string | null
           suspension_reason: string | null
+          tempo_treino: string | null
           updated_at: string
           user_id: string
           voice_motivation_enabled: boolean
@@ -4036,13 +4035,16 @@ export type Database = {
           camera_depth_level?: string
           created_at?: string
           data_nascimento?: string | null
+          dias_treino_semana?: number | null
           fotos?: string[] | null
           id?: string
           last_active_at?: string | null
           lesoes?: string | null
+          local_treino?: string | null
           low_cost?: boolean
           objetivo?: string | null
           observacoes?: string | null
+          peso_inicial?: number | null
           premium_camera?: boolean
           premium_scale?: boolean
           presencial?: boolean
@@ -4052,6 +4054,7 @@ export type Database = {
           suspended_at?: string | null
           suspended_by?: string | null
           suspension_reason?: string | null
+          tempo_treino?: string | null
           updated_at?: string
           user_id: string
           voice_motivation_enabled?: boolean
@@ -4065,13 +4068,16 @@ export type Database = {
           camera_depth_level?: string
           created_at?: string
           data_nascimento?: string | null
+          dias_treino_semana?: number | null
           fotos?: string[] | null
           id?: string
           last_active_at?: string | null
           lesoes?: string | null
+          local_treino?: string | null
           low_cost?: boolean
           objetivo?: string | null
           observacoes?: string | null
+          peso_inicial?: number | null
           premium_camera?: boolean
           premium_scale?: boolean
           presencial?: boolean
@@ -4081,6 +4087,7 @@ export type Database = {
           suspended_at?: string | null
           suspended_by?: string | null
           suspension_reason?: string | null
+          tempo_treino?: string | null
           updated_at?: string
           user_id?: string
           voice_motivation_enabled?: boolean
@@ -4984,13 +4991,16 @@ export type Database = {
           camera_depth_level: string
           created_at: string
           data_nascimento: string | null
+          dias_treino_semana: number | null
           fotos: string[] | null
           id: string
           last_active_at: string | null
           lesoes: string | null
+          local_treino: string | null
           low_cost: boolean
           objetivo: string | null
           observacoes: string | null
+          peso_inicial: number | null
           premium_camera: boolean
           premium_scale: boolean
           presencial: boolean
@@ -5000,6 +5010,7 @@ export type Database = {
           suspended_at: string | null
           suspended_by: string | null
           suspension_reason: string | null
+          tempo_treino: string | null
           updated_at: string
           user_id: string
           voice_motivation_enabled: boolean
@@ -5099,13 +5110,16 @@ export type Database = {
           camera_depth_level: string
           created_at: string
           data_nascimento: string | null
+          dias_treino_semana: number | null
           fotos: string[] | null
           id: string
           last_active_at: string | null
           lesoes: string | null
+          local_treino: string | null
           low_cost: boolean
           objetivo: string | null
           observacoes: string | null
+          peso_inicial: number | null
           premium_camera: boolean
           premium_scale: boolean
           presencial: boolean
@@ -5115,6 +5129,7 @@ export type Database = {
           suspended_at: string | null
           suspended_by: string | null
           suspension_reason: string | null
+          tempo_treino: string | null
           updated_at: string
           user_id: string
           voice_motivation_enabled: boolean
@@ -5435,3 +5450,4 @@ export const Constants = {
     },
   },
 } as const
+

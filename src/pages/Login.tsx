@@ -75,7 +75,7 @@ const Login = () => {
           <Tabs defaultValue="login">
             <TabsList className="w-full bg-secondary">
               <TabsTrigger value="login" className="flex-1">Entrar</TabsTrigger>
-              <TabsTrigger value="signup" className="flex-1">Cadastrar</TabsTrigger>
+              <TabsTrigger value="signup" className="flex-1" onClick={() => navigate('/cadastro')}>Cadastrar</TabsTrigger>
             </TabsList>
 
             <TabsContent value="login">

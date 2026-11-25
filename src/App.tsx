@@ -18,6 +18,7 @@ import StudentAppOpenTracker from "@/components/StudentAppOpenTracker";
 import { LanguageProvider } from "@/i18n";
 import AutoTranslate from "@/i18n/AutoTranslate";
 import Login from "./pages/Login";
+import Cadastro from "./pages/Cadastro";
 import { lazyWithRetry } from "@/lib/appUpdate/lazyWithRetry";
 import { preloadWhenIdle } from "@/lib/appUpdate/idlePreload";
 import AppUpdateToast from "@/components/AppUpdateToast";
@@ -158,6 +159,7 @@ const App = () => {
             <Routes>
               <Route path="/" element={<RootRedirect />} />
               <Route path="/login" element={<Login />} />
+              <Route path="/cadastro" element={<Cadastro />} />
               <Route path="/dashboard" element={<ProtectedRoute requiredRole="admin"><Dashboard /></ProtectedRoute>} />
               <Route path="/correcao-ao-vivo-teste" element={<ProtectedRoute requiredRole="admin"><CorrecaoAoVivoTeste /></ProtectedRoute>} />
               <Route path="/pesar-refeicao-teste" element={<ProtectedRoute requiredRole="admin"><PesarRefeicaoTeste /></ProtectedRoute>} />

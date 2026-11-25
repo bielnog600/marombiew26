@@ -1,0 +1,59 @@
+.cad{--amarelo:#FBCF16;--amarelo-esc:#d9b000;--fundo:#0a0a0b;--card:#131315;--campo:#1b1b1e;--borda:#2a2a2e;--texto:#f4f4f5;--suave:#9a9aa2;--erro:#ff5a5a;
+min-height:100vh;min-height:100dvh;font-family:'Inter',sans-serif;color:var(--texto);background:radial-gradient(900px 500px at 50% -10%,rgba(251,207,22,.14),transparent 60%),repeating-linear-gradient(135deg,rgba(255,255,255,.018) 0 2px,transparent 2px 22px),var(--fundo);display:flex;align-items:center;justify-content:center;padding:max(32px,env(safe-area-inset-top)) 16px max(32px,env(safe-area-inset-bottom))}
+.cad *{box-sizing:border-box}
+.cad .card{width:100%;max-width:440px;background:linear-gradient(180deg,#161618,var(--card));border:1px solid var(--borda);border-radius:28px;overflow:hidden;box-shadow:0 30px 80px rgba(0,0,0,.6),0 0 0 1px rgba(251,207,22,.05),0 0 60px rgba(251,207,22,.07);text-align:center;animation:cad-entra .7s cubic-bezier(.2,.8,.2,1) both}
+@keyframes cad-entra{from{opacity:0;transform:translateY(24px) scale(.98)}to{opacity:1;transform:none}}
+.cad .hero{position:relative;height:210px;background:#1a1a1a}
+.cad .hero img{width:100%;height:100%;object-fit:cover;display:block;filter:grayscale(.25) contrast(1.1)}
+.cad .hero::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(10,10,11,.15) 0%,rgba(10,10,11,.35) 45%,#151517 100%)}
+.cad .marca{position:absolute;left:0;right:0;bottom:20px;z-index:2;display:flex;flex-direction:column;align-items:center;gap:6px}
+.cad .marca h1{font-family:'Anton',sans-serif;font-weight:400;font-size:42px;letter-spacing:3px;line-height:1;color:var(--amarelo);text-shadow:0 0 24px rgba(251,207,22,.45);margin:0}
+.cad .selo{font-size:11px;font-weight:600;letter-spacing:2.5px;text-transform:uppercase;color:#fff;background:rgba(0,0,0,.45);backdrop-filter:blur(6px);border:1px solid rgba(251,207,22,.35);padding:5px 12px;border-radius:99px}
+.cad .corpo{padding:22px 28px 28px}
+@media (max-width:380px){.cad .corpo{padding:20px 18px 24px}}
+.cad .passos{display:flex;align-items:center;justify-content:center;margin-bottom:20px}
+.cad .passo{display:flex;flex-direction:column;align-items:center;gap:6px;width:76px}
+.cad .bolinha{width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font:700 13px 'Inter';color:var(--suave);background:var(--campo);border:1px solid var(--borda);transition:all .3s}
+.cad .passo small{font-size:10px;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;color:#6d6d75}
+.cad .passo.ativo .bolinha{background:var(--amarelo);color:#111;border-color:var(--amarelo);box-shadow:0 0 18px rgba(251,207,22,.45)}
+.cad .passo.ativo small{color:var(--amarelo)}
+.cad .passo.feito .bolinha{background:rgba(251,207,22,.14);color:var(--amarelo);border-color:var(--amarelo)}
+.cad .linha{flex:0 0 24px;height:2px;background:var(--borda);margin-bottom:20px}
+.cad .linha.feita{background:var(--amarelo)}
+.cad h2{font-family:'Anton',sans-serif;font-weight:400;font-size:27px;letter-spacing:1px;text-transform:uppercase;margin:0}
+.cad h2 span{color:var(--amarelo)}
+.cad .sub{color:var(--suave);font-size:14px;margin:6px auto 20px;max-width:300px;line-height:1.5}
+.cad .etapa{display:flex;flex-direction:column;gap:14px;animation:cad-desliza .45s cubic-bezier(.2,.8,.2,1) both}
+@keyframes cad-desliza{from{opacity:0;transform:translateX(18px)}to{opacity:1;transform:none}}
+.cad .campo{position:relative}
+.cad .campo>svg{position:absolute;left:16px;top:50%;transform:translateY(-50%);width:18px;height:18px;color:var(--suave);pointer-events:none}
+.cad .campo input,.cad .campo select{width:100%;height:54px;background:var(--campo);border:1px solid var(--borda);border-radius:16px;color:var(--texto);font:500 15px 'Inter';padding:0 46px;text-align:center;outline:none;transition:border-color .2s,box-shadow .2s;appearance:none}
+.cad .campo select{padding:0 10px;text-align-last:center}
+.cad .campo input:focus,.cad .campo select:focus{border-color:var(--amarelo);box-shadow:0 0 0 4px rgba(251,207,22,.12);background:#1f1f22}
+.cad .campo:focus-within>svg{color:var(--amarelo)}
+.cad .campo.erro input{border-color:var(--erro)}
+.cad .unidade{position:absolute;right:18px;top:50%;transform:translateY(-50%);font-size:13px;font-weight:600;color:var(--suave)}
+.cad .olho{position:absolute;right:10px;top:50%;transform:translateY(-50%);width:36px;height:36px;display:flex;align-items:center;justify-content:center;background:none;border:0;color:var(--suave)}
+.cad input[type=date]{color-scheme:dark}
+.cad .dupla{display:flex;gap:10px}.cad .dupla .campo{flex:1;min-width:0}.cad .tel .campo:first-child{flex:0 0 110px}
+.cad .dupla .campo input{padding:0 40px 0 14px}
+.cad .forca{display:flex;gap:6px;justify-content:center;margin-top:-4px}.cad .forca i{height:4px;width:56px;border-radius:9px;background:var(--borda);transition:background .3s}
+.cad .rotulo{font-size:12px;font-weight:600;letter-spacing:2px;text-transform:uppercase;color:var(--suave);margin-top:4px}
+.cad .chips{display:flex;flex-wrap:wrap;gap:8px;justify-content:center}
+.cad .chips button{padding:10px 16px;border-radius:99px;background:var(--campo);border:1px solid var(--borda);font-size:13px;font-weight:600;color:#d4d4d8;transition:all .2s}
+.cad .chips button[aria-pressed=true]{background:rgba(251,207,22,.12);border-color:var(--amarelo);color:var(--amarelo);box-shadow:0 0 18px rgba(251,207,22,.18)}
+.cad .imc{padding:12px;border-radius:14px;background:rgba(251,207,22,.06);border:1px dashed rgba(251,207,22,.35);font-size:13px}.cad .imc b{color:var(--amarelo);font-size:16px}
+.cad .termos{display:flex;align-items:center;justify-content:center;gap:10px;font-size:13px;color:var(--suave)}.cad .termos input{accent-color:var(--amarelo);width:16px;height:16px}
+.cad .acoes{display:flex;gap:10px;margin-top:4px}
+.cad .botao{flex:1;height:56px;border:0;border-radius:16px;background:linear-gradient(180deg,var(--amarelo),var(--amarelo-esc));color:#111;font:400 20px 'Anton',sans-serif;letter-spacing:2px;text-transform:uppercase;box-shadow:0 10px 30px rgba(251,207,22,.3),inset 0 1px 0 rgba(255,255,255,.4);position:relative;overflow:hidden;cursor:pointer}
+.cad .botao:disabled{opacity:.7}
+.cad .botao::after{content:"";position:absolute;top:0;left:-60%;width:40%;height:100%;background:linear-gradient(90deg,transparent,rgba(255,255,255,.45),transparent);transform:skewX(-20deg);animation:cad-brilho 3.2s infinite}
+@keyframes cad-brilho{0%,60%{left:-60%}100%{left:130%}}
+@media (prefers-reduced-motion:reduce){.cad .botao::after,.cad .card,.cad .etapa{animation:none}}
+.cad .voltar{flex:0 0 56px;height:56px;border-radius:16px;background:var(--campo);border:1px solid var(--borda);color:var(--texto);display:flex;align-items:center;justify-content:center}
+.cad .msg-erro{color:var(--erro);font-size:13px;min-height:16px}
+.cad .rodape{margin-top:18px;font-size:14px;color:var(--suave)}.cad .rodape a{color:var(--amarelo);font-weight:600}
+.cad .assina{margin-top:16px;font-size:11px;letter-spacing:2px;color:#55555c;text-transform:uppercase}
+.cad .sucesso{padding:12px 0 4px}
+.cad .sucesso .check{width:76px;height:76px;margin:0 auto 18px;border-radius:50%;background:rgba(251,207,22,.12);border:2px solid var(--amarelo);box-shadow:0 0 40px rgba(251,207,22,.3);display:flex;align-items:center;justify-content:center;color:var(--amarelo)}
+.cad .sucesso .botao{width:100%;height:50px;font:700 15px 'Inter',sans-serif;letter-spacing:.5px;text-transform:none}
