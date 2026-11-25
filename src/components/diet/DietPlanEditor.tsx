@@ -891,6 +891,10 @@ const DietPlanEditor: React.FC<DietPlanEditorProps> = ({ markdown, onMealsChange
           open={true}
           onOpenChange={(open) => { if (!open) setSubTarget(null); }}
           originalFood={meals[subTarget.mealIdx].foods[subTarget.foodIdx]}
+          studentId={studentId}
+          dietPhase={(currentPlan as any)?.meta?.phase ?? null}
+          mealName={meals[subTarget.mealIdx].name}
+          mealTime={meals[subTarget.mealIdx].time}
           onSubstitute={handleSubstitute}
           mealTotals={(() => {
             const m = meals[subTarget.mealIdx];

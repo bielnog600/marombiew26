@@ -43,6 +43,8 @@ export interface FoodRecord {
   sourceFoodId?: string | null;
   /** Nome da coluna no banco; mantido para adapters diretos. */
   portion?: string | null;
+  /** Família para recomendações; inferida pelo nome quando ausente. */
+  categoria?: string | null;
 }
 
 export interface NutritionSnapshot {
@@ -456,6 +458,7 @@ export interface FoodRow {
   source?: string | null;
   barcode?: string | null;
   source_food_id?: string | null;
+  categoria?: string | null;
 }
 
 /** Mapeia a linha do banco (snake_case) para o registro usado pelo motor. */
@@ -472,4 +475,5 @@ export const foodRecordFromRow = (row: FoodRow): FoodRecord => ({
   source: row.source ?? null,
   barcode: row.barcode ?? null,
   sourceFoodId: row.source_food_id ?? null,
+  categoria: row.categoria ?? null,
 });

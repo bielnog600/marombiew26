@@ -16,6 +16,8 @@ vi.mock('@/integrations/supabase/client', () => ({
       ? { select: () => ({ order: () => Promise.resolve({ data: FOODS, error: null }) }) }
       : table === 'food_unit_weights'
         ? { select: async () => ({ data: [], error: null }) }
+        : table === 'students_profile'
+          ? { select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: { objetivo: 'Definição' }, error: null }) }) }) }
         : { insert: (row: any) => { mock.insert(row); return { select: () => ({ single: async () => ({ data: { id: 'log-1', created_at: 'now', ...row }, error: null }) }) }; } },
     functions: { invoke: mock.invoke },
   },

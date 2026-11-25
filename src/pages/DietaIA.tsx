@@ -2809,6 +2809,8 @@ ${generated}`;
                 )}
                 onChange={(p) => { void applyCanonicalPlanUpdate(p); }}
                 studentId={studentId}
+                dietPhase={phase}
+                workoutTime={trainingTime}
                 autoGenerateOptionsKey={optionsAutoKey}
               />
             )}

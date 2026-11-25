@@ -1484,6 +1484,9 @@ const MealWeighScreen: React.FC<Props> = ({ meal, studentId, logDate, mealIndex,
             g: Number(planned.alimentos[smartSwap.planIndex].g) || 0,
           }}
           mealTotals={totals}
+          studentId={studentId}
+          mealName={meal.name}
+          mealTime={meal.time}
           keepCurrent={{
             label: `Manter ${items[smartSwap.itemIndex].alimento} · ${Math.round(items[smartSwap.itemIndex].gramas)} g no lugar de ${planned.alimentos[smartSwap.planIndex].alimento}`,
             onSelect: keepScannedSwap,

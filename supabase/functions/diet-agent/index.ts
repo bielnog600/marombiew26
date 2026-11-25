@@ -65,6 +65,7 @@ import {
   type GlobalDietTarget,
 } from "../_shared/globalDietTarget.ts";
 import { FOOD_CONTRACT_VERSION } from "../_shared/nutritionCore.ts";
+import { buildFoodPreferencePrompt } from "../_shared/foodPreference.ts";
 import { setAiUsageStudentFrom, withAiUsage } from "../_shared/aiUsage.ts";
 
 const corsHeaders = {
@@ -633,6 +634,11 @@ serve(withAiUsage("dieta_ia", "diet-agent", async (req) => {
     const unresolvedBlock = allowedUnresolvedNames.length
       ? `\nALIMENTOS SEM CADASTRO AUTORIZADOS (use "foodId": null e o nome exato):\n${allowedUnresolvedNames.map((n) => `- ${n}`).join("\n")}\n`
       : "";
+    const foodPreferenceBlock = buildFoodPreferencePrompt(foodCatalog.foods, {
+      objective: studentContext?.objetivo,
+      dietPhase: dietConfig?.phase ?? dietConfig?.objective ?? studentContext?.dietPhase ?? studentContext?.fase,
+      trainingContext,
+    });
     const foodDatabase = formatFoodCatalogPrompt(foodCatalog) + unresolvedBlock;
     const SYSTEM_PROMPT = SYSTEM_PROMPT_TEMPLATE.replace("{{FOOD_DATABASE}}", foodDatabase);
 
@@ -847,6 +853,8 @@ serve(withAiUsage("dieta_ia", "diet-agent", async (req) => {
 
       contextMessage += "\n=== FIM DOS DADOS ===\n\nIMPORTANTE: Use TODOS os dados acima para personalizar a dieta. Considere a composição corporal, postura, performance, sinais vitais e anamnese completa. NÃO pergunte dados já fornecidos.\n";
     }
+    // Dados por aluno ficam fora do prefixo cacheável do catálogo.
+    contextMessage += foodPreferenceBlock;
 
     // ─── Structured (JSON) generation mode ───
     if (mode === "structured") {

@@ -139,6 +139,7 @@ export interface MealSuggestionRequest {
     portion_size: number;
     brand?: string | null;
     source?: string | null;
+    categoria?: string | null;
   }>;
 }
 
@@ -202,6 +203,7 @@ export const buildMealSuggestionRequest = (input: {
       portion_size: f.portion_size || 100,
       brand: (f as any).brand ?? null,
       source: (f as any).source ?? null,
+      categoria: f.categoria ?? null,
     })),
   };
 };

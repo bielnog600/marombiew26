@@ -929,6 +929,7 @@ const StudentDietTab: React.FC<StudentDietTabProps> = ({ studentId }) => {
                               dayTypesByDay={dayTypesByDay}
                               onChange={(p) => handlePlanChange(plan.id, p)}
                               studentId={studentId}
+                              dietPhase={(canonical as any)?.meta?.phase ?? null}
                               protocols={protocolsRow}
                               onCarbCycleApply={(p, prot) => {
                                 handlePlanChange(plan.id, p);

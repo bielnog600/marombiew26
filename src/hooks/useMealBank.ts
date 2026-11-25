@@ -34,10 +34,10 @@ export const useStudentMealContext = (studentId?: string | null) =>
     queryKey: ['student-meal-context', studentId ?? null],
     enabled: !!studentId,
     staleTime: 60_000,
-    queryFn: async (): Promise<StudentMealContext> => {
+    queryFn: async (): Promise<StudentMealContext & { objetivo: string | null }> => {
       const [profile, student, questionnaire] = await Promise.all([
         supabase.from('profiles').select('telefone').eq('user_id', studentId!).maybeSingle(),
-        supabase.from('students_profile').select('restricoes').eq('user_id', studentId!).maybeSingle(),
+        supabase.from('students_profile').select('restricoes, objetivo').eq('user_id', studentId!).maybeSingle(),
         supabase
           .from('diet_questionnaires')
           .select('restricoes_alimentares, preferencias_alimentares, alimentos_por_refeicao')
@@ -47,11 +47,14 @@ export const useStudentMealContext = (studentId?: string | null) =>
           .maybeSingle(),
       ]);
       const q: any = questionnaire.data ?? {};
-      return buildStudentMealContext({
-        phone: (profile.data as any)?.telefone ?? null,
-        restricoes: [(student.data as any)?.restricoes, q.restricoes_alimentares],
-        preferencias: [q.preferencias_alimentares],
-        alimentos: q.alimentos_por_refeicao,
-      });
+      return {
+        ...buildStudentMealContext({
+          phone: (profile.data as any)?.telefone ?? null,
+          restricoes: [(student.data as any)?.restricoes, q.restricoes_alimentares],
+          preferencias: [q.preferencias_alimentares],
+          alimentos: q.alimentos_por_refeicao,
+        }),
+        objetivo: (student.data as any)?.objetivo ?? null,
+      };
     },
   });

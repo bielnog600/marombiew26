@@ -209,6 +209,7 @@ const StudentDietOverridePanel: React.FC<Props> = ({ planId, studentId, children
                 <StudentMealCard
                   key={`ovr-${active}-${i}`}
                   meal={meal as any}
+                  studentId={studentId}
                   expanded={expanded === i}
                   onToggleExpand={() => setExpanded((p) => (p === i ? null : i))}
                   onFoodsChange={(foods) => setDraft((prev) => prev.map((m, mi) => (mi === i ? { ...m, foods } : m)))}

@@ -50,9 +50,11 @@ interface MealCardProps {
   editable?: boolean;
   /** Optional badge rendered in the header (ex: estado da refeição). */
   statusBadge?: React.ReactNode;
+  studentId?: string | null;
+  dietPhase?: string | null;
 }
 
-const MealCard: React.FC<MealCardProps> = ({ meal: initialMeal, index, onCopy, isCompleted, onToggleComplete, hideSubstitutions, onFoodsChange, editable, statusBadge }) => {
+const MealCard: React.FC<MealCardProps> = ({ meal: initialMeal, index, onCopy, isCompleted, onToggleComplete, hideSubstitutions, onFoodsChange, editable, statusBadge, studentId, dietPhase }) => {
   const [foods, setFoods] = useState<ParsedFood[]>(initialMeal.foods);
   const [selectedFoodIndex, setSelectedFoodIndex] = useState<number | null>(null);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
@@ -372,6 +374,10 @@ const MealCard: React.FC<MealCardProps> = ({ meal: initialMeal, index, onCopy, i
             if (!open) setSelectedFoodIndex(null);
           }}
           originalFood={foods[selectedFoodIndex]}
+          studentId={studentId}
+          dietPhase={dietPhase}
+          mealName={meal.name}
+          mealTime={meal.time}
           onSubstitute={handleSubstitute}
         />
       )}

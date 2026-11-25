@@ -16,6 +16,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Plus, Pencil, Trash2, Search, Sparkles, ScanBarcode } from 'lucide-react';
 import { toast } from 'sonner';
+import { FOOD_CATEGORIES, foodCategoryLabel, inferFoodCategory } from '@/lib/foodPreference';
 
 interface FoodForm {
   name: string;
@@ -30,6 +31,7 @@ interface FoodForm {
   source?: string | null;
   barcode?: string | null;
   source_food_id?: string | null;
+  categoria?: string | null;
 }
 
 const emptyForm: FoodForm = {
@@ -44,6 +46,7 @@ const emptyForm: FoodForm = {
   source: '',
   barcode: '',
   source_food_id: '',
+  categoria: '',
 };
 
 const Alimentos: React.FC = () => {
@@ -83,6 +86,7 @@ const Alimentos: React.FC = () => {
         source: trim(input.source),
         barcode: trim(input.barcode),
         source_food_id: trim(input.source_food_id),
+        categoria: trim(input.categoria) ?? inferFoodCategory(input.name),
       };
       if (food.id) {
         const { error } = await supabase.from('foods').update(food).eq('id', food.id);
@@ -148,7 +152,7 @@ const Alimentos: React.FC = () => {
 
   const addSuggestedFood = async (food: FoodForm) => {
     try {
-      const { error } = await supabase.from('foods').insert(food);
+      const { error } = await supabase.from('foods').insert({ ...food, categoria: food.categoria ?? inferFoodCategory(food.name) });
       if (error) throw error;
       
       queryClient.invalidateQueries({ queryKey: ['foods'] });
@@ -186,6 +190,7 @@ const Alimentos: React.FC = () => {
           protein: data.protein || 0,
           carbs: data.carbs || 0,
           fats: data.fats || 0,
+          categoria: inferFoodCategory(data.name),
         });
         setAiDialogOpen(false);
         setAiQuery('');
@@ -215,6 +220,7 @@ const Alimentos: React.FC = () => {
       source: (food as any).source ?? '',
       barcode: (food as any).barcode ?? '',
       source_food_id: (food as any).source_food_id ?? '',
+      categoria: (food as any).categoria ?? inferFoodCategory(food.name),
     });
     setDialogOpen(true);
   };
@@ -400,6 +406,7 @@ const Alimentos: React.FC = () => {
                   <TableHeader>
                     <TableRow>
                       <TableHead>Nome</TableHead>
+                      <TableHead>Família</TableHead>
                       <TableHead className="text-right">Porção</TableHead>
                       <TableHead className="text-right">Kcal</TableHead>
                       <TableHead className="text-right">P (g)</TableHead>
@@ -412,6 +419,7 @@ const Alimentos: React.FC = () => {
                     {filtered.map((food) => (
                       <TableRow key={food.id}>
                         <TableCell className="font-medium">{food.name}</TableCell>
+                        <TableCell className="text-xs text-muted-foreground">{foodCategoryLabel((food as any).categoria ?? inferFoodCategory(food.name))}</TableCell>
                         <TableCell className="text-right text-muted-foreground">
                           {food.portion_size} {food.portion}
                         </TableCell>
@@ -449,6 +457,16 @@ const Alimentos: React.FC = () => {
             <div className="space-y-2">
               <Label htmlFor="name">Nome</Label>
               <Input id="name" value={form.name} onChange={(e) => updateField('name', e.target.value)} placeholder="Ex: Frango grelhado" />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="categoria">Família do alimento</Label>
+              <select id="categoria" value={form.categoria ?? ''} onChange={(e) => updateField('categoria', e.target.value)}
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground">
+                <option value="">Automática pelo nome</option>
+                {FOOD_CATEGORIES.map((category) => <option key={category.value} value={category.value}>{category.label}</option>)}
+              </select>
+              <p className="text-[11px] text-muted-foreground">Usada para recomendar apenas substitutos da mesma família.</p>
             </div>
 
             <div className="grid grid-cols-2 gap-3">

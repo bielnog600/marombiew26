@@ -2,6 +2,7 @@ import { anthropicChat, anthropicFailure, anthropicErrorStatus, PRESCRIPTION_MOD
 import { requireAdminCaller } from "../_shared/requireAdminCaller.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { setAiUsageStudentFrom, withAiUsage } from "../_shared/aiUsage.ts";
+import { buildFoodPreferencePrompt } from "../_shared/foodPreference.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -121,8 +122,17 @@ async function handleMealSuggestions(payload: any, apiKey: string): Promise<Resp
     )
     .join("\n");
 
+  const preferenceBlock = buildFoodPreferencePrompt(catalog, {
+    objective: payload?.studentContext?.objetivo,
+    dietPhase: payload?.studentContext?.dietPhase,
+    mealName: payload?.meal?.name,
+    mealTime: payload?.meal?.time,
+    trainingContext: payload?.trainingContext,
+  });
+
   const userMessage = [
     `PRIORIDADE: ${payload?.priority ?? "varied"}`,
+    preferenceBlock,
     `\n=== REFEIÇÃO ALVO ===\n${JSON.stringify(payload?.meal ?? {})}`,
     `\n=== OUTRAS REFEIÇÕES DO DIA ===\n${JSON.stringify(payload?.otherMeals ?? [])}`,
     `\n=== ALIMENTOS JÁ USADOS NO DIA ===\n${JSON.stringify(payload?.usedFoods ?? [])}`,

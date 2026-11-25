@@ -2629,6 +2629,7 @@ export type Database = {
           brand: string | null
           calories: number
           carbs: number
+          categoria: string | null
           created_at: string
           fats: number
           fiber: number | null
@@ -2646,6 +2647,7 @@ export type Database = {
           brand?: string | null
           calories?: number
           carbs?: number
+          categoria?: string | null
           created_at?: string
           fats?: number
           fiber?: number | null
@@ -2663,6 +2665,7 @@ export type Database = {
           brand?: string | null
           calories?: number
           carbs?: number
+          categoria?: string | null
           created_at?: string
           fats?: number
           fiber?: number | null

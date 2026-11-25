@@ -27,7 +27,7 @@ export const buildFoodCatalog = (rows: FoodRow[], queryCount = 1): FoodCatalog =
 };
 
 export const FOOD_CATALOG_COLUMNS =
-  "id, name, calories, protein, carbs, fats, portion, portion_size, brand, source, barcode, source_food_id";
+  "id, name, calories, protein, carbs, fats, portion, portion_size, brand, source, barcode, source_food_id, categoria";
 
 export async function loadFoodCatalog(supabase: any): Promise<FoodCatalog> {
   const { data, error } = await supabase
@@ -51,7 +51,7 @@ export function formatFoodCatalogPrompt(catalog: FoodCatalog): string {
   const lines = catalog.foods.map((f) => {
     const base = Number(f.portion_size) > 0 ? Number(f.portion_size) : 100;
     const brand = f.brand ? ` (${f.brand})` : "";
-    return `[id=${f.id}] ${f.name}${brand} | ${fmt(f.calories)} kcal | P${fmt(f.protein)} C${fmt(f.carbs)} G${fmt(f.fats)} | base ${base}g`;
+    return `[id=${f.id}] ${f.name}${brand} | família ${f.categoria || 'inferir pelo nome'} | ${fmt(f.calories)} kcal | P${fmt(f.protein)} C${fmt(f.carbs)} G${fmt(f.fats)} | base ${base}g`;
   });
   return `
 ========================================

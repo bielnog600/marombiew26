@@ -13,6 +13,11 @@ import {
   type FoodIndex,
   type FoodRecord,
 } from './nutritionEngine';
+import {
+  rankFoodsForGoal,
+  type FoodPreferenceContext,
+  type RankedFoodChoice,
+} from './foodPreference';
 
 export const ZERO: EngineMacros = { kcal: 0, p: 0, c: 0, g: 0 };
 export const PROTEIN_KCAL_TOLERANCE = 0.1;
@@ -354,6 +359,58 @@ export const buildSmartSubstitutionCandidates = (
       aScore - bScore || a.food.name.localeCompare(b.food.name, 'pt-BR');
   });
   return { proteinSource, candidates: candidates.slice(0, limit) };
+};
+
+export interface BestSubstitutionChoice extends RankedFoodChoice {
+  /** Porção pela regra existente: mesma proteína para original proteico; senão kcal. */
+  option: SubstitutionCandidate;
+}
+
+/** Até 3 escolhas da mesma família; a lista por equivalência não é alterada. */
+export const buildBestSubstitutionChoices = (input: {
+  foods: FoodRecord[];
+  currentName: string;
+  currentQtyGrams: number;
+  currentMacros: EngineMacros;
+  index?: FoodIndex;
+  unitWeights?: FoodUnitWeight[];
+  preference: FoodPreferenceContext;
+  limit?: number;
+}): BestSubstitutionChoice[] => {
+  const idx = input.index ?? buildFoodIndex(input.foods ?? []);
+  const matches = idx.byName.get(normalizeFoodName(input.currentName)) ?? [];
+  const portion = Number(input.currentQtyGrams) > 0 ? Number(input.currentQtyGrams) : 100;
+  const original: FoodRecord = matches[0] ?? {
+    id: 'current-food',
+    name: input.currentName,
+    portion_size: portion,
+    calories: input.currentMacros.kcal,
+    protein: input.currentMacros.p,
+    carbs: input.currentMacros.c,
+    fats: input.currentMacros.g,
+  };
+  const ranked = rankFoodsForGoal(input.foods, original, input.preference, input.limit ?? 3);
+  return ranked.flatMap((choice) => {
+    if (!choice.reasons.length) return [];
+    const candidate = buildSmartSubstitutionCandidates(
+      [choice.food], input.currentMacros, input.currentName, idx, input.unitWeights ?? [], 1,
+    ).candidates[0];
+    const option = candidate?.sameProtein ?? candidate?.sameCalories;
+    return option ? [{ ...choice, option }] : [];
+  });
+};
+
+/** Dica só quando a diferença no prato é relevante; números vêm da porção calculada. */
+export const bestSubstitutionTip = (choice: BestSubstitutionChoice | undefined): string | null => {
+  if (!choice) return null;
+  const diff = choice.option.diff;
+  const benefits: string[] = [];
+  if (diff.p >= 2) benefits.push(`+${cleanNumber(diff.p)} g de proteína`);
+  if (diff.c <= -5) benefits.push(`−${cleanNumber(Math.abs(diff.c))} g de carbo`);
+  if (diff.kcal <= -20) benefits.push(`−${Math.round(Math.abs(diff.kcal))} kcal`);
+  if (choice.reasons.includes('Mais carbo p/ treino') && diff.c >= 5) benefits.push(`+${cleanNumber(diff.c)} g de carbo p/ treino`);
+  if (!benefits.length) return null;
+  return `Para o seu objetivo, a ${choice.food.name} dá ${benefits.slice(0, 2).join(' e ')} nesse prato.`;
 };
 
 /* -------------------------------------------------------------------------- */

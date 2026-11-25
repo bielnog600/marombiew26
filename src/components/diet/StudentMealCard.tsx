@@ -119,6 +119,9 @@ interface StudentMealCardProps {
   optionEdited?: boolean;
   /** "Como preparar" da opção escolhida. */
   prep?: string | null;
+  /** Objetivo lido no perfil para as recomendações por família. */
+  studentId?: string | null;
+  dietPhase?: string | null;
 }
 
 const StudentMealCard: React.FC<StudentMealCardProps> = ({
@@ -147,6 +150,8 @@ const StudentMealCard: React.FC<StudentMealCardProps> = ({
   recipe,
   recipeCount = 0,
   onOpenRecipes,
+  studentId,
+  dietPhase,
 }) => {
   const hasOptions = !!options && (options.length > 1 || !!onOpenRecipes);
   const recipeActive = hasOptions && selectedOption < 0 && !!recipe;
@@ -537,6 +542,10 @@ const StudentMealCard: React.FC<StudentMealCardProps> = ({
           open
           onOpenChange={(o) => !o && setSubIndex(null)}
           originalFood={foods[subIndex]}
+          studentId={studentId}
+          dietPhase={dietPhase}
+          mealName={meal.name}
+          mealTime={meal.time}
           mealTotals={{
             kcal: foods.reduce((s, f) => s + parseNum(f.kcal), 0),
             p: foods.reduce((s, f) => s + parseNum(f.p), 0),

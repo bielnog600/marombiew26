@@ -7,13 +7,15 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Search, ArrowRightLeft, AlertTriangle, Check } from 'lucide-react';
+import { Search, ArrowRightLeft, AlertTriangle, Check, Star } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { filterFoodsBySearch } from '@/lib/foodSearch';
 import { buildFoodIndex, type EngineMacros, type FoodRecord } from '@/lib/nutritionEngine';
 import {
+  buildBestSubstitutionChoices,
   buildProteinCombinations,
   buildSmartSubstitutionCandidates,
+  bestSubstitutionTip,
   formatSubstitutionQuantity,
   substitutionWarnings,
   totalsAfterSwap,
@@ -34,6 +36,14 @@ interface Props {
   mealTotals?: EngineMacros | null;
   dayTotals?: EngineMacros | null;
   dayTarget?: EngineMacros | null;
+  /** Contexto somente para ordenar a mesma família; não altera a equivalência. */
+  studentId?: string | null;
+  objective?: string | null;
+  dietPhase?: string | null;
+  mealName?: string | null;
+  mealTime?: string | null;
+  workoutTime?: string | null;
+  trainingContext?: string | null;
   onSelect: (food: FoodRecord, qtyGrams: number) => void;
   /** Uma combinação substitui o original por TODOS estes itens. */
   onSelectCombination: (items: SubstitutionCombinationItem[]) => void;
@@ -66,6 +76,13 @@ const CanonicalFoodSubstitutionDialog: React.FC<Props> = ({
   mealTotals,
   dayTotals,
   dayTarget,
+  studentId,
+  objective,
+  dietPhase,
+  mealName,
+  mealTime,
+  workoutTime,
+  trainingContext,
   onSelect,
   onSelectCombination,
   keepCurrent,
@@ -73,7 +90,16 @@ const CanonicalFoodSubstitutionDialog: React.FC<Props> = ({
 }) => {
   const [search, setSearch] = useState('');
   const index = useMemo(() => buildFoodIndex(foods ?? []), [foods]);
+  const [profileObjective, setProfileObjective] = useState<string | null>(null);
   const [unitWeights, setUnitWeights] = useState<FoodUnitWeight[]>([]);
+  useEffect(() => {
+    if (!open || !studentId || objective != null) return;
+    let cancelled = false;
+    void supabase.from('students_profile').select('objetivo').eq('user_id', studentId).maybeSingle().then(({ data }) => {
+      if (!cancelled) setProfileObjective((data as any)?.objetivo ?? null);
+    });
+    return () => { cancelled = true; };
+  }, [open, studentId, objective]);
   useEffect(() => {
     if (!open) return;
     let cancelled = false;
@@ -88,6 +114,15 @@ const CanonicalFoodSubstitutionDialog: React.FC<Props> = ({
     const list = filterFoodsBySearch(foods ?? [], search);
     return buildSmartSubstitutionCandidates(list, currentMacros, currentName, index, unitWeights);
   }, [open, foods, search, currentMacros, currentName, index, unitWeights]);
+
+  const bestChoices = useMemo(() => {
+    if (!open || search.trim()) return [];
+    return buildBestSubstitutionChoices({
+      foods: foods ?? [], currentName, currentQtyGrams, currentMacros, index, unitWeights,
+      preference: { objective: objective ?? profileObjective, dietPhase, mealName, mealTime, workoutTime, trainingContext },
+    });
+  }, [open, search, foods, currentName, currentQtyGrams, currentMacros, index, unitWeights, objective, profileObjective, dietPhase, mealName, mealTime, workoutTime, trainingContext]);
+  const bestTip = bestSubstitutionTip(bestChoices[0]);
 
   const hasEquivalentAlternative = smart.candidates.some((candidate) =>
     candidate.food.name.localeCompare(currentName, 'pt-BR', { sensitivity: 'base' }) !== 0 &&
@@ -213,6 +248,28 @@ const CanonicalFoodSubstitutionDialog: React.FC<Props> = ({
           </div>
 
           <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1" style={{ WebkitOverflowScrolling: 'touch' }}>
+            {bestChoices.length > 0 && (
+              <section className="mb-3 rounded-xl border border-primary/35 bg-primary/5 p-3" data-testid="best-food-choices">
+                <p className="flex items-center gap-1.5 text-xs font-bold text-primary"><Star className="h-3.5 w-3.5" /> Melhor para você</p>
+                <p className="mt-0.5 text-[10px] text-muted-foreground">Da mesma família, de acordo com seu objetivo e esta refeição.</p>
+                {bestTip && <p className="mt-2 rounded-lg bg-background/60 p-2 text-[11px] leading-relaxed text-foreground" data-testid="best-food-tip">{bestTip}</p>}
+                <div className="mt-2 space-y-2">
+                  {bestChoices.map((choice) => (
+                    <button key={choice.food.id} type="button" data-testid={`best-food-${choice.food.id}`}
+                      onClick={() => { onSelect(choice.option.food, choice.option.qtyGrams); close(); }}
+                      className="w-full rounded-lg border border-border bg-background/70 p-2.5 text-left transition-colors hover:border-primary/50">
+                      <p className="text-xs font-semibold text-foreground">{choice.food.name}</p>
+                      <div className="mt-1 flex flex-wrap gap-1">
+                        {choice.reasons.map((reason) => <Badge key={reason} variant="outline" className="border-primary/40 text-[9px] text-primary">{reason}</Badge>)}
+                      </div>
+                      <p className="mt-1.5 text-xs font-semibold text-primary">{formatSubstitutionQuantity(choice.food, choice.option.qtyGrams, unitWeights)}</p>
+                      <p className="mt-1 text-[10px] text-muted-foreground">≈ {macroLine(choice.option.macros)}</p>
+                      <p className="mt-0.5 text-[9px] text-muted-foreground">ΔP {sign(choice.option.diff.p)} g · ΔC {sign(choice.option.diff.c)} g · Δ {sign(choice.option.diff.kcal, 0)} kcal</p>
+                    </button>
+                  ))}
+                </div>
+              </section>
+            )}
             {combinations.length > 0 && (
               <div className="mb-3 space-y-2" data-testid="protein-substitution-combinations">
                 <p className="text-xs font-semibold">Combinações para chegar mais perto da proteína</p>

@@ -17,6 +17,10 @@ interface FoodSubstitutionDialogProps {
   mealTotals?: { kcal: number; p: number; c: number; g: number };
   /** Mantido no contrato das telas existentes; a meta não bloqueia a troca. */
   targets?: DietTargets | null;
+  studentId?: string | null;
+  dietPhase?: string | null;
+  mealName?: string | null;
+  mealTime?: string | null;
 }
 
 const parseNum = (v?: string) => {
@@ -34,6 +38,10 @@ const FoodSubstitutionDialog: React.FC<FoodSubstitutionDialogProps> = ({
   originalFood,
   onSubstitute,
   mealTotals,
+  studentId,
+  dietPhase,
+  mealName,
+  mealTime,
 }) => {
   const { data: rows = [] } = useQuery({
     queryKey: ['foods-for-substitution'],
@@ -82,6 +90,10 @@ const FoodSubstitutionDialog: React.FC<FoodSubstitutionDialogProps> = ({
       currentQtyGrams={parseNum(originalFood.qty)}
       currentMacros={currentMacros}
       mealTotals={mealTotals}
+      studentId={studentId}
+      dietPhase={dietPhase}
+      mealName={mealName ?? originalFood.food}
+      mealTime={mealTime}
       onSelect={(food, qty) => onSubstitute(toParsedFood(food, qty))}
       onSelectCombination={selectCombination}
     />

@@ -1708,6 +1708,7 @@ const MinhasDietas = () => {
                 <StudentMealCard
                   key={`day-${activeGroupIndex}-${meal.name}-${meal.time || 'sem-hora'}-${i}`}
                   meal={meal}
+                  studentId={user?.id}
                   displayText={displayDictionary ? displayText : undefined}
                   expanded={expandedMeal === i}
                   isCurrent={selectedDate === trackingToday && currentMealIndex === i}

@@ -1,5 +1,12 @@
 # Roadmap
 
+## Melhor escolha por objetivo e família do alimento
+- [x] Categoria editável em Alimentos, inferida automaticamente pelos nomes atuais, sem misturar famílias.
+- [x] Motor compartilhado de “Melhor para você”: cutting/recomposição, bulking/performance e saúde/manutenção, com refeição pré/pós-treino.
+- [x] Bloco com até 3 opções e dica de deltas no aluno/admin; lista atual de equivalência inalterada.
+- [x] Mesma preferência no gerador de dieta e nas sugestões de variação, sem chamadas reais de IA.
+- [x] Testes dos casos Massa/Drelli, bulking pós-treino, integral e famílias; suíte, tipagem e build.
+
 ## Troca inteligente de fonte de proteína
 - [x] Motor determinístico: detectar proteína, opções mesma proteína/mesmas calorias, equivalência, ordenação, avisos e unidades.
 - [x] Até 3 combinações calculadas, começando por ovo+claras, ovo+whey, atum/frango+ovo, iogurte proteico+whey e tofu+PTS.

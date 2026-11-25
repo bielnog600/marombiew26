@@ -93,6 +93,9 @@ interface Props {
   onCarbCycleApply?: (plan: DietPlan, protocols: any) => void;
   /** Aluno da dieta — país, restrições e ficha para as opções do banco. */
   studentId?: string | null;
+  /** Fase explícita do plano; tem prioridade sobre o texto do perfil. */
+  dietPhase?: string | null;
+  workoutTime?: string | null;
   /** Quando muda (ex.: dieta recém-gerada), gera as opções 2/3 automaticamente. */
   autoGenerateOptionsKey?: string | number | null;
 }
@@ -112,7 +115,7 @@ const fmt = (n: number) => (Number.isInteger(n) ? String(n) : (Math.round(n * 10
 const line = (m: { kcal: number; p: number; c: number; g: number } | null | undefined) =>
   m ? `${Math.round(m.kcal)} kcal · ${Math.round(m.p)}P · ${Math.round(m.c)}C · ${Math.round(m.g)}G` : '—';
 
-const CanonicalDietEditor: React.FC<Props> = ({ plan, foods, targetsByDay, dayTypesByDay, onChange: onChangeRaw, protocols, onCarbCycleApply, studentId, autoGenerateOptionsKey }) => {
+const CanonicalDietEditor: React.FC<Props> = ({ plan, foods, targetsByDay, dayTypesByDay, onChange: onChangeRaw, protocols, onCarbCycleApply, studentId, dietPhase, workoutTime, autoGenerateOptionsKey }) => {
   const [dayIndex, setDayIndex] = useState(0);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [preview, setPreview] = useState<AutoAdjustResult | null>(null);
@@ -145,7 +148,7 @@ const CanonicalDietEditor: React.FC<Props> = ({ plan, foods, targetsByDay, dayTy
     queryFn: async (): Promise<FoodRecord[]> => {
       const { data, error } = await supabase
         .from('foods')
-        .select('id, name, calories, protein, carbs, fats, portion, portion_size, brand, source')
+        .select('id, name, calories, protein, carbs, fats, portion, portion_size, brand, source, categoria')
         .order('name');
       if (error) throw error;
       return (data ?? []).map((row: any) => foodRecordFromRow(row));
@@ -665,6 +668,12 @@ const CanonicalDietEditor: React.FC<Props> = ({ plan, foods, targetsByDay, dayTy
                   planKcal={computed?.meals[mealIdx]?.totals.kcal ?? 0}
                   foods={foodRecords}
                   index={index}
+                  studentId={studentId}
+                  dietPhase={dietPhase}
+                  objective={(studentCtx as any)?.objetivo ?? null}
+                  mealName={String(meal?.name ?? '')}
+                  mealTime={meal?.time ?? null}
+                  workoutTime={workoutTime}
                   onChange={(o) => updateOption(mealIdx, oi, o)}
                   onSwap={() => setBankSwap({ mealIdx, optIdx: oi })}
                 />
@@ -793,6 +802,8 @@ const CanonicalDietEditor: React.FC<Props> = ({ plan, foods, targetsByDay, dayTy
           foods={foodRecords}
           target={target}
           dayType={(day as any)?.dayType ?? (day as any)?.type ?? null}
+          studentContext={{ ...(studentCtx ?? {}), dietPhase: dietPhase ?? null }}
+          trainingContext={workoutTime ? `Horário do treino: ${workoutTime}` : null}
           onApply={(items) => applyAiSuggestion(aiMealIdx, items)}
         />
       )}
@@ -981,6 +992,12 @@ const CanonicalDietEditor: React.FC<Props> = ({ plan, foods, targetsByDay, dayTy
           mealTotals={computed?.meals[substitution.mealIdx]?.totals ?? null}
           dayTotals={computed?.totals ?? null}
           dayTarget={target}
+          studentId={studentId}
+          dietPhase={dietPhase}
+          objective={(studentCtx as any)?.objetivo ?? null}
+          mealName={String(day.meals?.[substitution.mealIdx]?.name ?? '')}
+          mealTime={day.meals?.[substitution.mealIdx]?.time ?? null}
+          workoutTime={workoutTime}
           onSelect={applySubstitution}
           onSelectCombination={(items) => {
             if (!substitution) return;

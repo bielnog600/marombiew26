@@ -17,6 +17,12 @@ interface Props {
   planKcal: number;
   foods: FoodRecord[];
   index: FoodIndex;
+  studentId?: string | null;
+  objective?: string | null;
+  dietPhase?: string | null;
+  mealName?: string | null;
+  mealTime?: string | null;
+  workoutTime?: string | null;
   onChange: (option: MealOption) => void;
   onSwap: () => void;
 }
@@ -28,7 +34,7 @@ const parseGrams = (text: string): number | null => {
 
 const fmt1 = (n: number) => (Math.round(n * 10) / 10).toString();
 
-const MealOptionPanel: React.FC<Props> = ({ option, optionNumber, planKcal, foods, index, onChange, onSwap }) => {
+const MealOptionPanel: React.FC<Props> = ({ option, optionNumber, planKcal, foods, index, studentId, objective, dietPhase, mealName, mealTime, workoutTime, onChange, onSwap }) => {
   const [drafts, setDrafts] = useState<Record<number, string>>({});
   const [adding, setAdding] = useState(false);
   const [replacing, setReplacing] = useState<number | null>(null);
@@ -124,6 +130,12 @@ const MealOptionPanel: React.FC<Props> = ({ option, optionNumber, planKcal, food
           mealTotals={totals}
           dayTotals={null}
           dayTarget={null}
+          studentId={studentId}
+          objective={objective}
+          dietPhase={dietPhase}
+          mealName={mealName}
+          mealTime={mealTime}
+          workoutTime={workoutTime}
           onSelect={(food, qty) => {
             const at = replacing;
             setReplacing(null);
