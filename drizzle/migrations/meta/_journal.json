@@ -400,6 +400,13 @@
       "when": 1795605206707,
       "tag": "0056_cadastro_aluno_etapas",
       "breakpoints": true
+    },
+    {
+      "idx": 57,
+      "version": "7",
+      "when": 1795606179885,
+      "tag": "0057_signup_always_aluno",
+      "breakpoints": true
     }
   ]
 }
