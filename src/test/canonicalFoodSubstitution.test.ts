@@ -10,6 +10,7 @@ import {
   equivalenceLevel,
   totalsAfterSwap,
   macrosForFoodQty,
+  filterSubstitutionFoods,
 } from '@/lib/canonicalFoodSubstitution';
 import { buildFoodIndex, type FoodRecord } from '@/lib/nutritionEngine';
 import { filterFoodsBySearch } from '@/lib/foodSearch';
@@ -118,5 +119,29 @@ describe('substituição canônica', () => {
     expect(item.nutritionSnapshot).toBeUndefined();
     expect(plan.days[0].meals[0].items[1].qtyGrams).toBe(50);
     expect(plan.days[0].totals.kcal).toBeGreaterThan(0);
+  });
+
+  it('exclui o original por id/nome e nomes quase iguais com os mesmos macros', () => {
+    const original = food({ id: 'ovo', name: 'Ovo cozido', calories: 155, protein: 13, carbs: 1.1, fats: 11 });
+    const alias = food({ id: 'ovo-inteiro', name: 'Ovo inteiro cozido', calories: 155, protein: 13, carbs: 1.1, fats: 11 });
+    const sameId = food({ id: 'ovo', name: 'Ovo cozido (unidade)', calories: 155, protein: 13, carbs: 1.1, fats: 11 });
+    const different = food({ id: 'ovo-mexido', name: 'Ovo mexido', calories: 190, protein: 13, carbs: 1.1, fats: 15 });
+    const result = filterSubstitutionFoods({
+      foods: [original, alias, sameId, different], currentFoodId: 'ovo', currentName: original.name,
+      currentQtyGrams: 100, currentMacros: { kcal: 155, p: 13, c: 1.1, g: 11 },
+    });
+    expect(result.map((item) => item.id)).toEqual(['ovo-mexido']);
+  });
+
+  it('deduplica iogurte de marca com macros idênticos sem unir perfis diferentes', () => {
+    const original = food({ id: 'frango-atual', name: 'Frango grelhado', calories: 159, protein: 32, carbs: 0, fats: 2.5 });
+    const generic = food({ id: 'iogurte', name: 'Iogurte grego natural', calories: 97, protein: 9, carbs: 4, fats: 5 });
+    const brand = food({ id: 'mythos', name: 'Mythos Iogurte estilo Grego Natural', calories: 97, protein: 9, carbs: 4, fats: 5 });
+    const different = food({ id: 'iogurte-zero', name: 'Iogurte grego natural zero', calories: 60, protein: 10, carbs: 4, fats: 0 });
+    const result = filterSubstitutionFoods({
+      foods: [original, generic, brand, different], currentName: original.name,
+      currentQtyGrams: 100, currentMacros: { kcal: 159, p: 32, c: 0, g: 2.5 },
+    });
+    expect(result.map((item) => item.id)).toEqual(['iogurte', 'iogurte-zero']);
   });
 });

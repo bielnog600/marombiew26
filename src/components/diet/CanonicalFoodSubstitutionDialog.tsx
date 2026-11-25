@@ -1,13 +1,13 @@
 /**
- * Modal canônico de substituição (ALUNO e ADMIN).
+ * Bottom sheet canônico de substituição (ALUNO e ADMIN).
  * Determinístico: sem IA; toda porção, combo e macro vem do nutritionEngine.
  */
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Search, ArrowRightLeft, AlertTriangle, Check, Star } from 'lucide-react';
+import { Search, ArrowRightLeft, AlertTriangle, Check, Star, X } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { filterFoodsBySearch } from '@/lib/foodSearch';
 import { buildFoodIndex, type EngineMacros, type FoodRecord } from '@/lib/nutritionEngine';
@@ -16,6 +16,7 @@ import {
   buildProteinCombinations,
   buildSmartSubstitutionCandidates,
   bestSubstitutionTip,
+  filterSubstitutionFoods,
   formatSubstitutionQuantity,
   substitutionWarnings,
   totalsAfterSwap,
@@ -29,6 +30,7 @@ interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   foods: FoodRecord[];
+  currentFoodId?: string | null;
   currentName: string;
   currentQtyGrams: number;
   /** Macros REAIS do item atual, calculados pelo nutritionCore. */
@@ -53,29 +55,55 @@ interface Props {
   elevated?: boolean;
 }
 
+type SubstitutionMode = 'protein' | 'calories';
+type Selection = {
+  key: string;
+  name: string;
+  macros: EngineMacros;
+  diff: EngineMacros;
+  food?: FoodRecord;
+  qtyGrams?: number;
+  combination?: SubstitutionCombination;
+  proteinNote?: string;
+};
+
 const n0 = (v: number) => Math.round(v);
 const n1 = (v: number) => (Math.round(v * 10) / 10).toFixed(1).replace('.', ',');
 const sign = (v: number, digits: 0 | 1 = 1) =>
   `${v > 0 ? '+' : ''}${digits === 0 ? n0(v) : n1(v)}`;
 const macroLine = (m: EngineMacros) =>
-  `${n0(m.kcal)} kcal · P ${n1(m.p)} g · C ${n1(m.c)} g · G ${n1(m.g)} g`;
+  `${n0(m.kcal)} kcal · P ${n1(m.p)} · C ${n1(m.c)} · G ${n1(m.g)}`;
 
 const LEVEL_CLASS: Record<SubstitutionCandidate['level'], string> = {
-  equivalent: 'border-chart-3/60 bg-chart-3/10 text-chart-3',
-  close: 'border-primary/50 text-primary',
-  different: 'border-primary/40 text-primary',
+  equivalent: 'border-chart-3/50 bg-chart-3/10 text-chart-3',
+  close: 'border-border bg-secondary/50 text-muted-foreground',
+  different: 'border-chart-5/50 bg-chart-5/10 text-chart-5',
+};
+
+const relevantDelta = (diff: EngineMacros): { text: string; positive: boolean } | null => {
+  if (Math.abs(diff.p) >= 2) return { text: `${sign(diff.p)} g P`, positive: diff.p > 0 };
+  if (Math.abs(diff.kcal) >= 20) return { text: `${sign(diff.kcal, 0)} kcal`, positive: false };
+  if (Math.abs(diff.c) >= 5) return { text: `${sign(diff.c)} g C`, positive: false };
+  if (Math.abs(diff.g) >= 3) return { text: `${sign(diff.g)} g G`, positive: false };
+  return null;
+};
+
+const shortFoodName = (name: string): string => name.split(/\s*[([].*/)[0].trim() || name;
+const combinationItemLabel = (item: SubstitutionCombinationItem, unitWeights: FoodUnitWeight[]): string => {
+  const quantity = formatSubstitutionQuantity(item.food, item.qtyGrams, unitWeights);
+  return quantity.includes('(') ? quantity.replace(/\s*\([^)]*\)/g, '') : item.food.name;
 };
 
 const CanonicalFoodSubstitutionDialog: React.FC<Props> = ({
   open,
   onOpenChange,
   foods,
+  currentFoodId,
   currentName,
   currentQtyGrams,
   currentMacros,
   mealTotals,
   dayTotals,
-  dayTarget,
   studentId,
   objective,
   dietPhase,
@@ -89,9 +117,14 @@ const CanonicalFoodSubstitutionDialog: React.FC<Props> = ({
   elevated = false,
 }) => {
   const [search, setSearch] = useState('');
+  const [mode, setMode] = useState<SubstitutionMode>('protein');
+  const [selection, setSelection] = useState<Selection | null>(null);
+  const [dragY, setDragY] = useState(0);
+  const dragStart = useRef<number | null>(null);
   const index = useMemo(() => buildFoodIndex(foods ?? []), [foods]);
   const [profileObjective, setProfileObjective] = useState<string | null>(null);
   const [unitWeights, setUnitWeights] = useState<FoodUnitWeight[]>([]);
+
   useEffect(() => {
     if (!open || !studentId || objective != null) return;
     let cancelled = false;
@@ -100,6 +133,7 @@ const CanonicalFoodSubstitutionDialog: React.FC<Props> = ({
     });
     return () => { cancelled = true; };
   }, [open, studentId, objective]);
+
   useEffect(() => {
     if (!open) return;
     let cancelled = false;
@@ -109,187 +143,312 @@ const CanonicalFoodSubstitutionDialog: React.FC<Props> = ({
     return () => { cancelled = true; };
   }, [open]);
 
+  useEffect(() => {
+    if (!open) return;
+    setMode('protein');
+    setSelection(null);
+    setDragY(0);
+  }, [open, currentName]);
+
+  const availableFoods = useMemo(() => filterSubstitutionFoods({
+    foods: foods ?? [], currentFoodId, currentName, currentQtyGrams, currentMacros,
+  }), [foods, currentFoodId, currentName, currentQtyGrams, currentMacros]);
+
   const smart = useMemo(() => {
     if (!open) return { proteinSource: false, candidates: [] };
-    const list = filterFoodsBySearch(foods ?? [], search);
+    const list = filterFoodsBySearch(availableFoods, search);
     return buildSmartSubstitutionCandidates(list, currentMacros, currentName, index, unitWeights);
-  }, [open, foods, search, currentMacros, currentName, index, unitWeights]);
+  }, [open, availableFoods, search, currentMacros, currentName, index, unitWeights]);
 
   const bestChoices = useMemo(() => {
     if (!open || search.trim()) return [];
     return buildBestSubstitutionChoices({
-      foods: foods ?? [], currentName, currentQtyGrams, currentMacros, index, unitWeights,
+      foods: availableFoods, currentName, currentQtyGrams, currentMacros, index, unitWeights,
       preference: { objective: objective ?? profileObjective, dietPhase, mealName, mealTime, workoutTime, trainingContext },
     });
-  }, [open, search, foods, currentName, currentQtyGrams, currentMacros, index, unitWeights, objective, profileObjective, dietPhase, mealName, mealTime, workoutTime, trainingContext]);
-  const bestTip = bestSubstitutionTip(bestChoices[0]);
+  }, [open, search, availableFoods, currentName, currentQtyGrams, currentMacros, index, unitWeights, objective, profileObjective, dietPhase, mealName, mealTime, workoutTime, trainingContext]);
+
+  const displayedBestChoices = useMemo(() => bestChoices.map((choice) => {
+    const candidate = buildSmartSubstitutionCandidates(
+      [choice.food], currentMacros, currentName, index, unitWeights, 1,
+    ).candidates[0];
+    const option = mode === 'protein'
+      ? candidate?.sameProtein ?? candidate?.sameCalories ?? choice.option
+      : candidate?.sameCalories ?? choice.option;
+    return { ...choice, option };
+  }), [bestChoices, currentMacros, currentName, index, unitWeights, mode]);
+  const bestTip = bestSubstitutionTip(displayedBestChoices[0]);
 
   const hasEquivalentAlternative = smart.candidates.some((candidate) =>
-    candidate.food.name.localeCompare(currentName, 'pt-BR', { sensitivity: 'base' }) !== 0 &&
     [candidate.sameProtein, candidate.sameCalories].some((option) => option?.level === 'equivalent'));
   const combinations = useMemo(() => {
     if (!open || !smart.proteinSource || hasEquivalentAlternative || search.trim()) return [];
-    return buildProteinCombinations(foods ?? [], currentMacros, index, unitWeights, 3, currentName);
-  }, [open, smart.proteinSource, hasEquivalentAlternative, search, foods, currentMacros, index, unitWeights, currentName]);
+    return buildProteinCombinations(availableFoods, currentMacros, index, unitWeights, 3, currentName);
+  }, [open, smart.proteinSource, hasEquivalentAlternative, search, availableFoods, currentMacros, index, unitWeights, currentName]);
 
   const close = () => {
     onOpenChange(false);
     setSearch('');
+    setSelection(null);
+    setDragY(0);
+    dragStart.current = null;
   };
 
-  const optionButton = (
+  const changeMode = (next: SubstitutionMode) => {
+    setMode(next);
+    setSelection(null);
+  };
+
+  const chooseOption = (option: SubstitutionCandidate, key: string) => {
+    setSelection({
+      key,
+      name: option.food.name,
+      macros: option.macros,
+      diff: option.diff,
+      food: option.food,
+      qtyGrams: option.qtyGrams,
+      proteinNote: option.proteinLimitedByCalories && (option.proteinShortfall ?? 0) >= 0.05
+        ? `−${n1(option.proteinShortfall!).replace(/,0$/, '')} g P por causa do limite de calorias`
+        : undefined,
+    });
+  };
+
+  const confirmSelection = () => {
+    if (!selection) return;
+    if (selection.food && selection.qtyGrams != null) onSelect(selection.food, selection.qtyGrams);
+    else if (selection.combination) onSelectCombination(selection.combination.items);
+    close();
+  };
+
+  const levelBadge = (level: SubstitutionCandidate['level']) => (
+    <Badge variant="outline" className={`h-5 shrink-0 gap-0.5 px-1.5 text-[9px] font-medium ${LEVEL_CLASS[level]}`}>
+      {level === 'equivalent' && <Check className="h-2.5 w-2.5" />}
+      {level === 'equivalent' ? 'Equivalente' : level === 'close' ? 'Próximo' : 'Diferente'}
+    </Badge>
+  );
+
+  const optionRow = (
     option: SubstitutionCandidate,
-    mode: 'protein' | 'calories',
-    proteinSource: boolean,
+    key: string,
+    testId: string,
+    reasons?: string[],
   ) => {
-    const proteinMode = mode === 'protein';
-    const warnings = substitutionWarnings(option.macros, currentMacros);
-    const mealAfter = mealTotals ? totalsAfterSwap(mealTotals, currentMacros, option.macros) : null;
-    const dayAfter = dayTotals ? totalsAfterSwap(dayTotals, currentMacros, option.macros) : null;
+    const delta = relevantDelta(option.diff);
+    const selected = selection?.key === key;
     return (
       <button
-        key={mode}
+        key={key}
         type="button"
-        data-testid={`substitution-option-${option.food.id}-${mode}`}
-        onClick={() => { onSelect(option.food, option.qtyGrams); close(); }}
-        className={`min-w-0 rounded-xl border p-2.5 text-left transition-colors ${proteinMode ? 'border-primary bg-primary/10 ring-1 ring-primary/30' : 'border-border bg-background/50 hover:bg-secondary/60'}`}
+        data-testid={testId}
+        aria-pressed={selected}
+        onClick={() => chooseOption(option, key)}
+        className={`min-h-[60px] w-full min-w-0 rounded-xl border px-3 py-2 text-left transition-colors ${selected ? 'border-primary bg-primary/10' : 'border-border/60 bg-secondary/35 hover:border-primary/45 hover:bg-secondary/50'}`}
       >
-        <div className="flex flex-wrap items-center gap-1.5">
-          <span className={`text-[11px] font-bold ${proteinMode ? 'text-primary' : 'text-foreground'}`}>
-            {proteinMode ? 'Mesma proteína' : 'Mesmas calorias'}
+        <span className="flex min-w-0 items-center justify-between gap-3">
+          <span className="min-w-0 truncate text-[13px] font-semibold leading-5 text-foreground">{option.food.name}</span>
+          <span className="shrink-0 text-right text-xs font-bold leading-5 text-primary">
+            {formatSubstitutionQuantity(option.food, option.qtyGrams, unitWeights)}
           </span>
-          {proteinMode && <span className="text-[9px] font-semibold uppercase text-primary">Recomendada</span>}
-        </div>
-        <p className="mt-1.5 text-xs font-semibold text-primary">
-          {formatSubstitutionQuantity(option.food, option.qtyGrams, unitWeights)}
-        </p>
-        <p className="mt-1 text-[10px] leading-relaxed text-muted-foreground">≈ {macroLine(option.macros)}</p>
-        <p className="mt-1 text-[9px] leading-relaxed text-muted-foreground">
-          Δ {sign(option.diff.kcal, 0)} kcal · ΔP {sign(option.diff.p)} g · ΔC {sign(option.diff.c)} g · ΔG {sign(option.diff.g)} g
-        </p>
-        {proteinMode && option.proteinLimitedByCalories && (option.proteinShortfall ?? 0) >= 0.05 && (
-          <p className="mt-1 text-[10px] font-semibold text-primary">−{n1(option.proteinShortfall!).replace(/,0$/, '')} g P por causa do limite de calorias</p>
-        )}
-        <Badge variant="outline" className={`mt-2 text-[9px] ${LEVEL_CLASS[option.level]}`}>
-          {option.level === 'equivalent' ? <Check className="mr-1 h-2.5 w-2.5" /> : <AlertTriangle className="mr-1 h-2.5 w-2.5" />}
-          {option.level === 'equivalent' ? 'Equivalente' : option.level === 'close' ? 'Próximo' : proteinSource ? 'Fora da equivalência proteica' : 'Perfil nutricional diferente'}
-        </Badge>
-        {warnings.map((warning) => <p key={warning} className="mt-1.5 text-[10px] font-medium leading-relaxed text-primary">{warning}</p>)}
-        {mealAfter && <p className="mt-1.5 text-[9px] text-muted-foreground">Refeição depois: {macroLine(mealAfter)}</p>}
-        {dayAfter && <p className="text-[9px] text-muted-foreground">Dia depois: {macroLine(dayAfter)}</p>}
+        </span>
+        <span className="mt-0.5 flex min-w-0 items-center gap-1.5 text-[11px] leading-4">
+          <span className="min-w-0 truncate text-muted-foreground">{macroLine(option.macros)}</span>
+          {reasons?.length ? (
+            <span className="ml-auto max-w-[48%] shrink-0 truncate rounded border border-primary/40 bg-primary/10 px-1.5 py-0.5 text-[9px] font-medium text-primary">
+              {reasons.map((reason, index) => index === 0 ? reason : reason.charAt(0).toLowerCase() + reason.slice(1)).join(' · ')}
+            </span>
+          ) : levelBadge(option.level)}
+          {delta && <span className={`shrink-0 text-[10px] font-semibold ${delta.positive ? 'text-chart-3' : 'text-chart-5'}`}>{delta.text}</span>}
+        </span>
       </button>
     );
   };
 
-  const combinationButton = (combo: SubstitutionCombination) => {
-    const warnings = substitutionWarnings(combo.macros, currentMacros);
+  const combinationRow = (combo: SubstitutionCombination) => {
+    const key = `combo-${combo.id}`;
+    const selected = selection?.key === key;
+    const delta = relevantDelta(combo.diff);
     return (
       <button
         key={combo.id}
         type="button"
         data-testid={`substitution-combo-${combo.items.map((i) => i.food.id).join('-')}`}
-        onClick={() => { onSelectCombination(combo.items); close(); }}
-        className="w-full rounded-xl border border-border bg-background/50 p-3 text-left transition-colors hover:bg-secondary/60"
+        aria-pressed={selected}
+        onClick={() => setSelection({ key, name: combo.name, macros: combo.macros, diff: combo.diff, combination: combo })}
+        className={`min-h-[60px] w-full min-w-0 rounded-xl border px-3 py-2 text-left transition-colors ${selected ? 'border-primary bg-primary/10' : 'border-border/60 bg-secondary/35 hover:border-primary/45 hover:bg-secondary/50'}`}
       >
-        <div className="flex items-start justify-between gap-2">
-          <p className="text-xs font-semibold">{combo.name}</p>
-          <Badge variant="outline" className={`shrink-0 text-[9px] ${LEVEL_CLASS[combo.level]}`}>
-            {combo.level === 'equivalent' ? 'Equivalente' : 'Próximo'}
-          </Badge>
-        </div>
-        <p className="mt-1.5 text-[11px] font-medium text-primary">
-          {combo.items.map((item) => formatSubstitutionQuantity(item.food, item.qtyGrams, unitWeights)).join(' + ')}
-        </p>
-        <p className="mt-1 text-[10px] text-muted-foreground">≈ {macroLine(combo.macros)}</p>
-        <p className="mt-1 text-[9px] text-muted-foreground">
-          Δ {sign(combo.diff.kcal, 0)} kcal · ΔP {sign(combo.diff.p)} g · ΔC {sign(combo.diff.c)} g · ΔG {sign(combo.diff.g)} g
-        </p>
-        {warnings.map((warning) => <p key={warning} className="mt-1 text-[10px] font-medium text-primary">{warning}</p>)}
+        <span className="flex min-w-0 items-center justify-between gap-3">
+          <span className="min-w-0 truncate text-[13px] font-semibold leading-5">
+            {combo.items.map((item) => combinationItemLabel(item, unitWeights)).join(' + ')}
+          </span>
+          <span className="shrink-0 text-right text-xs font-bold leading-5 text-primary">
+            {combo.items.map((item) => `${n0(item.qtyGrams)} g`).join(' + ')}
+          </span>
+        </span>
+        <span className="mt-0.5 flex min-w-0 items-center gap-1.5 text-[11px] leading-4">
+          <span className="min-w-0 truncate text-muted-foreground">{macroLine(combo.macros)}</span>
+          <Badge variant="outline" className="h-5 shrink-0 px-1.5 text-[9px] font-medium text-muted-foreground">combinação</Badge>
+          {levelBadge(combo.level)}
+          {delta && <span className={`shrink-0 text-[10px] font-semibold ${delta.positive ? 'text-chart-3' : 'text-chart-5'}`}>{delta.text}</span>}
+        </span>
       </button>
     );
   };
 
+  const mealAfter = mealTotals && selection ? totalsAfterSwap(mealTotals, currentMacros, selection.macros) : null;
+  const dayAfter = dayTotals && selection ? totalsAfterSwap(dayTotals, currentMacros, selection.macros) : null;
+  const warnings = selection ? substitutionWarnings(selection.macros, currentMacros) : [];
+
+  const dragStartHandler = (event: React.PointerEvent<HTMLDivElement>) => {
+    dragStart.current = event.clientY;
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+  };
+  const dragMoveHandler = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (dragStart.current == null) return;
+    setDragY(Math.max(0, event.clientY - dragStart.current));
+  };
+  const dragEndHandler = () => {
+    if (dragY > 90) close();
+    else setDragY(0);
+    dragStart.current = null;
+  };
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className={`fixed top-[3vh] flex max-h-[92vh] max-w-lg translate-y-0 flex-col sm:top-[50%] sm:-translate-y-1/2 ${elevated ? 'z-[90]' : ''}`}>
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-sm">
-            <ArrowRightLeft className="h-4 w-4 text-primary" /> Substituir alimento
-          </DialogTitle>
-        </DialogHeader>
+    <Dialog open={open} onOpenChange={(next) => { if (!next) close(); else onOpenChange(true); }}>
+      <DialogContent
+        className={`inset-x-0 bottom-0 top-auto mx-auto flex h-[92dvh] max-h-[860px] w-full max-w-lg translate-x-0 translate-y-0 flex-col gap-0 overflow-hidden rounded-t-3xl border-b-0 p-0 data-[state=closed]:slide-out-to-bottom data-[state=open]:slide-in-from-bottom [&>button:last-child]:hidden ${elevated ? 'z-[90]' : ''}`}
+        style={{ transform: dragY ? `translateY(${dragY}px)` : undefined, transition: dragStart.current != null ? 'none' : undefined }}
+        data-testid="food-substitution-sheet"
+      >
         <DialogDescription className="sr-only">Compare porções por proteína ou calorias e escolha um alimento ou combinação.</DialogDescription>
 
-        <div className="flex min-h-0 flex-1 flex-col space-y-3">
-          <div className="shrink-0 rounded-lg bg-secondary/60 p-3">
-            <p className="mb-1 text-[10px] uppercase text-muted-foreground">Atual</p>
-            <p className="text-sm font-semibold">{currentName}</p>
-            <p className="text-xs text-muted-foreground">{n0(currentQtyGrams)} g</p>
-            <p className="mt-1 text-xs text-foreground">{macroLine(currentMacros)}</p>
-            {mealTotals && <p className="mt-2 border-t border-border/40 pt-2 text-[10px] text-muted-foreground">Refeição: {macroLine(mealTotals)}</p>}
-            {dayTotals && <p className="text-[10px] text-muted-foreground">Dia: {macroLine(dayTotals)}</p>}
-            {dayTarget && <p className="text-[10px] text-muted-foreground">Meta: {macroLine(dayTarget)}</p>}
+        <div className="shrink-0 border-b border-border/60 bg-background px-4 pb-3" style={{ paddingTop: 'max(4px, env(safe-area-inset-top))' }}>
+          <div
+            className="flex h-6 cursor-grab items-center justify-center touch-none active:cursor-grabbing"
+            onPointerDown={dragStartHandler}
+            onPointerMove={dragMoveHandler}
+            onPointerUp={dragEndHandler}
+            onPointerCancel={dragEndHandler}
+            data-testid="substitution-drag-handle"
+          >
+            <span className="h-1.5 w-11 rounded-full bg-muted-foreground/45" />
+          </div>
+          <DialogHeader className="flex-row items-center justify-between space-y-0">
+            <DialogTitle className="flex min-w-0 items-center gap-2 text-sm">
+              <ArrowRightLeft className="h-4 w-4 shrink-0 text-primary" />
+              <span className="truncate">Substituir alimento</span>
+            </DialogTitle>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              aria-label="Fechar substituição"
+              data-testid="substitution-close"
+              onClick={close}
+              className="mr-1 h-11 min-h-11 w-11 min-w-11 shrink-0 rounded-full bg-secondary/60 p-0 text-foreground hover:bg-secondary"
+            >
+              <X className="h-5 w-5" />
+            </Button>
+          </DialogHeader>
+
+          <div className="mt-2 rounded-xl bg-secondary/45 px-3 py-2" data-testid="current-food-card">
+            <div className="flex min-w-0 items-center gap-2">
+              <span className="shrink-0 text-[9px] font-semibold uppercase tracking-wide text-muted-foreground">Atual</span>
+              <span className="min-w-0 truncate text-[13px] font-bold">{currentName}</span>
+              <span className="ml-auto shrink-0 text-xs font-bold text-primary">{n0(currentQtyGrams)} g</span>
+            </div>
+            <p className="mt-0.5 truncate text-[11px] text-muted-foreground">{macroLine(currentMacros)}</p>
+            {mealTotals && <p className="mt-1 truncate text-[10px] text-muted-foreground">Refeição: {macroLine(mealTotals)}</p>}
           </div>
 
-          <p className="shrink-0 text-[11px] text-muted-foreground">
-            {smart.proteinSource
-              ? 'Fonte de proteína: compare a mesma proteína com as mesmas calorias. A escolha continua liberada mesmo quando houver aviso.'
-              : 'A quantidade é calculada para ficar nutricionalmente próxima, mantendo a regra por calorias e macros.'}
-          </p>
+          <div className="relative mt-2">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder="Buscar alimento substituto..."
+              value={search}
+              onChange={(event) => { setSearch(event.target.value); setSelection(null); }}
+              className="h-[42px] pl-9"
+            />
+          </div>
 
+          {smart.proteinSource && (
+            <div className="mt-2 grid h-10 grid-cols-2 rounded-xl bg-secondary/55 p-1" data-testid="substitution-mode-control">
+              <button type="button" data-testid="substitution-mode-protein" aria-pressed={mode === 'protein'} onClick={() => changeMode('protein')}
+                className={`rounded-lg text-xs font-semibold transition-colors ${mode === 'protein' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground'}`}>
+                Mesma proteína
+              </button>
+              <button type="button" data-testid="substitution-mode-calories" aria-pressed={mode === 'calories'} onClick={() => changeMode('calories')}
+                className={`rounded-lg text-xs font-semibold transition-colors ${mode === 'calories' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground'}`}>
+                Mesmas calorias
+              </button>
+            </div>
+          )}
+        </div>
+
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-3" style={{ WebkitOverflowScrolling: 'touch' }} data-testid="substitution-list">
           {keepCurrent && (
-            <Button type="button" variant="outline" className="shrink-0 text-xs" onClick={() => { keepCurrent.onSelect(); close(); }}>
+            <Button type="button" variant="outline" className="mb-3 h-auto min-h-10 w-full whitespace-normal text-xs" onClick={() => { keepCurrent.onSelect(); close(); }}>
               {keepCurrent.label}
             </Button>
           )}
 
-          <div className="relative shrink-0">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input autoFocus placeholder="Buscar alimento substituto..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
-          </div>
-
-          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1" style={{ WebkitOverflowScrolling: 'touch' }}>
-            {bestChoices.length > 0 && (
-              <section className="mb-3 rounded-xl border border-primary/35 bg-primary/5 p-3" data-testid="best-food-choices">
-                <p className="flex items-center gap-1.5 text-xs font-bold text-primary"><Star className="h-3.5 w-3.5" /> Melhor para você</p>
-                <p className="mt-0.5 text-[10px] text-muted-foreground">Da mesma família, de acordo com seu objetivo e esta refeição.</p>
-                {bestTip && <p className="mt-2 rounded-lg bg-background/60 p-2 text-[11px] leading-relaxed text-foreground" data-testid="best-food-tip">{bestTip}</p>}
-                <div className="mt-2 space-y-2">
-                  {bestChoices.map((choice) => (
-                    <button key={choice.food.id} type="button" data-testid={`best-food-${choice.food.id}`}
-                      onClick={() => { onSelect(choice.option.food, choice.option.qtyGrams); close(); }}
-                      className="w-full rounded-lg border border-border bg-background/70 p-2.5 text-left transition-colors hover:border-primary/50">
-                      <p className="text-xs font-semibold text-foreground">{choice.food.name}</p>
-                      <div className="mt-1 flex flex-wrap gap-1">
-                        {choice.reasons.map((reason) => <Badge key={reason} variant="outline" className="border-primary/40 text-[9px] text-primary">{reason}</Badge>)}
-                      </div>
-                      <p className="mt-1.5 text-xs font-semibold text-primary">{formatSubstitutionQuantity(choice.food, choice.option.qtyGrams, unitWeights)}</p>
-                      <p className="mt-1 text-[10px] text-muted-foreground">≈ {macroLine(choice.option.macros)}</p>
-                      <p className="mt-0.5 text-[9px] text-muted-foreground">ΔP {sign(choice.option.diff.p)} g · ΔC {sign(choice.option.diff.c)} g · Δ {sign(choice.option.diff.kcal, 0)} kcal</p>
-                    </button>
-                  ))}
-                </div>
-              </section>
-            )}
-            {combinations.length > 0 && (
-              <div className="mb-3 space-y-2" data-testid="protein-substitution-combinations">
-                <p className="text-xs font-semibold">Combinações para chegar mais perto da proteína</p>
-                <p className="text-[10px] text-muted-foreground">Cada opção entra como dois alimentos no lugar de {currentName}.</p>
-                {combinations.map(combinationButton)}
+          {displayedBestChoices.length > 0 && (
+            <section className="mb-4" data-testid="best-food-choices">
+              <h3 className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide text-primary"><Star className="h-3 w-3" /> Melhor para você</h3>
+              {bestTip && <p className="mb-2 mt-1 text-[10px] leading-4 text-muted-foreground" data-testid="best-food-tip">{bestTip}</p>}
+              <div className="mt-2 space-y-1.5">
+                {displayedBestChoices.map((choice) => (
+                  <div key={choice.food.id}>
+                    {optionRow(choice.option, `best-${choice.food.id}-${mode}`, `best-food-${choice.food.id}`, choice.reasons)}
+                  </div>
+                ))}
               </div>
-            )}
-            <div className="space-y-2">
+            </section>
+          )}
+
+          {combinations.length > 0 && (
+            <section className="mb-4" data-testid="protein-substitution-combinations">
+              <h3 className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Combinações</h3>
+              <p className="mb-2 mt-1 text-[10px] text-muted-foreground">Todos os itens entram no lugar de {currentName}.</p>
+              <div className="space-y-1.5">{combinations.map(combinationRow)}</div>
+            </section>
+          )}
+
+          <section>
+            <h3 className="mb-2 text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
+              Substitutos{smart.proteinSource ? ` · ${mode === 'protein' ? 'mesma proteína' : 'mesmas calorias'}` : ''}
+            </h3>
+            <div className="space-y-1.5">
               {smart.candidates.length === 0 ? (
                 <p className="py-6 text-center text-xs text-muted-foreground">Nenhum alimento encontrado</p>
-              ) : smart.candidates.map((candidate) => (
-                <div key={candidate.food.id} className="rounded-xl bg-secondary/30 p-2" data-testid={`substitution-food-${candidate.food.id}`}>
-                  <p className="truncate px-1 pb-2 pt-0.5 text-sm font-medium">{candidate.food.name}</p>
-                  <div className={`grid gap-2 ${smart.proteinSource && candidate.sameProtein ? 'grid-cols-2' : 'grid-cols-1'}`}>
-                    {smart.proteinSource && candidate.sameProtein && optionButton(candidate.sameProtein, 'protein', true)}
-                    {optionButton(candidate.sameCalories, 'calories', smart.proteinSource)}
+              ) : smart.candidates.map((candidate) => {
+                const option = mode === 'protein' && smart.proteinSource
+                  ? candidate.sameProtein ?? candidate.sameCalories
+                  : candidate.sameCalories;
+                const activeMode = mode === 'protein' && candidate.sameProtein ? 'protein' : 'calories';
+                return (
+                  <div key={candidate.food.id} data-testid={`substitution-food-${candidate.food.id}`}>
+                    {optionRow(option, `food-${candidate.food.id}-${activeMode}`, `substitution-option-${candidate.food.id}-${activeMode}`)}
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
+          </section>
+        </div>
+
+        <div className="shrink-0 border-t border-border bg-background px-4 pt-3" style={{ paddingBottom: 'max(12px, env(safe-area-inset-bottom))' }} data-testid="substitution-footer">
+          {selection && (
+            <div className="mb-3" data-testid="selected-substitution-summary">
+              {mealAfter && <p className="text-[11px] leading-4 text-foreground"><strong>Refeição depois:</strong> {macroLine(mealAfter)} <span className="text-muted-foreground">({sign(selection.diff.kcal, 0)} kcal · {sign(selection.diff.p)} g P)</span></p>}
+              {dayAfter && <p className="mt-0.5 text-[10px] leading-4 text-muted-foreground">Dia depois: {macroLine(dayAfter)}</p>}
+              {selection.proteinNote && <p className="mt-1 text-[10px] font-medium text-chart-5">{selection.proteinNote}</p>}
+              {warnings.map((warning) => <p key={warning} className="mt-1 flex items-start gap-1 text-[10px] font-medium leading-4 text-chart-5"><AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" />{warning}</p>)}
+            </div>
+          )}
+          <div className="flex gap-2">
+            <Button type="button" variant="outline" onClick={close} className="h-11 shrink-0 px-5">Cancelar</Button>
+            <Button type="button" disabled={!selection} onClick={confirmSelection} className="h-11 min-w-0 flex-1 font-semibold" data-testid="confirm-substitution">
+              <span className="truncate">{selection ? `Trocar por ${selection.combination ? 'combinação' : shortFoodName(selection.name)}` : 'Escolhe um alimento'}</span>
+            </Button>
           </div>
         </div>
       </DialogContent>

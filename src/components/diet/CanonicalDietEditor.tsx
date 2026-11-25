@@ -975,6 +975,7 @@ const CanonicalDietEditor: React.FC<Props> = ({ plan, foods, targetsByDay, dayTy
           open
           onOpenChange={(o) => !o && setSubstitution(null)}
           foods={foodRecords}
+          currentFoodId={day.meals?.[substitution.mealIdx]?.items?.[substitution.itemIdx]?.foodId ?? null}
           currentName={String(
             day.meals?.[substitution.mealIdx]?.items?.[substitution.itemIdx]?.name ?? '',
           )}

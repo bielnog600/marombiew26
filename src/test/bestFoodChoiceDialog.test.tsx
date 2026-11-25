@@ -33,11 +33,13 @@ describe('Melhor para você no diálogo compartilhado', () => {
     expect(screen.getByTestId('best-food-choices')).toBeInTheDocument();
     const best = screen.getByTestId('best-food-drelli');
     expect(best).toHaveTextContent('Mais proteína');
-    expect(best).toHaveTextContent('Menos carbo');
+    expect(best).toHaveTextContent(/menos carbo/i);
     expect(best).toHaveTextContent(/\d+ g/);
     expect(screen.getByTestId('substitution-food-drelli')).toBeInTheDocument();
     expect(screen.queryByTestId('best-food-frango')).not.toBeInTheDocument();
     fireEvent.click(best);
+    expect(best).toHaveAttribute('aria-pressed', 'true');
+    fireEvent.click(screen.getByTestId('confirm-substitution'));
     expect(onSelect).toHaveBeenCalledWith(expect.objectContaining({ id: 'drelli' }), expect.any(Number));
     await act(async () => { await Promise.resolve(); });
   });

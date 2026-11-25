@@ -124,6 +124,7 @@ const MealOptionPanel: React.FC<Props> = ({ option, optionNumber, planKcal, food
           open
           onOpenChange={(o) => !o && setReplacing(null)}
           foods={foods}
+          currentFoodId={option.items[replacing].foodId}
           currentName={option.items[replacing].name}
           currentQtyGrams={option.items[replacing].qtyGrams}
           currentMacros={option.items[replacing].macros}

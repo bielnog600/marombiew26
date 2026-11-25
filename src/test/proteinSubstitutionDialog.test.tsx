@@ -46,10 +46,15 @@ describe('diálogo de troca proteica', () => {
     />);
     const egg = await screen.findByTestId('substitution-option-ovo-protein');
     expect(egg).toHaveTextContent('2 ovos (100 g)');
-    expect(egg).toHaveTextContent('−19 g P por causa do limite de calorias');
-    expect(egg).toHaveTextContent('Essa troca tira 19 g de proteína da refeição.');
-    expect(egg.className).toContain('border-primary');
+    expect(egg).toHaveClass('min-h-[60px]');
+    expect(egg).not.toHaveTextContent('Refeição depois');
     fireEvent.click(egg);
+    expect(egg).toHaveAttribute('aria-pressed', 'true');
+    expect(egg.className).toContain('border-primary');
+    const summary = screen.getByTestId('selected-substitution-summary');
+    expect(summary).toHaveTextContent('−19 g P por causa do limite de calorias');
+    expect(summary).toHaveTextContent('Essa troca tira 19 g de proteína da refeição.');
+    fireEvent.click(screen.getByTestId('confirm-substitution'));
     expect(onSelect).toHaveBeenCalledWith(OVO, 100);
   });
 
@@ -62,9 +67,10 @@ describe('diálogo de troca proteica', () => {
     />);
     const section = await screen.findByTestId('protein-substitution-combinations');
     const combo = within(section).getByTestId('substitution-combo-ovo-clara');
-    expect(combo).toHaveTextContent('Ovo inteiro cozido + Clara de ovo');
-    expect(combo).toHaveTextContent(/\d+ claras/);
+    expect(combo).toHaveTextContent('1 ovo + 6 claras');
+    expect(combo).toHaveTextContent('50 g + 198 g');
     fireEvent.click(combo);
+    fireEvent.click(screen.getByTestId('confirm-substitution'));
     const replacements = onSubstitute.mock.calls[0][0];
     expect(Array.isArray(replacements)).toBe(true);
     expect(replacements.map((f: any) => f.food)).toEqual([OVO.name, CLARA.name]);
@@ -81,9 +87,30 @@ describe('diálogo de troca proteica', () => {
     fireEvent.click(screen.getByRole('button', { name: `Substituir ${FRANGO.name}` }));
     const section = await screen.findByTestId('protein-substitution-combinations');
     fireEvent.click(within(section).getByTestId('substitution-combo-ovo-clara'));
+    fireEvent.click(screen.getByTestId('confirm-substitution'));
     const next = onChange.mock.calls[0][0];
     expect(next.items).toHaveLength(2);
     expect(next.items.map((item: any) => item.foodId)).toEqual([OVO.id, CLARA.id]);
     expect(next.items.every((item: any) => item.qtyGrams > 0)).toBe(true);
+  });
+
+  it('alterna Mesma proteína/Mesmas calorias em toda a lista e mostra o impacto só no rodapé', async () => {
+    const ISOLADA = food('isolada', 'Proteína isolada', 100, 40, 0, 0);
+    renderWithQuery(<CanonicalFoodSubstitutionDialog
+      open onOpenChange={() => {}} foods={[...FOODS, ISOLADA]} currentFoodId={FRANGO.id} currentName={FRANGO.name} currentQtyGrams={100}
+      currentMacros={TARGET} mealTotals={{ kcal: 500, p: 50, c: 40, g: 20 }}
+      onSelect={() => {}} onSelectCombination={() => {}}
+    />);
+    const protein = await screen.findByTestId('substitution-option-isolada-protein');
+    expect(protein).toHaveTextContent('80 g');
+    expect(screen.getByTestId('substitution-option-clara-protein')).toHaveTextContent('5 claras (165 g)');
+    expect(screen.queryByTestId('substitution-food-frango')).not.toBeInTheDocument();
+    expect(screen.getByTestId('substitution-close')).toHaveClass('h-11', 'w-11', 'min-h-11', 'min-w-11');
+    fireEvent.click(screen.getByTestId('substitution-mode-calories'));
+    const calories = screen.getByTestId('substitution-option-isolada-calories');
+    expect(calories).toHaveTextContent('160 g');
+    fireEvent.click(calories);
+    expect(screen.getByTestId('selected-substitution-summary')).toHaveTextContent('Refeição depois:');
+    expect(screen.getByTestId('substitution-footer')).toHaveTextContent('Trocar por Proteína isolada');
   });
 });

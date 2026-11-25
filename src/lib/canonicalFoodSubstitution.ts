@@ -275,10 +275,16 @@ export const bestProteinPortion = (
 
   if (unit) {
     const maxCount = Math.floor(cap / unit);
+    if (maxCount < 1) return null;
     const desiredCount = Math.max(1, Math.round(desired / unit));
-    for (let count = Math.max(1, desiredCount - 3); count <= Math.min(maxCount, desiredCount + 3); count += 1) {
+    const firstCount = Math.max(1, Math.min(maxCount, desiredCount - 3));
+    const lastCount = Math.min(maxCount, desiredCount + 3);
+    for (let count = firstCount; count <= lastCount; count += 1) {
       quantities.add(count * unit);
     }
+    // Mesmo quando a quantidade desejada fica várias unidades acima do teto,
+    // a maior porção permitida continua sendo uma opção de mesma proteína.
+    if (limited) quantities.add(maxCount * unit);
   } else {
     const step = base <= 20 ? 1 : base <= 100 ? 5 : 10;
     for (let q = Math.max(step, base * 0.7); q <= Math.min(cap, base * 1.3) + 1e-8; q += step) {
@@ -311,6 +317,62 @@ export interface SmartSubstitutionCandidate {
   sameProtein: SubstitutionCandidate | null;
   sameCalories: SubstitutionCandidate;
 }
+
+const foodTokens = (name: string): Set<string> =>
+  new Set(normalizeFoodName(name).split(/\s+/).filter(Boolean));
+
+const similarFoodName = (a: string, b: string): boolean => {
+  const left = foodTokens(a);
+  const right = foodTokens(b);
+  if (!left.size || !right.size) return false;
+  const leftInRight = [...left].every((token) => right.has(token));
+  const rightInLeft = [...right].every((token) => left.has(token));
+  return leftInRight || rightInLeft;
+};
+
+const per100Macro = (food: FoodRecord, field: 'calories' | 'protein' | 'carbs' | 'fats'): number => {
+  const portion = Number(food.portion_size) > 0 ? Number(food.portion_size) : 100;
+  return ((Number(food[field]) || 0) / portion) * 100;
+};
+
+export const sameFoodNutrition = (a: FoodRecord, b: FoodRecord): boolean =>
+  (['calories', 'protein', 'carbs', 'fats'] as const).every((field) =>
+    Math.abs(per100Macro(a, field) - per100Macro(b, field)) <= 0.05);
+
+/**
+ * O original nunca é substituto de si próprio. Marcas/adjetivos acrescentados
+ * ao mesmo nome (ovo cozido × ovo inteiro cozido, iogurte × iogurte de marca)
+ * também são deduplicados, mas somente quando todos os macros por 100 g são iguais.
+ */
+export const filterSubstitutionFoods = (input: {
+  foods: FoodRecord[];
+  currentName: string;
+  currentQtyGrams: number;
+  currentMacros: EngineMacros;
+  currentFoodId?: string | null;
+}): FoodRecord[] => {
+  const originalName = normalizeFoodName(input.currentName);
+  const original = (input.foods ?? []).find((food) =>
+    (input.currentFoodId && food.id === input.currentFoodId) || normalizeFoodName(food.name) === originalName) ?? {
+    id: input.currentFoodId || 'current-food',
+    name: input.currentName,
+    portion_size: Math.max(1, Number(input.currentQtyGrams) || 100),
+    calories: input.currentMacros.kcal,
+    protein: input.currentMacros.p,
+    carbs: input.currentMacros.c,
+    fats: input.currentMacros.g,
+  };
+  const result: FoodRecord[] = [];
+  for (const food of input.foods ?? []) {
+    if (!food?.id) continue;
+    if (food.id === input.currentFoodId || normalizeFoodName(food.name) === originalName) continue;
+    if (similarFoodName(food.name, original.name) && sameFoodNutrition(food, original)) continue;
+    if (result.some((kept) => kept.id === food.id ||
+      (similarFoodName(kept.name, food.name) && sameFoodNutrition(kept, food)))) continue;
+    result.push(food);
+  }
+  return result;
+};
 
 /** Duas opções por candidato; ranking proteico usa |ΔP|×3 + |Δkcal| + |ΔG|. */
 export const buildSmartSubstitutionCandidates = (

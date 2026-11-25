@@ -1,10 +1,10 @@
 # Roadmap
 
 ## Substituir alimento — folha compacta no iPhone
-- [ ] Linhas compactas para substitutos, combinações e “Melhor para você”, com seletor global proteína/calorias.
-- [ ] Excluir o alimento atual e duplicados equivalentes sem alterar cálculos, escolhas ou gravação.
-- [ ] Bottom sheet com cabeçalho/rodapé fixos, resumo da refeição sob seleção, X de 44 px, Cancelar e fechamento por arraste/fora.
-- [ ] Testes de exclusão, alternância e controles; conferir visualmente em 390×844, rodar testes e build.
+- [x] Linhas compactas para substitutos, combinações e “Melhor para você”, com seletor global proteína/calorias.
+- [x] Excluir o alimento atual e duplicados equivalentes sem alterar cálculos, escolhas ou gravação.
+- [x] Bottom sheet com cabeçalho/rodapé fixos, resumo da refeição sob seleção, X de 44 px, Cancelar e fechamento por arraste/fora.
+- [x] Testes de exclusão, alternância e controles; 2.522 testes aprovados, build OK e medições em 390×844 (linhas 60 px, X 44 px, arraste/fora/Cancelar). Validação com componente real e dados de exemplo, sem conta real nem gravações.
 
 ## Melhor escolha por objetivo e família do alimento
 - [x] Categoria editável em Alimentos, inferida automaticamente pelos nomes atuais, sem misturar famílias.
