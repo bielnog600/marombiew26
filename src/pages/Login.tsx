@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -13,10 +13,11 @@ import logoMarombiew from '@/assets/logo_marombiew.png';
 const Login = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [nome, setNome] = useState('');
   const [loading, setLoading] = useState(false);
-  const { signIn, signUp, user, role, loading: authLoading } = useAuth();
+  const { signIn, user, role, loading: authLoading } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const wantsSignup = ['signup', 'cadastro', 'register'].includes((searchParams.get('tab') || searchParams.get('mode') || '').toLowerCase());
 
   useEffect(() => {
     if (!authLoading && user) {
@@ -43,26 +44,7 @@ const Login = () => {
     }
   };
 
-  const handleSignUp = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!email || !password || !nome) { toast.error('Preencha todos os campos'); return; }
-    if (password.length < 6) { toast.error('Senha deve ter no mínimo 6 caracteres'); return; }
-
-    setLoading(true);
-    try {
-      const { error } = await signUp(email, password, nome);
-      if (error) {
-        toast.error(error.message);
-        return;
-      }
-      toast.success('Conta criada com sucesso! Faça login.');
-    } catch (error) {
-      console.error('Erro no cadastro:', error);
-      toast.error('Erro inesperado no cadastro. Tente novamente.');
-    } finally {
-      setLoading(false);
-    }
-  };
+  if (wantsSignup) return <Navigate to="/cadastro" replace />;
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background p-4">
@@ -75,7 +57,12 @@ const Login = () => {
           <Tabs defaultValue="login">
             <TabsList className="w-full bg-secondary">
               <TabsTrigger value="login" className="flex-1">Entrar</TabsTrigger>
-              <TabsTrigger value="signup" className="flex-1" onClick={() => navigate('/cadastro')}>Cadastrar</TabsTrigger>
+              <Link
+                to="/cadastro"
+                className="flex-1 inline-flex items-center justify-center rounded-sm px-3 py-1.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground touch-manipulation"
+              >
+                Cadastrar
+              </Link>
             </TabsList>
 
             <TabsContent value="login">
@@ -101,32 +88,6 @@ const Login = () => {
               </CardContent>
             </TabsContent>
 
-            <TabsContent value="signup">
-              <CardHeader className="text-center pt-4 pb-2">
-                <CardTitle className="text-xl">Criar Conta</CardTitle>
-                <CardDescription>Preencha seus dados</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <form onSubmit={handleSignUp} className="space-y-4">
-                  <div className="space-y-2">
-                    <Label>Nome completo</Label>
-                    <Input placeholder="Seu nome" value={nome} onChange={(e) => setNome(e.target.value)} />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Email</Label>
-                    <Input type="email" placeholder="seu@email.com" value={email} onChange={(e) => setEmail(e.target.value)} />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Senha</Label>
-                    <Input type="password" placeholder="Mínimo 6 caracteres" value={password} onChange={(e) => setPassword(e.target.value)} />
-                  </div>
-                  <Button type="submit" className="w-full font-semibold" disabled={loading}>
-                    {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    Criar Conta
-                  </Button>
-                </form>
-              </CardContent>
-            </TabsContent>
           </Tabs>
         </Card>
       </div>

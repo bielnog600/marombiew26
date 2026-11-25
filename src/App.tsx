@@ -159,6 +159,8 @@ const App = () => {
             <Routes>
               <Route path="/" element={<RootRedirect />} />
               <Route path="/login" element={<Login />} />
+              <Route path="/signup" element={<Navigate to="/cadastro" replace />} />
+              <Route path="/register" element={<Navigate to="/cadastro" replace />} />
               <Route path="/cadastro" element={<Cadastro />} />
               <Route path="/dashboard" element={<ProtectedRoute requiredRole="admin"><Dashboard /></ProtectedRoute>} />
               <Route path="/correcao-ao-vivo-teste" element={<ProtectedRoute requiredRole="admin"><CorrecaoAoVivoTeste /></ProtectedRoute>} />
