@@ -2,7 +2,9 @@ import { useEffect } from 'react';
 import { useLanguage, translateText } from '@/i18n';
 import { useAuth } from '@/contexts/AuthContext';
 
-const SKIP_TAGS = new Set(['SCRIPT', 'STYLE', 'NOSCRIPT', 'CODE', 'PRE', 'TEXTAREA']);
+const SKIP_TAGS = new Set(['SCRIPT', 'STYLE', 'NOSCRIPT', 'CODE', 'PRE', 'TEXTAREA', 'INPUT', 'SELECT', 'OPTION']);
+/** Números, cargas, tempos e faixas ("30s", "12-15", "7,25 kg", "1/11") nunca passam pelo dicionário. */
+export const isNumericLike = (text: string) => /^[\s\d.,:;/×x+\-–—%°'"()]*(s|seg|min|kg|g|ml|kcal|rpm|reps?)?[\s\d.,:;/×x+\-–—%°'"()]*$/i.test(text.trim());
 const ATTRS = ['placeholder', 'aria-label', 'title'];
 
 /**
@@ -22,7 +24,7 @@ const AutoTranslate = () => {
       if (!parent || SKIP_TAGS.has(parent.tagName)) return;
       if (parent.closest('[data-no-translate]')) return;
       const original = node.nodeValue ?? '';
-      if (!original.trim()) return;
+      if (!original.trim() || isNumericLike(original)) return;
       const next = translateText(original, 'en');
       if (next !== original) node.nodeValue = next;
     };
@@ -31,7 +33,7 @@ const AutoTranslate = () => {
       if (el.closest('[data-no-translate]')) return;
       for (const attr of ATTRS) {
         const original = el.getAttribute(attr);
-        if (!original) continue;
+        if (!original || isNumericLike(original)) continue;
         const next = translateText(original, 'en');
         if (next !== original) el.setAttribute(attr, next);
       }
@@ -53,14 +55,17 @@ const AutoTranslate = () => {
       el.querySelectorAll('[placeholder],[aria-label],[title]').forEach(translateAttrs);
     };
 
-    walk(document.body);
+    try { walk(document.body); } catch { /* ignora */ }
 
     let frame = 0;
     const pending: Node[] = [];
     const flush = () => {
       frame = 0;
       const nodes = pending.splice(0, pending.length);
-      nodes.forEach(walk);
+      // Tradução nunca pode quebrar a tela: um nó problemático é só ignorado.
+      for (const n of nodes) {
+        try { if (n.isConnected) walk(n); } catch { /* ignora */ }
+      }
     };
 
     const observer = new MutationObserver((mutations) => {

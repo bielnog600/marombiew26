@@ -407,6 +407,13 @@
       "when": 1795606179885,
       "tag": "0057_signup_always_aluno",
       "breakpoints": true
+    },
+    {
+      "idx": 58,
+      "version": "7",
+      "when": 1795639105166,
+      "tag": "0058_client_errors",
+      "breakpoints": true
     }
   ]
 }

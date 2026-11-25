@@ -9,6 +9,8 @@ import { TabSwipeProvider } from "@/contexts/TabSwipeContext";
 import { AdminTrainerSessionProvider } from "@/contexts/AdminTrainerSessionContext";
 import AdminTrainerSessionMount from "@/components/training/AdminTrainerSessionMount";
 import ProtectedRoute from "@/components/ProtectedRoute";
+import AppLoadingScreen from "@/components/AppLoadingScreen";
+import AuthScreenLockGuard from "@/components/AuthScreenLockGuard";
 import SplashScreenContainer from "@/components/SplashScreen";
 import InstallBanner from "@/components/InstallBanner";
 import OfflineIndicator from "@/components/OfflineIndicator";
@@ -115,7 +117,7 @@ const StudentOfflinePrefetch = () => {
 
 const RootRedirect = () => {
   const { user, role, loading } = useAuth();
-  if (loading) return null;
+  if (loading) return <AppLoadingScreen />;
   if (!user) return <Navigate to="/login" replace />;
   return <Navigate to={role === 'admin' ? '/dashboard' : '/minha-area'} replace />;
 };
@@ -142,6 +144,7 @@ const App = () => {
         <InstallBanner />
         <BrowserRouter future={{ v7_startTransition: true }}>
           <ScrollToTop />
+          <AuthScreenLockGuard />
           <div>
           <AuthProvider>
             <LanguageProvider>

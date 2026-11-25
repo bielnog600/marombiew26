@@ -28,6 +28,16 @@ interface AuthContextType {
   isAdmin: boolean;
 }
 
+/** Rede "presa" (Wi-Fi sem internet de verdade): nunca esperar o servidor para abrir o app. */
+export const AUTH_NETWORK_TIMEOUT_MS = 6000;
+export class AuthNetworkTimeout extends Error { constructor() { super('auth_network_timeout'); } }
+export function withAuthTimeout<T>(promise: Promise<T>, ms = AUTH_NETWORK_TIMEOUT_MS): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new AuthNetworkTimeout()), ms);
+    promise.then(v => { clearTimeout(timer); resolve(v); }, e => { clearTimeout(timer); reject(e); });
+  });
+}
+
 const AuthContext = createContext<AuthContextType>({} as AuthContextType);
 
 export const useAuth = () => useContext(AuthContext);
@@ -92,6 +102,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     let mounted = true;
 
+    /** Abre com a cópia local do usuário (sem rede ou rede presa). */
+    const applyCachedUser = (): boolean => {
+      const cachedUser = getCachedOfflineUser();
+      if (!cachedUser || !mounted) return false;
+      setSession(null);
+      setUser(prev => (isSameUser(prev, cachedUser) ? prev : cachedUser));
+      setRole(getCachedRole(cachedUser.id) ?? 'aluno');
+      return true;
+    };
+
     const applySession = async (nextSession: Session | null) => {
       if (!mounted) return;
 
@@ -112,11 +132,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (cachedInfo) {
           try {
             isRefreshing.current = true;
-            const { data: refreshData } = await supabase.auth.refreshSession();
+            const { data: refreshData } = await withAuthTimeout(supabase.auth.refreshSession());
             if (refreshData?.session) {
               nextSession = refreshData.session;
             }
-          } catch {
+          } catch (refreshError) {
+            if (refreshError instanceof AuthNetworkTimeout && applyCachedUser()) return;
             if (user && role) {
               console.log('Offline: mantendo sessão existente');
               return;
@@ -196,7 +217,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           await applySession(null);
           return;
         }
-        const { data, error } = await supabase.auth.getSession();
+        let sessionResult: Awaited<ReturnType<typeof supabase.auth.getSession>>;
+        try {
+          sessionResult = await withAuthTimeout(supabase.auth.getSession());
+        } catch (timeoutError) {
+          if (timeoutError instanceof AuthNetworkTimeout && applyCachedUser()) return;
+          throw timeoutError;
+        }
+        const { data, error } = sessionResult;
         if (error) {
           console.error('Erro ao recuperar sessão:', error);
           // Try cached session info to avoid logout
@@ -258,9 +286,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (withinThrottle) return;
 
     try {
-      const { data, error } = await (supabase as any).rpc('student_access_heartbeat');
+      const { data, error } = await withAuthTimeout<{ data: unknown; error: unknown }>((supabase as any).rpc('student_access_heartbeat'));
       if (error) throw error;
-      const row = Array.isArray(data) ? data[0] : data;
+      const row: any = Array.isArray(data) ? data[0] : data;
       if (row) {
         setAccessStatus((row.access_status as AccessStatus) ?? 'active');
         setSuspensionReason((row.suspension_reason as SuspensionReason) ?? null);

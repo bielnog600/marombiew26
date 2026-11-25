@@ -205,6 +205,16 @@
       --workout-media-h: min(300px, 34dvh);
     }
   }
+  /* Navegador (Safari/Chrome no iPhone, fora do app instalado): 100lvh passa da
+     área visível com a barra do navegador e escondia "Próximo"/"Finalizar" sem
+     rolagem possível. Fora do modo instalado usa a altura visível real. */
+  html.student-workout-open.workout-browser,
+  html.student-workout-open.workout-browser body,
+  html.student-workout-open.workout-browser #root,
+  html.workout-browser .student-workout-screen {
+    height: 100vh;
+    height: var(--workout-visible-h, 100dvh);
+  }
   .student-workout-media {
     height: var(--workout-media-h);
   }

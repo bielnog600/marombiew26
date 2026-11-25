@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import SuspendedAccessPage from '@/components/SuspendedAccessPage';
+import AppLoadingScreen from '@/components/AppLoadingScreen';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -24,7 +25,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, requiredRole 
     }
   }, [loading]);
 
-  if (loading) return null;
+  if (loading) return <AppLoadingScreen />;
 
   if (!user) {
     return <Navigate to="/login" replace />;
@@ -36,7 +37,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, requiredRole 
 
   // Guard global de acesso: só se aplica a alunos. Admin/professor segue normal.
   if (role === 'aluno') {
-    if (accessLoading && accessStatus === null) return null;
+    if (accessLoading && accessStatus === null) return <AppLoadingScreen />;
     if (accessStatus === 'suspended') {
       return <SuspendedAccessPage reason={suspensionReason} lastActiveAt={lastActiveAt} />;
     }

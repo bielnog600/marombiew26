@@ -1,3 +1,4 @@
+import { applyWorkoutVisibleHeight } from '@/lib/workoutViewport';
 import { FinalSetRir } from '@/components/training/FinalSetRir';
 import { lazyWithRetry } from '@/lib/appUpdate/lazyWithRetry';
 import { useHoldAppUpdate } from '@/hooks/useHoldAppUpdate';
@@ -228,7 +229,9 @@ const TreinoExecucaoInner = () => {
     // Classe no <html> e no <body>: o CSS ajusta html/body/#root só nesta tela.
     document.documentElement.classList.add('student-workout-open');
     document.body.classList.add('student-workout-open');
+    const stopVisibleHeight = applyWorkoutVisibleHeight();
     return () => {
+      stopVisibleHeight();
       document.documentElement.classList.remove('student-workout-open');
       document.body.classList.remove('student-workout-open');
     };
@@ -1611,7 +1614,7 @@ const TreinoExecucaoInner = () => {
               <div className="flex items-center gap-2 mb-1 flex-wrap">
                 <p className="text-[10px] uppercase tracking-widest text-primary font-semibold" style={{ textShadow: '0 1px 4px rgba(0,0,0,0.6)' }}>{activeExercise?.grupo_muscular || dayName}</p>
               </div>
-              <h1 className="text-lg font-bold text-foreground leading-tight line-clamp-1" style={{ textShadow: '0 1px 6px rgba(0,0,0,0.7)' }}>{selectedExerciseName}</h1>
+              <h1 data-no-translate className="text-lg font-bold text-foreground leading-tight line-clamp-1" style={{ textShadow: '0 1px 6px rgba(0,0,0,0.7)' }}>{selectedExerciseName}</h1>
               {exercise.description && (
                 <button
                   type="button"
@@ -1775,7 +1778,7 @@ const TreinoExecucaoInner = () => {
                   </div>
                   <div className="flex items-center gap-0.5 min-w-0">
                     <button type="button" aria-label={`Série ${i + 1} diminuir reps`} disabled={set.completed} onClick={() => stepSetValue(i, 'reps', -1)} className="h-11 w-6 shrink-0 rounded-md text-muted-foreground hover:text-foreground hover:bg-background/60 disabled:opacity-30 text-xs font-bold touch-manipulation">−</button>
-                    <Input aria-label={`Série ${i + 1} repetições`} type="text" inputMode="numeric" value={set.reps} onChange={(e) => updateSet(i, 'reps', e.target.value)} onFocus={(e) => e.currentTarget.scrollIntoView({ block: 'center', behavior: 'smooth' })} placeholder={repsPlaceholder} className="h-11 text-center bg-background/50 border-border/50 min-w-0 px-1" disabled={set.completed} />
+                    <Input data-no-translate aria-label={`Série ${i + 1} repetições`} type="text" inputMode="numeric" value={set.reps} onChange={(e) => updateSet(i, 'reps', e.target.value)} onFocus={(e) => e.currentTarget.scrollIntoView({ block: 'center', behavior: 'smooth' })} placeholder={repsPlaceholder} className="h-11 text-center bg-background/50 border-border/50 min-w-0 px-1" disabled={set.completed} />
                     <button type="button" aria-label={`Série ${i + 1} aumentar reps`} disabled={set.completed} onClick={() => stepSetValue(i, 'reps', 1)} className="h-11 w-6 shrink-0 rounded-md text-muted-foreground hover:text-foreground hover:bg-background/60 disabled:opacity-30 text-xs font-bold touch-manipulation">+</button>
                   </div>
                   <Button size="icon" aria-label={`Confirmar série ${i + 1}`} title={repsMissing ? 'Coloca quantas repetições fez' : undefined} disabled={!set.completed && repsMissing} variant="outline" className={`h-11 w-11 mx-auto rounded-full ${set.completed ? 'bg-chart-3/15 border-chart-3/50 text-chart-3 hover:bg-chart-3/20 hover:text-chart-3' : isNextPending ? 'border-primary/40 text-primary' : ''}`} onClick={() => toggleSetComplete(i)}>

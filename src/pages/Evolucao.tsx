@@ -137,7 +137,7 @@ const Evolucao = () => {
   }));
 
   return (
-    <div className="h-screen flex flex-col bg-background overflow-hidden">
+    <div className="h-screen h-[100dvh] flex flex-col bg-background overflow-hidden">
       <div className="relative shrink-0" style={{ background: 'var(--gradient-chrome)' }}>
         <div className="flex items-center gap-3 px-4 py-4">
           <button onClick={() => navigate(-1)} className="text-primary-foreground">

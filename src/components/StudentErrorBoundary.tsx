@@ -2,6 +2,7 @@ import React from 'react';
 import { Button } from '@/components/ui/button';
 import { AlertTriangle } from 'lucide-react';
 import { isChunkLoadError, reloadOnceForChunkError } from '@/lib/appUpdate/chunkReload';
+import { reportClientError } from '@/lib/clientErrorLog';
 
 interface State {
   hasError: boolean;
@@ -25,6 +26,7 @@ class StudentErrorBoundary extends React.Component<React.PropsWithChildren, Stat
   }
 
   componentDidCatch(error: unknown, info: React.ErrorInfo) {
+    reportClientError(isChunkLoadError(error) ? 'chunk' : 'boundary', error, info.componentStack);
     if (isChunkLoadError(error)) {
       if (reloadOnceForChunkError()) return;
       // Já recarregou há pouco: mostra a tela de erro normal em vez de entrar em loop.

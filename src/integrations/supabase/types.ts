@@ -1158,6 +1158,51 @@ export type Database = {
           },
         ]
       }
+      client_errors: {
+        Row: {
+          app_version: string | null
+          created_at: string
+          id: string
+          kind: string
+          language: string | null
+          message: string
+          online: boolean | null
+          route: string | null
+          stack: string | null
+          standalone: boolean | null
+          user_agent: string | null
+          user_id: string
+        }
+        Insert: {
+          app_version?: string | null
+          created_at?: string
+          id?: string
+          kind?: string
+          language?: string | null
+          message: string
+          online?: boolean | null
+          route?: string | null
+          stack?: string | null
+          standalone?: boolean | null
+          user_agent?: string | null
+          user_id?: string
+        }
+        Update: {
+          app_version?: string | null
+          created_at?: string
+          id?: string
+          kind?: string
+          language?: string | null
+          message?: string
+          online?: boolean | null
+          route?: string | null
+          stack?: string | null
+          standalone?: boolean | null
+          user_agent?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       client_sync_failures: {
         Row: {
           created_at: string

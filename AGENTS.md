@@ -47,3 +47,7 @@
 - `/cadastro` data goes via `cadastro` auth metadata into `handle_new_user` (range-checked), so it saves even without a session.
 
 - Signups always get role aluno; never read roles from client metadata (escalation).
+
+- Boot never stays black: index.html's watchdog shows "Atualizar app" (one automatic SW/cache clear per 10 min) when React has not mounted in 6 s, auth/heartbeat network calls time out at 6 s falling back to the cached user, and route guards render AppLoadingScreen instead of null, because a stuck Wi-Fi left iOS PWAs on an empty screen after the splash was hidden.
+- The workout player uses 100lvh only when installed (standalone); in a browser it uses the visible height (`workoutViewport.ts`), because lvh hid the footer (Next/Finish) under Safari/Chrome bars with scrolling locked.
+- Client errors go to `client_errors` via `clientErrorLog.ts` (client UUID so resends never duplicate, max 20 per session, boot failures flushed on next open); admins read them in AlunoDetail › Erros do app.

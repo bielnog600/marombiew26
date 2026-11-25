@@ -24,7 +24,8 @@ import { Sparkles } from 'lucide-react';
 import KarvonenZones from '@/components/KarvonenZones';
 import StudentFinancialTab from '@/components/financial/StudentFinancialTab';
 import StudentExerciseVideos from '@/components/admin/StudentExerciseVideos';
-import { Wallet } from 'lucide-react';
+import { Wallet, Bug } from 'lucide-react';
+import ClientErrorsTab from '@/components/admin/ClientErrorsTab';
 import AdminWeightTrackingDialog from '@/components/admin/AdminWeightTrackingDialog';
 import AiBodyCompositionDialog from '@/components/admin/AiBodyCompositionDialog';
 import { Scale } from 'lucide-react';
@@ -244,6 +245,7 @@ const AlunoDetail = () => {
               <TabsTrigger value="dietas" className="text-xs sm:text-sm"><UtensilsCrossed className="mr-1 h-4 w-4 shrink-0" /> Dietas</TabsTrigger>
               <TabsTrigger value="fichas" className="text-xs sm:text-sm"><FileQuestion className="mr-1 h-4 w-4 shrink-0" /> Fichas</TabsTrigger>
               <TabsTrigger value="financeiro" className="text-xs sm:text-sm"><Wallet className="mr-1 h-4 w-4 shrink-0" /> Financeiro</TabsTrigger>
+              <TabsTrigger value="erros" className="text-xs sm:text-sm"><Bug className="mr-1 h-4 w-4 shrink-0" /> Erros do app</TabsTrigger>
             </TabsList>
           </div>
 
@@ -535,6 +537,9 @@ const AlunoDetail = () => {
 
           <TabsContent value="financeiro">
             <StudentFinancialTab studentId={id!} studentName={profile?.nome || 'Aluno'} />
+          </TabsContent>
+          <TabsContent value="erros">
+            <ClientErrorsTab studentId={id!} />
           </TabsContent>
         </Tabs>
       </div>

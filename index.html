@@ -105,6 +105,62 @@
       <p data-splash-update-status="true">Carregando...</p>
     </div>
     <div id="root"></div>
+    <script>
+      // Vigia do boot: se o app não montar em 6 s (parte do app antiga em cache,
+      // erro no início ou rede presa), nunca deixa a tela preta. Tenta UMA
+      // recuperação automática (limpa caches do app e recarrega) a cada 10 min;
+      // depois disso mostra a tela "Atualizar app" com botão.
+      (function () {
+        var errs = [];
+        window.addEventListener('error', function (e) {
+          var t = e.target; errs.push(t && t.src ? 'load ' + t.src : (e.message || 'erro'));
+        }, true);
+        window.addEventListener('unhandledrejection', function (e) { errs.push(String(e.reason && e.reason.message || e.reason)); });
+        function standalone() { try { return !!navigator.standalone || matchMedia('(display-mode: standalone)').matches; } catch (x) { return false; } }
+        function clearAndReload() {
+          var tasks = [];
+          try {
+            if (navigator.serviceWorker) tasks.push(navigator.serviceWorker.getRegistrations().then(function (rs) {
+              return Promise.all(rs.filter(function (r) {
+                var w = r.active || r.waiting || r.installing; return w && new URL(w.scriptURL).pathname === '/sw.js';
+              }).map(function (r) { return r.unregister(); }));
+            }));
+            if (window.caches) tasks.push(caches.keys().then(function (ks) {
+              return Promise.all(ks.filter(function (k) { return /workbox|precache|runtime|pages|images|fonts|assets/i.test(k); }).map(function (k) { return caches.delete(k); }));
+            }));
+          } catch (x) {}
+          try { sessionStorage.removeItem('_splashDone'); } catch (x) {}
+          Promise.all(tasks).catch(function () {}).then(function () { location.reload(); });
+        }
+        window.__mwRecoverApp = clearAndReload;
+        var startedAt = Date.now();
+        function check() {
+          if (window.__mwAppMounted) return;
+          // Ainda baixando numa rede lenta, sem erro: espera mais um pouco (até 20 s).
+          if (!errs.length && document.readyState !== 'complete' && Date.now() - startedAt < 20000) { setTimeout(check, 2000); return; }
+          try {
+            localStorage.setItem('mw_boot_failure', JSON.stringify({ at: new Date().toISOString(), route: location.pathname, standalone: standalone(), detail: errs.slice(0, 3).join(' | ').slice(0, 500) }));
+          } catch (x) {}
+          var last = 0;
+          try { last = Number(localStorage.getItem('mw_boot_recover_at') || 0); } catch (x) {}
+          if (navigator.onLine && Date.now() - last > 600000) {
+            try { localStorage.setItem('mw_boot_recover_at', String(Date.now())); } catch (x) {}
+            clearAndReload();
+            return;
+          }
+          var box = document.createElement('div');
+          box.id = 'boot-recovery';
+          box.setAttribute('style', 'position:fixed;inset:0;z-index:100000;background:#0F1115;color:#f4f4f5;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:24px;text-align:center;font-family:Inter,system-ui,-apple-system,sans-serif');
+          box.innerHTML = '<img src="/splash-logo.webp" alt="" width="96" height="96" style="border-radius:14px"/>' +
+            '<p style="margin:0;font-size:17px;font-weight:700">O app não abriu</p>' +
+            '<p style="margin:0;font-size:14px;opacity:.75;max-width:300px">Seus treinos e registros estão salvos. Toque para baixar a versão mais nova.</p>' +
+            '<button type="button" style="min-height:48px;padding:0 28px;border:0;border-radius:14px;background:#FFC400;color:#0F1115;font-weight:800;font-size:15px">Atualizar app</button>';
+          box.querySelector('button').addEventListener('click', clearAndReload);
+          document.body.appendChild(box);
+        }
+        setTimeout(check, 6000);
+      })();
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

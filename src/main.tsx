@@ -6,6 +6,19 @@ import "./index.css";
 
 import { reloadOnceForChunkError } from "./lib/appUpdate/chunkReload";
 import { startPwaUpdates } from "./lib/appUpdate/pwaRegistration";
+import { installClientErrorLogging } from "./lib/clientErrorLog";
+import { useEffect } from "react";
+
+installClientErrorLogging();
+
+/** Avisa o vigia do index.html que o React montou (senão ele mostra "Atualizar app"). */
+const BootMarker = () => {
+  useEffect(() => {
+    (window as Window & { __mwAppMounted?: boolean }).__mwAppMounted = true;
+    document.getElementById("boot-recovery")?.remove();
+  }, []);
+  return null;
+};
 
 // Parte do app (chunk) que não existe mais após um deploy: recarrega uma vez.
 window.addEventListener("vite:preloadError", (event) => {
@@ -41,4 +54,4 @@ const forcePortraitOrientation = () => {
 
 forcePortraitOrientation();
  
-createRoot(document.getElementById("root")!).render(<App />);
+createRoot(document.getElementById("root")!).render(<><App /><BootMarker /></>);
