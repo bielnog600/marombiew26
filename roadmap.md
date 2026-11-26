@@ -441,3 +441,8 @@ Fora do escopo desta entrega (Fases 3-6): LOW/MEDIUM/HIGH, novo carb cycling, aj
 - [x] Dietas/Treinos/Dashboard: plano mais recente por aluno sem carga excessiva, ciclo pela data base do título e alunos sem plano visíveis.
 - [x] Testes de regras, verificação visual e build.
 - [ ] Conferir com login real do admin — validação visual usou sessão e dados simulados, sem gravações.
+
+## Compartilhar treino — modelos de Sticker
+- [x] Card e snapshot intactos; 14 modelos com tempo, X/Y exercícios e S T Q Q S S D usando os mesmos dados do Card.
+- [x] Logo sem moldura/fundo extra e com sombra no preview e nos PNGs; miniaturas, tamanho P/M/G e fundo transparente/vidro.
+- [x] Foto local, arraste, pinça 0,5–2,5, PNG transparente e story 1080×1920 conferidos no Chromium; 40 testes e build OK. Suíte: 2.587 aprovados; única falha é a verificação antiga do pacote officeCore, fora deste escopo. TABATA intacto.

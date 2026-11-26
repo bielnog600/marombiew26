@@ -1,8 +1,8 @@
 import React, { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import { toPng } from 'html-to-image';
-import { Camera, Check, Image as ImageIcon, RefreshCw, Trash2 } from 'lucide-react';
+import { Camera, Image as ImageIcon, RefreshCw, Trash2 } from 'lucide-react';
 import {
-  STICKER_STYLES,
+  STICKER_PRESETS,
   STORY_HEIGHT,
   STORY_WIDTH,
   TAP_MAX_MOVE_PX,
@@ -11,109 +11,21 @@ import {
   nextStickerStyle,
   pinchStickerScale,
   stickerStoryRect,
+  type StickerBackground,
+  type StickerLogoSize,
   type StickerStyle,
 } from '@/lib/shareSticker';
+import { StickerArt, type WorkoutStickerData } from '@/components/training/StickerArt';
 
 const Y = '#F5C400';
-const SHADOW = '0 2px 10px rgba(0,0,0,0.55)';
-const WEEK = [
-  { label: 'S', idx: 1 }, { label: 'T', idx: 2 }, { label: 'Q', idx: 3 }, { label: 'Q', idx: 4 },
-  { label: 'S', idx: 5 }, { label: 'S', idx: 6 }, { label: 'D', idx: 0 },
-];
 
-export interface WorkoutStickerData {
-  logoSrc: string;
-  timeText: string;
-  dayName: string;
-  exercisesText: string;
-  durationText: string;
-  weekDays: boolean[];
-}
+export type { WorkoutStickerData } from '@/components/training/StickerArt';
+export { StickerArt } from '@/components/training/StickerArt';
 
 export interface WorkoutStickerEditorHandle {
   /** PNG blob: 1080×1920 story with the photo, or transparent sticker when there is no photo. */
   exportImage: () => Promise<{ blob: Blob; withPhoto: boolean }>;
 }
-
-const glass: React.CSSProperties = {
-  background: 'rgba(15,17,21,0.55)',
-  backdropFilter: 'blur(14px)',
-  WebkitBackdropFilter: 'blur(14px)',
-  border: '1px solid rgba(255,255,255,0.12)',
-};
-
-export const StickerArt: React.FC<{ style: StickerStyle; data: WorkoutStickerData }> = ({ style, data }) => {
-  const time = (size: number) => (
-    <div className="font-mono font-black tabular-nums leading-none" style={{ color: Y, fontSize: size, textShadow: '0 0 30px rgba(245,196,0,0.35), ' + SHADOW }}>
-      {data.timeText}
-    </div>
-  );
-  if (style === 'tempo') {
-    return (
-      <div data-testid="sticker-tempo" className="flex flex-col items-center text-center px-3 py-2" style={{ width: 220 }}>
-        <div className="h-16 w-16 rounded-full overflow-hidden flex items-center justify-center mb-2" style={{ background: '#0F1115', border: `2px solid ${Y}` }}>
-          <img src={data.logoSrc} alt="MAROMBIEW" className="h-14 w-14 object-contain" />
-        </div>
-        <p className="text-[10px] uppercase tracking-[0.3em] mb-1" style={{ color: '#fff', textShadow: SHADOW }}>Tempo Total</p>
-        {time(56)}
-        <p className="text-lg font-black mt-3 leading-tight" style={{ color: '#fff', textShadow: SHADOW }}>{data.dayName.toUpperCase()}</p>
-        <div className="h-[2px] w-12 mt-3" style={{ background: Y }} />
-      </div>
-    );
-  }
-  if (style === 'mini') {
-    return (
-      <div data-testid="sticker-mini" className="rounded-2xl p-3" style={{ ...glass, width: 230 }}>
-        <div className="flex items-center gap-2 mb-2">
-          <img src={data.logoSrc} alt="MAROMBIEW" className="h-8 w-auto object-contain" />
-          <div className="min-w-0">
-            <div className="font-mono font-black tabular-nums leading-none" style={{ color: Y, fontSize: 28 }}>{data.timeText}</div>
-            <p className="text-[11px] font-black truncate mt-1" style={{ color: '#fff' }}>{data.dayName.toUpperCase()}</p>
-          </div>
-        </div>
-        <div className="grid grid-cols-2 gap-2">
-          {[['Exercícios', data.exercisesText], ['Duração', data.durationText]].map(([k, v]) => (
-            <div key={k} className="rounded-xl p-2 text-center" style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)' }}>
-              <div className="text-base font-black" style={{ color: '#fff' }}>{v}</div>
-              <div className="text-[8px] uppercase tracking-widest" style={{ color: 'rgba(255,255,255,0.55)' }}>{k}</div>
-            </div>
-          ))}
-        </div>
-      </div>
-    );
-  }
-  if (style === 'frequencia') {
-    return (
-      <div data-testid="sticker-frequencia" className="rounded-2xl p-3" style={{ ...glass, width: 250 }}>
-        <div className="flex items-center gap-2 mb-2 justify-center">
-          <img src={data.logoSrc} alt="MAROMBIEW" className="h-7 w-auto object-contain" />
-          <p className="text-[9px] uppercase tracking-widest" style={{ color: 'rgba(255,255,255,0.7)' }}>Frequência da semana</p>
-        </div>
-        <div className="grid grid-cols-7 gap-1">
-          {WEEK.map((d, i) => {
-            const done = data.weekDays[d.idx];
-            return (
-              <div key={i} className="flex flex-col items-center gap-1">
-                <div className="h-7 w-7 rounded-full flex items-center justify-center" style={{ background: done ? Y : 'transparent', border: done ? 'none' : '1.5px solid rgba(255,255,255,0.3)' }}>
-                  {done && <Check className="h-4 w-4" style={{ color: '#0F1115' }} strokeWidth={3} />}
-                </div>
-                <span className="text-[9px] font-bold" style={{ color: 'rgba(255,255,255,0.7)' }}>{d.label}</span>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    );
-  }
-  return (
-    <div data-testid="sticker-selo" className="flex flex-col items-center gap-2 p-2" style={{ width: 220 }}>
-      <img src={data.logoSrc} alt="MAROMBIEW" className="h-24 w-auto object-contain" style={{ filter: 'drop-shadow(0 2px 8px rgba(0,0,0,0.5))' }} />
-      <div className="rounded-full px-4 py-2 font-black text-sm whitespace-nowrap" style={{ background: Y, color: '#0F1115' }}>
-        TREINO FEITO · <span className="font-mono tabular-nums">{data.timeText}</span>
-      </div>
-    </div>
-  );
-};
 
 const waitForAssets = async (root: HTMLElement) => {
   try { await (document as any).fonts?.ready; } catch { /* ignore */ }
@@ -140,6 +52,8 @@ export const WorkoutStickerEditor = forwardRef<WorkoutStickerEditorHandle, { dat
   const galleryRef = useRef<HTMLInputElement>(null);
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
   const [style, setStyle] = useState<StickerStyle>('tempo');
+  const [logoSize, setLogoSize] = useState<StickerLogoSize>('M');
+  const [background, setBackground] = useState<StickerBackground>('transparente');
   const [pos, setPos] = useState({ x: 0.5, y: 0.5 });
   const [scale, setScale] = useState(1);
   const pointers = useRef(new Map<number, { x: number; y: number }>());
@@ -210,7 +124,7 @@ export const WorkoutStickerEditor = forwardRef<WorkoutStickerEditorHandle, { dat
       const previewW = area.clientWidth || 360;
       if (!photoUrl) {
         const opts = { cacheBust: true, pixelRatio: 4, width: w, height: h };
-        await toPng(art, opts); // first pass primes fonts/images
+        await toPng(art, opts); // first pass primes fonts/images and preserves the inline logo drop-shadow
         const url = await toPng(art, opts);
         return { blob: await dataUrlToBlob(url), withPhoto: false };
       }
@@ -233,10 +147,11 @@ export const WorkoutStickerEditor = forwardRef<WorkoutStickerEditorHandle, { dat
       if (!blob) throw new Error('Falha ao gerar imagem');
       return { blob, withPhoto: true };
     },
-  }), [photoUrl, pos, scale]);
+  }), [photoUrl, pos, scale, style, logoSize, background]);
 
   const roundBtn = 'h-10 w-10 rounded-full flex items-center justify-center text-white';
   const roundStyle: React.CSSProperties = { background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(8px)' };
+  const hasLogo = style !== 'marca-dagua';
 
   return (
     <div className="w-full max-w-[360px] space-y-3">
@@ -281,14 +196,74 @@ export const WorkoutStickerEditor = forwardRef<WorkoutStickerEditorHandle, { dat
           onPointerCancel={onPointerUp}
         >
           <div ref={artRef} style={{ background: 'transparent' }}>
-            <StickerArt style={style} data={data} />
+            <StickerArt style={style} data={data} logoSize={logoSize} background={background} />
           </div>
         </div>
       </div>
-      <div className="flex justify-center gap-1.5" aria-label="Estilo do sticker">
-        {STICKER_STYLES.map((s) => (
-          <span key={s} data-active={s === style} className="h-2 w-2 rounded-full" style={{ background: s === style ? Y : 'rgba(255,255,255,0.25)' }} />
-        ))}
+
+      <div>
+        <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground mb-2">Modelo do sticker</p>
+        <div aria-label="Modelos de sticker" className="flex gap-2 overflow-x-auto pb-2" style={{ WebkitOverflowScrolling: 'touch' }}>
+          {STICKER_PRESETS.map((preset) => {
+            const active = preset.value === style;
+            return (
+              <button
+                key={preset.value}
+                type="button"
+                aria-label={`Modelo ${preset.label}`}
+                aria-pressed={active}
+                onClick={() => setStyle(preset.value)}
+                className="shrink-0 w-[88px] h-[88px] rounded-xl border transition-colors overflow-hidden"
+                style={{
+                  borderColor: active ? Y : 'rgba(255,255,255,0.12)',
+                  background: active ? 'rgba(245,196,0,0.10)' : 'rgba(255,255,255,0.04)',
+                  boxShadow: active ? '0 0 0 1px rgba(245,196,0,0.22)' : 'none',
+                }}
+              >
+                <span className="relative block h-[58px] w-full overflow-hidden pointer-events-none" aria-hidden="true">
+                  <span className="absolute left-1/2 top-1/2 block w-max" style={{ transform: 'translate(-50%, -50%) scale(0.18)' }}>
+                    <StickerArt style={preset.value} data={data} logoSize={logoSize} background={background} thumbnail />
+                  </span>
+                </span>
+                <span className="block px-1 text-[9px] font-bold leading-[1.1]" style={{ color: active ? Y : 'rgba(255,255,255,0.72)' }}>{preset.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground mb-1.5">Tamanho da logo</p>
+          <div role="group" aria-label="Tamanho da logo" className="flex rounded-lg p-1 bg-card border border-border" style={{ opacity: hasLogo ? 1 : 0.45 }}>
+            {(['P', 'M', 'G'] as const).map((size) => (
+              <button
+                key={size}
+                type="button"
+                aria-pressed={logoSize === size}
+                disabled={!hasLogo}
+                onClick={() => setLogoSize(size)}
+                className="flex-1 h-8 rounded-md text-xs font-black"
+                style={{ background: logoSize === size ? Y : 'transparent', color: logoSize === size ? '#0F1115' : 'rgba(255,255,255,0.68)' }}
+              >{size}</button>
+            ))}
+          </div>
+        </div>
+        <div>
+          <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground mb-1.5">Fundo do sticker</p>
+          <div role="group" aria-label="Fundo do sticker" className="flex rounded-lg p-1 bg-card border border-border">
+            {([{ value: 'transparente', label: 'Transparente' }, { value: 'vidro', label: 'Vidro escuro' }] as const).map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                aria-pressed={background === option.value}
+                onClick={() => setBackground(option.value)}
+                className="flex-1 h-8 rounded-md text-[9px] font-bold px-1"
+                style={{ background: background === option.value ? Y : 'transparent', color: background === option.value ? '#0F1115' : 'rgba(255,255,255,0.68)' }}
+              >{option.label}</button>
+            ))}
+          </div>
+        </div>
       </div>
       <p className="text-xs text-center text-muted-foreground">Arrasta e pinça o sticker. Toca nele pra trocar o estilo.</p>
     </div>

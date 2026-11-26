@@ -1,6 +1,25 @@
-// Pure helpers for the workout share "Sticker" editor (position, scale, styles, export geometry).
-export const STICKER_STYLES = ['tempo', 'mini', 'frequencia', 'selo'] as const;
-export type StickerStyle = (typeof STICKER_STYLES)[number];
+// Pure helpers for the workout share "Sticker" editor (position, scale, presets, export geometry).
+export const STICKER_PRESETS = [
+  { value: 'tempo', label: 'Tempo' },
+  { value: 'mini', label: 'Mini card' },
+  { value: 'frequencia', label: 'Frequência' },
+  { value: 'selo', label: 'Selo' },
+  { value: 'logo-topo-grande', label: 'Logo topo grande' },
+  { value: 'logo-topo-pequena', label: 'Logo topo pequena' },
+  { value: 'logo-central', label: 'Logo central' },
+  { value: 'logo-embaixo', label: 'Logo embaixo' },
+  { value: 'horizontal', label: 'Horizontal' },
+  { value: 'faixa', label: 'Faixa' },
+  { value: 'coluna', label: 'Coluna' },
+  { value: 'semana-destaque', label: 'Semana em destaque' },
+  { value: 'minimal', label: 'Minimal' },
+  { value: 'marca-dagua', label: "Marca d'água" },
+] as const;
+
+export const STICKER_STYLES = STICKER_PRESETS.map((preset) => preset.value) as StickerStyle[];
+export type StickerStyle = (typeof STICKER_PRESETS)[number]['value'];
+export type StickerLogoSize = 'P' | 'M' | 'G';
+export type StickerBackground = 'transparente' | 'vidro';
 
 export const STICKER_MIN_SCALE = 0.5;
 export const STICKER_MAX_SCALE = 2.5;
