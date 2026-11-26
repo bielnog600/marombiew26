@@ -8,6 +8,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import logoMarombiew from '@/assets/logo_marombiew.png';
 import { getWeekRange } from '@/lib/localTrackingWeek';
+import { WorkoutStickerEditor, type WorkoutStickerEditorHandle } from '@/components/training/WorkoutStickerEditor';
 
 interface WorkoutSummaryShareProps {
   dayName: string;
@@ -38,6 +39,8 @@ export const WorkoutSummaryShare: React.FC<WorkoutSummaryShareProps> = ({
   onClose,
 }) => {
   const cardRef = useRef<HTMLDivElement>(null);
+  const stickerRef = useRef<WorkoutStickerEditorHandle>(null);
+  const [mode, setMode] = useState<'card' | 'sticker'>('card');
   const [isSharing, setIsSharing] = useState(false);
   const [weekDays, setWeekDays] = useState<boolean[]>([false, false, false, false, false, false, false]);
   const [logoDataUrl, setLogoDataUrl] = useState<string>(logoMarombiew);
@@ -87,6 +90,7 @@ export const WorkoutSummaryShare: React.FC<WorkoutSummaryShareProps> = ({
   }, [user]);
 
   const generateImage = async (): Promise<Blob | null> => {
+    if (mode === 'sticker') return (await stickerRef.current?.exportImage())?.blob ?? null;
     if (!cardRef.current) return null;
 
     // Ensure all images inside the card are fully decoded before capture.
@@ -181,8 +185,37 @@ export const WorkoutSummaryShare: React.FC<WorkoutSummaryShareProps> = ({
           <p className="text-sm text-muted-foreground mt-1">Compartilhe seu resultado</p>
         </div>
 
+        <div role="tablist" aria-label="Formato" className="flex w-full max-w-[360px] rounded-xl p-1 bg-card border border-border">
+          {(['card', 'sticker'] as const).map((m) => (
+            <button
+              key={m}
+              type="button"
+              role="tab"
+              aria-selected={mode === m}
+              onClick={() => setMode(m)}
+              className={`flex-1 h-9 rounded-lg text-sm font-bold transition-colors ${mode === m ? 'bg-primary text-primary-foreground' : 'text-muted-foreground'}`}
+            >
+              {m === 'card' ? 'Card' : 'Sticker'}
+            </button>
+          ))}
+        </div>
+
+        {mode === 'sticker' && (
+          <WorkoutStickerEditor
+            ref={stickerRef}
+            data={{
+              logoSrc: logoDataUrl,
+              timeText: formatDuration(durationSeconds),
+              dayName,
+              exercisesText: `${exercisesCompleted}/${totalExercises}`,
+              durationText: `${Math.max(1, Math.round(durationSeconds / 60))} min`,
+              weekDays,
+            }}
+          />
+        )}
+
         {/* Shareable card — 9:16 ratio for stories */}
-        <div className="w-full max-w-[360px]">
+        <div className="w-full max-w-[360px]" hidden={mode !== 'card'}>
           <div
             ref={cardRef}
             className="relative w-full overflow-hidden rounded-3xl"
