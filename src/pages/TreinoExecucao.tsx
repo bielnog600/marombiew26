@@ -63,8 +63,9 @@ import { variationPrefKey, backendVariationPref } from '@/lib/exerciseVariationP
 import { WorkoutViewportDebug } from '@/components/training/WorkoutViewportDebug';
 import { parsePauseSeconds } from '@/components/training/TrainerLogSheetUtils';
 import { restAfterSet } from '@/lib/setTypeRest';
-import { mergeLivePlanUpdate, type LiveSetsByIndex } from '@/lib/livePlanUpdate';
+import { mergeLivePlanUpdate, shouldApplyLivePlan, type LiveSetsByIndex } from '@/lib/livePlanUpdate';
 import { useStudentPlanRealtime } from '@/hooks/useStudentPlanRealtime';
+import { currentCyclePlans } from '@/lib/currentCyclePlans';
 import { writeWithFallback } from '@/lib/offlineQueue';
 import { getCachedPreviousExerciseSets } from '@/lib/offlineWorkoutHistory';
 import { executedRepsForLog, executedRepsInteger, repsInputValue, requiresExecutedReps, sanitizeResumedSetReps } from '@/lib/setRepsInput';
@@ -702,19 +703,22 @@ const TreinoExecucaoInner = () => {
   // andamento, mantendo as séries já feitas (regras em livePlanUpdate).
   const livePlanRef = useRef({ exercises, sets, currentIndex, dayName, rest: inlineRest.rest, finished: false });
   livePlanRef.current = { exercises, sets, currentIndex, dayName, rest: inlineRest.rest, finished: isFinishing || !!summary };
+  const sessionPlanIdRef = useRef(sessionPlanId);
+  sessionPlanIdRef.current = sessionPlanId;
   const applyCoachPlanUpdate = useCallback(async () => {
     if (!user || livePlanRef.current.finished || livePlanRef.current.exercises.length === 0) return;
+    // Só o MESMO plano da sessão é aplicado ao vivo; um plano novo vale no próximo treino.
+    const planId = sessionPlanIdRef.current;
+    if (!planId) return;
     const { data: plan, error } = await supabase
       .from('ai_plans')
       .select('id, conteudo, conteudo_json, migration_status, fase, fase_inicio_data')
+      .eq('id', planId)
       .eq('student_id', user.id)
       .eq('tipo', 'treino')
-      .eq('is_draft', false)
-      .order('created_at', { ascending: false })
-      .limit(1)
       .maybeSingle();
     const cur = livePlanRef.current;
-    if (error || !plan || cur.finished) return;
+    if (error || !plan || cur.finished || !shouldApplyLivePlan(planId, plan.id)) return;
     const { days } = getSafeWorkoutDays({ ...plan, tipo: 'treino' } as any);
     const day = days.find((d) => isSameWorkoutDay(d.day, cur.dayName));
     if (!day) return;
@@ -756,13 +760,13 @@ const TreinoExecucaoInner = () => {
       const { data: plans } = await fetchWithCache(`plans:treino:all:${user.id}`, async () => {
         const { data } = await supabase
           .from('ai_plans')
-          .select('id, conteudo, conteudo_json, migration_status, fase, fase_inicio_data')
+          .select('id, conteudo, conteudo_json, migration_status, fase, fase_inicio_data, block_start_date, is_draft')
           .eq('student_id', user.id)
           .eq('tipo', 'treino')
           .order('created_at', { ascending: false });
         return data;
       });
-      const treino = Array.isArray(plans) ? plans[0] : null;
+      const treino = Array.isArray(plans) ? currentCyclePlans(plans as any[])[0] ?? null : null;
       if (treino) {
         // Bug 2: Definir PlanId ao carregar diretamente
         setSessionPlanId(treino.id);

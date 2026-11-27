@@ -30,7 +30,8 @@ import {
   PHASE_DESCRIPTIONS,
   type TrainingPhase,
 } from '@/lib/trainingPhase';
-import { resolveCurrentTrainingPhaseFromPlans } from '@/lib/currentPhase';
+import { resolveCurrentTrainingPhaseFromPlans, resolveCurrentTrainingPhase } from '@/lib/currentPhase';
+import { currentCyclePlans, planForPhase } from '@/lib/currentCyclePlans';
 
 
 interface PlanRow {
@@ -125,13 +126,14 @@ const MeusTreinos = () => {
   const loadTraining = async () => {
     try {
       const { data } = await fetchWithCache(`plans:treino:all:${user!.id}`, async () => {
-        const { data } = await supabase.from('ai_plans').select('id, conteudo, conteudo_json, migration_status, fase, fase_inicio_data, periodization_model, periodization_reason, block_type, block_number, block_total, next_block_type, periodization_snapshot').eq('student_id', user!.id).eq('tipo', 'treino').order('created_at', { ascending: false });
+        const { data } = await supabase.from('ai_plans').select('id, conteudo, conteudo_json, migration_status, fase, fase_inicio_data, block_start_date, is_draft, periodization_model, periodization_reason, block_type, block_number, block_total, next_block_type, periodization_snapshot').eq('student_id', user!.id).eq('tipo', 'treino').order('created_at', { ascending: false });
         return data;
       });
 
       // Sempre o original em português: fase, mídia, aderência e o player
       // (que grava o histórico) dependem dos nomes reais. Tradução é só exibição.
-      const allPlans = (data ?? []) as PlanRow[];
+      // Só o ciclo atual: planos de ciclos antigos nunca viram o treino atual.
+      const allPlans = currentCyclePlans((data ?? []) as PlanRow[]);
       setPlans(allPlans);
 
       // Fase atual: fonte ÚNICA (timeline de fase_inicio_data; fallback plan.fase).
@@ -203,7 +205,7 @@ const MeusTreinos = () => {
 
   // Dias da fase ativa - Pega apenas o plano mais recente para esta fase
   const trainingDays = useMemo(() => {
-    const mostRecentPlan = plans.find(p => p.fase === activePhase);
+    const mostRecentPlan = planForPhase(plans, activePhase);
     if (!mostRecentPlan) return [];
     
     const { days, isFromJSON } = getSafeWorkoutDays({ ...mostRecentPlan, tipo: 'treino' });
@@ -223,7 +225,7 @@ const MeusTreinos = () => {
   }, [plans, activePhase]);
 
   // Tradução em segundo plano do plano exibido; só troca texto mostrado.
-  const displayedPlan = plans.find(p => p.fase === activePhase) ?? plans[0];
+  const displayedPlan = planForPhase(plans, activePhase);
   const displayedPlanId = displayedPlan?.id ?? null;
   const displayedContent = displayedPlan?.conteudo ?? '';
   const [translation, setTranslation] = useState<{ key: string; dict: PlanTextDictionary | null } | null>(null);
@@ -249,7 +251,7 @@ const MeusTreinos = () => {
   const activePlanForAdherence = useMemo(() => {
     // Aderência é sempre avaliada sobre a *semana planejada* pelo calendário,
     // não sobre a semana atualmente exibida (que pode já ser uma resolução).
-    const p = plans.find(pl => pl.fase === plannedPhase) || plans.find(pl => pl.fase === activePhase);
+    const p = plans.find(pl => pl.fase === plannedPhase) || planForPhase(plans, activePhase);
     if (!p || !user) return null;
     return { id: p.id, student_id: user.id, conteudo: p.conteudo, fase_inicio_data: (p as any).fase_inicio_data ?? null };
   }, [plans, activePhase, plannedPhase, user]);
@@ -312,7 +314,9 @@ const MeusTreinos = () => {
         exercises: day.exercises,
         dayName: day.day,
         exerciseMedia,
-        phase: activePhase,
+        // Fase da sessão = timeline do plano exibido (não muda durante o treino).
+        phase: displayedPlan ? resolveCurrentTrainingPhase(displayedPlan as any).phase : activePhase,
+        planId: displayedPlan?.id ?? null,
       },
     });
   };
@@ -361,7 +365,7 @@ const MeusTreinos = () => {
         )}
 
         <CycleSummaryAccordion
-          plan={plans.find(p => p.fase === activePhase) ?? plans[0]}
+          plan={displayedPlan}
           report={adherenceReport}
           loading={adherenceLoading}
           progression={progression}

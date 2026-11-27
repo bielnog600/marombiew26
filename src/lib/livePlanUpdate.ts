@@ -122,3 +122,8 @@ export function isRelevantPlanChange(
   if (fresh && fresh.is_draft === true) return false;
   return true;
 }
+
+/** Atualização ao vivo só quando o plano salvo é o mesmo plano da sessão. */
+export function shouldApplyLivePlan(sessionPlanId: string | null | undefined, updatedPlanId: string | null | undefined): boolean {
+  return !!sessionPlanId && !!updatedPlanId && sessionPlanId === updatedPlanId;
+}

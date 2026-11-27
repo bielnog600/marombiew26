@@ -26,6 +26,7 @@ interface LocationState {
   dayName: string;
   exerciseMedia: Record<string, ExerciseMediaInfo>;
   phase: TrainingPhase;
+  planId?: string | null;
 }
 
 const TreinoPreview = () => {
@@ -68,7 +69,7 @@ const TreinoPreview = () => {
 
   const handleStart = () => {
     navigate('/treino-execucao', {
-      state: { exercises, dayName, exerciseMedia, phase },
+      state: { exercises, dayName, exerciseMedia, phase, planId: state?.planId ?? null },
     });
   };
 
